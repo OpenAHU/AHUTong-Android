@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import androidx.navigation.NavHostController
@@ -71,7 +72,7 @@ private data class ActiveHomeWidgetDrag(
 @Composable
 fun Home(
     discoveryViewModel: DiscoveryViewModel = viewModel(),
-    scheduleViewModel: ScheduleViewModel = viewModel(),
+    scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     navController: NavHostController,
     homeEditEnabled: Boolean = false,
     enterEditModeRequest: Boolean = false,

@@ -5,10 +5,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.core.common.AppResult
+import com.ahu.ahutong.data.auth.AuthRepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.ext.launchSafe
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -17,40 +20,42 @@ import kotlinx.coroutines.withContext
  * @Date: 2021/8/14-上午8:58
  * @Email: 468766131@qq.com
  */
-class LoginViewModel : ViewModel() {
+@HiltViewModel
+class LoginViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
+) : ViewModel() {
     var state by mutableStateOf(LoginState.Idle)
     var failureMessage by mutableStateOf("")
     var succeedMessage by mutableStateOf("")
 
     /**
-     * 爬虫登录
+     * 登录（native HTTP → JNI → crawler）
      */
     fun loginWithCrawler(userID: String, password: String) = viewModelScope.launchSafe {
-
-        val result: Result<User> = try {
+        try {
             state = LoginState.InProgress
-            val response = withContext(Dispatchers.IO) {
-                AHURepository.loginWithCrawler(userID, password)
+            when (
+                val response = withContext(Dispatchers.IO) {
+                    authRepository.login(userID, password)
+                }
+            ) {
+                is AppResult.Success -> {
+                    state = LoginState.Succeeded
+                    succeedMessage = "欢迎，${response.data.name}！"
+                    AHUCache.saveCurrentUser(response.data)
+                    AHUCache.saveWisdomPassword(password)
+                    AHUCache.setAgreementAccepted()
+                    AHUCache.setBusinessAccepted()
+                    AHUCache.setPrivacyAccepted()
+                }
+                is AppResult.Error -> {
+                    state = LoginState.Failed
+                    failureMessage = response.message
+                }
             }
-
-            if(response.isSuccessful){
-                state = LoginState.Succeeded
-                succeedMessage = "欢迎，${response.data.name}！"
-                AHUCache.saveCurrentUser(response.data)
-                AHUCache.saveWisdomPassword(password)
-                AHUCache.setAgreementAccepted()
-                AHUCache.setBusinessAccepted()
-                AHUCache.setPrivacyAccepted()
-                Result.success(response.data)
-            }else{
-                state = LoginState.Failed
-                failureMessage = response.msg
-                Result.failure(IllegalArgumentException(response.msg))
-            }
-
-
-        }catch (e: Throwable) {
-            Result.failure(e)
+        } catch (e: Throwable) {
+            state = LoginState.Failed
+            failureMessage = e.message ?: "登录失败"
         }
     }
 }

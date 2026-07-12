@@ -134,6 +134,8 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:sdk-api"))
     implementation(project(":core:sdk"))
+    implementation(project(":data:schedule"))
+    implementation(project(":data:auth"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

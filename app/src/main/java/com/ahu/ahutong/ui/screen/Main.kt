@@ -25,6 +25,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
@@ -71,9 +72,9 @@ import kotlinx.coroutines.launch
 fun Main(
     navController: NavHostController,
     mainViewModel: MainViewModel = viewModel(),
-    loginViewModel: LoginViewModel = viewModel(),
+    loginViewModel: LoginViewModel = hiltViewModel(),
     discoveryViewModel: DiscoveryViewModel = viewModel(),
-    scheduleViewModel: ScheduleViewModel = viewModel(),
+    scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     aboutViewModel: AboutViewModel = viewModel(),
     isReLoginShown: Boolean,
     onReLoginDismiss: () -> Unit

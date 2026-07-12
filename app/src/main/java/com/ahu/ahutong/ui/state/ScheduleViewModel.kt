@@ -4,18 +4,20 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.AHUApplication
-import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
+import com.ahu.ahutong.data.schedule.ScheduleRepository
 import com.ahu.ahutong.ext.launchSafe
 import com.ahu.ahutong.notification.CourseReminderScheduler
+import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -24,7 +26,10 @@ import kotlinx.coroutines.withContext
  * @Date 2021/7/27-19:16
  * @Email 468766131@qq.com
  */
-class ScheduleViewModel () : ViewModel() {
+@HiltViewModel
+class ScheduleViewModel @Inject constructor(
+    private val scheduleRepository: ScheduleRepository,
+) : ViewModel() {
     val TAG = "ScheduleViewModel"
     val schedule = MutableLiveData<Result<List<Course>>>()
     val nextSchedule = MutableLiveData<Result<List<Course>>>()
@@ -58,7 +63,7 @@ class ScheduleViewModel () : ViewModel() {
                     return@withContext
                 }
 
-                val result = AHURepository.getSchedule(isRefresh = isRefresh)
+                val result = scheduleRepository.getSchedule(isRefresh = isRefresh).toKotlinResult()
                 schedule.value = result
                 if (result.isSuccess) {
                     CourseReminderScheduler.reschedule(AHUApplication.getApp())
@@ -76,7 +81,8 @@ class ScheduleViewModel () : ViewModel() {
                     return@withContext
                 }
 
-                nextSchedule.value = AHURepository.getNextSchedule(isRefresh = isRefresh)
+                nextSchedule.value =
+                    scheduleRepository.getNextSchedule(isRefresh = isRefresh).toKotlinResult()
             }
         }
     }

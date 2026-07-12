@@ -43,3 +43,7 @@ include(":core:datastore")
 include(":core:network")
 include(":core:sdk-api")
 include(":core:sdk")
+
+// Data domains (Phase 3+)
+include(":data:schedule")
+include(":data:auth")

@@ -34,6 +34,11 @@ sealed class AppResult<out T> {
         return this
     }
 
+    fun toKotlinResult(): Result<T> = when (this) {
+        is Success -> Result.success(data)
+        is Error -> Result.failure(cause ?: IllegalStateException(message))
+    }
+
     companion object {
         fun <T> success(data: T): AppResult<T> = Success(data)
         fun error(message: String, cause: Throwable? = null, code: Int? = null): AppResult<Nothing> =

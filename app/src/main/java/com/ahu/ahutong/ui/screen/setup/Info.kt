@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.kyant.capsule.ContinuousCapsule
@@ -56,7 +57,7 @@ import com.kyant.monet.withNight
 
 @Composable
 fun Info(
-    scheduleViewModel: ScheduleViewModel = viewModel(),
+    scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     onSetup: () -> Unit
 ) {
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()

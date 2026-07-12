@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import com.ahu.ahutong.data.dao.AHUCache
@@ -24,7 +25,7 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun Setup(
-    scheduleViewModel: ScheduleViewModel = viewModel(),
+    scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     aboutViewModel: AboutViewModel = viewModel(),
     onSetup: () -> Unit
 ) {

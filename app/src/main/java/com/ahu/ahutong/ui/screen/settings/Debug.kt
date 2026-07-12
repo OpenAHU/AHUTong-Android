@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.crawler.manager.TokenManager
@@ -62,7 +63,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun Debug(
-    scheduleViewModel: ScheduleViewModel = viewModel(),
+    scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     discoveryViewModel: DiscoveryViewModel = viewModel(),
     onGrayStateChanged: () -> Unit = {}
 ) {

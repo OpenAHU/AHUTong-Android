@@ -64,6 +64,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.crawler.manager.CookieManager
@@ -81,7 +82,7 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun Login(
-    loginViewModel: LoginViewModel = viewModel(),
+    loginViewModel: LoginViewModel = hiltViewModel(),
     onLoggedIn: () -> Unit
 ) {
     var userID by rememberSaveable(stateSaver = TextFieldValue.Saver) {
