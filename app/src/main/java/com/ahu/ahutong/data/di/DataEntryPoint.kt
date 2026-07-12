@@ -13,7 +13,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 
 /**
- * Entry point for object facades (AHURepository) and non-Hilt call sites.
+ * Entry point for non-Hilt call sites (widgets, OkHttp authenticators).
+ * Prefer constructor injection inside Hilt components.
+ * See [AppDataAccess] for a thin accessor wrapper.
  */
 @EntryPoint
 @InstallIn(SingletonComponent::class)

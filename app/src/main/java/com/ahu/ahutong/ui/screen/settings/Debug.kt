@@ -37,7 +37,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.dao.AHUCache
@@ -236,7 +235,6 @@ fun Debug(
                 onCheckedChange = {
                     mockedData = it
                     AHUCache.setMockData(it)
-                    AHURepository.initializeDataSource(it)
                     AHUCache.clearMockCurrentTimeMillis()
                     if (it) {
                         refreshMockEndpoint(null)
@@ -287,7 +285,6 @@ fun Debug(
                             endpointError = null
                             mockedData = true
                             AHUCache.setMockData(true)
-                            AHURepository.initializeDataSource(true)
                             refreshMockEndpoint(null)
                             Toast.makeText(
                                 context,
@@ -309,7 +306,6 @@ fun Debug(
                         endpointError = null
                         mockedData = true
                         AHUCache.setMockData(true)
-                        AHURepository.initializeDataSource(true)
                         refreshMockEndpoint(null)
                         Toast.makeText(context, "已恢复默认 Mock 场景", Toast.LENGTH_SHORT).show()
                     }

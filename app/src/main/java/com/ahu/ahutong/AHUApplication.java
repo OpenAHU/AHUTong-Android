@@ -9,7 +9,6 @@ import android.widget.Toast;
 import com.ahu.ahutong.core.common.AppContextHolder;
 import com.ahu.ahutong.core.sdk.CampusNativeGateway;
 import com.ahu.ahutong.core.sdk.di.SdkEntryPoint;
-import com.ahu.ahutong.data.AHURepository;
 import com.ahu.ahutong.data.dao.AHUCache;
 import com.ahu.ahutong.notification.CourseReminderScheduler;
 import com.tencent.bugly.crashreport.CrashReport;
@@ -50,9 +49,8 @@ public class AHUApplication extends Application {
         CourseReminderScheduler.INSTANCE.createNotificationChannel(this);
         CourseReminderScheduler.INSTANCE.reschedule(this);
 
-        // 初始化数据源（根据 Mock 开关）
+        // Mock 开关由 AHUCache + 各 data 源自行读取，无需再切换门面 DataSource
         if (AHUCache.INSTANCE.getMockData()) {
-            AHURepository.INSTANCE.initializeDataSource(true);
             Toast.makeText(this, "正在使用mock数据", Toast.LENGTH_SHORT).show();
         }
 

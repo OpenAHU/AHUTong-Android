@@ -2,10 +2,11 @@ package com.ahu.ahutong.data.crawler.net
 
 import android.util.Log
 import com.ahu.ahutong.AHUApplication
-import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.core.common.AppResult
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.di.AppDataAccess
 import kotlinx.coroutines.runBlocking
 import okhttp3.Authenticator
 import okhttp3.Request
@@ -43,20 +44,20 @@ class TokenAuthenticator : Authenticator {
                 TokenManager.clear()
 
 
-                AHUCache.getCurrentUser()?.let{
-                    val loginResponse = AHURepository.loginWithCrawler(
+                AHUCache.getCurrentUser()?.let {
+                    val loginResult = AppDataAccess.authRepository().login(
                         it.xh.toString(),
-                        AHUCache.getWisdomPassword().toString()
+                        AHUCache.getWisdomPassword().toString(),
                     )
 
-                    if (loginResponse.isSuccessful) {
+                    if (loginResult is AppResult.Success) {
                         AHUApplication.sessionExpired = false
-                        Log.e(TAG, "authenticate: 登录成功", )
+                        Log.e(TAG, "authenticate: 登录成功")
                         return@runBlocking response.request.newBuilder()
                             .build()
                     } else {
                         AHUApplication.sessionExpired = true
-                        Log.e(TAG, "authenticate: 登录失败了", )
+                        Log.e(TAG, "authenticate: 登录失败了")
                         return@runBlocking null
                     }
                 }

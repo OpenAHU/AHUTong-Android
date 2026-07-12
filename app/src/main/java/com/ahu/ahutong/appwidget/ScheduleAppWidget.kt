@@ -39,7 +39,8 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.ahu.ahutong.MainActivity
-import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.core.common.AppResult
+import com.ahu.ahutong.data.di.AppDataAccess
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
@@ -63,8 +64,14 @@ class ScheduleAppWidget : GlanceAppWidget() {
         val scheduleConfig = CurrentWeekResolver.resolveLocalFirst().config
         val currentWeek = scheduleConfig.week
         val weekDay = scheduleConfig.weekDay
-        val schedule =
-            runCatching { AHURepository.getSchedule(false) }.getOrNull()?.getOrNull().orEmpty()
+        val schedule = when (
+            val result = runCatching {
+                AppDataAccess.scheduleRepository().getSchedule(false)
+            }.getOrNull()
+        ) {
+            is AppResult.Success -> result.data
+            else -> emptyList()
+        }
         val currentMinutes = DebugClock.currentMinutes()
         val todayCourses = schedule
             .filter { currentWeek in it.startWeek..it.endWeek }

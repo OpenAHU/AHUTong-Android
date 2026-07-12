@@ -13,7 +13,8 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.compose.ui.graphics.toArgb
 import com.ahu.ahutong.R
-import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.core.common.AppResult
+import com.ahu.ahutong.data.di.AppDataAccess
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.ui.state.ScheduleViewModel
@@ -117,9 +118,14 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         val scheduleConfig = runBlocking { CurrentWeekResolver.resolveLocalFirst().config }
         val currentWeek = scheduleConfig.week
         val weekDay = scheduleConfig.weekDay
-        val schedule = runCatching {
-            runBlocking { AHURepository.getSchedule(false) }
-        }.getOrNull()?.getOrNull().orEmpty()
+        val schedule = when (
+            val result = runCatching {
+                runBlocking { AppDataAccess.scheduleRepository().getSchedule(false) }
+            }.getOrNull()
+        ) {
+            is AppResult.Success -> result.data
+            else -> emptyList()
+        }
         val currentMinutes = DebugClock.currentMinutes()
         val todayCourses = schedule
             .filter { currentWeek in it.startWeek..it.endWeek }
