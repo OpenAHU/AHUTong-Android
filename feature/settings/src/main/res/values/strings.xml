@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">安大通</string>
+    <string name="setting">设置</string>
     <string name="preferences">偏好设置</string>
     <string name="license">开源协议</string>
     <string name="contributors">贡献名单</string>
     <string name="mine_tv_partner">加入我们</string>
     <string name="mine_tv_developer">开发者</string>
+    <string name="mine_tv_feedback">意见反馈</string>
+    <string name="setting_clear">清除数据</string>
+    <string name="check_update">检查更新</string>
+    <string name="update_intro">更新日志</string>
 </resources>

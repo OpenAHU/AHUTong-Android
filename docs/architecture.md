@@ -32,7 +32,7 @@
 
 - Hilt bindings（`AppDataBindingsModule`）
 - 非 Hilt 访问：`AppDataAccess` + `DataEntryPoint`（微件、TokenAuthenticator）
-- 仍留在 app：Settings 主壳、Debug、Splash/Setup、crawler 实现
+- 仍留在 app：Debug、Splash/Setup、crawler 实现
 
 ## Phase 5 说明
 
@@ -43,12 +43,20 @@
 
 ## 可选后续
 
-1. 拆 Settings 主壳 / Debug  
+1. Debug 页面（强依赖 app mock source set / 灰度 / crawler / AHUCache）  
 2. 进一步下沉 crawler（JwxtApi、AdwmhApi）出 app  
 3. 收紧 `internal` 可见性与 public API  
+4. Splash / Setup 装配壳  
 
 ## feature:repository 说明
 
 - 学习资料 GitHub 浏览器：`GitHubApi` / `RepositoryManager` / `Repository` UI + downloads。
 - `RepositoryManager` 使用 `AppContextHolder`（不再依赖 `AHUApplication`）。
 - FileProvider 仍由 app manifest 提供（`${packageName}.fileprovider`）。
+
+## feature:settings 主壳说明
+
+- `Settings` 已迁入 `:feature:settings`。
+- App 通过回调注入：检查更新、清除会话、更新日志、当前用户展示。
+- 应用图标用 `PackageManager.getApplicationIcon`，避免 feature 依赖 app 资源。
+- **Debug** 仍留 app：绑定 debug/release `MockScenarioController`、`GrayReleaseManager`、`CookieManager`/`TokenManager`、`CourseReminderScheduler` 等。

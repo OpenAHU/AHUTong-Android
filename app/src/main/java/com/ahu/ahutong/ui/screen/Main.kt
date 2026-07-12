@@ -29,11 +29,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
+import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.data.mock.MockScenarioController
+import com.ahu.ahutong.data.server.AhuTong
+import com.ahu.ahutong.sdk.RustSDK
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.ElectricityDeposit
@@ -214,8 +218,27 @@ fun Main(
             animatedComposable("settings") {
                 Settings(
                     navController = navController,
-                    mainViewModel = mainViewModel,
-                    aboutViewModel = aboutViewModel
+                    aboutViewModel = aboutViewModel,
+                    userName = AHUCache.getCurrentUser()?.name,
+                    schoolTerm = AHUCache.getSchoolTerm(),
+                    onCheckUpdate = { onResult ->
+                        mainViewModel.checkApkUpdateManually(context, onResult)
+                    },
+                    onClearAllData = {
+                        mainViewModel.logout()
+                        AHUCache.clearAll()
+                        RustSDK.init("")
+                        CookieManager.cookieJar.clear()
+                        CookieManager.cookieJar.clearSession()
+                        AHUApplication.sessionExpired = true
+                    },
+                    loadUpdateLog = {
+                        runCatching {
+                            AhuTong.API.getApkUpdateInfo().changelog
+                                ?.ifBlank { "暂无更新说明" }
+                                ?: "暂无更新说明"
+                        }.getOrElse { "获取失败" }
+                    },
                 )
             }
             animatedComposable("settings__license") {

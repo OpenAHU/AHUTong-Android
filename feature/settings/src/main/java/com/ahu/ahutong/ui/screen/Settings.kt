@@ -2,8 +2,7 @@ package com.ahu.ahutong.ui.screen
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.net.Uri
-import androidx.core.net.toUri
+import android.graphics.drawable.BitmapDrawable
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.Image
@@ -42,42 +41,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
-import com.ahu.ahutong.AHUApplication
-import com.ahu.ahutong.Constants
-import com.ahu.ahutong.R
-import com.ahu.ahutong.data.api.AHUCookieJar
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.sdk.RustSDK
-import com.ahu.ahutong.data.crawler.manager.CookieManager
-import com.ahu.ahutong.data.mock_server.MockServer
-import com.ahu.ahutong.data.server.AhuTong
+import com.ahu.ahutong.feature.settings.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.AboutViewModel
-import com.ahu.ahutong.ui.state.MainViewModel
-import com.franmontiel.persistentcookiejar.cache.SetCookieCache
-import com.franmontiel.persistentcookiejar.persistence.SharedPrefsCookiePersistor
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 
+/**
+ * Settings shell. App-side effects (update check / clear session) are injected by the host
+ * so this feature does not depend on MainViewModel, crawler, or AHUCache.
+ */
 @SuppressLint("ContextCastToActivity")
 @Composable
 fun Settings(
     navController: NavHostController,
-    mainViewModel: MainViewModel = viewModel(),
-    aboutViewModel: AboutViewModel = hiltViewModel()
+    aboutViewModel: AboutViewModel = hiltViewModel(),
+    userName: String? = null,
+    schoolTerm: String? = null,
+    onCheckUpdate: (onResult: (String) -> Unit) -> Unit = {},
+    onClearAllData: () -> Unit = {},
+    loadUpdateLog: suspend () -> String = { "暂无更新说明" },
 ) {
     val context = LocalContext.current as ComponentActivity
     var isClearCacheDialogShown by rememberSaveable { mutableStateOf(false) }
@@ -85,23 +82,25 @@ fun Settings(
     val tip by remember { aboutViewModel.tipState }
     var updateLog by remember { mutableStateOf("") }
 
+    val appIconBitmap = remember(context) {
+        val drawable = context.packageManager.getApplicationIcon(context.packageName)
+        val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            drawable.bitmap
+        } else {
+            drawable.toBitmap()
+        }
+        bitmap.asImageBitmap()
+    }
+
     LaunchedEffect(tip) {
         tip?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            aboutViewModel.tipState.value = null;
+            aboutViewModel.tipState.value = null
         }
 
-        runCatching {
-            AhuTong.API.getApkUpdateInfo().changelog
-                ?.ifBlank { "暂无更新说明" }
-                ?: "暂无更新说明"
-        }
-            .onSuccess { updateLog = it }
-            .onFailure {
-                updateLog = "获取失败"
-            }
+        updateLog = runCatching { loadUpdateLog() }
+            .getOrElse { "获取失败" }
     }
-
 
     Column(
         modifier = Modifier
@@ -121,7 +120,7 @@ fun Settings(
         val clickTimes: Int = 8
         val interval: Long = 1000
         val checkUpdate = {
-            mainViewModel.checkApkUpdateManually(context) { message ->
+            onCheckUpdate { message ->
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
         }
@@ -157,7 +156,7 @@ fun Settings(
                 }
             ) {
                 Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                    bitmap = appIconBitmap,
                     contentDescription = null,
                     modifier = Modifier
                         .clip(ContinuousCapsule)
@@ -173,7 +172,7 @@ fun Settings(
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Text(
-                        text = aboutViewModel.versionName!!,
+                        text = aboutViewModel.versionName.orEmpty(),
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
@@ -185,7 +184,7 @@ fun Settings(
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleMedium
         )
-        AHUCache.getCurrentUser()?.let { user ->
+        userName?.let { name ->
             Column(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
@@ -201,19 +200,18 @@ fun Settings(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = user.name,
+                        text = name,
                         style = MaterialTheme.typography.headlineSmall
                     )
-                    AHUCache.getSchoolTerm()?.let {
-                        val data = it.split('-')  //2025-2026-1
+                    schoolTerm?.let { term ->
+                        val data = term.split('-')  //2025-2026-1
                         if (data.size == 3) {
                             Text(
-                                text = "第${data.get(0)}-${data.get(1)}学年 第${data.get(2)}学期",
+                                text = "第${data[0]}-${data[1]}学年 第${data[2]}学期",
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
                     }
-
                 }
                 Row(
                     modifier = Modifier
@@ -221,29 +219,6 @@ fun Settings(
                         .padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-//                    Row(
-//                        modifier = Modifier
-//                            .weight(1f)
-//                            .clip(ContinuousCapsule)
-//                            .background(100.n1 withNight 30.n1)
-//                            .clickable { navController.navigate("info") }
-//                            .padding(12.dp, 8.dp),
-//                        horizontalArrangement = Arrangement.spacedBy(
-//                            8.dp,
-//                            Alignment.CenterHorizontally
-//                        ),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        Icon(
-//                            imageVector = Icons.Outlined.Edit,
-//                            contentDescription = null,
-//                            modifier = Modifier.size(20.dp)
-//                        )
-//                        Text(
-//                            text = "修改信息",
-//                            style = MaterialTheme.typography.titleMedium
-//                        )
-//                    }
                     Row(
                         modifier = Modifier
                             .weight(1f)
@@ -282,7 +257,6 @@ fun Settings(
                 icon = Icons.Outlined.Tune,
                 onClick = { navController.navigate("preferences") }
             )
-
         }
 
         Text(
@@ -354,7 +328,6 @@ fun Settings(
                     .padding(vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-
                 Text(
                     text = "您的登录状态、课表等信息将会被永久清除",
                     modifier = Modifier.padding(horizontal = 24.dp),
@@ -367,20 +340,10 @@ fun Settings(
                         .clip(ContinuousCapsule)
                         .background(90.a1 withNight 30.n1)
                         .clickable {
-                            mainViewModel.logout()
-                            AHUCache.clearAll()
-                            RustSDK.init("")
-
-                            CookieManager.cookieJar.clear()
-                            CookieManager.cookieJar.clearSession()
-
-                            AHUApplication.sessionExpired = true
-
-
+                            onClearAllData()
                             Toast
                                 .makeText(context, "已清除所有数据", Toast.LENGTH_SHORT)
                                 .show()
-
                             navController.navigate("login") {
                                 popUpTo(0)
                             }
@@ -411,7 +374,6 @@ fun Settings(
                         .padding(horizontal = 24.dp)
                 ) {
                     Text(
-//                        text = RustSDK.getUpdateLog(),
                         text = updateLog,
                         style = MaterialTheme.typography.bodyLarge
                     )
