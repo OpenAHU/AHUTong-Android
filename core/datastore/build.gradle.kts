@@ -24,10 +24,16 @@ android {
 }
 
 dependencies {
+    api(project(":core:common"))
+    api(project(":core:model"))
+    api(project(":core:sdk"))
+
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.gson)
+    api(libs.mmkv.static)
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
 }

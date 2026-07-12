@@ -1,6 +1,6 @@
 package com.ahu.ahutong.data.dao
 
-import com.ahu.ahutong.AHUApplication
+import com.ahu.ahutong.core.common.AppContextHolder
 import com.ahu.ahutong.data.crawler.model.adwnh.CampusItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundTypeItem
@@ -27,7 +27,7 @@ import com.tencent.mmkv.MMKV
 object AHUCache {
 
     init {
-        MMKV.initialize(AHUApplication.getApp())
+        MMKV.initialize(AppContextHolder.requireApp())
     }
 
     private val kv_init: MMKV = MMKV.mmkvWithID("ahu")

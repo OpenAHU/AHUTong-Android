@@ -1,7 +1,7 @@
 package com.ahu.ahutong.data.server
 
 
-import com.ahu.ahutong.BuildConfig
+import com.ahu.ahutong.core.common.AppVersion
 import com.ahu.ahutong.data.server.model.ApkUpdateInfo
 import com.ahu.ahutong.data.server.model.Captcha
 import com.ahu.ahutong.data.server.model.GrayFeatureDecision
@@ -65,7 +65,7 @@ interface AhuTong {
             .followSslRedirects(true)
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .header("User-Agent", "AHUTong/${BuildConfig.VERSION_NAME} (Android)")
+                    .header("User-Agent", "AHUTong/${AppVersion.name()} (Android)")
                     .header("Accept", "*/*")
                     .build()
                 chain.proceed(request)

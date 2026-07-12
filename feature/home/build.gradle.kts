@@ -36,6 +36,7 @@ dependencies {
     api(project(":data:schedule"))
     api(project(":feature:schedule"))
     api(project(":feature:weather"))
+    // AhuCacheHomePreferences bindings
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)

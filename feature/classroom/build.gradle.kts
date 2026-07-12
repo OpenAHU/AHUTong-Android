@@ -31,7 +31,6 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
     api(project(":core:designsystem"))
-
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)
     implementation(libs.androidx.core.ktx)

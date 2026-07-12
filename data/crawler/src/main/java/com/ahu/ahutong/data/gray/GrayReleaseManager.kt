@@ -2,7 +2,7 @@ package com.ahu.ahutong.data.gray
 
 import android.content.Context
 import android.provider.Settings
-import com.ahu.ahutong.BuildConfig
+import com.ahu.ahutong.core.common.AppVersion
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.server.AhuTong
 import kotlinx.coroutines.Dispatchers
@@ -125,8 +125,8 @@ object GrayReleaseManager {
             val decision = AhuTong.GRAY_API.getGrayFeatureDecision(
                 feature = feature.key,
                 subject = subject,
-                versionCode = BuildConfig.VERSION_CODE,
-                versionName = BuildConfig.VERSION_NAME
+                versionCode = AppVersion.code(),
+                versionName = AppVersion.name(),
             )
             val enabled = decision.enabled
                 ?: throw IllegalStateException("Gray decision missing enabled")

@@ -25,8 +25,7 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
     api(project(":core:network"))
-    // ycard DTOs (CardInfo/Token) already live under data:payment package
-    api(project(":data:payment"))
+    api(project(":core:datastore"))
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)

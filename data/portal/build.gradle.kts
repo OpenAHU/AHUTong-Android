@@ -26,6 +26,9 @@ android {
 dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
+    api(project(":core:sdk-api"))
+    api(project(":core:datastore"))
+    api(project(":data:crawler"))
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)
