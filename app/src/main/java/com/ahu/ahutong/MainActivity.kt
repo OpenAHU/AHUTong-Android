@@ -69,15 +69,6 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 var isReLoginDialogShown by rememberSaveable { mutableStateOf(false) }
 
-//                if (showHotUpdateDialog) {
-//                    HotUpdateDialog(
-//                        isDownloading = isHotUpdateDownloading,
-//                        onConfirm = {
-//                            // 调用 SDK 的重启逻辑
-//                            RustSDK.restartApp(this)
-//                        }
-//                    )
-//                }
                 if (mainViewModel.showApkUpdateDialog.value && mainViewModel.apkUpdateInfo.value != null) {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     ApkUpdateDialog(

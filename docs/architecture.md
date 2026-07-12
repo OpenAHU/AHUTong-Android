@@ -32,7 +32,8 @@
 
 - Hilt bindings（`AppDataBindingsModule`）
 - 非 Hilt 访问：`AppDataAccess` + `DataEntryPoint`（微件、TokenAuthenticator）
-- 仍留在 app：Debug、域 sink 装配（`Crawler*Source` 等）、AHUCache / 微件 / 通知
+- 仍留在 app：Debug、域 sink 装配（`Crawler*Source` 等）、AHUCache / 微件 / 通知、Main 装配壳
+- 已清理死代码：`MockServer`、`HotUpdateDialog`、无引用的 `Constants.UPDATE_LOG`
 
 ## Phase 5 说明
 
