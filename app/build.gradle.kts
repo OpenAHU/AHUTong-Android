@@ -139,6 +139,7 @@ dependencies {
     implementation(project(":data:grade"))
     implementation(project(":data:exam"))
     implementation(project(":data:campuscard"))
+    implementation(project(":data:portal"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

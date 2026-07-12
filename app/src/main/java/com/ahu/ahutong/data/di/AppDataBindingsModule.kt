@@ -18,6 +18,10 @@ import com.ahu.ahutong.data.grade.AhuCacheGradeLocalStore
 import com.ahu.ahutong.data.grade.CrawlerGradeSource
 import com.ahu.ahutong.data.grade.GradeCrawlerSource
 import com.ahu.ahutong.data.grade.GradeLocalStore
+import com.ahu.ahutong.data.portal.AdwmhLostFoundRemoteSource
+import com.ahu.ahutong.data.portal.AhuCacheLostFoundLocalStore
+import com.ahu.ahutong.data.portal.LostFoundLocalStore
+import com.ahu.ahutong.data.portal.LostFoundRemoteSource
 import com.ahu.ahutong.data.schedule.AhuCacheScheduleLocalStore
 import com.ahu.ahutong.data.schedule.CrawlerScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleCrawlerSource
@@ -77,4 +81,12 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindCampusCardCrawlerSource(impl: CrawlerCampusCardSource): CampusCardCrawlerSource
+
+    @Binds
+    @Singleton
+    abstract fun bindLostFoundLocalStore(impl: AhuCacheLostFoundLocalStore): LostFoundLocalStore
+
+    @Binds
+    @Singleton
+    abstract fun bindLostFoundRemoteSource(impl: AdwmhLostFoundRemoteSource): LostFoundRemoteSource
 }

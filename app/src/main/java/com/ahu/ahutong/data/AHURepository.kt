@@ -25,6 +25,7 @@ import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.portal.LostFoundRepository
 import com.ahu.ahutong.data.schedule.ScheduleRepository
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +62,9 @@ object AHURepository {
 
     private fun campusCardRepository(): CampusCardRepository =
         dataEntryPoint().campusCardRepository()
+
+    private fun lostFoundRepository(): LostFoundRepository =
+        dataEntryPoint().lostFoundRepository()
 
     private suspend fun ensureYcardCredential(): Boolean {
         if (AHUCache.getMockData()) return true
@@ -183,40 +187,85 @@ object AHURepository {
 
     suspend fun getAllCampus(): AHUResponse<AllCampus> =
         withContext(Dispatchers.IO) {
-            dataSource.getAllCampus()
+            when (val result = lostFoundRepository().getAllCampus()) {
+                is AppResult.Success -> AHUResponse<AllCampus>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<AllCampus>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
 
     suspend fun getAllLostFoundType(): AHUResponse<AllLostFoundType> =
         withContext(Dispatchers.IO) {
-            dataSource.getAllLostFoundType()
+            when (val result = lostFoundRepository().getAllTypes()) {
+                is AppResult.Success -> AHUResponse<AllLostFoundType>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<AllLostFoundType>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
 
     suspend fun getLostFoundList(
         pageNo: Int,
         pageSize: Int,
-        state: Int
+        state: Int,
     ): AHUResponse<LostFoundResponse> =
         withContext(Dispatchers.IO) {
-
-            dataSource.getLostFoundList(
-                pageNo,
-                pageSize,
-                state
-            )
+            when (val result = lostFoundRepository().getList(pageNo, pageSize, state)) {
+                is AppResult.Success -> AHUResponse<LostFoundResponse>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<LostFoundResponse>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
 
     suspend fun publishLostFound(
-        request: LostFoundPublishRequest
+        request: LostFoundPublishRequest,
     ): AHUResponse<Any> =
         withContext(Dispatchers.IO) {
-            dataSource.publishLostFound(request)
+            when (val result = lostFoundRepository().publish(request)) {
+                is AppResult.Success -> AHUResponse<Any>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<Any>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
 
     suspend fun deleteLostFound(
-        id: String
+        id: String,
     ): AHUResponse<Any> =
         withContext(Dispatchers.IO) {
-            dataSource.deleteLostFound(id)
+            when (val result = lostFoundRepository().delete(id)) {
+                is AppResult.Success -> AHUResponse<Any>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<Any>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
 
     suspend fun getQrcode(): Result<String> =

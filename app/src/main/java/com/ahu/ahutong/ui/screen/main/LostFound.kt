@@ -37,6 +37,7 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.ui.state.LostFoundViewModel
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
@@ -47,7 +48,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LostFound(
-    lostFoundViewModel: LostFoundViewModel = viewModel()
+    lostFoundViewModel: LostFoundViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
