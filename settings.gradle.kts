@@ -56,3 +56,4 @@ include(":data:calendar")
 
 // Feature modules (Phase 4+)
 include(":feature:login")
+include(":feature:schedule")

@@ -9,7 +9,25 @@ import javax.inject.Singleton
 class AhuCacheScheduleLocalStore @Inject constructor() : ScheduleLocalStore {
     override fun isMockMode(): Boolean = AHUCache.getMockData()
 
+    override fun isLoggedIn(): Boolean = AHUCache.isLogin()
+
+    override fun getSchoolYear(): String? = AHUCache.getSchoolYear()
+
     override fun getSchoolTerm(): String? = AHUCache.getSchoolTerm()
+
+    override fun saveSchoolYear(schoolYear: String) {
+        AHUCache.saveSchoolYear(schoolYear)
+    }
+
+    override fun saveSchoolTerm(schoolTerm: String) {
+        AHUCache.saveSchoolTerm(schoolTerm)
+    }
+
+    override fun isShowAllCourse(): Boolean = AHUCache.isShowAllCourse()
+
+    override fun saveSchoolTermStartTime(schoolYear: String, schoolTerm: String, date: String) {
+        AHUCache.saveSchoolTermStartTime(schoolYear, schoolTerm, date)
+    }
 
     override fun getCachedSchedule(term: String): List<Course>? = AHUCache.getSchedule(term)
 

@@ -31,9 +31,13 @@ import com.ahu.ahutong.data.portal.AhuCacheLostFoundLocalStore
 import com.ahu.ahutong.data.portal.LostFoundLocalStore
 import com.ahu.ahutong.data.portal.LostFoundRemoteSource
 import com.ahu.ahutong.data.schedule.AhuCacheScheduleLocalStore
+import com.ahu.ahutong.data.schedule.AppScheduleReminderCoordinator
+import com.ahu.ahutong.data.schedule.AppScheduleWeekResolver
 import com.ahu.ahutong.data.schedule.CrawlerScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleCrawlerSource
 import com.ahu.ahutong.data.schedule.ScheduleLocalStore
+import com.ahu.ahutong.data.schedule.ScheduleReminderCoordinator
+import com.ahu.ahutong.data.schedule.ScheduleWeekResolver
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -53,6 +57,16 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindScheduleCrawlerSource(impl: CrawlerScheduleSource): ScheduleCrawlerSource
+
+    @Binds
+    @Singleton
+    abstract fun bindScheduleWeekResolver(impl: AppScheduleWeekResolver): ScheduleWeekResolver
+
+    @Binds
+    @Singleton
+    abstract fun bindScheduleReminderCoordinator(
+        impl: AppScheduleReminderCoordinator,
+    ): ScheduleReminderCoordinator
 
     @Binds
     @Singleton

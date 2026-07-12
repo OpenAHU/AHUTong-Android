@@ -9,7 +9,19 @@ import com.ahu.ahutong.data.model.Course
 interface ScheduleLocalStore {
     fun isMockMode(): Boolean
 
+    fun isLoggedIn(): Boolean
+
+    fun getSchoolYear(): String?
+
     fun getSchoolTerm(): String?
+
+    fun saveSchoolYear(schoolYear: String)
+
+    fun saveSchoolTerm(schoolTerm: String)
+
+    fun isShowAllCourse(): Boolean
+
+    fun saveSchoolTermStartTime(schoolYear: String, schoolTerm: String, date: String)
 
     fun getCachedSchedule(term: String): List<Course>?
 
@@ -19,3 +31,7 @@ interface ScheduleLocalStore {
 
     fun saveNextSchedule(courses: List<Course>)
 }
+
+/** True when the user may load schedule data (logged in or mock). */
+fun ScheduleLocalStore.canLoadSchedule(): Boolean = isLoggedIn() || isMockMode()
+

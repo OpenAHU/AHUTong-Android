@@ -143,6 +143,7 @@ dependencies {
     implementation(project(":data:payment"))
     implementation(project(":data:calendar"))
     implementation(project(":feature:login"))
+    implementation(project(":feature:schedule"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)
