@@ -3,7 +3,7 @@ package com.ahu.ahutong.data.repository
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
-import com.ahu.ahutong.AHUApplication
+import com.ahu.ahutong.core.common.AppContextHolder
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.tencent.mmkv.MMKV
@@ -33,7 +33,7 @@ object RepositoryManager {
 
     private val gson = Gson()
     private val kv: MMKV by lazy {
-        MMKV.initialize(AHUApplication.getApp())
+        MMKV.initialize(AppContextHolder.requireApp())
         MMKV.mmkvWithID("repository_downloads")
     }
 
@@ -196,19 +196,19 @@ object RepositoryManager {
     }
 
     private fun getDownloadedLocalName(path: String): String? {
-        val files = getDownloadedPaths(AHUApplication.getApp())
+        val files = getDownloadedPaths(AppContextHolder.requireApp())
         return files.firstOrNull { it.first == path }?.second
     }
 
     private fun saveDownloadRecord(path: String, localName: String) {
-        val files = getDownloadedPaths(AHUApplication.getApp()).toMutableList()
+        val files = getDownloadedPaths(AppContextHolder.requireApp()).toMutableList()
         files.removeAll { it.first == path }
         files.add(Pair(path, localName))
         kv.encode("downloaded_files", gson.toJson(files.map { listOf(it.first, it.second) }))
     }
 
     private fun removeDownloadRecord(path: String) {
-        val files = getDownloadedPaths(AHUApplication.getApp()).toMutableList()
+        val files = getDownloadedPaths(AppContextHolder.requireApp()).toMutableList()
         files.removeAll { it.first == path }
         kv.encode("downloaded_files", gson.toJson(files.map { listOf(it.first, it.second) }))
     }

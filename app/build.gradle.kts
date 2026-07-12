@@ -154,6 +154,7 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:weather"))
     implementation(project(":feature:classroom"))
+    implementation(project(":feature:repository"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

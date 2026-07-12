@@ -25,14 +25,14 @@
 
 ```text
 :feature:login / schedule / home / grade / exam / payment
-:feature:portal / calendar / tools / settings / weather / classroom
+:feature:portal / calendar / tools / settings / weather / classroom / repository
 ```
 
 ### App 装配
 
 - Hilt bindings（`AppDataBindingsModule`）
 - 非 Hilt 访问：`AppDataAccess` + `DataEntryPoint`（微件、TokenAuthenticator）
-- 仍留在 app：Settings 主壳、Debug、Splash/Setup、资料库、crawler 实现
+- 仍留在 app：Settings 主壳、Debug、Splash/Setup、crawler 实现
 
 ## Phase 5 说明
 
@@ -43,6 +43,12 @@
 
 ## 可选后续
 
-1. 拆 Settings 主壳 / 资料库 / Debug  
+1. 拆 Settings 主壳 / Debug  
 2. 进一步下沉 crawler（JwxtApi、AdwmhApi）出 app  
 3. 收紧 `internal` 可见性与 public API  
+
+## feature:repository 说明
+
+- 学习资料 GitHub 浏览器：`GitHubApi` / `RepositoryManager` / `Repository` UI + downloads。
+- `RepositoryManager` 使用 `AppContextHolder`（不再依赖 `AHUApplication`）。
+- FileProvider 仍由 app manifest 提供（`${packageName}.fileprovider`）。

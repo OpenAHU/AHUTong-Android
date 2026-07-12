@@ -28,9 +28,6 @@ data class DownloadedFile(
 )
 
 /**
- * 本地缓存的目录内容
- */
-/**
  * 学院仓库配置
  */
 data class RepoConfig(
