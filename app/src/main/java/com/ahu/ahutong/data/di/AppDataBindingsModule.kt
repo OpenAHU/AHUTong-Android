@@ -6,6 +6,10 @@ import com.ahu.ahutong.data.auth.AuthSessionStore
 import com.ahu.ahutong.data.auth.AhuCacheAuthSessionStore
 import com.ahu.ahutong.data.auth.CrawlerAuthSource
 import com.ahu.ahutong.data.auth.NativeCookieSyncer
+import com.ahu.ahutong.data.campuscard.AhuCacheCampusCardLocalStore
+import com.ahu.ahutong.data.campuscard.CampusCardCrawlerSource
+import com.ahu.ahutong.data.campuscard.CampusCardLocalStore
+import com.ahu.ahutong.data.campuscard.CrawlerCampusCardSource
 import com.ahu.ahutong.data.exam.AhuCacheExamLocalStore
 import com.ahu.ahutong.data.exam.CrawlerExamSource
 import com.ahu.ahutong.data.exam.ExamCrawlerSource
@@ -65,4 +69,12 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindExamCrawlerSource(impl: CrawlerExamSource): ExamCrawlerSource
+
+    @Binds
+    @Singleton
+    abstract fun bindCampusCardLocalStore(impl: AhuCacheCampusCardLocalStore): CampusCardLocalStore
+
+    @Binds
+    @Singleton
+    abstract fun bindCampusCardCrawlerSource(impl: CrawlerCampusCardSource): CampusCardCrawlerSource
 }

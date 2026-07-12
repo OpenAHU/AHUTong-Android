@@ -5,8 +5,8 @@ import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.core.common.AppResult
 import com.ahu.ahutong.data.auth.AuthRepository
 import com.ahu.ahutong.data.base.BaseDataSource
+import com.ahu.ahutong.data.campuscard.CampusCardRepository
 import com.ahu.ahutong.data.crawler.SdkDataSource
-import com.ahu.ahutong.data.crawler.api.adwmh.AdwmhApi
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.crawler.model.adwnh.AllCampus
 import com.ahu.ahutong.data.crawler.model.adwnh.AllLostFoundType
@@ -19,14 +19,13 @@ import com.ahu.ahutong.data.di.DataEntryPoint
 import com.ahu.ahutong.data.exam.ExamRepository
 import com.ahu.ahutong.data.grade.GradeRepository
 import com.ahu.ahutong.data.model.BathroomTelInfo
+import com.ahu.ahutong.data.model.Card
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.schedule.ScheduleRepository
-import com.ahu.ahutong.sdk.LocalServiceClient
-import com.ahu.ahutong.sdk.RustSDK
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -60,6 +59,9 @@ object AHURepository {
 
     private fun examRepository(): ExamRepository = dataEntryPoint().examRepository()
 
+    private fun campusCardRepository(): CampusCardRepository =
+        dataEntryPoint().campusCardRepository()
+
     private suspend fun ensureYcardCredential(): Boolean {
         if (AHUCache.getMockData()) return true
         return !TokenManager.awaitToken().isNullOrBlank()
@@ -70,11 +72,6 @@ object AHURepository {
             code = -1
             msg = "校园卡登录凭证暂未就绪，请稍后重试"
         }
-
-    /**
-     * 获取 HTTP 客户端
-     */
-    private fun getHttpClient(): LocalServiceClient? = LocalServiceClient.getInstance()
 
     /**
      * 通过semesterId获取课程表
@@ -105,33 +102,13 @@ object AHURepository {
             .toKotlinResult()
 
     /**
-     *  获取余额
+     * 获取校园卡余额
      */
-    suspend fun getCardMoney() = withContext(Dispatchers.IO) {
-        try {
-            val response = dataSource.getCardMoney()
-            if (response.isSuccessful) {
-                Result.success(response.data)
-            } else {
-                Result.failure(Throwable(response.msg))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    suspend fun getCardMoney(): Result<Card> =
+        campusCardRepository().getBalance().toKotlinResult()
 
-    suspend fun getBathRooms() = withContext(Dispatchers.IO) {
-        try {
-            val response = dataSource.getBathRooms()
-            if (response.isSuccessful) {
-                Result.success(response.data)
-            } else {
-                Result.failure(Throwable(response.msg))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
+    suspend fun getBathRooms() =
+        campusCardRepository().getBathrooms().toKotlinResult()
 
 
     /**
@@ -243,46 +220,5 @@ object AHURepository {
         }
 
     suspend fun getQrcode(): Result<String> =
-        withContext(Dispatchers.IO) {
-            getHttpClient()?.let { httpClient ->
-                val httpResult = httpClient.getQrcode()
-                if (httpResult.isSuccess) {
-                    return@withContext parseQrcodeResponse(httpResult.getOrThrow())
-                }
-                Log.w(TAG, "Rust HTTP qrcode failed, fallback to JNI", httpResult.exceptionOrNull())
-            }
-
-            val jniResult = RustSDK.getQrcodeSafe()
-            if (jniResult.isSuccess) {
-                return@withContext jniResult
-            }
-
-            Log.w(TAG, "Rust JNI qrcode failed, fallback to Android crawler", jniResult.exceptionOrNull())
-            try {
-                val response = AdwmhApi.API.getQrcode()
-                if (response.code == 10000 && response.`object`.isNotEmpty()) {
-                    Result.success(response.`object`)
-                } else {
-                    Result.failure(Throwable(response.msg))
-                }
-            } catch (e: Throwable) {
-                Result.failure(e)
-            }
-        }
-
-    private fun parseQrcodeResponse(json: String): Result<String> {
-        return try {
-            val obj = com.google.gson.JsonParser.parseString(json).asJsonObject
-            val code = obj.get("code")?.asInt ?: -1
-            val msg = obj.get("msg")?.asString ?: "获取二维码失败"
-            val value = obj.get("object")?.asString.orEmpty()
-            if (code == 10000 && value.isNotEmpty()) {
-                Result.success(value)
-            } else {
-                Result.failure(Throwable(msg))
-            }
-        } catch (e: Throwable) {
-            Result.failure(e)
-        }
-    }
+        campusCardRepository().getQrcode().toKotlinResult()
 }

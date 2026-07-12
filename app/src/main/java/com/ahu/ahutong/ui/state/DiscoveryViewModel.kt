@@ -9,7 +9,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.core.common.AppResult
+import com.ahu.ahutong.data.campuscard.CampusCardRepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ext.launchSafe
 import com.google.zxing.BarcodeFormat
@@ -30,7 +31,9 @@ import javax.inject.Inject
 
 
 @HiltViewModel
-class DiscoveryViewModel @Inject constructor() : ViewModel() {
+class DiscoveryViewModel @Inject constructor(
+    private val campusCardRepository: CampusCardRepository,
+) : ViewModel() {
 
     val TAG = DiscoveryViewModel::class.java.simpleName
 
@@ -53,19 +56,23 @@ class DiscoveryViewModel @Inject constructor() : ViewModel() {
         }
 
         viewModelScope.launchSafe {
-
-            AHURepository.getCardMoney().onSuccess {
-                applyCardBalance(it.balance, it.transitionBalance)
+            when (val result = campusCardRepository.getBalance()) {
+                is AppResult.Success -> applyCardBalance(
+                    result.data.balance,
+                    result.data.transitionBalance,
+                )
+                is AppResult.Error -> Log.w(TAG, "load balance failed: ${result.message}")
             }
 
-            AHURepository.getBathRooms().onSuccess {
-                bathroom.clear()
-                it.forEach { room ->
-                    bathroom += room.bathroom to room.openStatus
+            when (val rooms = campusCardRepository.getBathrooms()) {
+                is AppResult.Success -> {
+                    bathroom.clear()
+                    rooms.data.forEach { room ->
+                        bathroom += room.bathroom to room.openStatus
+                    }
                 }
+                is AppResult.Error -> Log.w(TAG, "load bathrooms failed: ${rooms.message}")
             }
-
-
         }
     }
 
@@ -77,8 +84,12 @@ class DiscoveryViewModel @Inject constructor() : ViewModel() {
         }
 
         viewModelScope.launchSafe {
-            AHURepository.getCardMoney().onSuccess {
-                applyCardBalance(it.balance, it.transitionBalance)
+            when (val result = campusCardRepository.getBalance(isRefresh = true)) {
+                is AppResult.Success -> applyCardBalance(
+                    result.data.balance,
+                    result.data.transitionBalance,
+                )
+                is AppResult.Error -> Log.w(TAG, "refresh balance failed: ${result.message}")
             }
         }
     }
@@ -95,22 +106,23 @@ class DiscoveryViewModel @Inject constructor() : ViewModel() {
             withContext(Dispatchers.IO){
                 state.value = false
                 try {
-                    val response = AHURepository.getQrcode()
-                    if (response.isSuccess) {
-                        val hints = HashMap<EncodeHintType, Any>()
-
-                        hints[EncodeHintType.ERROR_CORRECTION] = ErrorCorrectionLevel.L
-                        hints[EncodeHintType.MARGIN] = 1
-                        val encoder = BarcodeEncoder()
-                        qrcode.value = encoder.encodeBitmap(
-                            response.getOrThrow(),
-                            BarcodeFormat.QR_CODE,
-                            400,
-                            400,
-                            hints
-                        )
-                    } else {
-                        Log.e("QR", "接口返回错误", response.exceptionOrNull())
+                    when (val response = campusCardRepository.getQrcode()) {
+                        is AppResult.Success -> {
+                            val hints = HashMap<EncodeHintType, Any>()
+                            hints[EncodeHintType.ERROR_CORRECTION] = ErrorCorrectionLevel.L
+                            hints[EncodeHintType.MARGIN] = 1
+                            val encoder = BarcodeEncoder()
+                            qrcode.value = encoder.encodeBitmap(
+                                response.data,
+                                BarcodeFormat.QR_CODE,
+                                400,
+                                400,
+                                hints,
+                            )
+                        }
+                        is AppResult.Error -> {
+                            Log.e("QR", "接口返回错误: ${response.message}", response.cause)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("QR", "未知异常", e)
