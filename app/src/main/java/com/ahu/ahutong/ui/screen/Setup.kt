@@ -26,7 +26,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun Setup(
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
-    aboutViewModel: AboutViewModel = viewModel(),
+    aboutViewModel: AboutViewModel = hiltViewModel(),
     onSetup: () -> Unit
 ) {
     val navController = rememberNavController()

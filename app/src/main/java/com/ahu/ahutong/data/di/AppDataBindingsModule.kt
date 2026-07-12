@@ -14,6 +14,8 @@ import com.ahu.ahutong.data.campuscard.AhuCacheCampusCardLocalStore
 import com.ahu.ahutong.data.campuscard.CampusCardCrawlerSource
 import com.ahu.ahutong.data.campuscard.CampusCardLocalStore
 import com.ahu.ahutong.data.campuscard.CrawlerCampusCardSource
+import com.ahu.ahutong.data.classroom.AppFreeClassroomSource
+import com.ahu.ahutong.data.classroom.FreeClassroomSource
 import com.ahu.ahutong.data.home.AhuCacheHomePreferences
 import com.ahu.ahutong.data.home.HomePreferences
 import com.ahu.ahutong.data.exam.AhuCacheExamLocalStore
@@ -42,6 +44,9 @@ import com.ahu.ahutong.data.schedule.ScheduleCrawlerSource
 import com.ahu.ahutong.data.schedule.ScheduleLocalStore
 import com.ahu.ahutong.data.schedule.ScheduleReminderCoordinator
 import com.ahu.ahutong.data.schedule.ScheduleWeekResolver
+import com.ahu.ahutong.data.settings.AppCourseReminderActions
+import com.ahu.ahutong.data.weather.WeatherPreferences
+import com.ahu.ahutong.ui.settings.CourseReminderActions
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -115,6 +120,18 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindHomePreferences(impl: AhuCacheHomePreferences): HomePreferences
+
+    @Binds
+    @Singleton
+    abstract fun bindWeatherPreferences(impl: AhuCacheHomePreferences): WeatherPreferences
+
+    @Binds
+    @Singleton
+    abstract fun bindCourseReminderActions(impl: AppCourseReminderActions): CourseReminderActions
+
+    @Binds
+    @Singleton
+    abstract fun bindFreeClassroomSource(impl: AppFreeClassroomSource): FreeClassroomSource
 
     @Binds
     @Singleton

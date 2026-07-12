@@ -9,7 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.weather.WeatherPreferences
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import com.ahu.ahutong.data.weather.WeatherApi
 import com.ahu.ahutong.data.weather.WeatherResponse
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +27,10 @@ data class WeatherHomeConfig(
     val showLocation: Boolean = true,
 )
 
-class WeatherViewModel : ViewModel() {
+@HiltViewModel
+class WeatherViewModel @Inject constructor(
+    private val weatherPreferences: WeatherPreferences,
+) : ViewModel() {
 
     var weather by mutableStateOf<WeatherResponse?>(null)
         private set
@@ -49,7 +54,7 @@ class WeatherViewModel : ViewModel() {
         private set
 
     init {
-        homeConfig = WeatherHomeConfig(showOnHome = AHUCache.getWeatherShowOnHome())
+        homeConfig = WeatherHomeConfig(showOnHome = weatherPreferences.getWeatherShowOnHome())
     }
 
     fun fetchWeather(city: String? = null) {
@@ -92,7 +97,7 @@ class WeatherViewModel : ViewModel() {
                 weather = result
                 lastAdcode = adcode
                 lastCity = null
-                result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
+                result.adcode?.let { weatherPreferences.saveWeatherAdcode(it) }
                 Log.d("Weather", "Fetched weather for adcode=$adcode, temp=${result.temperature}")
             } catch (e: Exception) {
                 Log.e("Weather", "Failed to fetch weather by adcode", e)
@@ -114,7 +119,7 @@ class WeatherViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                val cachedAdcode = AHUCache.getWeatherAdcode()
+                val cachedAdcode = weatherPreferences.getWeatherAdcode()
                 if (cachedAdcode != null) {
                     // 有缓存的区级 adcode，直接用
                     Log.d("Weather", "Using cached adcode: $cachedAdcode")
@@ -123,7 +128,7 @@ class WeatherViewModel : ViewModel() {
                     lastAdcode = cachedAdcode
                     lastCity = null
                     // 刷新缓存
-                    result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
+                    result.adcode?.let { weatherPreferences.saveWeatherAdcode(it) }
                     return@launch
                 }
 
@@ -137,12 +142,12 @@ class WeatherViewModel : ViewModel() {
                     val result = WeatherApi.API.getWeather(city = city)
                     weather = result
                     // 保存 adcode 供后续精准查询
-                    result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
+                    result.adcode?.let { weatherPreferences.saveWeatherAdcode(it) }
                 } else {
                     Log.w("Weather", "GPS failed, fallback to IP")
                     val result = WeatherApi.API.getWeather()
                     weather = result
-                    result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
+                    result.adcode?.let { weatherPreferences.saveWeatherAdcode(it) }
                 }
             } catch (e: Exception) {
                 Log.e("Weather", "Failed to fetch weather by GPS", e)
@@ -183,7 +188,7 @@ class WeatherViewModel : ViewModel() {
 
     fun updateHomeConfig(config: WeatherHomeConfig) {
         homeConfig = config
-        AHUCache.saveWeatherShowOnHome(config.showOnHome)
+        weatherPreferences.saveWeatherShowOnHome(config.showOnHome)
     }
 
     val locationName: String

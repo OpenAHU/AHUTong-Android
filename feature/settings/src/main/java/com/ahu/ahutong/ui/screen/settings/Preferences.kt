@@ -50,10 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.R
-import com.ahu.ahutong.notification.CourseReminderCapability
-import com.ahu.ahutong.notification.CourseReminderNotifier
-import com.ahu.ahutong.notification.CourseReminderScheduler
+import com.ahu.ahutong.feature.settings.R
 import com.ahu.ahutong.ui.components.LiquidToggle
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.PreferencesViewModel
@@ -83,7 +80,7 @@ fun Preferences() {
         isRequestingPermission = false
         if (granted) {
             preferencesViewModel.setCourseReminderEnabled(true)
-            CourseReminderScheduler.reschedule(context)
+            preferencesViewModel.courseReminderActions.reschedule(context)
         } else {
             preferencesViewModel.setCourseReminderEnabled(false)
             Toast.makeText(context, "未授予通知权限，无法开启课前提醒", Toast.LENGTH_SHORT).show()
@@ -152,11 +149,11 @@ fun Preferences() {
                                 }
                             } else {
                                 preferencesViewModel.setCourseReminderEnabled(true)
-                                CourseReminderScheduler.reschedule(context)
+                                preferencesViewModel.courseReminderActions.reschedule(context)
                             }
                         } else {
                             preferencesViewModel.setCourseReminderEnabled(false)
-                            CourseReminderScheduler.cancel(context)
+                            preferencesViewModel.courseReminderActions.cancel(context)
                         }
                     }
                     .padding(16.dp),
@@ -198,11 +195,11 @@ fun Preferences() {
                                 }
                             } else {
                                 preferencesViewModel.setCourseReminderEnabled(true)
-                                CourseReminderScheduler.reschedule(context)
+                                preferencesViewModel.courseReminderActions.reschedule(context)
                             }
                         } else {
                             preferencesViewModel.setCourseReminderEnabled(false)
-                            CourseReminderScheduler.cancel(context)
+                            preferencesViewModel.courseReminderActions.cancel(context)
                         }
                     },
                     backdrop = backdrop
@@ -253,7 +250,7 @@ fun Preferences() {
                         } else {
                             preferencesViewModel.setCourseReminderLiveCountdownEnabled(enabled)
                             if (!enabled) {
-                                CourseReminderNotifier.cancelActiveReminder(context)
+                                preferencesViewModel.courseReminderActions.cancelActiveReminder(context)
                             }
                         }
                     },
@@ -270,9 +267,9 @@ fun Preferences() {
                         ).show()
                     } else {
                         val promotionIntent =
-                            CourseReminderCapability.createPromotionSettingsIntent(context)
+                            preferencesViewModel.courseReminderActions.createPromotionSettingsIntent(context)
                         val fallbackIntent =
-                            CourseReminderCapability.createNotificationSettingsIntent(context)
+                            preferencesViewModel.courseReminderActions.createNotificationSettingsIntent(context)
                         runCatching {
                             context.startActivity(promotionIntent)
                         }.getOrElse {

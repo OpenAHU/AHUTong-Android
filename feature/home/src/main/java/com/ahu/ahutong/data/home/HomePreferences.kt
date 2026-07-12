@@ -10,4 +10,10 @@ interface HomePreferences {
     fun saveHomeWidgetSlots(slots: List<String?>)
 
     fun getWeatherShowOnHome(): Boolean
+
+    fun saveWeatherShowOnHome(enabled: Boolean)
+
+    fun getWeatherAdcode(): String?
+
+    fun saveWeatherAdcode(adcode: String)
 }

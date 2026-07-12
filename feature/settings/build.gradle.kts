@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.ahu.ahutong.feature.home"
+    namespace = "com.ahu.ahutong.feature.settings"
     compileSdk = 36
 
     defaultConfig {
@@ -32,36 +32,24 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:designsystem"))
     api(project(":core:datastore"))
-    api(project(":data:campuscard"))
-    api(project(":data:schedule"))
-    api(project(":feature:schedule"))
-    api(project(":feature:weather"))
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.foundation)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.material3)
-    implementation(libs.androidx.runtime.livedata)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.coil.compose)
     implementation(libs.monet)
+    implementation(libs.kyant0.backdrop)
     implementation(libs.kyant0.capsule)
-    implementation(libs.androidx.datastore.preferences)
-
-    implementation(libs.retrofit)
-    implementation(libs.converter.gson)
-    implementation(libs.logging.interceptor)
-    implementation(libs.gson)
-    implementation(libs.zxing.android.embedded)
-
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
 }

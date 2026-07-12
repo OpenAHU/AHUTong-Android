@@ -45,10 +45,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ahu.ahutong.R
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.mock.MockScenarioController
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.ahu.ahutong.feature.classroom.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.FreeClassroomViewModel
 import com.kyant.capsule.ContinuousCapsule
@@ -63,7 +61,8 @@ import androidx.compose.ui.text.style.TextAlign
 
 @Composable
 fun FreeClassroom(
-    freeClassroomViewModel: FreeClassroomViewModel = viewModel()
+    freeClassroomViewModel: FreeClassroomViewModel = hiltViewModel(),
+    mockRefreshRevision: Long = 0L,
 ) {
     val campusOptions = freeClassroomViewModel.campusOptions
     val selectedCampusId by freeClassroomViewModel.selectedCampusId.collectAsState()
@@ -77,13 +76,12 @@ fun FreeClassroom(
     val rooms by freeClassroomViewModel.freeRooms.collectAsState()
     val errorMessage by freeClassroomViewModel.errorMessage.collectAsState()
     val context = LocalContext.current
-    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
-    var isFilterCollapsed by rememberSaveable { mutableStateOf(false) }
+        var isFilterCollapsed by rememberSaveable { mutableStateOf(false) }
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(mockRefreshRevision) {
-        if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
+        if (mockRefreshRevision > 0 && freeClassroomViewModel.isMockMode()) {
             freeClassroomViewModel.refreshMockData()
         }
     }

@@ -150,6 +150,10 @@ dependencies {
     implementation(project(":feature:payment"))
     implementation(project(":feature:portal"))
     implementation(project(":feature:calendar"))
+    implementation(project(":feature:tools"))
+    implementation(project(":feature:settings"))
+    implementation(project(":feature:weather"))
+    implementation(project(":feature:classroom"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

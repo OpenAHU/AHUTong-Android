@@ -78,7 +78,7 @@ fun Main(
     loginViewModel: LoginViewModel = hiltViewModel(),
     discoveryViewModel: DiscoveryViewModel = hiltViewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
-    aboutViewModel: AboutViewModel = viewModel(),
+    aboutViewModel: AboutViewModel = hiltViewModel(),
     isReLoginShown: Boolean,
     onReLoginDismiss: () -> Unit
 ) {
@@ -169,7 +169,15 @@ fun Main(
                     homeEditEnabled = homeEditGrayState.enabled,
                     onEditHome = {
                         shouldEnterHomeEdit = true
-                    }
+                    },
+                    placedWidgetIds = AHUCache.getHomeWidgetSlots().filterNotNull().toSet(),
+                    onPinScheduleWidget = {
+                        scope.launch {
+                            GlanceAppWidgetManager(context).requestPinGlanceAppWidget(
+                                ScheduleAppWidgetReceiver::class.java
+                            )
+                        }
+                    },
                 )
             }
             animatedComposable("school_calendar") {
@@ -189,7 +197,7 @@ fun Main(
                 Exam(mockRefreshRevision = mockRefreshRevision)
             }
             animatedComposable("free_classroom") {
-                FreeClassroom()
+                FreeClassroom(mockRefreshRevision = mockRefreshRevision)
             }
             animatedComposable("lost_found") {
                 LostFound(mockRefreshRevision = mockRefreshRevision)

@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.Constants
@@ -76,7 +77,7 @@ import com.kyant.monet.withNight
 fun Settings(
     navController: NavHostController,
     mainViewModel: MainViewModel = viewModel(),
-    aboutViewModel: AboutViewModel = viewModel()
+    aboutViewModel: AboutViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current as ComponentActivity
     var isClearCacheDialogShown by rememberSaveable { mutableStateOf(false) }

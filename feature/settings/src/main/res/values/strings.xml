@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="preferences">偏好设置</string>
+    <string name="license">开源协议</string>
+    <string name="contributors">贡献名单</string>
+    <string name="mine_tv_partner">加入我们</string>
+    <string name="mine_tv_developer">开发者</string>
+</resources>

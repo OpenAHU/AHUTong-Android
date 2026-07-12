@@ -49,7 +49,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.ahu.ahutong.R
+import com.ahu.ahutong.feature.tools.R
 import com.ahu.ahutong.data.model.Tel
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.TelDirectoryViewModel

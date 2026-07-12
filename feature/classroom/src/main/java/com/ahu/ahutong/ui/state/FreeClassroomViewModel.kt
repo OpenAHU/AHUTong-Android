@@ -2,18 +2,19 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi
-import com.ahu.ahutong.data.crawler.model.jwxt.DateTimeSegmentCmd
+import com.ahu.ahutong.data.classroom.FreeClassroomSource
 import com.ahu.ahutong.data.crawler.model.jwxt.FreeRoom
 import com.ahu.ahutong.data.crawler.model.jwxt.GetBuildingsResponseItem
-import com.ahu.ahutong.data.crawler.model.jwxt.GetFreeRoomsRequest
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.mock.MockCampusData
 import com.ahu.ahutong.ext.launchSafe
-import kotlinx.coroutines.flow.MutableStateFlow
+import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 
-class FreeClassroomViewModel : ViewModel() {
+@HiltViewModel
+class FreeClassroomViewModel @Inject constructor(
+    private val freeClassroomSource: FreeClassroomSource,
+) : ViewModel() {
     val campusOptions = listOf(
         CampusOption(id = 1, name = "磬苑校区"),
         CampusOption(id = 2, name = "龙河校区")
@@ -22,8 +23,8 @@ class FreeClassroomViewModel : ViewModel() {
     val buildings = MutableStateFlow<List<GetBuildingsResponseItem>>(emptyList())
     val selectedBuildingIds = MutableStateFlow<Set<Int>>(emptySet())
     val selectedUnits = MutableStateFlow<Set<Int>>(emptySet())
-    val startDate = MutableStateFlow<LocalDate>(LocalDate.now())
-    val endDate = MutableStateFlow<LocalDate>(LocalDate.now())
+    val startDate = MutableStateFlow(LocalDate.now())
+    val endDate = MutableStateFlow(LocalDate.now())
     val isLoadingBuildings = MutableStateFlow(false)
     val isSearching = MutableStateFlow(false)
     val freeRooms = MutableStateFlow<List<FreeRoom>>(emptyList())
@@ -34,6 +35,8 @@ class FreeClassroomViewModel : ViewModel() {
         selectCampus(1)
     }
 
+    fun isMockMode(): Boolean = freeClassroomSource.isMockMode()
+
     fun selectCampus(campusId: Int) = viewModelScope.launchSafe {
         if (selectedCampusId.value == campusId) return@launchSafe
         selectedCampusId.value = campusId
@@ -43,7 +46,7 @@ class FreeClassroomViewModel : ViewModel() {
     }
 
     fun refreshMockData() = viewModelScope.launchSafe {
-        if (!AHUCache.getMockData()) return@launchSafe
+        if (!freeClassroomSource.isMockMode()) return@launchSafe
         buildingsCache.clear()
         selectedCampusId.value?.let { campusId ->
             loadBuildings(campusId)
@@ -115,26 +118,13 @@ class FreeClassroomViewModel : ViewModel() {
         isSearching.value = true
         errorMessage.value = null
         runCatching {
-            val allRooms = if (AHUCache.getMockData()) {
-                MockCampusData.freeRooms(campusId, buildingIds)
-            } else {
-                val remoteRooms = mutableListOf<FreeRoom>()
-                buildingIds.forEach { buildingId ->
-                    val response = JwxtApi.API.getFreeRooms(
-                        GetFreeRoomsRequest(
-                            buildingId = buildingId.toString(),
-                            campusId = campusId.toString(),
-                            dateTimeSegmentCmd = DateTimeSegmentCmd(
-                                startDateTime = start,
-                                endDateTime = end,
-                                units = units
-                            )
-                        )
-                    )
-                    remoteRooms += response.roomList
-                }
-                remoteRooms
-            }
+            val allRooms = freeClassroomSource.getFreeRooms(
+                campusId = campusId,
+                buildingIds = buildingIds,
+                startDate = start,
+                endDate = end,
+                units = units,
+            )
             freeRooms.value = allRooms
                 .distinctBy { "${it.id}-${it.building.id}" }
                 .sortedWith(compareBy({ it.building.nameZh }, { it.floor }, { it.nameZh }))
@@ -145,17 +135,13 @@ class FreeClassroomViewModel : ViewModel() {
     }
 
     private suspend fun loadBuildings(campusId: Int) {
-        if (!AHUCache.getMockData() && buildingsCache.containsKey(campusId)) {
+        if (!freeClassroomSource.isMockMode() && buildingsCache.containsKey(campusId)) {
             buildings.value = buildingsCache[campusId] ?: emptyList()
             return
         }
         isLoadingBuildings.value = true
         runCatching {
-            val data = if (AHUCache.getMockData()) {
-                MockCampusData.buildings(campusId)
-            } else {
-                JwxtApi.API.getBuildings(campusId = campusId)
-            }
+            val data = freeClassroomSource.getBuildings(campusId)
             val sortedData = data.sortedBy { it.nameZh }
             buildingsCache[campusId] = sortedData
             buildings.value = sortedData

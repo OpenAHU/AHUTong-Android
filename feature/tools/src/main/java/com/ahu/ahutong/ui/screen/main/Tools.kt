@@ -55,7 +55,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.navigation.NavHostController
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -63,13 +62,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.os.Build
 import android.util.Log
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.ahu.ahutong.data.AHURepository
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.utils.FileUtils
-import com.ahu.ahutong.R
-import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
+import com.ahu.ahutong.feature.tools.R
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.capsule.ContinuousCapsule
@@ -86,23 +79,20 @@ import java.io.File
 fun Tools(
     navController: NavHostController,
     homeEditEnabled: Boolean = false,
-    onEditHome: () -> Unit = {}
+    onEditHome: () -> Unit = {},
+    placedWidgetIds: Set<String> = emptySet(),
+    onPinScheduleWidget: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var homeWidgetIds by remember {
-        mutableStateOf(AHUCache.getHomeWidgetSlots().filterNotNull().toSet())
+    var homeWidgetIds by remember(placedWidgetIds) { mutableStateOf(placedWidgetIds) }
+    LaunchedEffect(placedWidgetIds) {
+        homeWidgetIds = placedWidgetIds
     }
-
-    fun refreshHomeWidgetIds() {
-        homeWidgetIds = AHUCache.getHomeWidgetSlots().filterNotNull().toSet()
-    }
-
     LaunchedEffect(navController) {
-        refreshHomeWidgetIds()
         navController.currentBackStackEntryFlow.collect { backStackEntry ->
             if (backStackEntry.destination.route == "tools") {
-                refreshHomeWidgetIds()
+                homeWidgetIds = placedWidgetIds
             }
         }
     }
@@ -187,11 +177,7 @@ fun Tools(
                     .clip(ContinuousCapsule)
                     .background(90.a1)
                     .clickable {
-                        scope.launch {
-                            GlanceAppWidgetManager(context).requestPinGlanceAppWidget(
-                                ScheduleAppWidgetReceiver::class.java
-                            )
-                        }
+                        onPinScheduleWidget()
                     }
                     .padding(16.dp, 8.dp),
                 color = 0.n1,

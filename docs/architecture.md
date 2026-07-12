@@ -10,20 +10,13 @@
 |------|------|------|
 | Phase 0–2 | 完成 | Core + SDK 倒置 |
 | Phase 3 | 完成 | 八大 data 域 + 校历 |
-| Phase 4 | **进行中** | Feature 模块（主要业务 feature 已落地） |
+| Phase 4 | **基本完成** | 主要 feature 模块已落地 |
 | Phase 5 | 未开始 | 删除门面、收紧可见性 |
 
 ## 已建 data 模块
 
 ```text
-:data:schedule
-:data:auth
-:data:grade
-:data:exam
-:data:campuscard
-:data:portal
-:data:payment
-:data:calendar
+:data:schedule / auth / grade / exam / campuscard / portal / payment / calendar
 ```
 
 ## 已建 feature 模块
@@ -31,45 +24,34 @@
 ```text
 :feature:login
 :feature:schedule
-:feature:home
+:feature:home          # 依赖 :feature:weather / :feature:schedule
 :feature:grade
 :feature:exam
 :feature:payment
-:feature:portal     # 失物招领
-:feature:calendar   # 校历
+:feature:portal
+:feature:calendar
+:feature:tools         # 小工具 + 电话本
+:feature:settings      # Preferences / License / Contributors（Settings 壳仍在 app）
+:feature:weather       # 天气全页 + WeatherApi
+:feature:classroom     # 空闲教室
 ```
 
-## Phase 3 一览
+## 仍在 `:app` 的页面/装配
 
-| 域 | 模块 | UI |
-|----|------|-----|
-| 课表 | schedule | ScheduleViewModel（feature:schedule） |
-| 登录 | auth | LoginViewModel（feature:login） |
-| 成绩 | grade | GradeViewModel（feature:grade） |
-| 考试 | exam | ExamViewModel（feature:exam） |
-| 校园卡查询 | campuscard | DiscoveryViewModel（feature:home） |
-| 失物招领 | portal | LostFoundViewModel（feature:portal） |
-| 充值支付 | payment | Bathroom/CardBalance/ElectricityDepositViewModel（feature:payment） |
-| 校历 | calendar | SchoolCalendarViewModel（feature:calendar） |
-
-`AHURepository` 现主要为兼容门面（委托各 Repository）+ Mock 数据源初始化。
-
-电费已并入 `data:payment`（`postFeeItemThirdData` / `postPayForm` + `PaymentLocalStore`）。
+- `Settings` 主页（登出、清数据、版本等强耦合逻辑）
+- `Debug`、`Splash` / `Setup` / `Info`
+- 资料库 `Repository` / `RepositoryDownloads`
+- 导航装配、`AHURepository` 门面、crawler/API 绑定
 
 ## Phase 4 进度
 
-| Feature | 状态 | 说明 |
-|---------|------|------|
-| login | **完成** | AuthSessionStore + AuthRuntimeReset |
-| schedule | **完成** | ScheduleWeekResolver + ScheduleReminderCoordinator |
-| home | **完成** | HomePreferences；Mock 刷新由 app 注入 |
-| grade | **完成** | GradeLocalStore |
-| exam | **完成** | ExamLocalStore |
-| payment | **完成** | 电费 HTTP/缓存经 payment 仓库 |
-| portal | **完成** | LostFoundLocalStore + 失物招领 UI |
-| calendar | **完成** | 校历 UI；FileUtils 下沉 core:common |
+| Feature | 状态 |
+|---------|------|
+| login / schedule / home / grade / exam / payment | **完成** |
+| portal / calendar | **完成** |
+| tools / settings / weather / classroom | **完成** |
 
 ## 下一步
 
-1. 其余 feature（tools / settings / free classroom / weather 全页 …）按需继续拆分  
-2. 逐步删除 `AHURepository` object（Phase 5）  
+1. **Phase 5**：收缩/删除 `AHURepository`，收紧模块可见性  
+2. 可选：拆 `Settings` 主页、资料库、Debug  
