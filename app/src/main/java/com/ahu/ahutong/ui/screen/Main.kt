@@ -29,8 +29,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
-import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
+import com.ahu.ahutong.core.common.AppSessionState
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.gray.GrayFeatures
@@ -232,7 +232,7 @@ fun Main(
                         RustSDK.init("")
                         CookieManager.cookieJar.clear()
                         CookieManager.cookieJar.clearSession()
-                        AHUApplication.sessionExpired = true
+                        AppSessionState.sessionExpired = true
                     },
                     loadUpdateLog = {
                         runCatching {

@@ -53,6 +53,7 @@ include(":data:campuscard")
 include(":data:portal")
 include(":data:payment")
 include(":data:calendar")
+include(":data:crawler")
 
 // Feature modules (Phase 4+)
 include(":feature:login")

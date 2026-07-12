@@ -142,6 +142,7 @@ dependencies {
     implementation(project(":data:portal"))
     implementation(project(":data:payment"))
     implementation(project(":data:calendar"))
+    implementation(project(":data:crawler"))
     implementation(project(":feature:login"))
     implementation(project(":feature:schedule"))
     implementation(project(":feature:home"))

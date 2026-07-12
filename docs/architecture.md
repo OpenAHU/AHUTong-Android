@@ -18,7 +18,7 @@
 ### Data
 
 ```text
-:data:schedule / auth / grade / exam / campuscard / portal / payment / calendar
+:data:schedule / auth / grade / exam / campuscard / portal / payment / calendar / crawler
 ```
 
 ### Feature
@@ -32,7 +32,7 @@
 
 - Hilt bindings（`AppDataBindingsModule`）
 - 非 Hilt 访问：`AppDataAccess` + `DataEntryPoint`（微件、TokenAuthenticator）
-- 仍留在 app：Debug、crawler 实现
+- 仍留在 app：Debug、crawler DataSource 适配（`CrawlerDataSource` / `SdkDataSource`）
 
 ## Phase 5 说明
 
@@ -43,9 +43,16 @@
 
 ## 可选后续
 
-1. Debug 页面（强依赖 app mock source set / 灰度 / crawler / AHUCache）  
-2. 进一步下沉 crawler（JwxtApi、AdwmhApi）出 app  
+1. Debug 页面（强依赖 app mock source set / 灰度 / AHUCache）  
+2. 将 `CrawlerDataSource` / `SdkDataSource` 进一步拆入各 data 域 sink  
 3. 收紧 `internal` 可见性与 public API  
+
+## data:crawler 说明
+
+- 下沉：`JwxtApi` / `AdwmhApi` / `YcardApi`、`CookieManager`、`TokenManager`、拦截器、`AHUCookieJar`、剩余 crawler models。
+- 会话标记：`AppSessionState`（`:core:common`），替代 `AHUApplication.sessionExpired`。
+- 重登：`TokenAuthenticator` 通过 `CrawlerAuthHooks`；app 在 `Application.onCreate` 调用 `CrawlerAuthInstaller.install`。
+- 仍留 app：`CrawlerDataSource` / `SdkDataSource`（域适配 + mock 分支）。
 
 ## feature:repository 说明
 

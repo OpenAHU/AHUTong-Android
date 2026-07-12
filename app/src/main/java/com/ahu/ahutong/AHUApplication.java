@@ -9,6 +9,7 @@ import android.widget.Toast;
 import com.ahu.ahutong.core.common.AppContextHolder;
 import com.ahu.ahutong.core.sdk.CampusNativeGateway;
 import com.ahu.ahutong.core.sdk.di.SdkEntryPoint;
+import com.ahu.ahutong.data.crawler.CrawlerAuthInstaller;
 import com.ahu.ahutong.data.dao.AHUCache;
 import com.ahu.ahutong.notification.CourseReminderScheduler;
 import com.tencent.bugly.crashreport.CrashReport;
@@ -32,9 +33,6 @@ public class AHUApplication extends Application {
         app = this;
     }
 
-    public volatile static Boolean sessionExpired = true;
-    public volatile static Object reLoginMutex = new Object();
-
     public static Application getApp() {
         return app;
     }
@@ -44,6 +42,7 @@ public class AHUApplication extends Application {
         super.onCreate();
 
         AppContextHolder.INSTANCE.init(this);
+        CrawlerAuthInstaller.INSTANCE.install(this);
 
         CrashReport.initCrashReport(this, "2c2ccadcad", BuildConfig.DEBUG);
         CourseReminderScheduler.INSTANCE.createNotificationChannel(this);
