@@ -36,6 +36,10 @@ import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundResponse
 import com.ahu.ahutong.data.model.GpaRankInfo
 import java.io.File
 
+/**
+ * TODO(Phase 3): inject [com.ahu.ahutong.core.sdk.CampusNativeGateway] instead of
+ * calling [com.ahu.ahutong.sdk.RustSDK] / LocalServiceClient singletons directly.
+ */
 class SdkDataSource : BaseDataSource {
 
     val TAG = this::class.java.simpleName

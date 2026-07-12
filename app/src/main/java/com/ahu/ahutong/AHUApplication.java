@@ -7,17 +7,16 @@ import android.util.Log;
 import android.widget.Toast;
 
 import com.ahu.ahutong.core.common.AppContextHolder;
-import com.ahu.ahutong.sdk.LocalServiceClient;
-import com.ahu.ahutong.sdk.RustSDK;
-import com.tencent.bugly.crashreport.CrashReport;
+import com.ahu.ahutong.core.sdk.CampusNativeGateway;
+import com.ahu.ahutong.core.sdk.di.SdkEntryPoint;
 import com.ahu.ahutong.data.AHURepository;
 import com.ahu.ahutong.data.dao.AHUCache;
 import com.ahu.ahutong.notification.CourseReminderScheduler;
-
-import org.json.JSONObject;
+import com.tencent.bugly.crashreport.CrashReport;
 
 import java.util.HashSet;
 
+import dagger.hilt.android.EntryPointAccessors;
 import dagger.hilt.android.HiltAndroidApp;
 
 /**
@@ -52,11 +51,10 @@ public class AHUApplication extends Application {
         CourseReminderScheduler.INSTANCE.reschedule(this);
 
         // 初始化数据源（根据 Mock 开关）
-        if(AHUCache.INSTANCE.getMockData()){
+        if (AHUCache.INSTANCE.getMockData()) {
             AHURepository.INSTANCE.initializeDataSource(true);
-            Toast.makeText(this,"正在使用mock数据",Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "正在使用mock数据", Toast.LENGTH_SHORT).show();
         }
-
 
         // 注意: Local Service 在 MainActivity.init() 中启动（native library 加载后）
 
@@ -73,38 +71,9 @@ public class AHUApplication extends Application {
         }
     }
 
-    /**
-     * 启动 Rust 本地 HTTP 服务
-     */
-    private void startLocalService() {
-        // 确保 native library 已加载
-        if (!RustSDK.INSTANCE.isNativeLoaded()) {
-            Log.w(TAG, "Native library not loaded yet, skipping local service start");
-            return;
-        }
-
-        try {
-            // 启动服务，端口 0 表示随机分配
-            String result = RustSDK.INSTANCE.startServer(0);
-            Log.i(TAG, "startServer result: " + result);
-
-            if (result.contains("\"error\"")) {
-                Log.e(TAG, "Failed to start local server: " + result);
-                return;
-            }
-
-            // 解析返回的 port 和 token
-            JSONObject json = new JSONObject(result);
-            int port = json.getInt("port");
-            String token = json.getString("token");
-
-            // 初始化 LocalServiceClient 单例
-            LocalServiceClient.Companion.initialize(port, token);
-
-            Log.i(TAG, "Local service started successfully on port: " + port);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start local service", e);
-        }
+    private CampusNativeGateway campusNativeGateway() {
+        return EntryPointAccessors.fromApplication(this, SdkEntryPoint.class)
+                .campusNativeGateway();
     }
 
     @Override
@@ -113,9 +82,10 @@ public class AHUApplication extends Application {
 
         // 停止 Rust 本地服务
         try {
-            if (RustSDK.INSTANCE.isNativeLoaded()) {
-                RustSDK.INSTANCE.stopServer();
-                LocalServiceClient.Companion.destroy();
+            CampusNativeGateway gateway = campusNativeGateway();
+            if (gateway.isNativeLoaded()) {
+                gateway.stopServer();
+                gateway.unbindLocalService();
                 Log.i(TAG, "Local service stopped");
             }
         } catch (Exception e) {

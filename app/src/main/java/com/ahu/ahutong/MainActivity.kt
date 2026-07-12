@@ -27,8 +27,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ahu.ahutong.appwidget.WidgetUpdateScheduler
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ext.launchSafe
-import com.ahu.ahutong.sdk.LocalServiceClient
-import com.ahu.ahutong.sdk.RustSDK
+import com.ahu.ahutong.core.sdk.CampusNativeGateway
 import com.ahu.ahutong.ui.component.ApkMirrorSourceDialog
 import com.ahu.ahutong.ui.component.ApkUpdateDialog
 import com.ahu.ahutong.ui.screen.Main
@@ -41,11 +40,15 @@ import com.ahu.ahutong.ui.theme.AHUTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import java.security.MessageDigest
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     val TAG = "MainActivity"
+
+    @Inject
+    lateinit var campusNativeGateway: CampusNativeGateway
 
     private val mainViewModel: MainViewModel by viewModels()
     private val loginViewModel: LoginViewModel by viewModels()
@@ -147,7 +150,7 @@ class MainActivity : ComponentActivity() {
         }
         WidgetUpdateScheduler.scheduleNext(this@MainActivity)
 
-        RustSDK.loadLibrary(context = applicationContext)
+        campusNativeGateway.loadLibrary(context = applicationContext)
 
         // 在 native library 加载后启动本地 HTTP 服务
         val storageInitialized = startLocalService()
@@ -385,7 +388,7 @@ class MainActivity : ComponentActivity() {
      * 启动 Rust 本地 HTTP 服务
      */
     private fun startLocalService(): Boolean {
-        if (!RustSDK.isNativeLoaded()) {
+        if (!campusNativeGateway.isNativeLoaded()) {
             Log.w("MainActivity", "Native library not loaded, skipping local service start")
             return false
         }
@@ -395,11 +398,11 @@ class MainActivity : ComponentActivity() {
             val seedCookies = AHUCache.getRustCookies()
             var usedStorageStartup = true
             val result = try {
-                RustSDK.startServerWithStorage(0, storagePath, seedCookies)
+                campusNativeGateway.startServerWithStorage(0, storagePath, seedCookies)
             } catch (e: UnsatisfiedLinkError) {
                 Log.w("MainActivity", "startServerWithStorage missing, fallback to startServer", e)
                 usedStorageStartup = false
-                RustSDK.startServer(0)
+                campusNativeGateway.startServer(0)
             }
             Log.i("MainActivity", "startServer result: $result")
 
@@ -412,7 +415,7 @@ class MainActivity : ComponentActivity() {
             val port = json.getInt("port")
             val token = json.getString("token")
 
-            LocalServiceClient.initialize(port, token)
+            campusNativeGateway.bindLocalService(port, token)
             Log.i("MainActivity", "Local service started on port: $port")
             return usedStorageStartup
         } catch (e: Exception) {
@@ -428,19 +431,17 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val client = LocalServiceClient.getInstance()
-        if (client == null) {
+        if (!campusNativeGateway.isLocalServiceReady()) {
             Log.w("MainActivity", "Local service client missing, skip Rust cookie restore")
             return
         }
 
-        val result = client.init(cookies)
-        result
+        campusNativeGateway.httpInit(cookies)
             .onSuccess {
                 Log.i("MainActivity", "Restored Rust cookies: ${cookies.length} bytes")
             }
-            .onFailure {
-                Log.w("MainActivity", "Failed to restore Rust cookies", it)
+            .onError {
+                Log.w("MainActivity", "Failed to restore Rust cookies: ${it.message}", it.cause)
             }
     }
 

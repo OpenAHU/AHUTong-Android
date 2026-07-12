@@ -39,6 +39,9 @@ import retrofit2.Response
  * @Author: SinkDev
  * @Date: 2021/7/31-下午9:12
  * @Email: 468766131@qq.com
+ *
+ * TODO(Phase 3): replace object facade with injected domain repositories that
+ * depend on [com.ahu.ahutong.core.sdk.CampusNativeGateway] only.
  */
 object AHURepository {
 

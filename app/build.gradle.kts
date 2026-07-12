@@ -133,6 +133,7 @@ dependencies {
     implementation(project(":core:datastore"))
     implementation(project(":core:network"))
     implementation(project(":core:sdk-api"))
+    implementation(project(":core:sdk"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)
