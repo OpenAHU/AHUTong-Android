@@ -37,4 +37,6 @@ dependencies {
     api(libs.retrofit)
     api(libs.converter.gson)
     api(libs.logging.interceptor)
+
+    testImplementation(libs.kotlin.test)
 }

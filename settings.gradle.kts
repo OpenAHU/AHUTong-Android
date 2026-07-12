@@ -69,3 +69,5 @@ include(":feature:settings")
 include(":feature:weather")
 include(":feature:classroom")
 include(":feature:repository")
+
+include(":feature:shell")

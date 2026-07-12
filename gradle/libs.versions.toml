@@ -54,6 +54,7 @@ jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 kotlin-bom = { module = "org.jetbrains.kotlin:kotlin-bom", version.ref = "kotlinBomVersion" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
 logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "loggingInterceptorVersion" }
 material3 = { module = "androidx.compose.material3:material3" }
 mmkv-static = { module = "com.tencent:mmkv-static", version.ref = "mmkvStatic" }

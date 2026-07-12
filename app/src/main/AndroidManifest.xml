@@ -22,7 +22,6 @@
         <package android:name="com.tencent.tim" />
         <package android:name="com.tencent.mobileqq" />
         <package android:name="com.eg.android.AlipayGphone" />
-        <!-- 允许查询能打开文档的 App（Android 11+ 必需） -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/pdf" />
@@ -64,91 +63,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AHUTong"
         tools:targetApi="tiramisu">
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
-        <receiver
-            android:name=".appwidget.ScheduleAppWidgetReceiver"
-            android:enabled="@bool/glance_appwidget_available"
-            android:exported="false"
-            android:label="课表">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="android.intent.action.LOCALE_CHANGED" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/app_widget_info" />
-            <meta-data
-                android:name="miuiWidget"
-                android:value="true" />
-            <meta-data
-                android:name="miuiWidgetTransitionAnimation"
-                android:value="false" />
-            <meta-data
-                android:name="miuiWidgetRefresh"
-                android:value="exposure" />
-            <meta-data
-                android:name="miuiWidgetRefreshMinInterval"
-                android:value="20000" />
-        </receiver>
-
-        <receiver
-            android:name=".appwidget.ScheduleAdaptiveWidgetProvider"
-            android:exported="false"
-            android:label="课表">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/adaptive_test_widget_info" />
-        </receiver>
-
-        <receiver
-            android:name=".appwidget.WidgetUpdateScheduler"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.ahu.ahutong.appwidget.ACTION_UPDATE_WIDGETS" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".notification.CourseReminderReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".notification.CourseReminderBootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="android.intent.action.TIME_SET" />
-                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-            </intent-filter>
-        </receiver>
-
+        <!-- Components (MainActivity, widgets, receivers) come from :feature:shell -->
     </application>
-
 </manifest>
