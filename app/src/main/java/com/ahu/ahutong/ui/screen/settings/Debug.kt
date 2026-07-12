@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun Debug(
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
-    discoveryViewModel: DiscoveryViewModel = viewModel(),
+    discoveryViewModel: DiscoveryViewModel = hiltViewModel(),
     onGrayStateChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current

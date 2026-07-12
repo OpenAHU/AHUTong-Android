@@ -51,9 +51,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.ahu.ahutong.R
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.PreferencesManager
+import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.kyant.monet.n1
@@ -66,7 +65,8 @@ fun RowScope.CampusCard(
     transitionBalance: Double,
     onRefreshBalance: () -> Unit,
     navController: NavController,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    isLoggedIn: Boolean = false,
 ) {
     val context = LocalContext.current
     val preferencesManager = remember { PreferencesManager(context = context) }
@@ -80,7 +80,7 @@ fun RowScope.CampusCard(
     }
 
     LaunchedEffect(isQrcode) {
-        if (AHUCache.isLogin() && isQrcode) {
+        if (isLoggedIn && isQrcode) {
             onRefreshBalance()
         }
     }
@@ -93,6 +93,7 @@ fun RowScope.CampusCard(
         if (isQrcode) {
             QRcodeView(
                 balance = balance,
+                isLoggedIn = isLoggedIn,
                 onBack = {
                     isQrcode = false
                 }
@@ -227,7 +228,11 @@ private fun CardView(
 
 
 @Composable
-private fun QRcodeView(balance: Double, onBack: () -> Unit) {
+private fun QRcodeView(
+    balance: Double,
+    isLoggedIn: Boolean,
+    onBack: () -> Unit,
+) {
     val discoveryViewModel: DiscoveryViewModel = hiltViewModel()
     val qrcodeBitmap by discoveryViewModel.qrcode.collectAsState()
     val finished by discoveryViewModel.state.collectAsState()
@@ -238,7 +243,7 @@ private fun QRcodeView(balance: Double, onBack: () -> Unit) {
 
     val activity = androidx.activity.compose.LocalActivity.current
 
-    if (AHUCache.isLogin()) {
+    if (isLoggedIn) {
         LaunchedEffect(Unit) {
             discoveryViewModel.loadQrCode()
         }

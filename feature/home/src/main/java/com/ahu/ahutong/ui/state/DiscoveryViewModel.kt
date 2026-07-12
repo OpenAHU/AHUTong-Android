@@ -10,29 +10,35 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AppResult
+import com.ahu.ahutong.data.campuscard.CampusCardLocalStore
 import com.ahu.ahutong.data.campuscard.CampusCardRepository
-import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.home.HomePreferences
+import com.ahu.ahutong.data.model.ScheduleConfigBean
+import com.ahu.ahutong.data.schedule.ScheduleWeekResolver
 import com.ahu.ahutong.ext.launchSafe
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.journeyapps.barcodescanner.BarcodeEncoder
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.Date
+import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 /**
  * @Author Simon
  * @Date 2021/8/3-22:12
  * @Email 330771794@qq.com
  */
-
-
 @HiltViewModel
 class DiscoveryViewModel @Inject constructor(
     private val campusCardRepository: CampusCardRepository,
+    private val campusCardLocalStore: CampusCardLocalStore,
+    private val homePreferences: HomePreferences,
+    private val scheduleWeekResolver: ScheduleWeekResolver,
 ) : ViewModel() {
 
     val TAG = DiscoveryViewModel::class.java.simpleName
@@ -43,14 +49,33 @@ class DiscoveryViewModel @Inject constructor(
 
     val visibilities = mutableStateListOf<Int>()
 
-
     var qrcode = MutableStateFlow<Bitmap?>(null)
-    var state = MutableStateFlow<Boolean>(false);
+    var state = MutableStateFlow(false)
+
+    fun isLoggedIn(): Boolean = campusCardLocalStore.isLoggedIn()
+
+    fun isMockMode(): Boolean = campusCardLocalStore.isMockMode()
+
+    fun getHomeWidgetSlots(): List<String?> = homePreferences.getHomeWidgetSlots()
+
+    fun saveHomeWidgetSlots(slots: List<String?>) {
+        homePreferences.saveHomeWidgetSlots(slots)
+    }
+
+    fun getWeatherShowOnHome(): Boolean = homePreferences.getWeatherShowOnHome()
+
+    fun currentMinutes(locale: Locale = Locale.CHINA): Int =
+        scheduleWeekResolver.currentMinutes(locale)
+
+    fun nowDate(): Date = scheduleWeekResolver.nowDate()
+
+    fun resolveLocalScheduleConfig(): ScheduleConfigBean? =
+        scheduleWeekResolver.resolveLocalConfig()?.config
 
     fun loadActivityBean() {
         // 优先加载缓存
-        if (!AHUCache.getMockData()) {
-            AHUCache.getCardBalance()?.let {
+        if (!campusCardLocalStore.isMockMode()) {
+            campusCardLocalStore.getCachedBalance()?.let {
                 balance = it
             }
         }
@@ -77,8 +102,8 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun refreshCardBalance() {
-        if (!AHUCache.getMockData()) {
-            AHUCache.getCardBalance()?.let {
+        if (!campusCardLocalStore.isMockMode()) {
+            campusCardLocalStore.getCachedBalance()?.let {
                 balance = it
             }
         }
@@ -97,13 +122,13 @@ class DiscoveryViewModel @Inject constructor(
     private fun applyCardBalance(balanceValue: Double?, transitionBalanceValue: Double?) {
         val newBalance = balanceValue ?: 0.0
         balance = newBalance
-        AHUCache.saveCardBalance(newBalance)
+        campusCardLocalStore.saveBalance(newBalance)
         transitionBalance = transitionBalanceValue ?: transitionBalance
     }
 
     fun loadQrCode() {
         viewModelScope.launchSafe {
-            withContext(Dispatchers.IO){
+            withContext(Dispatchers.IO) {
                 state.value = false
                 try {
                     when (val response = campusCardRepository.getQrcode()) {
@@ -130,7 +155,5 @@ class DiscoveryViewModel @Inject constructor(
                 state.value = true
             }
         }
-
     }
-
 }

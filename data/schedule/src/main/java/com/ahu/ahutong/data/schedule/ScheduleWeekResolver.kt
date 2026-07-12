@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.schedule
 
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 /**
@@ -17,6 +18,13 @@ interface ScheduleWeekResolver {
     fun isDebugClockMocked(): Boolean
 
     fun nowCalendar(locale: Locale): Calendar
+
+    fun nowDate(): Date
+
+    fun currentMinutes(locale: Locale = Locale.CHINA): Int
+
+    /** Local-only resolve; null when no cached term start is available. */
+    fun resolveLocalConfig(): ResolvedScheduleConfig?
 
     suspend fun resolveLocalFirst(): ResolvedScheduleConfig
 

@@ -8,6 +8,8 @@ import javax.inject.Singleton
 class AhuCacheCampusCardLocalStore @Inject constructor() : CampusCardLocalStore {
     override fun isMockMode(): Boolean = AHUCache.getMockData()
 
+    override fun isLoggedIn(): Boolean = AHUCache.isLogin()
+
     override fun getCachedBalance(): Double? = AHUCache.getCardBalance()
 
     override fun saveBalance(balance: Double) {

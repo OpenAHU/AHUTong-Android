@@ -144,6 +144,7 @@ dependencies {
     implementation(project(":data:calendar"))
     implementation(project(":feature:login"))
     implementation(project(":feature:schedule"))
+    implementation(project(":feature:home"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

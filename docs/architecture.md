@@ -10,7 +10,7 @@
 |------|------|------|
 | Phase 0–2 | 完成 | Core + SDK 倒置 |
 | Phase 3 | 完成 | 八大 data 域 + 校历 |
-| Phase 4 | **进行中** | Feature 模块（login / schedule 已落地） |
+| Phase 4 | **进行中** | Feature 模块（login / schedule / home 已落地） |
 | Phase 5 | 未开始 | 删除门面、收紧可见性 |
 
 ## 已建 data 模块
@@ -31,17 +31,18 @@
 ```text
 :feature:login     # Login 页 + LoginViewModel + 登录资源
 :feature:schedule  # 课表页 + CourseCard* + ScheduleViewModel
+:feature:home      # 首页 + 卡片/小组件 + DiscoveryViewModel + 天气 API
 ```
 
 ## Phase 3 一览
 
 | 域 | 模块 | UI |
 |----|------|-----|
-| 课表 | schedule | ScheduleViewModel（已迁入 feature:schedule） |
-| 登录 | auth | LoginViewModel（已迁入 feature:login） |
+| 课表 | schedule | ScheduleViewModel（feature:schedule） |
+| 登录 | auth | LoginViewModel（feature:login） |
 | 成绩 | grade | GradeViewModel |
 | 考试 | exam | ExamViewModel |
-| 校园卡查询 | campuscard | DiscoveryViewModel |
+| 校园卡查询 | campuscard | DiscoveryViewModel（feature:home） |
 | 失物招领 | portal | LostFoundViewModel |
 | 充值支付 | payment | Bathroom/CardBalanceDepositViewModel |
 | 校历 | calendar | SchoolCalendarViewModel |
@@ -56,10 +57,10 @@
 |---------|------|------|
 | login | **完成** | UI/VM/资源迁入；会话清理经 `AuthSessionStore` + `AuthRuntimeReset` |
 | schedule | **完成** | UI/VM 迁入；周次/提醒经 `ScheduleWeekResolver` + `ScheduleReminderCoordinator` |
-| home | 未开始 | 首页与卡片组件 |
+| home | **完成** | 首页与卡片；布局偏好 `HomePreferences`；Mock 刷新由 app 注入 |
 
 ## 下一步
 
-1. `feature:home` …
+1. 其余 feature（grade / exam / tools / settings …）按需继续拆分  
 2. 逐步删除 `AHURepository` object  
 3. 电费并入 `data:payment`  

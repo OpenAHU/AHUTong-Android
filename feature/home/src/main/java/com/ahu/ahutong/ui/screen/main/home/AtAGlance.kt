@@ -20,19 +20,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.kyant.monet.a1
 import com.kyant.monet.withNight
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
 fun AtAGlance(
     todayCourses: List<Course>,
     currentMinutes: Int,
+    nowDate: Date,
     navController: NavHostController,
     enabled: Boolean = true
 ) {
@@ -52,7 +53,7 @@ fun AtAGlance(
     } else {
         false
     }
-    val date = SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(DebugClock.nowDate())
+    val date = SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(nowDate)
     Column(
         modifier = Modifier.padding(vertical = 0.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp)

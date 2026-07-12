@@ -90,6 +90,7 @@ fun HomeWidgetSlotLayout(
     isEditing: Boolean,
     highlightedSlot: Int?,
     draggingWidgetId: String?,
+    isLoggedIn: Boolean = false,
     onEnterEdit: () -> Unit,
     onHomeWidgetClick: (slotIndex: Int) -> Unit,
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
@@ -115,7 +116,8 @@ fun HomeWidgetSlotLayout(
                 transitionBalance = transitionBalance,
                 onRefreshBalance = onRefreshBalance,
                 navController = navController,
-                enabled = !isEditing
+                enabled = !isEditing,
+                isLoggedIn = isLoggedIn,
             )
 
             val showTopColumn = isEditing || slots.getOrNull(0) != null || slots.getOrNull(1) != null

@@ -2,6 +2,7 @@ package com.ahu.ahutong.data.schedule
 
 import com.ahu.ahutong.data.debug.DebugClock
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +26,18 @@ class AppScheduleWeekResolver @Inject constructor() : ScheduleWeekResolver {
     override fun isDebugClockMocked(): Boolean = DebugClock.isMocked()
 
     override fun nowCalendar(locale: Locale): Calendar = DebugClock.nowCalendar(locale)
+
+    override fun nowDate(): Date = DebugClock.nowDate()
+
+    override fun currentMinutes(locale: Locale): Int = DebugClock.currentMinutes(locale)
+
+    override fun resolveLocalConfig(): ResolvedScheduleConfig? {
+        val resolved = CurrentWeekResolver.resolveLocalConfig() ?: return null
+        return ResolvedScheduleConfig(
+            config = resolved.config,
+            source = resolved.source.toDomain(),
+        )
+    }
 
     override suspend fun resolveLocalFirst(): ResolvedScheduleConfig {
         val resolved = CurrentWeekResolver.resolveLocalFirst()

@@ -18,7 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.weather.WeatherApi
 import com.ahu.ahutong.data.weather.WeatherResponse
 import com.kyant.monet.a1
@@ -30,8 +29,10 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 @Composable
-fun HomeWeatherWidget(onClick: () -> Unit) {
-    val showOnHome = remember { AHUCache.getWeatherShowOnHome() }
+fun HomeWeatherWidget(
+    showOnHome: Boolean,
+    onClick: () -> Unit,
+) {
     if (!showOnHome) return
 
     val context = LocalContext.current

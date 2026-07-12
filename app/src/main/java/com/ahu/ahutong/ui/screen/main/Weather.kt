@@ -507,8 +507,9 @@ private fun LifeIndicesGrid(indices: com.ahu.ahutong.data.weather.LifeIndices) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text(item!!.level ?: "", color = 90.a1 withNight 85.a1, fontSize = 13.sp)
-                            if (!item.brief.isNullOrBlank()) {
-                                Text(item.brief, style = MaterialTheme.typography.bodySmall, color = 50.n1 withNight 80.n1)
+                            val brief = item.brief
+                            if (!brief.isNullOrBlank()) {
+                                Text(brief, style = MaterialTheme.typography.bodySmall, color = 50.n1 withNight 80.n1)
                             }
                         }
                     }

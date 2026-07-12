@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
 import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
+import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.ElectricityDeposit
@@ -73,7 +75,7 @@ fun Main(
     navController: NavHostController,
     mainViewModel: MainViewModel = viewModel(),
     loginViewModel: LoginViewModel = hiltViewModel(),
-    discoveryViewModel: DiscoveryViewModel = viewModel(),
+    discoveryViewModel: DiscoveryViewModel = hiltViewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     aboutViewModel: AboutViewModel = viewModel(),
     isReLoginShown: Boolean,
@@ -82,6 +84,7 @@ fun Main(
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
     var homeEditGrayState by remember {
         mutableStateOf(GrayReleaseManager.localState(GrayFeatures.HomeEdit, context))
     }
@@ -109,7 +112,8 @@ fun Main(
                     enterEditModeRequest = shouldEnterHomeEdit,
                     onEnterEditModeRequestConsumed = {
                         shouldEnterHomeEdit = false
-                    }
+                    },
+                    mockRefreshRevision = mockRefreshRevision,
                 )
             }
             animatedComposable("setup") {

@@ -14,6 +14,8 @@ import com.ahu.ahutong.data.campuscard.AhuCacheCampusCardLocalStore
 import com.ahu.ahutong.data.campuscard.CampusCardCrawlerSource
 import com.ahu.ahutong.data.campuscard.CampusCardLocalStore
 import com.ahu.ahutong.data.campuscard.CrawlerCampusCardSource
+import com.ahu.ahutong.data.home.AhuCacheHomePreferences
+import com.ahu.ahutong.data.home.HomePreferences
 import com.ahu.ahutong.data.exam.AhuCacheExamLocalStore
 import com.ahu.ahutong.data.exam.CrawlerExamSource
 import com.ahu.ahutong.data.exam.ExamCrawlerSource
@@ -107,6 +109,10 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindCampusCardCrawlerSource(impl: CrawlerCampusCardSource): CampusCardCrawlerSource
+
+    @Binds
+    @Singleton
+    abstract fun bindHomePreferences(impl: AhuCacheHomePreferences): HomePreferences
 
     @Binds
     @Singleton

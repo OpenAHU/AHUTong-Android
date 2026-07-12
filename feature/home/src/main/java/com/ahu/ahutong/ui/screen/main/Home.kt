@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,13 +36,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import androidx.navigation.NavHostController
-import com.ahu.ahutong.data.debug.DebugClock
-import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.screen.main.home.AtAGlance
 import com.ahu.ahutong.ui.screen.main.home.HomeWeatherWidget
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetDragOverlay
@@ -71,19 +65,20 @@ private data class ActiveHomeWidgetDrag(
 
 @Composable
 fun Home(
-    discoveryViewModel: DiscoveryViewModel = viewModel(),
+    discoveryViewModel: DiscoveryViewModel = hiltViewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     navController: NavHostController,
     homeEditEnabled: Boolean = false,
     enterEditModeRequest: Boolean = false,
-    onEnterEditModeRequestConsumed: () -> Unit = {}
+    onEnterEditModeRequestConsumed: () -> Unit = {},
+    mockRefreshRevision: Long = 0L,
 ) {
     val density = LocalDensity.current
     val schedule = scheduleViewModel.schedule.observeAsState().value?.getOrNull() ?: emptyList()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
-    val effectiveScheduleConfig = CurrentWeekResolver.resolveLocalConfig()?.config ?: scheduleConfig
+    val effectiveScheduleConfig =
+        discoveryViewModel.resolveLocalScheduleConfig() ?: scheduleConfig
     val currentWeek = effectiveScheduleConfig?.week ?: 1
-    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
     val todayCourses = schedule
         .filter { effectiveScheduleConfig?.week in it.startWeek..it.endWeek }
         .filter { it.weekday == (effectiveScheduleConfig?.weekDay ?: 1) }
@@ -95,10 +90,10 @@ fun Home(
             }
         }
         .sortedBy { it.startTime }
-    var currentMinutes by remember { mutableIntStateOf(DebugClock.currentMinutes()) }
+    var currentMinutes by remember { mutableIntStateOf(discoveryViewModel.currentMinutes()) }
     var isEditingHome by remember { mutableStateOf(false) }
     var homeWidgetSlots by remember {
-        mutableStateOf(normalizeHomeWidgetSlots(AHUCache.getHomeWidgetSlots()))
+        mutableStateOf(normalizeHomeWidgetSlots(discoveryViewModel.getHomeWidgetSlots()))
     }
     val slotBounds = remember { mutableStateMapOf<Int, Rect>() }
     var libraryBounds by remember { mutableStateOf<Rect?>(null) }
@@ -117,7 +112,7 @@ fun Home(
     fun saveHomeWidgetSlots(slots: List<String?>) {
         val normalizedSlots = normalizeHomeWidgetSlots(slots)
         homeWidgetSlots = normalizedSlots
-        AHUCache.saveHomeWidgetSlots(normalizedSlots)
+        discoveryViewModel.saveHomeWidgetSlots(normalizedSlots)
     }
 
     fun enterHomeEditMode() {
@@ -223,7 +218,7 @@ fun Home(
         }
     }
     LaunchedEffect(mockRefreshRevision) {
-        if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
+        if (mockRefreshRevision > 0 && discoveryViewModel.isMockMode()) {
             discoveryViewModel.loadActivityBean()
             scheduleViewModel.loadConfig()
             scheduleViewModel.refreshSchedule(isRefresh = true)
@@ -232,7 +227,7 @@ fun Home(
     LaunchedEffect(Unit) {
         while (true) {
             delay(HOME_REFRESH_INTERVAL_MS)
-            currentMinutes = DebugClock.currentMinutes()
+            currentMinutes = discoveryViewModel.currentMinutes()
             discoveryViewModel.refreshCardBalance()
         }
     }
@@ -295,6 +290,7 @@ fun Home(
             AtAGlance(
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
+                nowDate = discoveryViewModel.nowDate(),
                 navController = navController,
                 enabled = !isEditingHome
             )
@@ -309,7 +305,10 @@ fun Home(
                 }
             }
             SlideInContent(visible = !isEditingHome) {
-                HomeWeatherWidget(onClick = { navController.navigate("weather") })
+                HomeWeatherWidget(
+                    showOnHome = discoveryViewModel.getWeatherShowOnHome(),
+                    onClick = { navController.navigate("weather") },
+                )
             }
             SlideInContent(visible = 1 in discoveryViewModel.visibilities) {
                 HomeWidgetSlotLayout(
@@ -321,6 +320,7 @@ fun Home(
                     isEditing = isEditingHome,
                     highlightedSlot = highlightedSlot,
                     draggingWidgetId = activeDrag?.widgetId,
+                    isLoggedIn = discoveryViewModel.isLoggedIn(),
                     onEnterEdit = ::enterHomeEditMode,
                     onHomeWidgetClick = ::removeHomeWidget,
                     onSlotPositioned = { slotIndex, bounds ->

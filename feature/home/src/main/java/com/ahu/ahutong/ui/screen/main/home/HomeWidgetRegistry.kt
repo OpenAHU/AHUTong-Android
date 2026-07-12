@@ -1,7 +1,7 @@
 package com.ahu.ahutong.ui.screen.main.home
 
 import androidx.compose.ui.graphics.Color
-import com.ahu.ahutong.R
+import com.ahu.ahutong.feature.home.R
 
 data class HomeWidgetSpec(
     val id: String,
