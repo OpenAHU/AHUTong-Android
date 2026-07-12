@@ -142,6 +142,7 @@ dependencies {
     implementation(project(":data:portal"))
     implementation(project(":data:payment"))
     implementation(project(":data:calendar"))
+    implementation(project(":feature:login"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

@@ -2,8 +2,10 @@ package com.ahu.ahutong.data.di
 
 import com.ahu.ahutong.data.auth.AuthCookieSyncer
 import com.ahu.ahutong.data.auth.AuthCrawlerSource
+import com.ahu.ahutong.data.auth.AuthRuntimeReset
 import com.ahu.ahutong.data.auth.AuthSessionStore
 import com.ahu.ahutong.data.auth.AhuCacheAuthSessionStore
+import com.ahu.ahutong.data.auth.CrawlerAuthRuntimeReset
 import com.ahu.ahutong.data.auth.CrawlerAuthSource
 import com.ahu.ahutong.data.auth.NativeCookieSyncer
 import com.ahu.ahutong.data.calendar.AhuTongSchoolCalendarRemoteSource
@@ -63,6 +65,10 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindAuthCookieSyncer(impl: NativeCookieSyncer): AuthCookieSyncer
+
+    @Binds
+    @Singleton
+    abstract fun bindAuthRuntimeReset(impl: CrawlerAuthRuntimeReset): AuthRuntimeReset
 
     @Binds
     @Singleton
