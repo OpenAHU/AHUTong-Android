@@ -8,4 +8,8 @@ interface ExamLocalStore {
     fun getCachedExams(): List<Exam>
 
     fun saveExams(exams: List<Exam>)
+
+    fun getCurrentUserId(): String?
+
+    fun getCurrentUserName(): String?
 }

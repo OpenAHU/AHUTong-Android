@@ -4,7 +4,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AppResult
-import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.exam.ExamLocalStore
 import com.ahu.ahutong.data.exam.ExamRepository
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.ext.launchSafe
@@ -21,6 +21,7 @@ enum class RefreshState { IDLE, LOADING, UPDATED }
 @HiltViewModel
 class ExamViewModel @Inject constructor(
     private val examRepository: ExamRepository,
+    private val examLocalStore: ExamLocalStore,
 ) : ViewModel() {
     val data = MutableLiveData<Result<List<Exam>>>()
     val isLoading = MutableStateFlow<Boolean?>(null)
@@ -31,20 +32,23 @@ class ExamViewModel @Inject constructor(
 
     private var refreshJob: Job? = null
 
+    fun isMockMode(): Boolean = examLocalStore.isMockMode()
+
     fun loadExam(isRefresh: Boolean = false) {
         if (_refreshState.value == RefreshState.LOADING) return
         if (!isRefresh && isLoading.value == true) return
 
         refreshJob?.cancel()
         refreshJob = viewModelScope.launchSafe {
-            val user = AHUCache.getCurrentUser()
-            if (user == null && !AHUCache.getMockData()) {
+            val userId = examLocalStore.getCurrentUserId()
+            val userName = examLocalStore.getCurrentUserName()
+            if (userId == null && !examLocalStore.isMockMode()) {
                 data.value = Result.failure(Throwable("账户未登录"))
                 errorMessage.value = "账户未登录"
                 return@launchSafe
             }
 
-            val cached = AHUCache.getExamInfo().orEmpty()
+            val cached = examLocalStore.getCachedExams()
             if (cached.isNotEmpty() && !isRefresh) {
                 data.value = Result.success(cached)
             }
@@ -61,8 +65,8 @@ class ExamViewModel @Inject constructor(
 
             val result = examRepository.getExamInfo(
                 isRefresh = true,
-                studentId = user?.xh ?: "mock-student",
-                studentName = user?.name ?: "Mock 用户",
+                studentId = userId ?: "mock-student",
+                studentName = userName ?: "Mock 用户",
             )
 
             when (result) {
@@ -71,7 +75,7 @@ class ExamViewModel @Inject constructor(
                     val cachedJson = Gson().toJson(cached)
                     val newJson = Gson().toJson(newExams)
                     if (cachedJson != newJson) {
-                        AHUCache.saveExamInfo(newExams)
+                        examLocalStore.saveExams(newExams)
                         data.value = Result.success(newExams)
                     }
 

@@ -24,12 +24,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.R
 import com.ahu.ahutong.data.crawler.model.jwxt.CourseGrade
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
+import com.ahu.ahutong.feature.grade.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.GradeViewModel
 import com.kyant.capsule.ContinuousCapsule
@@ -39,13 +37,15 @@ import com.kyant.monet.withNight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Grade(gradeViewModel: GradeViewModel = hiltViewModel()) {
+fun Grade(
+    gradeViewModel: GradeViewModel = hiltViewModel(),
+    mockRefreshRevision: Long = 0L,
+) {
     val grade = gradeViewModel.grade
     val gpaRankInfo = gradeViewModel.gpaRankInfo
     val errorMessage = gradeViewModel.errorMessage
     val context = LocalContext.current
     val scrollState = rememberScrollState()
-    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
 
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -62,7 +62,7 @@ fun Grade(gradeViewModel: GradeViewModel = hiltViewModel()) {
     }
 
     LaunchedEffect(mockRefreshRevision) {
-        if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
+        if (mockRefreshRevision > 0 && gradeViewModel.isMockMode()) {
             gradeViewModel.getGarde(isRefresh = true)
             gradeViewModel.getGpaRank()
         }

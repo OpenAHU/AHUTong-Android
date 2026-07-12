@@ -3,6 +3,8 @@ package com.ahu.ahutong.data.grade
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.model.GradeStudentProfile
+import com.ahu.ahutong.ext.getSchoolYears
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,4 +25,10 @@ class AhuCacheGradeLocalStore @Inject constructor() : GradeLocalStore {
     override fun saveGpaRank(studentId: String, info: GpaRankInfo) {
         AHUCache.saveGpaRankInfo(studentId, info)
     }
+
+    override fun getStudentProfiles(): List<GradeStudentProfile> =
+        AHUCache.getGradeStudentProfiles()
+
+    override fun getSchoolYears(): List<String>? =
+        AHUCache.getCurrentUser()?.getSchoolYears()?.toList()
 }

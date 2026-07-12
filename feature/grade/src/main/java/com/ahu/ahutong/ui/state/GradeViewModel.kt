@@ -8,12 +8,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AppResult
-import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.grade.GradeLocalStore
 import com.ahu.ahutong.data.grade.GradeRepository
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
-import com.ahu.ahutong.ext.getSchoolYears
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.launchIn
@@ -23,6 +22,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class GradeViewModel @Inject constructor(
     private val gradeRepository: GradeRepository,
+    private val gradeLocalStore: GradeLocalStore,
 ) : ViewModel() {
     var totalGradePointAverage by mutableStateOf("暂无")
     var termGradePointAverage by mutableStateOf("暂无")
@@ -40,6 +40,8 @@ class GradeViewModel @Inject constructor(
     /** 每个 profile ID → Grade（null = 该专业无成绩） */
     private var perProfileGrades: Map<String, Grade?> = emptyMap()
 
+    fun isMockMode(): Boolean = gradeLocalStore.isMockMode()
+
     fun getGpaRank() = viewModelScope.launch {
         rankLoading = true
         rankEmptyMessage = null
@@ -49,7 +51,7 @@ class GradeViewModel @Inject constructor(
             when (val result = gradeRepository.getGpaRank(studentId)) {
                 is AppResult.Success -> {
                     gpaRankInfo = result.data
-                    AHUCache.saveGpaRankInfo(studentId, result.data)
+                    gradeLocalStore.saveGpaRank(studentId, result.data)
                 }
                 is AppResult.Error -> {
                     gpaRankInfo = null
@@ -71,18 +73,18 @@ class GradeViewModel @Inject constructor(
         try {
             when (val result = gradeRepository.getGrade(isRefresh)) {
                 is AppResult.Success -> {
-                    perProfileGrades = AHUCache.getPerProfileGrades()
+                    perProfileGrades = gradeLocalStore.getPerProfileGrades()
                     if (perProfileGrades.isEmpty() && studentProfiles.size > 1) {
                         when (gradeRepository.getGrade(isRefresh = true)) {
                             is AppResult.Success -> {
-                                perProfileGrades = AHUCache.getPerProfileGrades()
+                                perProfileGrades = gradeLocalStore.getPerProfileGrades()
                             }
                             is AppResult.Error -> Unit
                         }
                     }
                     switchToSelectedProfile()
                     errorMessage = null
-                    studentProfiles = AHUCache.getGradeStudentProfiles()
+                    studentProfiles = gradeLocalStore.getStudentProfiles()
                 }
                 is AppResult.Error -> {
                     errorMessage = result.message
@@ -123,18 +125,33 @@ class GradeViewModel @Inject constructor(
     }
 
     companion object {
-        val schoolYears: List<String> by lazy {
-            AHUCache.getCurrentUser()?.getSchoolYears()?.toList()
-                ?: if (AHUCache.getMockData()) {
-                    listOf("2024-2025", "2023-2024", "2022-2023")
+        private val mockSchoolYears = listOf("2024-2025", "2023-2024", "2022-2023")
+
+        /**
+         * Resolved lazily via the injected store on first ViewModel creation path.
+         * Fallback school years when store is unavailable are set in [resolveSchoolYears].
+         */
+        var schoolYears: List<String> = mockSchoolYears
+            private set
+
+        val terms = mutableMapOf("1" to "0", "2" to "1")
+
+        fun resolveSchoolYears(store: GradeLocalStore): List<String> {
+            schoolYears = store.getSchoolYears()
+                ?: if (store.isMockMode()) {
+                    mockSchoolYears
                 } else {
                     throw IllegalStateException("未登录，无法打开成绩界面")
                 }
+            return schoolYears
         }
-        val terms = mutableMapOf("1" to "0", "2" to "1")
     }
 
     init {
+        resolveSchoolYears(gradeLocalStore)
+        schoolYear = schoolYears.firstOrNull()
+        schoolTerm = terms.keys.firstOrNull()
+
         snapshotFlow { gpaRankInfo }
             .onEach { info ->
                 totalGradePointAverage = info?.gpa?.let { "%.2f".format(it) } ?: "暂无"
@@ -162,10 +179,11 @@ class GradeViewModel @Inject constructor(
             }
             .launchIn(viewModelScope)
 
-        studentProfiles = if (AHUCache.getMockData()) emptyList() else AHUCache.getGradeStudentProfiles()
-        perProfileGrades = AHUCache.getPerProfileGrades()
+        studentProfiles =
+            if (gradeLocalStore.isMockMode()) emptyList() else gradeLocalStore.getStudentProfiles()
+        perProfileGrades = gradeLocalStore.getPerProfileGrades()
         studentProfiles.firstOrNull()?.let {
-            gpaRankInfo = AHUCache.getGpaRankInfo(it.id)
+            gpaRankInfo = gradeLocalStore.getGpaRank(it.id)
         }
     }
 

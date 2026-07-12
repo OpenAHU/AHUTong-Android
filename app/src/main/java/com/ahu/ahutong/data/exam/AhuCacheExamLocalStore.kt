@@ -14,4 +14,8 @@ class AhuCacheExamLocalStore @Inject constructor() : ExamLocalStore {
     override fun saveExams(exams: List<Exam>) {
         AHUCache.saveExamInfo(exams)
     }
+
+    override fun getCurrentUserId(): String? = AHUCache.getCurrentUser()?.xh
+
+    override fun getCurrentUserName(): String? = AHUCache.getCurrentUser()?.name
 }

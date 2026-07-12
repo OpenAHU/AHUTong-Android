@@ -175,13 +175,13 @@ fun Main(
                 SchoolCalendar(navController = navController)
             }
             animatedComposable("grade") {
-                Grade()
+                Grade(mockRefreshRevision = mockRefreshRevision)
             }
             animatedComposable("phone_book") {
                 PhoneBook()
             }
             animatedComposable("exam") {
-                Exam()
+                Exam(mockRefreshRevision = mockRefreshRevision)
             }
             animatedComposable("free_classroom") {
                 FreeClassroom()

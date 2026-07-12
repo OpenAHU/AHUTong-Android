@@ -49,9 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.R
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.mock.MockScenarioController
+import com.ahu.ahutong.feature.exam.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ExamViewModel
 import com.ahu.ahutong.ui.state.RefreshState
@@ -67,7 +65,8 @@ import androidx.compose.ui.platform.LocalContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Exam(
-    examViewModel: ExamViewModel = hiltViewModel()
+    examViewModel: ExamViewModel = hiltViewModel(),
+    mockRefreshRevision: Long = 0L,
 ) {
     LaunchedEffect(Unit) {
         examViewModel.loadExam()
@@ -76,10 +75,9 @@ fun Exam(
     val isLoading by examViewModel.isLoading.collectAsState()
     val errorMessage by examViewModel.errorMessage.collectAsState()
     val context = LocalContext.current
-    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
 
     LaunchedEffect(mockRefreshRevision) {
-        if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
+        if (mockRefreshRevision > 0 && examViewModel.isMockMode()) {
             examViewModel.loadExam(isRefresh = true)
         }
     }
