@@ -3,8 +3,12 @@ package com.ahu.ahutong.ui.state
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.AHUResponse
+import com.ahu.ahutong.core.common.AppResult
 import com.ahu.ahutong.data.crawler.PayState
-import com.ahu.ahutong.data.crawler.api.ycard.YcardApi
+import com.ahu.ahutong.data.payment.PaymentLocalStore
+import com.ahu.ahutong.data.payment.PaymentRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,8 +16,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.FormBody
 import android.util.Log
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.dao.AHUCache.saveRoomSelection
 import com.ahu.ahutong.data.crawler.utils.generateNonce
 import com.ahu.ahutong.data.crawler.utils.getTimestamp
 import com.ahu.ahutong.data.crawler.utils.sha256
@@ -120,11 +122,22 @@ data class AccountPayInfoData(
     val passwordMap: Map<String, String>?
 )
 
-class ElectricityDepositViewModel: ViewModel() {
+@HiltViewModel
+class ElectricityDepositViewModel @Inject constructor(
+    private val paymentRepository: PaymentRepository,
+    private val paymentLocalStore: PaymentLocalStore,
+) : ViewModel() {
     var _payState = MutableStateFlow<PayState>(PayState.Idle)
     val payState : StateFlow<PayState> = _payState
     fun resetPaymentState() {
         _payState.value = PayState.Idle
+    }
+
+    fun getElectricityChargeInfo(): ElectricityChargeInfo? =
+        paymentLocalStore.getElectricityChargeInfo()
+
+    fun clearElectricityChargeInfo() {
+        paymentLocalStore.clearElectricityChargeInfo()
     }
 
     private val _campusList = MutableStateFlow<List<CampusDataItem>>(emptyList())
@@ -169,16 +182,16 @@ class ElectricityDepositViewModel: ViewModel() {
     init {
         _campusList.value = emptyList()
         _selectedCampus.value = null
-        val history = AHUCache.getElectricityDepositHistory()
+        val history = paymentLocalStore.getElectricityDepositHistory()
         if (history.size == 2) {
             _historyOptions.value = history
             fetchCampuses()
         } else {
-            val lastSelection = AHUCache.getRoomSelection()
+            val lastSelection = paymentLocalStore.getRoomSelection()
             if (history.isEmpty() && lastSelection != null) {
                 val seedLabel = normalizeLabel(lastSelection.room?.name ?: "")
                 if (seedLabel.isNotBlank()) {
-                    AHUCache.saveElectricityDepositHistory(
+                    paymentLocalStore.saveElectricityDepositHistory(
                         listOf(
                             ElectricityDepositHistoryItem(
                                 selection = lastSelection,
@@ -297,7 +310,7 @@ class ElectricityDepositViewModel: ViewModel() {
             .build()
         Log.d("ElectricityDepositViewModel", "getCampus请求体: ${formBody.asString()}")
         try {
-            val res = YcardApi.API.getFeeItemThirdData(formBody)
+            val res = postFeeItem(formBody)
             Log.d("ElectricityDepositViewModel", "getCampus响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getCampus响应体: $responseBody")
@@ -376,7 +389,7 @@ class ElectricityDepositViewModel: ViewModel() {
         Log.d("ElectricityDepositViewModel", "getBuildings请求体: ${formBody.asString()}")
 
         try {
-            val res = YcardApi.API.getFeeItemThirdData(formBody)
+            val res = postFeeItem(formBody)
             Log.d("ElectricityDepositViewModel", "getBuildings响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getBuildings响应体: $responseBody")
@@ -456,7 +469,7 @@ class ElectricityDepositViewModel: ViewModel() {
         Log.d("ElectricityDepositViewModel", "getFloor请求体: ${formBody.asString()}")
 
         try {
-            val res = YcardApi.API.getFeeItemThirdData(formBody)
+            val res = postFeeItem(formBody)
             Log.d("ElectricityDepositViewModel", "getFloor响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getFloor响应体: $responseBody")
@@ -540,7 +553,7 @@ class ElectricityDepositViewModel: ViewModel() {
         Log.d("ElectricityDepositViewModel", "getRoom请求体: ${formBody.asString()}")
 
         try {
-            val res = YcardApi.API.getFeeItemThirdData(formBody)
+            val res = postFeeItem(formBody)
             Log.d("ElectricityDepositViewModel", "getRoom响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getRoom响应体: $responseBody")
@@ -632,7 +645,7 @@ class ElectricityDepositViewModel: ViewModel() {
         Log.d("ElectricityDepositViewModel", "getRoomInfo请求体: ${formBody.asString()}")
 
         try {
-            val res = YcardApi.API.getFeeItemThirdData(formBody)
+            val res = postFeeItem(formBody)
             Log.d("ElectricityDepositViewModel", "getRoomInfo响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getRoomInfo响应体: $responseBody")
@@ -699,7 +712,7 @@ class ElectricityDepositViewModel: ViewModel() {
         )
         Log.d("ElectricityDepositViewModel", "getPaymentOrder请求体: ${formBody.asString()}")
         try {
-            val res = YcardApi.API.pay(formBody)
+            val res = postPay(formBody)
             Log.d("ElectricityDepositViewModel", "getPaymentOrder响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getPaymentOrder响应体: $responseBody")
@@ -743,7 +756,7 @@ class ElectricityDepositViewModel: ViewModel() {
 
         Log.d("ElectricityDepositViewModel", "getAccountPayInfo请求体: ${formBody.asString()}")
         try {
-            val res = YcardApi.API.pay(formBody)
+            val res = postPay(formBody)
             Log.d("ElectricityDepositViewModel", "getAccountPayInfo响应码: ${res.code()}")
             val responseBody = res.body()?.string()
             Log.d("ElectricityDepositViewModel", "getAccountPayInfo响应体: $responseBody")
@@ -842,7 +855,7 @@ class ElectricityDepositViewModel: ViewModel() {
 
                 Log.d("ElectricityDepositViewModel", "开始执行最终支付请求...")
                 Log.d("ElectricityDepositViewModel", "最终支付请求体: ${finalFormBody.asString()}")
-                val finalRes = YcardApi.API.pay(finalFormBody)
+                val finalRes = postPay(finalFormBody)
                 Log.d("ElectricityDepositViewModel", "最终支付请求完成，响应码: ${finalRes.code()}")
                 val responseBody = finalRes.body()?.string()
                 Log.d("ElectricityDepositViewModel", "最终支付响应体: $responseBody")
@@ -855,7 +868,7 @@ class ElectricityDepositViewModel: ViewModel() {
                         Log.d("ElectricityDepositViewModel", "支付成功!")
                         val chargeAmount = amount.toDoubleOrNull()
                         if (chargeAmount != null && chargeAmount > 0) {
-                            val existingInfo = AHUCache.getElectricityChargeInfo()
+                            val existingInfo = paymentLocalStore.getElectricityChargeInfo()
                             if (existingInfo == null) {
                                 val dateFormat = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
                                 val firstDate = dateFormat.format(Date())
@@ -863,12 +876,12 @@ class ElectricityDepositViewModel: ViewModel() {
                                     totalAmount = chargeAmount,
                                     firstChargeDate = firstDate
                                 )
-                                AHUCache.saveElectricityChargeInfo(newInfo)
+                                paymentLocalStore.saveElectricityChargeInfo(newInfo)
                             } else {
                                 val updatedInfo = existingInfo.copy(
                                     totalAmount = existingInfo.totalAmount + chargeAmount
                                 )
-                                AHUCache.saveElectricityChargeInfo(updatedInfo)
+                                paymentLocalStore.saveElectricityChargeInfo(updatedInfo)
                             }
                         }
                         val roomSelectionInfo = RoomSelectionInfo(
@@ -877,7 +890,7 @@ class ElectricityDepositViewModel: ViewModel() {
                             floor = _selectedFloor.value,
                             room = _selectedRoom.value
                         )
-                        saveRoomSelection(roomSelectionInfo)
+                        paymentLocalStore.saveRoomSelection(roomSelectionInfo)
 
                         val label = normalizeLabel(_fullRoomDetails.value?.data?.roomName ?: _selectedRoom.value?.name ?: "")
                         val newItem = ElectricityDepositHistoryItem(
@@ -885,10 +898,10 @@ class ElectricityDepositViewModel: ViewModel() {
                             label = label,
                             updatedAt = System.currentTimeMillis()
                         )
-                        val existingHistory = AHUCache.getElectricityDepositHistory()
+                        val existingHistory = paymentLocalStore.getElectricityDepositHistory()
                         val key = selectionKey(roomSelectionInfo)
                         val updatedHistory = (listOf(newItem) + existingHistory.filter { selectionKey(it.selection) != key }).take(2)
-                        AHUCache.saveElectricityDepositHistory(updatedHistory)
+                        paymentLocalStore.saveElectricityDepositHistory(updatedHistory)
                     } else {
                         val errorMessage = parsedResponse.msg ?: "支付失败，未知错误"
                         _errorMessage.value = errorMessage
@@ -912,6 +925,61 @@ class ElectricityDepositViewModel: ViewModel() {
                 _isLoading.value = false
                 Log.d("ElectricityDepositViewModel", "支付流程结束。")
             }
+        }
+    }
+
+    
+    private class HttpCallResult(
+        val isSuccessful: Boolean,
+        private val statusCode: Int,
+        private val statusMessage: String,
+        private val bodyText: String?,
+        private val errorText: String? = null,
+    ) {
+        fun code(): Int = statusCode
+        fun message(): String = statusMessage
+        fun body(): BodyHolder? = bodyText?.let { BodyHolder(it) }
+        fun errorBody(): BodyHolder? = errorText?.let { BodyHolder(it) }
+        class BodyHolder(private val text: String) {
+            fun string(): String = text
+        }
+    }
+
+    private suspend fun postFeeItem(formBody: FormBody): HttpCallResult {
+        val fields = (0 until formBody.size).associate { formBody.name(it) to formBody.value(it) }
+        return when (val result = paymentRepository.postFeeItemThirdData(fields)) {
+            is AppResult.Success -> HttpCallResult(
+                isSuccessful = true,
+                statusCode = result.data.httpCode,
+                statusMessage = "OK",
+                bodyText = result.data.body,
+            )
+            is AppResult.Error -> HttpCallResult(
+                isSuccessful = false,
+                statusCode = result.code ?: -1,
+                statusMessage = result.message,
+                bodyText = null,
+                errorText = result.message,
+            )
+        }
+    }
+
+    private suspend fun postPay(formBody: FormBody): HttpCallResult {
+        val fields = (0 until formBody.size).associate { formBody.name(it) to formBody.value(it) }
+        return when (val result = paymentRepository.postPayForm(fields)) {
+            is AppResult.Success -> HttpCallResult(
+                isSuccessful = true,
+                statusCode = result.data.httpCode,
+                statusMessage = "OK",
+                bodyText = result.data.body,
+            )
+            is AppResult.Error -> HttpCallResult(
+                isSuccessful = false,
+                statusCode = result.code ?: -1,
+                statusMessage = result.message,
+                bodyText = null,
+                errorText = result.message,
+            )
         }
     }
 

@@ -16,4 +16,8 @@ interface PaymentRepository {
     suspend fun createOrder(request: RequestBody): AppResult<PaymentHttpResult>
 
     suspend fun pay(request: RequestBody): AppResult<PaymentHttpResult>
+
+    suspend fun postFeeItemThirdData(fields: Map<String, String>): AppResult<PaymentHttpResult>
+
+    suspend fun postPayForm(fields: Map<String, String>): AppResult<PaymentHttpResult>
 }

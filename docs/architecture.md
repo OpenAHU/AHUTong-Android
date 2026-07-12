@@ -10,7 +10,7 @@
 |------|------|------|
 | Phase 0–2 | 完成 | Core + SDK 倒置 |
 | Phase 3 | 完成 | 八大 data 域 + 校历 |
-| Phase 4 | **进行中** | Feature 模块（login / schedule / home / grade / exam 已落地） |
+| Phase 4 | **进行中** | Feature 模块（login / schedule / home / grade / exam / payment 已落地） |
 | Phase 5 | 未开始 | 删除门面、收紧可见性 |
 
 ## 已建 data 模块
@@ -34,6 +34,7 @@
 :feature:home      # 首页 + 卡片/小组件 + DiscoveryViewModel + 天气 API
 :feature:grade     # 成绩单 + GradeViewModel
 :feature:exam      # 考场查询 + ExamViewModel
+:feature:payment   # 浴室/校园卡/电费充值 UI + ViewModels
 ```
 
 ## Phase 3 一览
@@ -46,12 +47,12 @@
 | 考试 | exam | ExamViewModel（feature:exam） |
 | 校园卡查询 | campuscard | DiscoveryViewModel（feature:home） |
 | 失物招领 | portal | LostFoundViewModel |
-| 充值支付 | payment | Bathroom/CardBalanceDepositViewModel |
+| 充值支付 | payment | Bathroom/CardBalance/ElectricityDepositViewModel（feature:payment） |
 | 校历 | calendar | SchoolCalendarViewModel |
 
 `AHURepository` 现主要为兼容门面（委托各 Repository）+ Mock 数据源初始化。
 
-电费缴费仍直连 YcardApi，可后续并入 payment。
+电费已并入 `data:payment`（`postFeeItemThirdData` / `postPayForm` + `PaymentLocalStore`）。
 
 ## Phase 4 进度
 
@@ -62,9 +63,9 @@
 | home | **完成** | 首页与卡片；布局偏好 `HomePreferences`；Mock 刷新由 app 注入 |
 | grade | **完成** | 成绩单 + GradeViewModel；经 `GradeLocalStore` 访问缓存/学年 |
 | exam | **完成** | 考场查询 + ExamViewModel；经 `ExamLocalStore` 访问缓存/用户 |
+| payment | **完成** | 三充值页 + VM；电费 HTTP/缓存经 payment 仓库与 LocalStore |
 
 ## 下一步
 
-1. 其余 feature（tools / settings / payment UI …）按需继续拆分  
-2. 逐步删除 `AHURepository` object  
-3. 电费并入 `data:payment`  
+1. 其余 feature（tools / settings / portal / calendar …）按需继续拆分  
+2. 逐步删除 `AHURepository` object（Phase 5）  

@@ -24,7 +24,9 @@ import com.ahu.ahutong.data.grade.AhuCacheGradeLocalStore
 import com.ahu.ahutong.data.grade.CrawlerGradeSource
 import com.ahu.ahutong.data.grade.GradeCrawlerSource
 import com.ahu.ahutong.data.grade.GradeLocalStore
+import com.ahu.ahutong.data.payment.AhuCachePaymentLocalStore
 import com.ahu.ahutong.data.payment.PaymentCredentialGate
+import com.ahu.ahutong.data.payment.PaymentLocalStore
 import com.ahu.ahutong.data.payment.PaymentRemoteSource
 import com.ahu.ahutong.data.payment.TokenPaymentCredentialGate
 import com.ahu.ahutong.data.payment.YcardPaymentRemoteSource
@@ -129,6 +131,10 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindPaymentCredentialGate(impl: TokenPaymentCredentialGate): PaymentCredentialGate
+
+    @Binds
+    @Singleton
+    abstract fun bindPaymentLocalStore(impl: AhuCachePaymentLocalStore): PaymentLocalStore
 
     @Binds
     @Singleton

@@ -147,6 +147,7 @@ dependencies {
     implementation(project(":feature:home"))
     implementation(project(":feature:grade"))
     implementation(project(":feature:exam"))
+    implementation(project(":feature:payment"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

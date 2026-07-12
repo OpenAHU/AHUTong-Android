@@ -9,8 +9,8 @@ import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomPayRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomRequest
 import com.ahu.ahutong.data.crawler.model.ycard.PayResponse
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.BathroomTelInfo
+import com.ahu.ahutong.data.payment.PaymentLocalStore
 import com.ahu.ahutong.data.payment.PaymentRepository
 import com.ahu.ahutong.ext.launchSafe
 import com.google.gson.Gson
@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 class BathroomDepositViewModel @Inject constructor(
     private val paymentRepository: PaymentRepository,
+    private val paymentLocalStore: PaymentLocalStore,
 ) : ViewModel() {
 
     val TAG = "BathroomDepositViewModel"
@@ -37,6 +38,8 @@ class BathroomDepositViewModel @Inject constructor(
     fun resetPaymentState() {
         _payState.value = PayState.Idle
     }
+
+    fun getSavedPhone(): String? = paymentLocalStore.getPhone()
 
     fun getBathroomInfo(bathroom: String, tel: String) {
         viewModelScope.launchSafe {
@@ -106,7 +109,7 @@ class BathroomDepositViewModel @Inject constructor(
                                             }
                                             is AppResult.Error -> Unit
                                         }
-                                        AHUCache.savePhone(data.telPhone)
+                                        paymentLocalStore.savePhone(data.telPhone)
                                         _payState.value =
                                             PayState.Succeeded(message = payResponse.data)
                                     } else {

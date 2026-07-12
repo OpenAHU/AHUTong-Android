@@ -221,7 +221,7 @@ fun Main(
             }
 
             animatedComposable("card_balance_deposit") {
-                CardBalanceDeposit()
+                CardBalanceDeposit(mockRefreshRevision = mockRefreshRevision)
             }
 
             animatedComposable("bathroom_deposit") {

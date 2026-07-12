@@ -48,4 +48,19 @@ class DefaultPaymentRepository @Inject constructor(
             }
             remoteSource.pay(request)
         }
+
+    override suspend fun postFeeItemThirdData(
+        fields: Map<String, String>,
+    ): AppResult<PaymentHttpResult> = withContext(Dispatchers.IO) {
+        remoteSource.postFeeItemThirdData(fields)
+    }
+
+    override suspend fun postPayForm(
+        fields: Map<String, String>,
+    ): AppResult<PaymentHttpResult> = withContext(Dispatchers.IO) {
+        if (!credentialGate.isReady()) {
+            return@withContext AppResult.error("校园卡登录凭证暂未就绪，请稍后重试")
+        }
+        remoteSource.postPayForm(fields)
+    }
 }

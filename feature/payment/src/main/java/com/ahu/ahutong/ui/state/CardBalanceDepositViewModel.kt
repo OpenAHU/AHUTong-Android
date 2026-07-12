@@ -7,6 +7,7 @@ import com.ahu.ahutong.data.crawler.model.ycard.CardBalanceRequest
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
 import com.ahu.ahutong.data.crawler.model.ycard.CardPayRequest
 import com.ahu.ahutong.data.crawler.model.ycard.PayResponse
+import com.ahu.ahutong.data.payment.PaymentLocalStore
 import com.ahu.ahutong.data.payment.PaymentRepository
 import com.ahu.ahutong.ext.launchSafe
 import com.google.gson.Gson
@@ -20,6 +21,7 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 class CardBalanceDepositViewModel @Inject constructor(
     private val paymentRepository: PaymentRepository,
+    private val paymentLocalStore: PaymentLocalStore,
 ) : ViewModel() {
 
     val TAG = "CardBalanceDepositViewModel"
@@ -105,6 +107,12 @@ class CardBalanceDepositViewModel @Inject constructor(
     fun resetPaymentState() {
         _paymentState.value = PaymentState.Idle
     }
+
+    fun isMockMode(): Boolean = paymentLocalStore.isMockMode()
+
+    fun getCurrentUserId(): String? = paymentLocalStore.getCurrentUserId()
+
+    fun getCurrentUserName(): String? = paymentLocalStore.getCurrentUserName()
 }
 
 sealed class CardAccountState {

@@ -59,9 +59,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.PayState
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
 import com.kyant.monet.a1
@@ -76,7 +75,7 @@ import androidx.compose.ui.text.input.ImeAction
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ElectricityDeposit(
-    viewModel: ElectricityDepositViewModel = viewModel()
+    viewModel: ElectricityDepositViewModel = hiltViewModel()
 ) {
     val payState = viewModel.payState.collectAsState()
     LaunchedEffect(payState.value) {
@@ -374,7 +373,7 @@ fun ElectricityDeposit(
                                 infoClickCount == 3 -> "再点击两次即可查看累计充值记录"
                                 infoClickCount == 4 -> "再点击一次即可查看累计充值记录"
                                 infoClickCount >= 5 -> {
-                                    val chargeInfo = AHUCache.getElectricityChargeInfo()
+                                    val chargeInfo = viewModel.getElectricityChargeInfo()
                                     if (chargeInfo != null) {
                                         "从${chargeInfo.firstChargeDate}起累计电费充值金额为：${
                                             "%.2f".format(
@@ -643,7 +642,7 @@ fun ElectricityDeposit(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            AHUCache.clearElectricityChargeInfo()
+                            viewModel.clearElectricityChargeInfo()
                             Toast.makeText(context, "累计记录已清零", Toast.LENGTH_SHORT).show()
                             showResetDialog = false
                         }

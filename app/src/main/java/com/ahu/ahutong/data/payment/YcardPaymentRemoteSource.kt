@@ -93,4 +93,54 @@ class YcardPaymentRemoteSource @Inject constructor() : PaymentRemoteSource {
             AppResult.error(t.message ?: "支付失败", t)
         }
     }
+
+    override suspend fun postFeeItemThirdData(
+        fields: Map<String, String>,
+    ): AppResult<PaymentHttpResult> {
+        return try {
+            val builder = FormBody.Builder()
+            fields.forEach { (key, value) -> builder.add(key, value) }
+            val response = YcardApi.API.getFeeItemThirdData(builder.build())
+            val body = response.body()?.string().orEmpty()
+            val url = response.raw().request.url.toString()
+            if (!response.isSuccessful) {
+                AppResult.error("请求接口失败", code = response.code())
+            } else {
+                AppResult.success(
+                    PaymentHttpResult(
+                        body = body,
+                        requestUrl = url,
+                        httpCode = response.code(),
+                    ),
+                )
+            }
+        } catch (t: Throwable) {
+            AppResult.error(t.message ?: "请求接口失败", t)
+        }
+    }
+
+    override suspend fun postPayForm(
+        fields: Map<String, String>,
+    ): AppResult<PaymentHttpResult> {
+        return try {
+            val builder = FormBody.Builder()
+            fields.forEach { (key, value) -> builder.add(key, value) }
+            val response = YcardApi.API.pay(builder.build())
+            val body = response.body()?.string().orEmpty()
+            val url = response.raw().request.url.toString()
+            if (!response.isSuccessful) {
+                AppResult.error("支付失败", code = response.code())
+            } else {
+                AppResult.success(
+                    PaymentHttpResult(
+                        body = body,
+                        requestUrl = url,
+                        httpCode = response.code(),
+                    ),
+                )
+            }
+        } catch (t: Throwable) {
+            AppResult.error(t.message ?: "支付失败", t)
+        }
+    }
 }
