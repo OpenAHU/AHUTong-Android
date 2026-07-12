@@ -7,13 +7,11 @@ import com.ahu.ahutong.data.auth.AuthRepository
 import com.ahu.ahutong.data.base.BaseDataSource
 import com.ahu.ahutong.data.campuscard.CampusCardRepository
 import com.ahu.ahutong.data.crawler.SdkDataSource
-import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.crawler.model.adwnh.AllCampus
 import com.ahu.ahutong.data.crawler.model.adwnh.AllLostFoundType
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundPublishRequest
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundResponse
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
-import com.ahu.ahutong.data.crawler.model.ycard.RequestBody
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.di.DataEntryPoint
 import com.ahu.ahutong.data.exam.ExamRepository
@@ -25,6 +23,7 @@ import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.payment.PaymentRepository
 import com.ahu.ahutong.data.portal.LostFoundRepository
 import com.ahu.ahutong.data.schedule.ScheduleRepository
 import dagger.hilt.android.EntryPointAccessors
@@ -66,16 +65,8 @@ object AHURepository {
     private fun lostFoundRepository(): LostFoundRepository =
         dataEntryPoint().lostFoundRepository()
 
-    private suspend fun ensureYcardCredential(): Boolean {
-        if (AHUCache.getMockData()) return true
-        return !TokenManager.awaitToken().isNullOrBlank()
-    }
-
-    private fun <T> ycardCredentialNotReadyResponse(): AHUResponse<T> =
-        AHUResponse<T>().apply {
-            code = -1
-            msg = "校园卡登录凭证暂未就绪，请稍后重试"
-        }
+    private fun paymentRepository(): PaymentRepository =
+        dataEntryPoint().paymentRepository()
 
     /**
      * 通过semesterId获取课程表
@@ -135,35 +126,33 @@ object AHURepository {
 
     suspend fun getBathroomInfo(bathroom: String, tel: String): AHUResponse<BathroomTelInfo> =
         withContext(Dispatchers.IO) {
-            dataSource.getBathroomTelInfo(bathroom = bathroom, tel = tel)
+            when (val result = paymentRepository().getBathroomInfo(bathroom, tel)) {
+                is AppResult.Success -> AHUResponse<BathroomTelInfo>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<BathroomTelInfo>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
-
 
     suspend fun getCardInfo(): AHUResponse<CardInfo> =
         withContext(Dispatchers.IO) {
-            if (!ensureYcardCredential()) {
-                return@withContext ycardCredentialNotReadyResponse()
+            when (val result = paymentRepository().getCardInfo()) {
+                is AppResult.Success -> AHUResponse<CardInfo>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<CardInfo>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
             }
-            dataSource.getCardInfo()
         }
-
-
-    suspend fun getOrderThirdData(request: RequestBody): AHUResponse<Response<ResponseBody>> =
-        withContext(Dispatchers.IO){
-            if (!ensureYcardCredential()) {
-                return@withContext ycardCredentialNotReadyResponse()
-            }
-            dataSource.getOrderThirdData(request)
-        }
-
-    suspend fun pay(request: RequestBody):AHUResponse<Response<ResponseBody>> =
-        withContext(Dispatchers.IO){
-            if (!ensureYcardCredential()) {
-                return@withContext ycardCredentialNotReadyResponse()
-            }
-            dataSource.pay(request)
-        }
-
 
     suspend fun getSchoolCalendar(): AHUResponse<Response<ResponseBody>> =
         withContext(Dispatchers.IO) {

@@ -61,7 +61,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -80,7 +80,7 @@ private const val ALIPAY_CAMPUS_CARD_FALLBACK_URL = "https://www.wmslz.com/s/M6K
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardBalanceDeposit(
-    viewModel: CardBalanceDepositViewModel = viewModel()
+    viewModel: CardBalanceDepositViewModel = hiltViewModel()
 ) {
 
     var amount by remember { mutableStateOf("") }

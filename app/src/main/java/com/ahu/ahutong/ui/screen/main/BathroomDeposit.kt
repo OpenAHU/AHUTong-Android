@@ -70,7 +70,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -84,7 +84,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun BathroomDeposit(
 
-    viewmodel: BathroomDepositViewModel = viewModel()
+    viewmodel: BathroomDepositViewModel = hiltViewModel()
 
 ) {
     val payState = viewmodel.payState.collectAsState()

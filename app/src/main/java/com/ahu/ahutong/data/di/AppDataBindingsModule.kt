@@ -18,6 +18,10 @@ import com.ahu.ahutong.data.grade.AhuCacheGradeLocalStore
 import com.ahu.ahutong.data.grade.CrawlerGradeSource
 import com.ahu.ahutong.data.grade.GradeCrawlerSource
 import com.ahu.ahutong.data.grade.GradeLocalStore
+import com.ahu.ahutong.data.payment.PaymentCredentialGate
+import com.ahu.ahutong.data.payment.PaymentRemoteSource
+import com.ahu.ahutong.data.payment.TokenPaymentCredentialGate
+import com.ahu.ahutong.data.payment.YcardPaymentRemoteSource
 import com.ahu.ahutong.data.portal.AdwmhLostFoundRemoteSource
 import com.ahu.ahutong.data.portal.AhuCacheLostFoundLocalStore
 import com.ahu.ahutong.data.portal.LostFoundLocalStore
@@ -89,4 +93,12 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindLostFoundRemoteSource(impl: AdwmhLostFoundRemoteSource): LostFoundRemoteSource
+
+    @Binds
+    @Singleton
+    abstract fun bindPaymentRemoteSource(impl: YcardPaymentRemoteSource): PaymentRemoteSource
+
+    @Binds
+    @Singleton
+    abstract fun bindPaymentCredentialGate(impl: TokenPaymentCredentialGate): PaymentCredentialGate
 }
