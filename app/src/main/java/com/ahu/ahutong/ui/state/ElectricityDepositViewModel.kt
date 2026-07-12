@@ -17,6 +17,7 @@ import com.ahu.ahutong.data.dao.AHUCache.saveRoomSelection
 import com.ahu.ahutong.data.crawler.utils.generateNonce
 import com.ahu.ahutong.data.crawler.utils.getTimestamp
 import com.ahu.ahutong.data.crawler.utils.sha256
+import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
 import com.ahu.ahutong.data.model.RoomSelectionInfo
@@ -44,11 +45,6 @@ data class CampusApiResponse(
 
 data class CampusMap(
     val data: List<CampusDataItem>?
-)
-
-data class CampusDataItem(
-    val name: String,
-    val value: String
 )
 
 data class RoomInfoApiResponse(

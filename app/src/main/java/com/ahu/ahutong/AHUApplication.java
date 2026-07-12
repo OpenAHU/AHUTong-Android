@@ -6,6 +6,7 @@ import android.os.Build;
 import android.util.Log;
 import android.widget.Toast;
 
+import com.ahu.ahutong.core.common.AppContextHolder;
 import com.ahu.ahutong.sdk.LocalServiceClient;
 import com.ahu.ahutong.sdk.RustSDK;
 import com.tencent.bugly.crashreport.CrashReport;
@@ -43,6 +44,8 @@ public class AHUApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        AppContextHolder.INSTANCE.init(this);
 
         CrashReport.initCrashReport(this, "2c2ccadcad", BuildConfig.DEBUG);
         CourseReminderScheduler.INSTANCE.createNotificationChannel(this);

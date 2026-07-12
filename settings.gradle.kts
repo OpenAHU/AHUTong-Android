@@ -33,4 +33,12 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "AHUTong"
-include (":app")
+include(":app")
+
+// Core layers
+include(":core:common")
+include(":core:model")
+include(":core:designsystem")
+include(":core:datastore")
+include(":core:network")
+include(":core:sdk-api")

@@ -83,38 +83,57 @@ android {
     }
 }
 
-val buildRustSdkArm64 by tasks.registering(Exec::class) {
-    group = "build"
-    description = "Build the Rust SDK arm64-v8a shared library into app jniLibs."
+val rustSdkCargoToml = rootProject.file("sdk/Cargo.toml")
+val guiXuCargoToml = rootProject.file("GuiXu-Rust/Cargo.toml")
+val rustSdkSourcesAvailable = rustSdkCargoToml.exists() && guiXuCargoToml.exists()
+val jniOutputDir = project.layout.projectDirectory.dir("src/main/jniLibs")
+val jniOutputSo = project.layout.projectDirectory.file("src/main/jniLibs/arm64-v8a/libahutong_rs.so")
 
-    workingDir = rootProject.file("sdk")
-    inputs.dir(rootProject.file("sdk/src"))
-    inputs.dir(rootProject.file("GuiXu-Rust/src"))
-    inputs.file(rootProject.file("GuiXu-Rust/Cargo.toml"))
-    inputs.file(rootProject.file("GuiXu-Rust/Cargo.lock"))
-    inputs.file(rootProject.file("sdk/Cargo.toml"))
-    outputs.file(project.file("src/main/jniLibs/arm64-v8a/libahutong_rs.so"))
+if (rustSdkSourcesAvailable) {
+    val buildRustSdkArm64 by tasks.registering(Exec::class) {
+        group = "build"
+        description = "Build the Rust SDK arm64-v8a shared library into app jniLibs."
 
-    commandLine(
-        "cargo",
-        "ndk",
-        "-t",
-        "arm64-v8a",
-        "-o",
-        project.file("src/main/jniLibs").absolutePath,
-        "build",
-        "--release",
-        "--features",
-        "server"
+        workingDir = rootProject.file("sdk")
+        inputs.dir(rootProject.file("sdk/src"))
+        inputs.dir(rootProject.file("GuiXu-Rust/src"))
+        inputs.file(guiXuCargoToml)
+        inputs.file(rootProject.file("GuiXu-Rust/Cargo.lock"))
+        inputs.file(rustSdkCargoToml)
+        outputs.file(jniOutputSo)
+
+        commandLine(
+            "cargo",
+            "ndk",
+            "-t",
+            "arm64-v8a",
+            "-o",
+            jniOutputDir.asFile.absolutePath,
+            "build",
+            "--release",
+            "--features",
+            "server"
+        )
+    }
+
+    tasks.matching { it.name == "mergeDebugJniLibFolders" || it.name == "mergeReleaseJniLibFolders" }
+        .configureEach {
+            dependsOn(buildRustSdkArm64)
+        }
+} else {
+    logger.lifecycle(
+        "Rust SDK submodule sources missing; using prebuilt jniLibs if present."
     )
 }
 
-tasks.matching { it.name == "mergeDebugJniLibFolders" || it.name == "mergeReleaseJniLibFolders" }
-    .configureEach {
-        dependsOn(buildRustSdkArm64)
-    }
-
 dependencies {
+    implementation(project(":core:common"))
+    implementation(project(":core:model"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":core:datastore"))
+    implementation(project(":core:network"))
+    implementation(project(":core:sdk-api"))
+
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)
 
@@ -125,6 +144,7 @@ dependencies {
     implementation(libs.converter.gson)
     implementation(libs.gson)
     implementation(libs.jsoup)
+    implementation(libs.androidx.datastore.preferences)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)

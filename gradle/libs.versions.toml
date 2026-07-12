@@ -24,8 +24,12 @@ zxingAndroidEmbeddedVersion = "4.3.0"
 adsMobileSdkVersion = "0.18.0-beta01"
 kyant0Backdrop = "1.0.0"
 kyant0Capsule = "2.1.1"
+datastorePreferences = "1.1.7"
+annotation = "1.9.1"
 
 [libraries]
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 conscrypt = { module = "org.conscrypt:conscrypt-android", version.ref = "conscrypt" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
@@ -61,5 +65,7 @@ kyant0-capsule = { module = "io.github.kyant0:capsule", version.ref = "kyant0Cap
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
