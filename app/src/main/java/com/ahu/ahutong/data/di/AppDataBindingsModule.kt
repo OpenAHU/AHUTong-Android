@@ -6,6 +6,14 @@ import com.ahu.ahutong.data.auth.AuthSessionStore
 import com.ahu.ahutong.data.auth.AhuCacheAuthSessionStore
 import com.ahu.ahutong.data.auth.CrawlerAuthSource
 import com.ahu.ahutong.data.auth.NativeCookieSyncer
+import com.ahu.ahutong.data.exam.AhuCacheExamLocalStore
+import com.ahu.ahutong.data.exam.CrawlerExamSource
+import com.ahu.ahutong.data.exam.ExamCrawlerSource
+import com.ahu.ahutong.data.exam.ExamLocalStore
+import com.ahu.ahutong.data.grade.AhuCacheGradeLocalStore
+import com.ahu.ahutong.data.grade.CrawlerGradeSource
+import com.ahu.ahutong.data.grade.GradeCrawlerSource
+import com.ahu.ahutong.data.grade.GradeLocalStore
 import com.ahu.ahutong.data.schedule.AhuCacheScheduleLocalStore
 import com.ahu.ahutong.data.schedule.CrawlerScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleCrawlerSource
@@ -41,4 +49,20 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindAuthCookieSyncer(impl: NativeCookieSyncer): AuthCookieSyncer
+
+    @Binds
+    @Singleton
+    abstract fun bindGradeLocalStore(impl: AhuCacheGradeLocalStore): GradeLocalStore
+
+    @Binds
+    @Singleton
+    abstract fun bindGradeCrawlerSource(impl: CrawlerGradeSource): GradeCrawlerSource
+
+    @Binds
+    @Singleton
+    abstract fun bindExamLocalStore(impl: AhuCacheExamLocalStore): ExamLocalStore
+
+    @Binds
+    @Singleton
+    abstract fun bindExamCrawlerSource(impl: CrawlerExamSource): ExamCrawlerSource
 }

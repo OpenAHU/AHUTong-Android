@@ -16,6 +16,8 @@ import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
 import com.ahu.ahutong.data.crawler.model.ycard.RequestBody
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.di.DataEntryPoint
+import com.ahu.ahutong.data.exam.ExamRepository
+import com.ahu.ahutong.data.grade.GradeRepository
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.User
@@ -33,7 +35,7 @@ import retrofit2.Response
 
 /**
  * Temporary facade over domain repositories.
- * Prefer injecting [ScheduleRepository] / [AuthRepository] in new code.
+ * Prefer injecting domain repositories in new code.
  */
 object AHURepository {
 
@@ -44,17 +46,19 @@ object AHURepository {
         dataSource = if (useMock) MockDataSource() else SdkDataSource()
     }
 
-    private fun scheduleRepository(): ScheduleRepository =
+    private fun dataEntryPoint(): DataEntryPoint =
         EntryPointAccessors.fromApplication(
             AHUApplication.getApp(),
             DataEntryPoint::class.java,
-        ).scheduleRepository()
+        )
 
-    private fun authRepository(): AuthRepository =
-        EntryPointAccessors.fromApplication(
-            AHUApplication.getApp(),
-            DataEntryPoint::class.java,
-        ).authRepository()
+    private fun scheduleRepository(): ScheduleRepository = dataEntryPoint().scheduleRepository()
+
+    private fun authRepository(): AuthRepository = dataEntryPoint().authRepository()
+
+    private fun gradeRepository(): GradeRepository = dataEntryPoint().gradeRepository()
+
+    private fun examRepository(): ExamRepository = dataEntryPoint().examRepository()
 
     private suspend fun ensureYcardCredential(): Boolean {
         if (AHUCache.getMockData()) return true
@@ -84,65 +88,21 @@ object AHURepository {
 
     /**
      * 查询成绩 本地优先
-     * @param isRefresh Boolean 是否直接获取服务器上的
-     * @return Result<List<News>>
      */
-    suspend fun getGrade(isRefresh: Boolean = false) = withContext(Dispatchers.IO) {
-        if (!isRefresh && !AHUCache.getMockData()) {
-            // 优先从 per-profile 缓存重建合并成绩
-            val perProfile = AHUCache.getPerProfileGrades()
-            val profileGrades = perProfile.values.filterNotNull()
-            if (profileGrades.isNotEmpty()) {
-                val allTerms = profileGrades.flatMap { it.termGradeList ?: emptyList<Grade.TermGradeListBean>() }
-                val merged = Grade()
-                merged.termGradeList = allTerms
-                merged.totalGradePointAverage = allTerms.firstOrNull()?.termGradePointAverage ?: "0.0"
-                return@withContext Result.success(merged)
-            }
-            // 降级到旧缓存
-            val localData = AHUCache.getGrade()
-            if (localData != null) {
-                return@withContext Result.success(localData)
-            }
-        }
-        try {
-            val response = dataSource.getGrade()
-            if (response.isSuccessful) {
-                AHUCache.saveGrade(response.data)
-                Result.success(response.data)
-            } else {
-                Result.failure(Throwable(response.msg))
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Result.failure(e)
-        }
-    }
+    suspend fun getGrade(isRefresh: Boolean = false): Result<Grade> =
+        gradeRepository().getGrade(isRefresh).toKotlinResult()
 
     /**
-     *  获取考试信息
+     * 获取考试信息
      */
-    suspend fun getExamInfo(isRefresh: Boolean = false, studentID: String, studentName: String) =
-        withContext(Dispatchers.IO) {
-            if (!isRefresh && !AHUCache.getMockData()) {
-                val localData = AHUCache.getExamInfo().orEmpty()
-                if (localData.isNotEmpty()) {
-                    return@withContext Result.success(localData)
-                }
-            }
-            try {
-                val response = dataSource.getExamInfo(studentID, studentName)
-                if (response.isSuccessful) {
-                    val exams = response.data ?: emptyList()
-                    AHUCache.saveExamInfo(exams)
-                    Result.success(exams)
-                } else {
-                    Result.failure(Throwable(response.msg ?: "获取考试信息失败"))
-                }
-            } catch (e: Exception) {
-                Result.failure(Throwable("请求错误 $e"))
-            }
-        }
+    suspend fun getExamInfo(
+        isRefresh: Boolean = false,
+        studentID: String,
+        studentName: String,
+    ): Result<List<com.ahu.ahutong.data.model.Exam>> =
+        examRepository()
+            .getExamInfo(isRefresh, studentID, studentName)
+            .toKotlinResult()
 
     /**
      *  获取余额
@@ -231,7 +191,17 @@ object AHURepository {
 
     suspend fun getGpaRankInfo(studentId: String): AHUResponse<GpaRankInfo> =
         withContext(Dispatchers.IO) {
-            dataSource.getGpaRankFromHtml(studentId)
+            when (val result = gradeRepository().getGpaRank(studentId)) {
+                is AppResult.Success -> AHUResponse<GpaRankInfo>().apply {
+                    code = 0
+                    data = result.data
+                    msg = "success"
+                }
+                is AppResult.Error -> AHUResponse<GpaRankInfo>().apply {
+                    code = result.code ?: -1
+                    msg = result.message
+                }
+            }
         }
 
     suspend fun getAllCampus(): AHUResponse<AllCampus> =

@@ -23,7 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.crawler.model.jwxt.CourseGrade
 import com.ahu.ahutong.data.dao.AHUCache
@@ -39,7 +39,7 @@ import com.kyant.monet.withNight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Grade(gradeViewModel: GradeViewModel = viewModel()) {
+fun Grade(gradeViewModel: GradeViewModel = hiltViewModel()) {
     val grade = gradeViewModel.grade
     val gpaRankInfo = gradeViewModel.gpaRankInfo
     val errorMessage = gradeViewModel.errorMessage

@@ -136,6 +136,8 @@ dependencies {
     implementation(project(":core:sdk"))
     implementation(project(":data:schedule"))
     implementation(project(":data:auth"))
+    implementation(project(":data:grade"))
+    implementation(project(":data:exam"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)
