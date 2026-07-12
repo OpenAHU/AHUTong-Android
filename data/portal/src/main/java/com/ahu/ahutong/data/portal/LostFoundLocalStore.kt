@@ -7,6 +7,8 @@ import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundTypeItem
 interface LostFoundLocalStore {
     fun isMockMode(): Boolean
 
+    fun getCurrentUserId(): String?
+
     fun getCachedCampus(): List<CampusItem>
 
     fun saveCampus(items: List<CampusItem>)

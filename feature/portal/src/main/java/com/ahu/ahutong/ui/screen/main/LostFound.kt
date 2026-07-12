@@ -31,10 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,11 +45,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LostFound(
-    lostFoundViewModel: LostFoundViewModel = hiltViewModel()
+    lostFoundViewModel: LostFoundViewModel = hiltViewModel(),
+    mockRefreshRevision: Long = 0L,
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
-    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
 
     val allCampus =
         lostFoundViewModel.allCampus?.`object`.orEmpty()
@@ -98,7 +95,7 @@ fun LostFound(
     }
 
     LaunchedEffect(mockRefreshRevision) {
-        if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
+        if (mockRefreshRevision > 0 && lostFoundViewModel.isMockMode()) {
             lostFoundViewModel.refreshList()
         }
     }

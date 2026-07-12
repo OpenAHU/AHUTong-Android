@@ -11,6 +11,8 @@ import javax.inject.Singleton
 class AhuCacheLostFoundLocalStore @Inject constructor() : LostFoundLocalStore {
     override fun isMockMode(): Boolean = AHUCache.getMockData()
 
+    override fun getCurrentUserId(): String? = AHUCache.getCurrentUser()?.xh
+
     override fun getCachedCampus(): List<CampusItem> = AHUCache.getLostFoundCampus()
 
     override fun saveCampus(items: List<CampusItem>) {

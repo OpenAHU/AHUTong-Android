@@ -11,7 +11,7 @@ import com.ahu.ahutong.data.crawler.model.adwnh.AllCampus
 import com.ahu.ahutong.data.crawler.model.adwnh.AllLostFoundType
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundPublishRequest
-import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.portal.LostFoundLocalStore
 import com.ahu.ahutong.data.portal.LostFoundRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class LostFoundViewModel @Inject constructor(
     private val lostFoundRepository: LostFoundRepository,
+    private val lostFoundLocalStore: LostFoundLocalStore,
 ) : ViewModel() {
 
     var allCampus by mutableStateOf<AllCampus?>(null)
@@ -48,18 +49,20 @@ class LostFoundViewModel @Inject constructor(
         private set
 
     val currentUserName: String
-        get() = AHUCache.getCurrentUser()?.xh ?: "null"
+        get() = lostFoundLocalStore.getCurrentUserId() ?: "null"
 
     var errorMessage by mutableStateOf<String?>(null)
 
     val hasMore: Boolean
         get() = currentPage < totalPages
 
+    fun isMockMode(): Boolean = lostFoundLocalStore.isMockMode()
+
     fun getAllCampus(forceRefresh: Boolean = false) = viewModelScope.launch {
         campusLoading = true
         try {
-            if (!forceRefresh && !AHUCache.getMockData()) {
-                val cache = AHUCache.getLostFoundCampus()
+            if (!forceRefresh && !lostFoundLocalStore.isMockMode()) {
+                val cache = lostFoundLocalStore.getCachedCampus()
                 if (cache.isNotEmpty()) {
                     allCampus = AllCampus(code = 0, msg = "cache", `object` = cache)
                 }
@@ -89,8 +92,8 @@ class LostFoundViewModel @Inject constructor(
     fun getAllLostFoundType(forceRefresh: Boolean = false) = viewModelScope.launch {
         typeLoading = true
         try {
-            if (!forceRefresh && !AHUCache.getMockData()) {
-                val cache = AHUCache.getLostFoundType()
+            if (!forceRefresh && !lostFoundLocalStore.isMockMode()) {
+                val cache = lostFoundLocalStore.getCachedTypes()
                 if (cache.isNotEmpty()) {
                     allLostFoundType = AllLostFoundType(code = 0, msg = "cache", `object` = cache)
                 }
@@ -122,10 +125,10 @@ class LostFoundViewModel @Inject constructor(
         currentState = state
         currentPage = 1
         totalPages = 1
-        lostFoundList = if (AHUCache.getMockData()) {
+        lostFoundList = if (lostFoundLocalStore.isMockMode()) {
             emptyList()
         } else {
-            AHUCache.getLostFoundList(state)
+            lostFoundLocalStore.getCachedList(state)
         }
         fetchFirstPage()
     }
@@ -270,10 +273,10 @@ class LostFoundViewModel @Inject constructor(
     init {
         getAllCampus()
         getAllLostFoundType()
-        lostFoundList = if (AHUCache.getMockData()) {
+        lostFoundList = if (lostFoundLocalStore.isMockMode()) {
             emptyList()
         } else {
-            AHUCache.getLostFoundList(currentState)
+            lostFoundLocalStore.getCachedList(currentState)
         }
         fetchFirstPage()
     }

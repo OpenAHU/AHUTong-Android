@@ -30,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
+import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.data.mock.MockScenarioController
@@ -172,7 +173,11 @@ fun Main(
                 )
             }
             animatedComposable("school_calendar") {
-                SchoolCalendar(navController = navController)
+                SchoolCalendar(
+                    navController = navController,
+                    mockRefreshRevision = mockRefreshRevision,
+                    isMockMode = AHUCache.getMockData(),
+                )
             }
             animatedComposable("grade") {
                 Grade(mockRefreshRevision = mockRefreshRevision)
@@ -187,7 +192,7 @@ fun Main(
                 FreeClassroom()
             }
             animatedComposable("lost_found") {
-                LostFound()
+                LostFound(mockRefreshRevision = mockRefreshRevision)
             }
             animatedComposable("weather") {
                 Weather()

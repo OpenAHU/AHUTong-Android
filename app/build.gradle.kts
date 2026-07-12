@@ -148,6 +148,8 @@ dependencies {
     implementation(project(":feature:grade"))
     implementation(project(":feature:exam"))
     implementation(project(":feature:payment"))
+    implementation(project(":feature:portal"))
+    implementation(project(":feature:calendar"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

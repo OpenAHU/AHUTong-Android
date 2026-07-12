@@ -32,7 +32,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,16 +48,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.ahu.ahutong.R
-import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.SchoolCalendarViewModel
 import com.ahu.ahutong.utils.FileUtils
@@ -75,6 +70,8 @@ import java.io.File
 fun SchoolCalendar(
     navController: NavHostController,
     viewModel: SchoolCalendarViewModel = hiltViewModel(),
+    mockRefreshRevision: Long = 0L,
+    isMockMode: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -83,7 +80,6 @@ fun SchoolCalendar(
     val calendarFile = viewModel.calendarFile
     val isLoading = viewModel.isLoading
     val progress = viewModel.progress
-    val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
 
     LaunchedEffect(viewModel.errorMessage) {
         viewModel.errorMessage?.let {
@@ -116,7 +112,7 @@ fun SchoolCalendar(
 
     LaunchedEffect(Unit) {
         val cached = FileUtils.getImageFile(context, "xiaoli.jpg")
-        if (!AHUCache.getMockData() && cached.exists()) {
+        if (!isMockMode && cached.exists()) {
             // Warm VM cache via repository (also returns existing file).
             viewModel.fetchCalendar(forceRefresh = false)
         } else {
@@ -125,7 +121,7 @@ fun SchoolCalendar(
     }
 
     LaunchedEffect(mockRefreshRevision) {
-        if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
+        if (mockRefreshRevision > 0 && isMockMode) {
             viewModel.fetchCalendar(forceRefresh = true)
         }
     }
