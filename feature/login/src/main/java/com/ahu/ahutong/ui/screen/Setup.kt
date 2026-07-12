@@ -7,34 +7,35 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Splash
-import com.ahu.ahutong.ui.state.AboutViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.utils.animatedComposable
-
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import kotlinx.coroutines.delay
 
+/**
+ * Onboarding shell. Version migration / login flag stay app-provided.
+ * Nested [Info] comes from :feature:schedule; branding splash from :feature:login.
+ */
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun Setup(
-    scheduleViewModel: ScheduleViewModel = hiltViewModel(),
-    aboutViewModel: AboutViewModel = hiltViewModel(),
-    onSetup: () -> Unit
+    scheduleViewModel: ScheduleViewModel,
+    versionName: String?,
+    isLoggedIn: Boolean,
+    onLegacyCacheClear: () -> Unit,
+    onSetup: () -> Unit,
 ) {
     val navController = rememberNavController()
     // 用户从老版本升级到 1.0.0-beta6 或更新版本时清空缓存
-    LaunchedEffect(Unit) {
-        aboutViewModel.versionName?.let {
+    LaunchedEffect(versionName) {
+        versionName?.let {
             if (it < "1.0.0-beta6") {
-                AHUCache.clearAll()
+                onLegacyCacheClear()
             }
         }
     }
@@ -48,15 +49,6 @@ fun Setup(
         animatedComposable("splash") {
             Splash()
         }
-//        animatedComposable("login") {
-//            Login(
-//                loginViewModel = loginViewModel,
-//                onLoggedIn = {
-////                    navController.navigate("info")
-//                    onSetup()
-//                }
-//            )
-//        }
         animatedComposable("info") {
             Info(
                 scheduleViewModel = scheduleViewModel,
@@ -71,5 +63,5 @@ fun Setup(
         navController.navigate("login")
     }
     // intercept back key if user has NOT logged in
-    BackHandler(enabled = !AHUCache.isLogin()) {}
+    BackHandler(enabled = !isLoggedIn) {}
 }

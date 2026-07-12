@@ -32,6 +32,8 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:designsystem"))
     api(project(":data:auth"))
+    // Setup nested Info / ScheduleViewModel host param
+    api(project(":feature:schedule"))
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)

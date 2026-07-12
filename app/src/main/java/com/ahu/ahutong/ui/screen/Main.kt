@@ -124,7 +124,9 @@ fun Main(
             animatedComposable("setup") {
                 Setup(
                     scheduleViewModel = scheduleViewModel,
-                    aboutViewModel = aboutViewModel,
+                    versionName = aboutViewModel.versionName,
+                    isLoggedIn = AHUCache.isLogin(),
+                    onLegacyCacheClear = { AHUCache.clearAll() },
                     onSetup = {
                         navController.popBackStack()
                         discoveryViewModel.loadActivityBean()
@@ -280,7 +282,16 @@ fun Main(
             }
 
             animatedComposable("splash") {
-                Splash(navController)
+                Splash(
+                    navController = navController,
+                    isAgreementAccepted = AHUCache.isAgreementAccepted(),
+                    isPrivacyAccepted = AHUCache.isPrivacyAccepted(),
+                    isBusinessAccepted = AHUCache.isBusinessAccepted(),
+                    isLoggedIn = AHUCache.isLogin() || AHUCache.getMockData(),
+                    onAcceptAgreement = { AHUCache.setAgreementAccepted() },
+                    onAcceptPrivacy = { AHUCache.setPrivacyAccepted() },
+                    onAcceptBusiness = { AHUCache.setBusinessAccepted() },
+                )
             }
 
 

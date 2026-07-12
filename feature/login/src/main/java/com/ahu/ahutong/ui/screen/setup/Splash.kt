@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.setup
 
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -11,19 +12,33 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.ahu.ahutong.R
+import androidx.core.graphics.drawable.toBitmap
+import com.ahu.ahutong.feature.login.R
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 
 @Composable
 fun Splash() {
+    val context = LocalContext.current
+    val appIconBitmap = remember(context) {
+        val drawable = context.packageManager.getApplicationIcon(context.packageName)
+        val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            drawable.bitmap
+        } else {
+            drawable.toBitmap()
+        }
+        bitmap.asImageBitmap()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -32,7 +47,7 @@ fun Splash() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
-            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+            bitmap = appIconBitmap,
             contentDescription = null,
             modifier = Modifier
                 .clip(ContinuousCapsule)

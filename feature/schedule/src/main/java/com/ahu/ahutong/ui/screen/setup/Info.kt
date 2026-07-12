@@ -46,9 +46,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.R
+import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fill_in_info">完善信息</string>
+    <string name="school_year">学年</string>
+    <string name="school_term">学期</string>
+    <string name="current_week">当前周</string>
+    <string name="ok">确定</string>
+</resources>
