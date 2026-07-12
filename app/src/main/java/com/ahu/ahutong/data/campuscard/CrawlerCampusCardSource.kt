@@ -1,25 +1,22 @@
 package com.ahu.ahutong.data.campuscard
 
 import com.ahu.ahutong.core.common.AppResult
-import com.ahu.ahutong.data.crawler.CrawlerDataSource
 import com.ahu.ahutong.data.crawler.api.adwmh.AdwmhApi
 import com.ahu.ahutong.data.model.BathRoom
 import com.ahu.ahutong.data.model.Card
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Campus-card crawler sink — talks to AdwmhApi directly (no CrawlerDataSource facade).
+ */
 @Singleton
 class CrawlerCampusCardSource @Inject constructor() : CampusCardCrawlerSource {
-    private val crawler = CrawlerDataSource()
-
     override suspend fun fetchBalance(): AppResult<Card> {
         return try {
-            val response = crawler.getCardMoney()
-            if (response.isSuccessful && response.data != null) {
-                AppResult.success(response.data)
-            } else {
-                AppResult.error(response.msg ?: "获取余额失败", code = response.code)
-            }
+            val card = Card()
+            card.balance = AdwmhApi.API.getBalance().`object`
+            AppResult.success(card)
         } catch (t: Throwable) {
             AppResult.error(t.message ?: "获取余额失败", t)
         }
@@ -39,15 +36,7 @@ class CrawlerCampusCardSource @Inject constructor() : CampusCardCrawlerSource {
     }
 
     override suspend fun fetchBathrooms(): AppResult<List<BathRoom>> {
-        return try {
-            val response = crawler.getBathRooms()
-            if (response.isSuccessful) {
-                AppResult.success(response.data ?: emptyList())
-            } else {
-                AppResult.error(response.msg ?: "获取浴室状态失败", code = response.code)
-            }
-        } catch (t: Throwable) {
-            AppResult.error(t.message ?: "获取浴室状态失败", t)
-        }
+        // Historical crawler path returned empty; bathroom list is not on Adwmh.
+        return AppResult.success(emptyList())
     }
 }

@@ -52,7 +52,10 @@
 - 下沉：`JwxtApi` / `AdwmhApi` / `YcardApi`、`CookieManager`、`TokenManager`、拦截器、`AHUCookieJar`、剩余 crawler models。
 - 会话标记：`AppSessionState`（`:core:common`），替代 `AHUApplication.sessionExpired`。
 - 重登：`TokenAuthenticator` 通过 `CrawlerAuthHooks`；app 在 `Application.onCreate` 调用 `CrawlerAuthInstaller.install`。
-- 仍留 app：`CrawlerDataSource` / `SdkDataSource`（域适配 + mock 分支）。
+- 域 sink（app 装配，已内联爬虫逻辑，不再委托 `CrawlerDataSource`）：
+  - `CrawlerScheduleSource` / `CrawlerExamSource` / `CrawlerGradeSource` / `CrawlerCampusCardSource`
+  - portal/payment 此前已直连 Adwmh/Ycard API
+- 遗留：`CrawlerDataSource` / `SdkDataSource` / `BaseDataSource` 仍在 app（主要为 Sdk 旧路径与 MockDataSource 形态保留，生产路径走各域 sink）。
 
 ## feature:repository 说明
 
