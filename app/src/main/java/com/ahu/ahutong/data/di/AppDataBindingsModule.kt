@@ -6,6 +6,8 @@ import com.ahu.ahutong.data.auth.AuthSessionStore
 import com.ahu.ahutong.data.auth.AhuCacheAuthSessionStore
 import com.ahu.ahutong.data.auth.CrawlerAuthSource
 import com.ahu.ahutong.data.auth.NativeCookieSyncer
+import com.ahu.ahutong.data.calendar.AhuTongSchoolCalendarRemoteSource
+import com.ahu.ahutong.data.calendar.SchoolCalendarRemoteSource
 import com.ahu.ahutong.data.campuscard.AhuCacheCampusCardLocalStore
 import com.ahu.ahutong.data.campuscard.CampusCardCrawlerSource
 import com.ahu.ahutong.data.campuscard.CampusCardLocalStore
@@ -101,4 +103,10 @@ abstract class AppDataBindingsModule {
     @Binds
     @Singleton
     abstract fun bindPaymentCredentialGate(impl: TokenPaymentCredentialGate): PaymentCredentialGate
+
+    @Binds
+    @Singleton
+    abstract fun bindSchoolCalendarRemoteSource(
+        impl: AhuTongSchoolCalendarRemoteSource,
+    ): SchoolCalendarRemoteSource
 }

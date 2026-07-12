@@ -111,6 +111,9 @@ class RustCampusNativeGateway @Inject constructor() : CampusNativeGateway {
         AppResult.fromKotlin(RustSDK.getQrcodeSafe())
     }
 
+    override fun downloadSchoolCalendar(savePath: String): Boolean =
+        RustSDK.downloadSchoolCalendar(savePath)
+
     override fun kvPutString(box: String, key: String, value: String): Boolean =
         RustSDK.kvPutStringSafe(box, key, value)
 

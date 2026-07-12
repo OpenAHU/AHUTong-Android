@@ -58,6 +58,12 @@ interface CampusNativeGateway {
 
     suspend fun getQrcode(): AppResult<String>
 
+    /**
+     * Downloads school calendar image to [savePath] via native implementation.
+     * @return true if the file was written successfully
+     */
+    fun downloadSchoolCalendar(savePath: String): Boolean
+
     // --- kv storage (Rust-backed) ---
 
     fun kvPutString(box: String, key: String, value: String): Boolean

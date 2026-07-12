@@ -29,8 +29,6 @@ import com.ahu.ahutong.data.schedule.ScheduleRepository
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.ResponseBody
-import retrofit2.Response
 
 /**
  * Temporary facade over domain repositories.
@@ -152,11 +150,6 @@ object AHURepository {
                     msg = result.message
                 }
             }
-        }
-
-    suspend fun getSchoolCalendar(): AHUResponse<Response<ResponseBody>> =
-        withContext(Dispatchers.IO) {
-            dataSource.getSchoolCalendar()
         }
 
     suspend fun getGpaRankInfo(studentId: String): AHUResponse<GpaRankInfo> =

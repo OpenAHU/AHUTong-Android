@@ -141,6 +141,7 @@ dependencies {
     implementation(project(":data:campuscard"))
     implementation(project(":data:portal"))
     implementation(project(":data:payment"))
+    implementation(project(":data:calendar"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)

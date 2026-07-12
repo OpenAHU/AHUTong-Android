@@ -2,7 +2,6 @@ package com.ahu.ahutong.ui.screen.main
 
 import android.Manifest
 import android.os.Build
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,13 +53,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ahu.ahutong.R
-import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.state.SchoolCalendarViewModel
 import com.ahu.ahutong.utils.FileUtils
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
@@ -72,54 +72,29 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun SchoolCalendar(navController: NavHostController) {
+fun SchoolCalendar(
+    navController: NavHostController,
+    viewModel: SchoolCalendarViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var showPreview by remember { mutableStateOf(false) }
-    var calendarFile by remember { mutableStateOf<File?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
-    var progress by remember { mutableFloatStateOf(0f) }
+    val calendarFile = viewModel.calendarFile
+    val isLoading = viewModel.isLoading
+    val progress = viewModel.progress
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
 
-    val fetchCalendar = {
-        scope.launch(Dispatchers.IO) {
-            val tag = "SchoolCalendarFetch"
-            withContext(Dispatchers.Main) {
-                isLoading = true
-                progress = 0f
-            }
-            Log.d(tag, "开始获取校历 (IO Thread)...")
+    LaunchedEffect(viewModel.errorMessage) {
+        viewModel.errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
+    }
 
-            try {
-                val res = AHURepository.getSchoolCalendar()
-                val file = if (res.isSuccessful) {
-                    val resp = res.data
-                    if (resp != null && resp.isSuccessful) {
-                        val body = resp.body()
-                        if (body != null) {
-                            FileUtils.saveResponseBodyToFile(context, body, "xiaoli.jpg") {
-                                progress = it
-                            }
-                        } else null
-                    } else null
-                } else null
-
-                withContext(Dispatchers.Main) {
-                    isLoading = false
-                    if (file != null && file.exists()) {
-                        calendarFile = file
-                        showPreview = true
-                    } else {
-                        Toast.makeText(context, "获取失败，请检查网络连接", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    isLoading = false
-                    Toast.makeText(context, "获取异常: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
+    LaunchedEffect(calendarFile) {
+        if (calendarFile != null && calendarFile.exists()) {
+            showPreview = true
         }
     }
 
@@ -128,7 +103,7 @@ fun SchoolCalendar(navController: NavHostController) {
     ) { isGranted: Boolean ->
         if (isGranted && calendarFile != null) {
             scope.launch(Dispatchers.IO) {
-                FileUtils.saveImageToGallery(context, calendarFile!!)
+                FileUtils.saveImageToGallery(context, calendarFile)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
                     navController.popBackStack()
@@ -142,15 +117,16 @@ fun SchoolCalendar(navController: NavHostController) {
     LaunchedEffect(Unit) {
         val cached = FileUtils.getImageFile(context, "xiaoli.jpg")
         if (!AHUCache.getMockData() && cached.exists()) {
-            calendarFile = cached
+            // Warm VM cache via repository (also returns existing file).
+            viewModel.fetchCalendar(forceRefresh = false)
         } else {
-            fetchCalendar()
+            viewModel.fetchCalendar(forceRefresh = true)
         }
     }
 
     LaunchedEffect(mockRefreshRevision) {
         if (mockRefreshRevision > 0 && AHUCache.getMockData()) {
-            fetchCalendar()
+            viewModel.fetchCalendar(forceRefresh = true)
         }
     }
 

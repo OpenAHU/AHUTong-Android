@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.di
 
 import com.ahu.ahutong.data.auth.AuthRepository
+import com.ahu.ahutong.data.calendar.SchoolCalendarRepository
 import com.ahu.ahutong.data.campuscard.CampusCardRepository
 import com.ahu.ahutong.data.exam.ExamRepository
 import com.ahu.ahutong.data.grade.GradeRepository
@@ -24,4 +25,5 @@ interface DataEntryPoint {
     fun campusCardRepository(): CampusCardRepository
     fun lostFoundRepository(): LostFoundRepository
     fun paymentRepository(): PaymentRepository
+    fun schoolCalendarRepository(): SchoolCalendarRepository
 }

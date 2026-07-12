@@ -9,7 +9,7 @@
 | 阶段 | 状态 | 内容 |
 |------|------|------|
 | Phase 0–2 | 完成 | Core + SDK 倒置 |
-| Phase 3 | **基本完成** | 七大 data 域已落地 |
+| Phase 3 | **完成** | 八大 data 域 + 校历 |
 | Phase 4 | 未开始 | Feature 模块 |
 | Phase 5 | 未开始 | 删除门面、收紧可见性 |
 
@@ -22,10 +22,11 @@
 :data:exam
 :data:campuscard
 :data:portal
-:data:payment      # 浴室/校园卡充值下单
+:data:payment
+:data:calendar     # 校历图片下载/缓存
 ```
 
-## Phase 3 进度
+## Phase 3 一览
 
 | 域 | 模块 | UI |
 |----|------|-----|
@@ -36,13 +37,14 @@
 | 校园卡查询 | campuscard | DiscoveryViewModel |
 | 失物招领 | portal | LostFoundViewModel |
 | 充值支付 | payment | Bathroom/CardBalanceDepositViewModel |
+| 校历 | calendar | SchoolCalendarViewModel |
 
-`AHURepository` 仍残留：**校历**（`getSchoolCalendar`）、Mock 数据源初始化。
+`AHURepository` 现主要为兼容门面（委托各 Repository）+ Mock 数据源初始化。
 
-电费缴费目前直接打 YcardApi（未走 Repository），可后续并入 `data:payment`。
+电费缴费仍直连 YcardApi，可后续并入 payment。
 
-## 下一步
+## 下一步（Phase 4）
 
-1. 校历小模块或并入 schedule  
-2. Phase 4：`feature:home` / `feature:schedule` …  
-3. 逐步删除 `AHURepository` 门面  
+1. `feature:home` / `feature:schedule` / `feature:login` …  
+2. 逐步删除 `AHURepository` object  
+3. 电费并入 `data:payment`  
