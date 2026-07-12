@@ -6,7 +6,6 @@ import com.google.gson.Gson
 
 /**
  * Converts native/crawler [GradeResponse] JSON into domain [Grade].
- * Logic ported from SdkDataSource.convertGradeResponse.
  */
 internal object GradeResponseConverter {
     private val gson = Gson()

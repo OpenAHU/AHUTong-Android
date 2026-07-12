@@ -72,7 +72,7 @@ enum class MockEditableEndpoint(
     LostFoundItems(
         key = "lost_found_items",
         title = "失物招领列表",
-        subtitle = "getLostFoundList(pageNo, pageSize, state)，分页由 MockDataSource 计算"
+        subtitle = "getLostFoundList(pageNo, pageSize, state)，分页由 mock 场景数据计算"
     ),
     ClassroomBuildings(
         key = "classroom_buildings",

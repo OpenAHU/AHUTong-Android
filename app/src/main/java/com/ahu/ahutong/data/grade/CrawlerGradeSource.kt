@@ -14,7 +14,7 @@ import javax.inject.Singleton
 import org.jsoup.Jsoup
 
 /**
- * Grade crawler sink — multi-profile grade + GPA rank HTML parsing inlined from CrawlerDataSource.
+ * Grade crawler sink (multi-profile sheet + GPA rank HTML).
  */
 @Singleton
 class CrawlerGradeSource @Inject constructor() : GradeCrawlerSource {

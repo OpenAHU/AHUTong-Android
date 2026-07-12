@@ -13,8 +13,7 @@ import javax.inject.Singleton
 import org.jsoup.Jsoup
 
 /**
- * Schedule crawler sink — logic inlined from [com.ahu.ahutong.data.crawler.CrawlerDataSource]
- * so the domain no longer depends on the monolith facade for live paths.
+ * Schedule crawler sink (Jwxt HTML/JSON).
  */
 @Singleton
 class CrawlerScheduleSource @Inject constructor() : ScheduleCrawlerSource {

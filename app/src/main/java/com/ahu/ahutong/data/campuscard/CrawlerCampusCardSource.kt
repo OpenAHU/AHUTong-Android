@@ -8,7 +8,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Campus-card crawler sink — talks to AdwmhApi directly (no CrawlerDataSource facade).
+ * Campus-card crawler sink (Adwmh balance / QR).
  */
 @Singleton
 class CrawlerCampusCardSource @Inject constructor() : CampusCardCrawlerSource {

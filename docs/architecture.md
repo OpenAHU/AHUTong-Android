@@ -32,7 +32,7 @@
 
 - Hilt bindings（`AppDataBindingsModule`）
 - 非 Hilt 访问：`AppDataAccess` + `DataEntryPoint`（微件、TokenAuthenticator）
-- 仍留在 app：Debug、crawler DataSource 适配（`CrawlerDataSource` / `SdkDataSource`）
+- 仍留在 app：Debug、域 sink 装配（`Crawler*Source` 等）、AHUCache / 微件 / 通知
 
 ## Phase 5 说明
 
@@ -44,18 +44,18 @@
 ## 可选后续
 
 1. Debug 页面（强依赖 app mock source set / 灰度 / AHUCache）  
-2. 将 `CrawlerDataSource` / `SdkDataSource` 进一步拆入各 data 域 sink  
-3. 收紧 `internal` 可见性与 public API  
+2. 收紧 `internal` 可见性与 public API  
+3. 域 sink（`Crawler*Source`）可再下沉到对应 `:data:*` 模块（需处理 AHUCache 依赖）  
 
 ## data:crawler 说明
 
 - 下沉：`JwxtApi` / `AdwmhApi` / `YcardApi`、`CookieManager`、`TokenManager`、拦截器、`AHUCookieJar`、剩余 crawler models。
 - 会话标记：`AppSessionState`（`:core:common`），替代 `AHUApplication.sessionExpired`。
 - 重登：`TokenAuthenticator` 通过 `CrawlerAuthHooks`；app 在 `Application.onCreate` 调用 `CrawlerAuthInstaller.install`。
-- 域 sink（app 装配，已内联爬虫逻辑，不再委托 `CrawlerDataSource`）：
+- 域 sink（app 装配，已内联爬虫逻辑）：
   - `CrawlerScheduleSource` / `CrawlerExamSource` / `CrawlerGradeSource` / `CrawlerCampusCardSource`
-  - portal/payment 此前已直连 Adwmh/Ycard API
-- 遗留：`CrawlerDataSource` / `SdkDataSource` / `BaseDataSource` 仍在 app（主要为 Sdk 旧路径与 MockDataSource 形态保留，生产路径走各域 sink）。
+  - portal/payment 直连 Adwmh/Ycard API
+- **已删除** 门面：`CrawlerDataSource` / `SdkDataSource` / `BaseDataSource` / `MockDataSource`（mock 走 `AHUCache.getMockData()` + 场景控制器）。
 
 ## feature:repository 说明
 

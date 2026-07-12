@@ -9,7 +9,7 @@ import javax.inject.Singleton
 import org.jsoup.Jsoup
 
 /**
- * Exam crawler sink — HTML arrange page parsing inlined from CrawlerDataSource.
+ * Exam crawler sink (Jwxt exam-arrange HTML).
  */
 @Singleton
 class CrawlerExamSource @Inject constructor() : ExamCrawlerSource {
