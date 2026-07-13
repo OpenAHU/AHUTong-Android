@@ -2,19 +2,19 @@
 
 ## 目标
 
-将单体 `:app` 拆为 **Core + Data(按域) + Feature + App 壳** 的混合模块结构。
+将单体 `:app` 拆为 **Core + Data(按域) + Feature + App 宿主** 的混合模块结构。
 
 ## 当前进度
 
 | 阶段 | 状态 | 说明 |
 |------|------|------|
 | Phase 0–2 | 完成 | Core + SDK 下沉 |
-| Phase 3 | 完成 | 按域 data 层 + 校验 |
+| Phase 3 | 完成 | 按域 data 层 |
 | Phase 4 | 完成 | 主要 feature 模块 |
 | Phase 5 | 完成 | 删除 `AHURepository` 门面 |
-| Phase 6 | **完成** | 各 sink 下沉 + 删除 DataSource 门面 |
-| Phase 7 | **完成** | 适配器下沉进 `:data/*` / `:feature/*` |
-| Phase 8 | **完成** | 产品宿主 `:feature:shell`；`:app` 仅保留入口 |
+| Phase 6 | 完成 | sink 下沉 + 删除 DataSource 门面 |
+| Phase 7 | 完成 | 适配器下沉进 `:data/*` / `:feature/*` |
+| Phase 8 | 完成 | 拆掉错误的「shell 大杂烩」：宿主回 app，可拆部分独立模块 |
 
 ## 模块一览
 
@@ -25,7 +25,7 @@
 ```
 
 - `AHUCache`、`DebugClock`、`PreferencesManager` → `:core:datastore`
-- `AppSessionState` / `AppContextHolder` / `AppVersion` → `:core:common`
+- `AppSessionState` / `AppContextHolder` / `AppVersion` / `AppLaunchIntents` → `:core:common`
 
 ### Data
 
@@ -33,37 +33,41 @@
 :data:schedule / auth / grade / exam / campuscard / portal / payment / calendar / crawler
 ```
 
-- 各域 **Repository 实现 + LocalStore/CrawlerSource 等** 在对应 data 模块 Hilt Module 中装配。
-- `:data:crawler`：Jwxt/Adwmh/Ycard API、Cookie/Token、AhuTong 后端、灰度等。
+- 各域 Repository + LocalStore/CrawlerSource 在对应 data 模块 Hilt 装配
+- `:data:auth`：`CrawlerAuthInstaller` + `AuthEntryPoint`（爬虫鉴权接线）
+- `:data:schedule`：`CourseTimetable`、`ScheduleEntryPoint`、`ScheduleReminderCoordinator` 接口
 
 ### Feature
 
 ```text
 :feature:login / schedule / home / grade / exam / payment
 :feature:portal / calendar / tools / settings / weather / classroom / repository
-:feature:shell   ← 产品宿主（导航 / 主题 / 微件 / 通知 / Debug）
+:feature:widget          ← 课表微件 + 资源 / Manifest receivers
+:feature:notification    ← 课前提醒 + 调度绑定
 ```
 
-- Home 偏好绑定：`feature:home` 的 `HomeDataBindingsModule`
-- **`:feature:shell`**：MainActivity、Main 导航、BottomNavBar、AHUTheme、
-  微件与课前提醒、APK 更新 UI/VM、Debug + mock、
-  `CrawlerAuthInstaller` / `AppDataAccess` / `DataEntryPoint`、
-  `AppScheduleReminderCoordinator` / `AppCourseReminderActions` /
-  `AppFreeClassroomSource`
+- `:feature:classroom`：`AppFreeClassroomSource` 绑定 + debug/release Mock 场景数据
+- `:feature:notification`：绑定 `ScheduleReminderCoordinator` / `CourseReminderActions`
+- `:feature:widget`：Glance / 自适应微件；经 `ScheduleEntryPoint` 取课表，经 `AppLaunchIntents` 打开宿主
 
-### App 壳（仅入口）
+### App 宿主（真正的产品入口）
 
-`:app` **只保留可安装包入口**，不再承载业务代码：
+`:app` 负责**可安装包与组合根**，不是业务域模块：
 
-- `AHUApplication`（`@HiltAndroidApp` + 进程级初始化）
-- 应用级 Manifest（权限、application 声明；组件由 shell merge）
-- 启动器图标 / 启动主题 / `network_security_config`
-- `applicationId`、版本号、ProGuard、jniLibs（Rust SDK）
+| 保留 | 说明 |
+|------|------|
+| `AHUApplication` | `@HiltAndroidApp` + 进程初始化 |
+| `MainActivity` | 启动 Activity |
+| `Main` / `BottomNavBar` | 导航组合根 |
+| `AHUTheme` | 应用主题 |
+| `MainViewModel` / APK 更新 UI | 跨 feature 的宿主能力 |
+| `Debug` 屏 | 宿主级调试入口（Mock 数据在 classroom） |
+| 打包资源 | 启动图标、主题、`network_security_config`、jniLibs |
 
-依赖：`implementation(project(":feature:shell"))` 及 Application 初始化所需的少量 core/data。
+微件 / 通知的组件 Manifest 由 library merge 进 APK。
 
 ## 可选后续
 
-1. 通知 / 微件拆独立模块，进一步拆薄 shell  
-2. Debug 下沉为 debug-only feature  
-3. 收紧 `internal` API  
+1. Debug/Mock 再拆为 debug-only feature  
+2. 收紧 `internal` API  
+3. 将 `CourseReminderActions` 接口从 settings 挪到 notification，去掉反向依赖  
