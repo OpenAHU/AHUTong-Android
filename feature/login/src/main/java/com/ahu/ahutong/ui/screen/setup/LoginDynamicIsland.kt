@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.feature.login.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.LoginState
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -51,12 +53,12 @@ fun BoxScope.LoginDynamicIsland(
         modifier = Modifier
             .align(Alignment.BottomEnd)
             .navigationBarsPadding()
-            .padding(16.dp)
-            .clip(SmoothRoundedCornerShape(32.dp)) // TODO: clip bug
+            .padding(AhuDimens.ContentHorizontal)
+            .clip(SmoothRoundedCornerShape(AhuDimens.CardCorner)) // TODO: clip bug
             .background(
                 animateColorAsState(
                     targetValue = when (state) {
-                        LoginState.Idle -> 90.a1 withNight 85.a1
+                        LoginState.Idle -> AhuColors.primaryAction
                         LoginState.InProgress -> 70.a1 withNight 60.a1
                         LoginState.Failed -> Color.Red
                         LoginState.Succeeded -> 70.a1 withNight 60.a1
@@ -67,7 +69,7 @@ fun BoxScope.LoginDynamicIsland(
     ) {
         when (state) {
             LoginState.Idle -> {
-                CompositionLocalProvider(LocalIndication provides ripple(color = 0.n1)) {
+                CompositionLocalProvider(LocalIndication provides ripple(color = AhuColors.onPrimaryAction)) {
                     Text(
                         text = stringResource(id = R.string.login),
                         modifier = Modifier
@@ -76,7 +78,7 @@ fun BoxScope.LoginDynamicIsland(
                                 onClick = onLogIn
                             )
                             .padding(24.dp, 16.dp),
-                        color = 0.n1,
+                        color = AhuColors.onPrimaryAction,
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
@@ -86,8 +88,8 @@ fun BoxScope.LoginDynamicIsland(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        .padding(AhuDimens.TitleHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(AhuDimens.TitleHorizontal),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CircularProgressIndicator(
@@ -109,8 +111,8 @@ fun BoxScope.LoginDynamicIsland(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        .padding(AhuDimens.TitleHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(AhuDimens.TitleHorizontal),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -133,8 +135,8 @@ fun BoxScope.LoginDynamicIsland(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        .padding(AhuDimens.TitleHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(AhuDimens.TitleHorizontal),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(

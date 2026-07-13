@@ -38,19 +38,6 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
-
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.foundation)
-    implementation(libs.androidx.material.icons.extended)
-    implementation(libs.material3)
-    implementation(libs.androidx.runtime.livedata)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.hilt.navigation.compose)
-    implementation(libs.monet)
-    implementation(libs.kyant0.capsule)
-
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
 }

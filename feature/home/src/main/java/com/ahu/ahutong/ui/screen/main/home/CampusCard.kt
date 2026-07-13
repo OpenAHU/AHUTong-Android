@@ -55,8 +55,8 @@ import com.ahu.ahutong.data.dao.PreferencesManager
 import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -132,7 +132,7 @@ private fun CardView(
     Row(
         modifier = modifier
             .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1),
+            .background(AhuColors.card),
         verticalAlignment = Alignment.CenterVertically
     ) {
 
@@ -185,7 +185,7 @@ private fun CardView(
             modifier = Modifier
                 .width(2.dp)
                 .fillMaxHeight()
-                .background(96.n1 withNight 10.n1)
+                .background(AhuColors.pageBackground)
         )
         Box(
             modifier = Modifier
@@ -275,7 +275,7 @@ private fun QRcodeView(
     Column(
         modifier = Modifier
             .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1)
+            .background(AhuColors.card)
             .padding(
                 start = 20.dp,
                 top = 12.dp,
@@ -343,7 +343,7 @@ private fun QRcodeView(
                     text = "加载失败"
                 )
             } else {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = AhuColors.primaryAction)
             }
         }
 
@@ -375,7 +375,7 @@ private fun QRcodeView(
                                 .size(360.dp)
                                 .clip(
                                     SmoothRoundedCornerShape(
-                                        24.dp
+                                        AhuDimens.CardCornerMedium
                                     )
                                 )
                                 .background(Color.White)

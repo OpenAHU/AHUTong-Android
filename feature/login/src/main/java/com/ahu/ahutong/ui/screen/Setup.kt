@@ -12,9 +12,8 @@ import androidx.navigation.compose.rememberNavController
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Splash
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.utils.animatedComposable
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
 import kotlinx.coroutines.delay
 
 /**
@@ -44,7 +43,7 @@ fun Setup(
         startDestination = "splash",
         modifier = Modifier
             .fillMaxSize()
-            .background(96.n1 withNight 10.n1)
+            .background(AhuColors.pageBackground)
     ) {
         animatedComposable("splash") {
             Splash()

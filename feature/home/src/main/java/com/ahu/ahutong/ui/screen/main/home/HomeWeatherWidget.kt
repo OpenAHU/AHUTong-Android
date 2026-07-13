@@ -6,20 +6,20 @@ import android.location.LocationManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.weather.WeatherApi
 import com.ahu.ahutong.data.weather.WeatherResponse
+import com.ahu.ahutong.ui.components.AhuCard
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -89,16 +89,16 @@ fun HomeWeatherWidget(
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .clickable(onClick = onClick),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = 90.a1 withNight 30.a1)
+        AhuCard(
+            modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal, vertical = 4.dp),
+            cornerRadius = 20.dp,
+            containerColor = AhuColors.accentSurface,
+            contentPadding = PaddingValues(AhuDimens.ContentHorizontal),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            onClick = onClick,
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left: main weather info
@@ -114,13 +114,13 @@ fun HomeWeatherWidget(
                             text = "${w.temperature?.toInt() ?: "--"}°",
                             fontSize = 32.sp,
                             fontWeight = FontWeight.Light,
-                            color = 0.n1 withNight 100.n1
+                            color = AhuColors.onSurface
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = w.weather ?: "",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = 0.n1 withNight 100.n1
+                            color = AhuColors.onSurface
                         )
                     }
                     Spacer(Modifier.height(2.dp))

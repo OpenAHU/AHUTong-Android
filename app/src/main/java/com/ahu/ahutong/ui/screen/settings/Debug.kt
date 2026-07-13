@@ -8,14 +8,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,7 +32,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.crawler.manager.TokenManager
@@ -46,12 +42,15 @@ import com.ahu.ahutong.data.gray.GrayOverride
 import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.notification.CourseReminderScheduler
+import com.ahu.ahutong.ui.components.AhuInsetCard
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuScreen
 import com.ahu.ahutong.ui.components.LiquidToggle
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
-import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.time.Instant
@@ -69,9 +68,9 @@ fun Debug(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val formatter = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm") }
-    val cardColor = 100.n1 withNight 20.n1
-    val subCardColor = 96.n1 withNight 16.n1
-    val primaryButtonColor = 90.a1 withNight 85.a1
+    val cardColor = AhuColors.card
+    val subCardColor = AhuColors.pageBackground
+    val primaryButtonColor = AhuColors.primaryAction
     val secondaryTextColor = 50.n1 withNight 78.n1
     val jsonEditorTextColor = Color.Black withNight Color.White
     val backdrop = rememberCanvasBackdrop { drawRect(cardColor) }
@@ -162,16 +161,10 @@ fun Debug(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 80.dp)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Column(
+    AhuScreen(contentPaddingBottom = 16.dp) {
+        AhuPageHeader(
+            title = "Debug",
+            titleStyle = MaterialTheme.typography.headlineLarge,
             modifier = Modifier
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -180,26 +173,20 @@ fun Debug(
                     if (!graySectionVisible) {
                         graySectionUnlockTapCount += 1
                     }
-                }
-                .padding(horizontal = 8.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Debug",
-                style = MaterialTheme.typography.headlineLarge
-            )
-            Text(
-                text = "调试网络、时间和缓存状态。当前时间模拟会影响首页、课表和小组件。",
-                color = secondaryTextColor,
-                style = MaterialTheme.typography.bodyLarge
-            )
-        }
+                },
+            below = {
+                Text(
+                    text = "调试网络、时间和缓存状态。当前时间模拟会影响首页、课表和小组件。",
+                    color = secondaryTextColor,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
+        )
 
         if (graySectionVisible) {
             DebugSection(
                 title = "灰度测试",
                 subtitle = "优先读取服务端配置，失败时按账号或设备本地兜底；Debug 可覆盖单个灰度的启用状态",
-                cardColor = cardColor
             ) {
                 grayStates.forEach { state ->
                     DebugGrayFeatureCard(
@@ -225,7 +212,6 @@ fun Debug(
         DebugSection(
             title = "数据源",
             subtitle = "切换本地 mock 数据源和业务场景",
-            cardColor = cardColor
         ) {
             DebugToggleRow(
                 title = "使用 mock 数据",
@@ -317,7 +303,6 @@ fun Debug(
             DebugSection(
                 title = "爬虫数据编辑",
                 subtitle = "选择一个爬虫数据端点，手动编辑 JSON；未保存时默认使用当前场景模板数据",
-                cardColor = cardColor
             ) {
                 editableEndpoints.forEach { endpoint ->
                     DebugActionRow(
@@ -428,7 +413,6 @@ fun Debug(
             DebugSection(
                 title = "场景诊断",
                 subtitle = "当前 Mock 场景的数据覆盖、边界和校验结果",
-                cardColor = cardColor
             ) {
                 scenarioDiagnostics.forEach {
                     DebugInfoRow(text = it)
@@ -446,7 +430,6 @@ fun Debug(
         DebugSection(
             title = "时间模拟",
             subtitle = "按本地学期起始日期推算当前周",
-            cardColor = cardColor
         ) {
             Column(
                 modifier = Modifier
@@ -462,7 +445,7 @@ fun Debug(
                 )
                 Text(
                     text = effectiveTimeText,
-                    color = 20.n1 withNight 90.n1,
+                    color = AhuColors.onSurface,
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Text(
@@ -569,7 +552,6 @@ fun Debug(
         DebugSection(
             title = "维护",
             subtitle = "清理登录和缓存状态",
-            cardColor = cardColor
         ) {
             DebugActionRow(
                 title = "清除 Adwmh Cookie",
@@ -608,7 +590,6 @@ fun Debug(
         DebugSection(
             title = "通知测试",
             subtitle = "独立预约测试通知，不影响正式的下一次课前提醒；岛卡测试需先在设置页开启实验开关",
-            cardColor = cardColor
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -754,7 +735,7 @@ private fun GrayOverrideButton(
         text = text,
         modifier = modifier,
         primary = selected,
-        containerColor = if (selected) primaryButtonColor else (92.n1 withNight 24.n1),
+        containerColor = if (selected) primaryButtonColor else AhuColors.cardStrong,
         onClick = onClick
     )
 }
@@ -763,29 +744,24 @@ private fun GrayOverrideButton(
 private fun DebugSection(
     title: String,
     subtitle: String,
-    cardColor: Color,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(cardColor)
-            .padding(20.dp),
+    AhuInsetCard(
+        cornerRadius = 24.dp,
+        contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        content = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall
-            )
-            Text(
-                text = subtitle,
-                color = 50.n1 withNight 78.n1,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            content()
-        }
-    )
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Text(
+            text = subtitle,
+            color = 50.n1 withNight 78.n1,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        content()
+    }
 }
 
 @Composable
@@ -800,7 +776,7 @@ private fun DebugToggleRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(SmoothRoundedCornerShape(20.dp))
-            .background(96.n1 withNight 16.n1)
+            .background(AhuColors.pageBackground)
             .clickable { onCheckedChange(!checked) }
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -834,12 +810,13 @@ private fun DebugActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     primary: Boolean = false,
-    containerColor: Color = if (primary) 90.a1 withNight 85.a1 else 96.n1 withNight 16.n1
+    containerColor: Color? = null,
 ) {
+    val bg = containerColor ?: if (primary) AhuColors.primaryAction else AhuColors.pageBackground
     Row(
         modifier = modifier
             .clip(SmoothRoundedCornerShape(18.dp))
-            .background(containerColor)
+            .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.Center,
@@ -847,7 +824,7 @@ private fun DebugActionButton(
     ) {
         Text(
             text = text,
-            color = if (primary) 0.n1 else Color.Unspecified,
+            color = if (primary) AhuColors.onPrimaryAction else Color.Unspecified,
             fontWeight = FontWeight.Medium,
             style = MaterialTheme.typography.titleSmall
         )
@@ -865,7 +842,7 @@ private fun DebugActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(SmoothRoundedCornerShape(20.dp))
-            .background(if (selected) 88.a1 withNight 35.a1 else 96.n1 withNight 16.n1)
+            .background(if (selected) AhuColors.accentSurface else AhuColors.pageBackground)
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -892,9 +869,9 @@ private fun DebugInfoRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(SmoothRoundedCornerShape(16.dp))
-            .background(if (warning) 90.a1 withNight 35.a1 else 96.n1 withNight 16.n1)
+            .background(if (warning) AhuColors.accentSurface else AhuColors.pageBackground)
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        color = if (warning) 0.n1 else Color.Unspecified,
+        color = if (warning) AhuColors.onPrimaryAction else Color.Unspecified,
         style = MaterialTheme.typography.bodyMedium
     )
 }

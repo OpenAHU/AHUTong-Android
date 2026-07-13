@@ -10,9 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import com.kyant.monet.a1
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
+import com.ahu.ahutong.ui.theme.AhuColors
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -35,24 +33,24 @@ fun MyDatePickerDialog(
     )
 
     val colors = DatePickerDefaults.colors(
-        containerColor = 100.n1 withNight 20.n1,
-        titleContentColor = 10.n1 withNight 90.n1,
-        headlineContentColor = 10.n1 withNight 90.n1,
-        weekdayContentColor = 40.n1 withNight 60.n1,
-        subheadContentColor = 40.n1 withNight 60.n1,
-        yearContentColor = 40.n1 withNight 60.n1,
-        currentYearContentColor = 10.n1 withNight 90.n1,
-        selectedYearContentColor = 0.n1,
-        selectedYearContainerColor = 90.a1,
-        dayContentColor = 10.n1 withNight 90.n1,
-        disabledDayContentColor = 60.n1 withNight 40.n1,
-        selectedDayContentColor = 0.n1,
-        disabledSelectedDayContentColor = 60.n1 withNight 40.n1,
-        selectedDayContainerColor = 90.a1 ,
-        disabledSelectedDayContainerColor = 90.a1,
-        todayContentColor = 10.n1 withNight 90.n1,
-        todayDateBorderColor = 90.a1,
-        navigationContentColor = 10.n1 withNight 90.n1
+        containerColor = AhuColors.card,
+        titleContentColor = AhuColors.onSurface,
+        headlineContentColor = AhuColors.onSurface,
+        weekdayContentColor = AhuColors.onSurface.copy(alpha = 0.55f),
+        subheadContentColor = AhuColors.onSurface.copy(alpha = 0.55f),
+        yearContentColor = AhuColors.onSurface.copy(alpha = 0.55f),
+        currentYearContentColor = AhuColors.onSurface,
+        selectedYearContentColor = AhuColors.onPrimaryAction,
+        selectedYearContainerColor = AhuColors.primaryAction,
+        dayContentColor = AhuColors.onSurface,
+        disabledDayContentColor = AhuColors.onSurface.copy(alpha = 0.35f),
+        selectedDayContentColor = AhuColors.onPrimaryAction,
+        disabledSelectedDayContentColor = AhuColors.onSurface.copy(alpha = 0.35f),
+        selectedDayContainerColor = AhuColors.primaryAction,
+        disabledSelectedDayContainerColor = AhuColors.primaryAction,
+        todayContentColor = AhuColors.onSurface,
+        todayDateBorderColor = AhuColors.primaryAction,
+        navigationContentColor = AhuColors.onSurface
     )
 
     DatePickerDialog(
@@ -66,7 +64,7 @@ fun MyDatePickerDialog(
                     onDismiss()
                 },
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = 10.n1 withNight 90.n1
+                    contentColor = AhuColors.onSurface
                 )
             ) {
                 Text("确定")
@@ -76,7 +74,7 @@ fun MyDatePickerDialog(
             TextButton(
                 onClick = onDismiss,
                 colors = ButtonDefaults.textButtonColors(
-                    contentColor = 10.n1 withNight 90.n1
+                    contentColor = AhuColors.onSurface
                 )
             ) {
                 Text("取消")

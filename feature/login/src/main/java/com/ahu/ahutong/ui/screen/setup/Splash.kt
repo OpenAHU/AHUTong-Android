@@ -4,11 +4,8 @@ import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +20,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
 import com.ahu.ahutong.feature.login.R
+import com.ahu.ahutong.ui.components.AhuScreen
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 
@@ -39,17 +39,16 @@ fun Splash() {
         bitmap.asImageBitmap()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally
+    AhuScreen(
+        scrollable = false,
+        clearBottomNav = false,
+        verticalArrangement = Arrangement.spacedBy(AhuDimens.SectionSpacing, Alignment.CenterVertically),
     ) {
         Image(
             bitmap = appIconBitmap,
             contentDescription = null,
             modifier = Modifier
+                .align(Alignment.CenterHorizontally)
                 .clip(ContinuousCapsule)
                 .background(100.n1)
                 .padding(4.dp)
@@ -59,6 +58,8 @@ fun Splash() {
         )
         Text(
             text = stringResource(id = R.string.app_name),
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            color = AhuColors.onSurface,
             style = MaterialTheme.typography.headlineLarge
         )
     }

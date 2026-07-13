@@ -26,6 +26,36 @@
 
 - `AHUCache`、`DebugClock`、`PreferencesManager` → `:core:datastore`
 - `AppSessionState` / `AppContextHolder` / `AppVersion` / `AppLaunchIntents` → `:core:common`
+- **`:core:designsystem` = 统一 UI 库**（见下文）
+
+### UI 库契约（`:core:designsystem`）
+
+Feature / App 的 Compose UI 栈只应依赖本模块，**不要**在 feature 的 `build.gradle.kts` 里再直接声明：
+
+- `androidx.compose.*` / `material3` / `navigation-compose` / `hilt-navigation-compose`
+- `monet` / `kyant0.capsule` / `kyant0.backdrop` / `coil-compose`
+
+本模块用 `api(...)` 透出上述依赖，并提供统一组件：
+
+| 包 | 内容 |
+|----|------|
+| `ui.theme` | `AhuDimens` / `AhuColors` / `AhuTheme` |
+| `ui.components` | `AhuScreen` / `AhuPageHeader` / `AhuCard` / `AhuList*` / `AhuPrimaryButton` / Liquid* … |
+| `ui.shape` | `SmoothRoundedCornerShape` |
+| `utils` | `animatedComposable` |
+
+Feature 仍需启用 Compose 编译器（`kotlin.compose` 插件 + `buildFeatures.compose = true`），但库依赖只写：
+
+```kotlin
+api(project(":core:designsystem"))
+```
+
+页面代码可继续使用 Compose 布局原语（`Modifier` / `Row` / `LazyColumn`），视觉元素优先用 `Ahu*` 组件与 token，避免各模块各自抄一份圆角 / 间距 / 色板。
+
+特例：
+
+- `:feature:widget` 额外依赖 Glance（桌面微件）
+- `:feature:notification` 无 Compose UI
 
 ### Data
 

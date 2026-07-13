@@ -79,6 +79,13 @@
 3. 注释用于解释必要背景、约束或复杂逻辑，不重复代码表面含义。
 4. 格式化应尽量局部进行，避免无关的大规模重排。
 
+## UI / Compose 约定
+
+1. **统一 UI 库**：`:core:designsystem`。新 feature 的 UI 依赖只声明 `api(project(":core:designsystem"))`，不要再直接加 Compose BOM、Material3、Monet、Capsule、Navigation Compose 等。
+2. 页面视觉优先使用 `AhuScreen` / `AhuPageHeader` / `AhuCard` / `AhuListItem` / `AhuColors` / `AhuDimens` 等组件与 token；业务特有布局可以继续用 Compose 原语。
+3. 公共 UI 能力（新卡片样式、统一 Loading、列表行）应沉淀回 designsystem，而不是在 feature 内复制粘贴。
+4. 宿主主题 `AHUTheme` 仍在 `:app`（依赖 Preferences）；预览可用 designsystem 的 `AhuTheme`。
+
 ## 合并前检查
 
 1. 确认分支名称符合规范。

@@ -5,24 +5,46 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,17 +52,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.weather.WeatherResponse
+import com.ahu.ahutong.ui.components.AhuCard
+import com.ahu.ahutong.ui.components.AhuHeaderIconButton
+import com.ahu.ahutong.ui.components.AhuIconActionGroup
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreen
+import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.WeatherViewModel
-import com.kyant.monet.n1
-import com.kyant.monet.a1
-import com.kyant.monet.withNight
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Weather(
-    weatherViewModel: WeatherViewModel = viewModel()
+    weatherViewModel: WeatherViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val weather = weatherViewModel.weather
@@ -71,21 +99,18 @@ fun Weather(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+    AhuScreen(
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        contentPaddingBottom = AhuDimens.ContentHorizontal,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (showSearch) {
+        if (showSearch) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = AhuDimens.ContentHorizontal, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(onClick = {
                     showSearch = false
                     searchCity = ""
@@ -105,9 +130,9 @@ fun Weather(
                     singleLine = true,
                     placeholder = { Text("输入城市名，如 合肥") },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = 0.n1 withNight 100.n1,
-                        unfocusedTextColor = 0.n1 withNight 100.n1,
-                        cursorColor = 90.a1 withNight 90.a1,
+                        focusedTextColor = AhuColors.onSurface,
+                        unfocusedTextColor = AhuColors.onSurface,
+                        cursorColor = AhuColors.primaryAction,
                     ),
                     keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { doSearch() }),
@@ -123,98 +148,116 @@ fun Weather(
                         }
                     }
                 )
-            } else {
-                Text(
-                    text = weatherViewModel.locationName.ifBlank { "天气" },
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Row {
-                    IconButton(onClick = { showSearch = true }) {
-                        Icon(Icons.Default.Search, "搜索城市")
-                    }
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.Settings, "设置")
-                    }
-                    IconButton(onClick = {
-                        weatherViewModel.refresh()
-                        Toast.makeText(context, "已刷新", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(Icons.Default.Refresh, "刷新")
-                    }
-                }
             }
+        } else {
+            AhuPageHeader(
+                title = weatherViewModel.locationName.ifBlank { "天气" },
+                titleStyle = MaterialTheme.typography.headlineSmall,
+                actions = {
+                    AhuIconActionGroup {
+                        AhuHeaderIconButton(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "搜索城市",
+                            onClick = { showSearch = true },
+                        )
+                        AhuHeaderIconButton(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "设置",
+                            onClick = { showSettings = true },
+                        )
+                        AhuHeaderIconButton(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "刷新",
+                            onClick = {
+                                weatherViewModel.refresh()
+                                Toast.makeText(context, "已刷新", Toast.LENGTH_SHORT).show()
+                            },
+                        )
+                    }
+                },
+            )
         }
 
-        if (weatherViewModel.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(48.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else if (weatherViewModel.errorMessage != null) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(weatherViewModel.errorMessage!!, color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = { weatherViewModel.refresh() }) {
-                    Text("重试")
+        Column(
+            modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (weatherViewModel.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = AhuColors.primaryAction)
                 }
-            }
-        } else if (weather != null) {
-            WeatherCard(weather)
-
-            weather.forecast?.let { forecast ->
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "未来预报",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(forecast) { day -> ForecastCard(day) }
-                }
-            }
-
-            weather.aqi?.let {
-                Spacer(Modifier.height(16.dp))
-                AqiCard(weather)
-            }
-
-            Spacer(Modifier.height(16.dp))
-            UmbrellaCard(weather)
-
-            weather.hourlyForecast?.let { hourly ->
-                if (hourly.isNotEmpty()) {
-                    Spacer(Modifier.height(16.dp))
+            } else if (weatherViewModel.errorMessage != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
-                        "逐小时预报",
+                        weatherViewModel.errorMessage!!,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    AhuPrimaryButton(
+                        text = "重试",
+                        onClick = { weatherViewModel.refresh() },
+                    )
+                }
+            } else if (weather != null) {
+                WeatherCard(weather)
+
+                weather.forecast?.let { forecast ->
+                    Text(
+                        "未来预报",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+                        color = AhuColors.onSurface,
+                        modifier = Modifier.padding(start = 4.dp),
                     )
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(hourly.take(12)) { h -> HourlyCard(h) }
+                        items(forecast) { day -> ForecastCard(day) }
                     }
                 }
-            }
 
-            weather.lifeIndices?.let { indices ->
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "生活指数",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-                )
-                LifeIndicesGrid(indices)
-            }
+                weather.aqi?.let {
+                    AqiCard(weather)
+                }
 
-            Spacer(Modifier.height(24.dp))
+                UmbrellaCard(weather)
+
+                weather.hourlyForecast?.let { hourly ->
+                    if (hourly.isNotEmpty()) {
+                        Text(
+                            "逐小时预报",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = AhuColors.onSurface,
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(hourly.take(12)) { h -> HourlyCard(h) }
+                        }
+                    }
+                }
+
+                weather.lifeIndices?.let { indices ->
+                    Text(
+                        "生活指数",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AhuColors.onSurface,
+                        modifier = Modifier.padding(start = 4.dp),
+                    )
+                    LifeIndicesGrid(indices)
+                }
+
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
 
@@ -222,7 +265,7 @@ fun Weather(
         val config = weatherViewModel.homeConfig
         ModalBottomSheet(
             onDismissRequest = { showSettings = false },
-            containerColor = 100.n1 withNight 15.n1,
+            containerColor = AhuColors.pageBackground,
             tonalElevation = 0.dp
         ) {
             Column(
@@ -236,12 +279,12 @@ fun Weather(
                     "天气设置",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = 0.n1 withNight 100.n1
+                    color = AhuColors.onSurface
                 )
                 Text(
                     "选择要在首页卡片上显示的信息：",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = 50.n1 withNight 80.n1
+                    color = AhuColors.onSurface.copy(alpha = 0.55f)
                 )
                 Spacer(Modifier.height(8.dp))
 
@@ -273,7 +316,11 @@ fun Weather(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(item.label, modifier = Modifier.weight(1f), color = 0.n1 withNight 100.n1)
+                        Text(
+                            item.label,
+                            modifier = Modifier.weight(1f),
+                            color = AhuColors.onSurface
+                        )
                         Switch(checked = item.value, onCheckedChange = item.onChange)
                     }
                 }
@@ -286,34 +333,37 @@ fun Weather(
 
 @Composable
 private fun WeatherCard(weather: WeatherResponse) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = 90.a1 withNight 30.a1)
+    AhuCard(
+        containerColor = AhuColors.primaryAction,
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = listOfNotNull(weather.district, weather.city).firstOrNull() ?: "",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                color = AhuColors.onSurface,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "${weather.temperature?.toInt() ?: "--"}°",
                 fontSize = 64.sp,
                 fontWeight = FontWeight.Light,
-                color = 0.n1 withNight 100.n1
+                color = AhuColors.onSurface
             )
             Text(
                 text = weather.weather ?: "",
                 style = MaterialTheme.typography.titleMedium,
+                color = AhuColors.onSurface,
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
                 text = "体感 ${weather.feelsLike?.toInt() ?: "--"}°",
                 style = MaterialTheme.typography.bodyMedium,
-                color = 50.n1 withNight 80.n1,
+                color = AhuColors.onSurface.copy(alpha = 0.55f),
                 modifier = Modifier.padding(top = 2.dp)
             )
             Spacer(Modifier.height(16.dp))
@@ -332,27 +382,35 @@ private fun WeatherCard(weather: WeatherResponse) {
 @Composable
 private fun InfoItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = 50.n1 withNight 80.n1)
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = AhuColors.onSurface.copy(alpha = 0.55f)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = AhuColors.onSurface,
+        )
     }
 }
 
 @Composable
 private fun ForecastCard(day: com.ahu.ahutong.data.weather.ForecastDay) {
-    Card(
-        modifier = Modifier.width(100.dp),
-        colors = CardDefaults.cardColors(containerColor = 100.n1 withNight 20.n1)
+    Column(
+        modifier = Modifier
+            .width(100.dp)
+            .clip(SmoothRoundedCornerShape(AhuDimens.CardCorner))
+            .background(AhuColors.card)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(day.week ?: "", style = MaterialTheme.typography.labelMedium)
-            Text("${day.tempMax?.toInt() ?: "--"}°", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Text("${day.tempMin?.toInt() ?: "--"}°", color = 50.n1 withNight 80.n1, fontSize = 14.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(day.weatherDay ?: "", fontSize = 12.sp, maxLines = 1)
-        }
+        Text(day.week ?: "", style = MaterialTheme.typography.labelMedium, color = AhuColors.onSurface)
+        Text("${day.tempMax?.toInt() ?: "--"}°", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = AhuColors.onSurface)
+        Text("${day.tempMin?.toInt() ?: "--"}°", color = AhuColors.onSurface.copy(alpha = 0.55f), fontSize = 14.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(day.weatherDay ?: "", fontSize = 12.sp, maxLines = 1, color = AhuColors.onSurface)
     }
 }
 
@@ -367,14 +425,11 @@ private fun AqiCard(weather: WeatherResponse) {
         6 -> androidx.compose.ui.graphics.Color(0xFF880E4F)
         else -> androidx.compose.ui.graphics.Color.Gray
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = 100.n1 withNight 20.n1)
+    AhuCard(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(48.dp)
@@ -391,11 +446,11 @@ private fun AqiCard(weather: WeatherResponse) {
             }
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("空气${weather.aqiCategory ?: ""}", fontWeight = FontWeight.Bold)
+                Text("空气${weather.aqiCategory ?: ""}", fontWeight = FontWeight.Bold, color = AhuColors.onSurface)
                 Text(
                     "主要污染物：${weather.aqiPrimary ?: "无"}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = 50.n1 withNight 80.n1
+                    color = AhuColors.onSurface.copy(alpha = 0.55f)
                 )
             }
         }
@@ -430,24 +485,27 @@ private fun UmbrellaCard(weather: WeatherResponse) {
         else -> Pair("建议带伞 \u2614", "当前天气或预报有降雨")
     }
 
-    val bgColor = if (needUmbrella)
+    val bgColor = if (needUmbrella) {
         androidx.compose.ui.graphics.Color(0xFF2196F3).copy(alpha = 0.15f)
-    else
+    } else {
         androidx.compose.ui.graphics.Color(0xFF4CAF50).copy(alpha = 0.15f)
+    }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = bgColor)
+    AhuCard(
+        containerColor = bgColor,
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (needUmbrella) "\u2614" else "\u2600\uFE0F", fontSize = 28.sp)
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = 50.n1 withNight 80.n1)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AhuColors.onSurface)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AhuColors.onSurface.copy(alpha = 0.55f)
+                )
             }
         }
     }
@@ -461,20 +519,29 @@ private fun HourlyCard(h: com.ahu.ahutong.data.weather.HourlyForecast) {
     val datePart = timeStr.substringAfter("-").take(5) // "MM-DD"
     val hour = timeStr.substringAfter(sep).take(2)     // "HH"
     val label = if (datePart.length == 5 && hour.length == 2) "${datePart}日${hour}时" else timeStr
-    Card(
-        modifier = Modifier.width(88.dp),
-        colors = CardDefaults.cardColors(containerColor = 100.n1 withNight 20.n1)
+    Column(
+        modifier = Modifier
+            .width(88.dp)
+            .clip(SmoothRoundedCornerShape(AhuDimens.CardCorner))
+            .background(AhuColors.card)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = 50.n1 withNight 80.n1, fontSize = 11.sp)
-            Spacer(Modifier.height(4.dp))
-            Text("${h.temperature?.toInt() ?: "--"}°", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Spacer(Modifier.height(2.dp))
-            Text(h.weather ?: "", fontSize = 11.sp, maxLines = 1)
-        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = AhuColors.onSurface.copy(alpha = 0.55f),
+            fontSize = 11.sp
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "${h.temperature?.toInt() ?: "--"}°",
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = AhuColors.onSurface,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(h.weather ?: "", fontSize = 11.sp, maxLines = 1, color = AhuColors.onSurface)
     }
 }
 
@@ -500,17 +567,20 @@ private fun LifeIndicesGrid(indices: com.ahu.ahutong.data.weather.LifeIndices) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 row.forEach { (label, item) ->
-                    Card(
+                    AhuCard(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = 100.n1 withNight 20.n1)
+                        contentPadding = PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(item!!.level ?: "", color = 90.a1 withNight 85.a1, fontSize = 13.sp)
-                            val brief = item.brief
-                            if (!brief.isNullOrBlank()) {
-                                Text(brief, style = MaterialTheme.typography.bodySmall, color = 50.n1 withNight 80.n1)
-                            }
+                        Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = AhuColors.onSurface)
+                        Text(item!!.level ?: "", color = AhuColors.primaryAction, fontSize = 13.sp)
+                        val brief = item.brief
+                        if (!brief.isNullOrBlank()) {
+                            Text(
+                                brief,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AhuColors.onSurface.copy(alpha = 0.55f)
+                            )
                         }
                     }
                 }

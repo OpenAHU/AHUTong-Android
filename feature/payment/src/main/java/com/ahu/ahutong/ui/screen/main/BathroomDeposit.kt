@@ -16,24 +16,17 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,7 +37,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.ripple
@@ -65,6 +57,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -72,8 +65,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.PayState
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.AhuChip
+import com.ahu.ahutong.ui.components.AhuDialog
+import com.ahu.ahutong.ui.components.AhuInsetCard
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreen
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.ahu.ahutong.ui.state.BathroomDepositViewModel
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -82,9 +83,7 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BathroomDeposit(
-
     viewmodel: BathroomDepositViewModel = hiltViewModel()
-
 ) {
     val payState = viewmodel.payState.collectAsState()
     LaunchedEffect(payState.value) {
@@ -95,10 +94,8 @@ fun BathroomDeposit(
             }
 
             else -> {
-
             }
         }
-
     }
     val options = listOf("竹园/龙河", "桔园/蕙园")
     var expanded by remember { mutableStateOf(false) }
@@ -125,31 +122,25 @@ fun BathroomDeposit(
         unfocusedIndicatorColor = Color.Transparent,
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }
-            ) {
-                focusManager.clearFocus()
-            },
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Text(
-            text = "浴室缴费",
-            modifier = Modifier.padding(24.dp, 32.dp),
-            style = MaterialTheme.typography.headlineMedium
-        )
+    var showDialog by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
 
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(100.n1 withNight 20.n1)
+    AhuScreen(
+        clearBottomNav = false,
+        modifier = Modifier.clickable(
+            indication = null,
+            interactionSource = remember { MutableInteractionSource() }
+        ) {
+            focusManager.clearFocus()
+        },
+    ) {
+        AhuPageHeader(title = "浴室缴费")
+
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            contentPadding = PaddingValues(0.dp),
+            verticalArrangement = Arrangement.Top,
         ) {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -179,7 +170,7 @@ fun BathroomDeposit(
                         textStyle = TextStyle(
                             textAlign = TextAlign.End,
                             fontSize = 16.sp,
-                            color = 10.n1 withNight 90.n1
+                            color = AhuColors.onSurface
                         ),
                         singleLine = true,
                     )
@@ -187,11 +178,13 @@ fun BathroomDeposit(
                     ExposedDropdownMenu(
                         expanded = expanded,
                         onDismissRequest = { expanded = false },
-                        modifier = Modifier.background(99.n1 withNight 10.n1),
+                        modifier = Modifier.background(AhuColors.pageBackground),
                     ) {
                         options.forEach { selectionOption ->
                             DropdownMenuItem(
-                                text = { Text(selectionOption, color = 10.n1 withNight 90.n1) },
+                                text = {
+                                    Text(selectionOption, color = AhuColors.onSurface)
+                                },
                                 onClick = {
                                     bathroom = selectionOption
                                     expanded = false
@@ -226,13 +219,11 @@ fun BathroomDeposit(
                     textStyle = TextStyle(
                         textAlign = TextAlign.Center,
                         fontSize = 16.sp,
-                        color = 10.n1 withNight 90.n1
+                        color = AhuColors.onSurface
                     ),
-
                     singleLine = true,
                 )
             }
-
 
             lastTel?.let {
                 Row(horizontalArrangement = Arrangement.End) {
@@ -242,28 +233,24 @@ fun BathroomDeposit(
                         exit = fadeOut() + slideOutVertically()
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            Text(
+                            AhuChip(
                                 text = "上次充值：$it",
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(90.a1 withNight 30.n1)
-                                    .padding(8.dp)
-                                    .clickable {
-                                        tel = it
-                                        viewmodel.getBathroomInfo(bathroom, tel)
-                                        lastTel = null
-                                    }
-
-
+                                selected = true,
+                                onClick = {
+                                    tel = it
+                                    viewmodel.getBathroomInfo(bathroom, tel)
+                                    lastTel = null
+                                },
                             )
                         }
                     }
                 }
             }
-
 
             Row(
                 modifier = Modifier
@@ -289,23 +276,17 @@ fun BathroomDeposit(
 
                 Text(text = displayText)
             }
-
-
         }
 
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(100.n1 withNight 20.n1),
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            contentPadding = PaddingValues(0.dp),
+            verticalArrangement = Arrangement.Top,
         ) {
-
             Text(
                 text = "缴费金额",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
-
             )
             TextField(
                 value = amount,
@@ -322,9 +303,13 @@ fun BathroomDeposit(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = textFieldColors,
-                placeholder = { Text("请输入金额", color = 30.n1 withNight 70.n1) },
-                textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
-
+                placeholder = {
+                    Text(
+                        "请输入金额",
+                        color = AhuColors.onSurface.copy(alpha = 0.45f)
+                    )
+                },
+                textStyle = TextStyle(fontSize = 16.sp, color = AhuColors.onSurface),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
                     imeAction = ImeAction.Done
@@ -334,39 +319,33 @@ fun BathroomDeposit(
                 ),
                 singleLine = true
             )
-
-
         }
 
-        var showDialog by remember { mutableStateOf(false) }
-        var password by remember { mutableStateOf("") }
-        var errorMsg by remember { mutableStateOf<String?>(null) }
-
-
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AhuDimens.ContentHorizontal),
             horizontalArrangement = Arrangement.End
         ) {
             Box(
                 modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(16.dp)
-                    .clip(SmoothRoundedCornerShape(32.dp))
+                    .clip(ContinuousCapsule)
                     .background(
                         animateColorAsState(
                             targetValue = when (payState.value) {
-                                is PayState.Idle -> 90.a1 withNight 85.a1
+                                is PayState.Idle -> AhuColors.primaryAction
                                 is PayState.InProgress -> 70.a1 withNight 60.a1
                                 is PayState.Failed -> Color.Red
                                 is PayState.Succeeded -> 70.a1 withNight 60.a1
-                            }
+                            },
+                            label = "payStateBg"
                         ).value
                     )
                     .animateContentSize(spring(stiffness = Spring.StiffnessLow))
             ) {
                 when (val state = payState.value) {
                     PayState.Idle -> {
-                        CompositionLocalProvider(LocalIndication provides ripple(color = 0.n1)) {
+                        CompositionLocalProvider(LocalIndication provides ripple(color = AhuColors.onPrimaryAction)) {
                             Text(
                                 text = "确认",
                                 modifier = Modifier
@@ -375,13 +354,11 @@ fun BathroomDeposit(
                                         onClick = {
                                             if (!amount.isEmpty() && info.value != null) {
                                                 showDialog = true
-                                            } else {
-
                                             }
                                         }
                                     )
                                     .padding(24.dp, 16.dp),
-                                color = 0.n1,
+                                color = AhuColors.onPrimaryAction,
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
@@ -452,55 +429,72 @@ fun BathroomDeposit(
                                 text = "支付成功！ 订单号：${state.message}",
                                 modifier = Modifier
                                     .padding(4.dp)
-                                    .clickable {
-
-                                    },
+                                    .clickable { },
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.headlineSmall
                             )
                         }
                     }
-
                 }
             }
+        }
 
-
-            if (showDialog) {
-                AlertDialog(
-                    containerColor = 100.n1 withNight 20.n1,
-                    titleContentColor = 10.n1 withNight 90.n1,
-                    onDismissRequest = { showDialog = false },
-                    title = { Text("请输入校园卡密码") },
-                    text = {
-                        Column {
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { input ->
-                                    if (input.length <= 6 && input.all { it.isDigit() }) {
-                                        password = input
-                                        errorMsg = null
-                                    }
-                                },
-                                label = { Text("密码 (6位数字)", color = 40.n1 withNight 60.n1) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                                visualTransformation = PasswordVisualTransformation(),
-                                isError = errorMsg != null,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = 10.n1 withNight 90.n1,
-                                    unfocusedTextColor = 10.n1 withNight 90.n1,
-                                    focusedBorderColor = 20.n1 withNight 80.n1
-                                )
-                            )
-                            if (errorMsg != null) {
-                                Text(
-                                    text = errorMsg!!,
-                                )
+        if (showDialog) {
+            AhuDialog(onDismissRequest = { showDialog = false }) {
+                Text(
+                    text = "请输入校园卡密码",
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    color = AhuColors.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { input ->
+                            if (input.length <= 6 && input.all { it.isDigit() }) {
+                                password = input
+                                errorMsg = null
                             }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
+                        },
+                        label = {
+                            Text(
+                                "密码 (6位数字)",
+                                color = AhuColors.onSurface.copy(alpha = 0.55f)
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = errorMsg != null,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AhuColors.onSurface,
+                            unfocusedTextColor = AhuColors.onSurface,
+                            focusedBorderColor = AhuColors.onSurface.copy(alpha = 0.7f)
+                        )
+                    )
+                    if (errorMsg != null) {
+                        Text(text = errorMsg!!)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                ) {
+                    AhuPrimaryButton(
+                        text = "取消",
+                        onClick = {
+                            showDialog = false
+                            password = ""
+                            errorMsg = null
+                        },
+                        containerColor = AhuColors.cardStrong,
+                        contentColor = AhuColors.onSurface,
+                    )
+                    AhuPrimaryButton(
+                        text = "确认",
+                        onClick = {
                             if (password.length == 6) {
                                 showDialog = false
                                 viewmodel.pay(
@@ -511,24 +505,10 @@ fun BathroomDeposit(
                             } else {
                                 errorMsg = "密码必须是6位数字"
                             }
-                        }) {
-                            Text("确认", color = 10.n1 withNight 90.n1)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            showDialog = false
-                            password = ""
-                            errorMsg = null
-                        }) {
-                            Text("取消", color = 10.n1 withNight 90.n1)
-                        }
-                    }
-                )
-
-
+                        },
+                    )
+                }
             }
         }
     }
 }
-

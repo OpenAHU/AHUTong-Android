@@ -10,12 +10,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +33,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import com.ahu.ahutong.ui.components.AhuScreen
 import com.ahu.ahutong.ui.screen.main.home.AtAGlance
 import com.ahu.ahutong.ui.screen.main.home.HomeWeatherWidget
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetDragOverlay
@@ -47,6 +43,7 @@ import com.ahu.ahutong.ui.screen.main.home.HomeWidgetSlotLayout
 import com.ahu.ahutong.ui.screen.main.home.TodayCourseList
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.ahu.ahutong.ui.theme.AhuDimens
 import kotlinx.coroutines.delay
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -279,13 +276,12 @@ fun Home(
                 }
             }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .systemBarsPadding()
-                .padding(bottom = if (isEditingHome) 520.dp else 96.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+        // Drag/library overlays sit outside the scroll shell; keep free layout Box.
+        AhuScreen(
+            clearBottomNav = true,
+            scrollable = true,
+            contentPaddingBottom = if (isEditingHome) 424.dp else 0.dp,
+            verticalArrangement = Arrangement.spacedBy(AhuDimens.SectionSpacing),
         ) {
             AtAGlance(
                 todayCourses = todayCourses,

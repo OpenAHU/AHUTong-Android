@@ -7,7 +7,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,20 +14,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.stringResource
@@ -51,18 +45,20 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.settings.R
+import com.ahu.ahutong.ui.components.AhuDialog
+import com.ahu.ahutong.ui.components.AhuInsetCard
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreen
 import com.ahu.ahutong.ui.components.LiquidToggle
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.PreferencesViewModel
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
-import com.kyant.monet.a1
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
-
 
 @Composable
 fun Preferences() {
-
     val preferencesViewModel: PreferencesViewModel = hiltViewModel()
     val context = LocalContext.current
     var isRequestingPermission by remember { mutableStateOf(false) }
@@ -72,7 +68,7 @@ fun Preferences() {
     val courseReminderEnabled by preferencesViewModel.courseReminderEnabled.collectAsState()
     val courseReminderLiveCountdownEnabled by preferencesViewModel.courseReminderLiveCountdownEnabled.collectAsState()
 
-    val cardColor = 100.n1 withNight 20.n1
+    val cardColor = AhuColors.card
     val backdrop = rememberCanvasBackdrop { drawRect(cardColor) }
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -87,35 +83,20 @@ fun Preferences() {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 80.dp)
-            .systemBarsPadding()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Text(
-            text = stringResource(id = R.string.preferences),
-            modifier = Modifier.padding(24.dp, 32.dp),
-            style = MaterialTheme.typography.headlineLarge
+    AhuScreen {
+        AhuPageHeader(
+            title = stringResource(id = R.string.preferences),
+            titleStyle = MaterialTheme.typography.headlineLarge,
         )
         /*
-        Column(
-            modifier =
-                Modifier
-                    .clip(SmoothRoundedCornerShape(16.dp))
-                    .background(cardColor)
-                    .clickable { preferencesViewModel.setShowQRCode(!preferencesViewModel.showQRCode.value) }
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            onClick = { preferencesViewModel.setShowQRCode(!preferencesViewModel.showQRCode.value) },
         ) {
             Text(text = "主页", style = MaterialTheme.typography.headlineSmall)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(SmoothRoundedCornerShape(8.dp))
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -130,40 +111,34 @@ fun Preferences() {
         }
         */
 
-        Column(
-            modifier =
-                Modifier
-                    .clip(SmoothRoundedCornerShape(16.dp))
-                    .background(cardColor)
-                    .clickable {
-                        if (!courseReminderEnabled) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.POST_NOTIFICATIONS
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                if (!isRequestingPermission) {
-                                    isRequestingPermission = true
-                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                            } else {
-                                preferencesViewModel.setCourseReminderEnabled(true)
-                                preferencesViewModel.courseReminderActions.reschedule(context)
-                            }
-                        } else {
-                            preferencesViewModel.setCourseReminderEnabled(false)
-                            preferencesViewModel.courseReminderActions.cancel(context)
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            onClick = {
+                if (!courseReminderEnabled) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        if (!isRequestingPermission) {
+                            isRequestingPermission = true
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
+                    } else {
+                        preferencesViewModel.setCourseReminderEnabled(true)
+                        preferencesViewModel.courseReminderActions.reschedule(context)
                     }
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                } else {
+                    preferencesViewModel.setCourseReminderEnabled(false)
+                    preferencesViewModel.courseReminderActions.cancel(context)
+                }
+            },
         ) {
             Text(text = "通知", style = MaterialTheme.typography.headlineSmall)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(SmoothRoundedCornerShape(8.dp))
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -175,7 +150,7 @@ fun Preferences() {
                     Text(text = "课前提醒")
                     Text(
                         text = "上课前 10 分钟提醒下一节课",
-                        color = 50.n1 withNight 80.n1,
+                        color = AhuColors.onSurface.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -207,19 +182,11 @@ fun Preferences() {
             }
         }
 
-        Column(
-            modifier =
-                Modifier
-                    .clip(SmoothRoundedCornerShape(16.dp))
-                    .background(cardColor)
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        AhuInsetCard(cornerRadius = AhuDimens.CardCornerMedium) {
             Text(text = "通知增强", style = MaterialTheme.typography.headlineSmall)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(SmoothRoundedCornerShape(8.dp))
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -231,7 +198,7 @@ fun Preferences() {
                     Text(text = "课前倒计时岛卡提醒（实验性）")
                     Text(
                         text = "仅部分系统支持 需同时开启课前提醒",
-                        color = 50.n1 withNight 80.n1,
+                        color = AhuColors.onSurface.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -283,20 +250,14 @@ fun Preferences() {
             }
         }
 
-        Column(
-            modifier =
-                Modifier
-                    .clip(SmoothRoundedCornerShape(16.dp))
-                    .background(cardColor)
-                    .clickable { preferencesViewModel.setUseLiquidGlass(!preferencesViewModel.useLiquidGlass.value) }
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            onClick = { preferencesViewModel.setUseLiquidGlass(!preferencesViewModel.useLiquidGlass.value) },
         ) {
             Text(text = "液态玻璃", style = MaterialTheme.typography.headlineSmall)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(SmoothRoundedCornerShape(8.dp))
                     .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -310,14 +271,13 @@ fun Preferences() {
             }
         }
 
-        ThemeColorSelector(preferencesViewModel, cardColor)
+        ThemeColorSelector(preferencesViewModel)
     }
 }
 
 @Composable
 fun ThemeColorSelector(
     viewModel: PreferencesViewModel,
-    cardColor: androidx.compose.ui.graphics.Color
 ) {
     val themeColor by viewModel.themeColor.collectAsState()
     var showCustomColorDialog by remember { mutableStateOf(false) }
@@ -342,88 +302,82 @@ fun ThemeColorSelector(
     val isCustomColor = themeColor != null && colors.none { it.first == themeColor }
 
     if (showCustomColorDialog) {
-        AlertDialog(
-            containerColor = cardColor,
+        AhuDialog(
             onDismissRequest = { showCustomColorDialog = false },
-            title = {
+            scrollable = false,
+        ) {
+            Text(
+                text = "自定义主题颜色",
+                modifier = Modifier.padding(horizontal = 24.dp),
+                color = AhuColors.onSurface,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Column(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 Text(
-                    text = "自定义主题颜色",
-                    color = 10.n1 withNight 100.n1,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    text = "请输入ARGB Hex颜色代码 (例如 #FF007FAC)",
+                    color = AhuColors.onSurface.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium
                 )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        text = "请输入ARGB Hex颜色代码 (例如 #FF007FAC)",
-                        color = 30.n1 withNight 80.n1,
-                        style = MaterialTheme.typography.bodyMedium
+                OutlinedTextField(
+                    value = customColorInput,
+                    onValueChange = { customColorInput = it },
+                    label = { Text("Hex Color") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = SmoothRoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AhuColors.primaryAction,
+                        unfocusedBorderColor = AhuColors.onSurface.copy(alpha = 0.4f),
+                        focusedLabelColor = AhuColors.primaryAction,
+                        unfocusedLabelColor = AhuColors.onSurface.copy(alpha = 0.4f),
+                        cursorColor = AhuColors.primaryAction,
+                        focusedTextColor = AhuColors.onSurface,
+                        unfocusedTextColor = AhuColors.onSurface
                     )
-                    androidx.compose.material3.OutlinedTextField(
-                        value = customColorInput,
-                        onValueChange = { customColorInput = it },
-                        label = { Text("Hex Color") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = SmoothRoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = 40.a1 withNight 80.a1,
-                            unfocusedBorderColor = 50.n1 withNight 60.n1,
-                            focusedLabelColor = 40.a1 withNight 80.a1,
-                            unfocusedLabelColor = 50.n1 withNight 60.n1,
-                            cursorColor = 40.a1 withNight 80.a1,
-                            focusedTextColor = 10.n1 withNight 100.n1,
-                            unfocusedTextColor = 10.n1 withNight 100.n1
-                        )
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "取消",
+                    modifier = Modifier
+                        .clickable { showCustomColorDialog = false }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    color = AhuColors.primaryAction,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                AhuPrimaryButton(
+                    text = "确定",
                     onClick = {
                         try {
-                            // Validate color parsing
                             android.graphics.Color.parseColor(customColorInput)
                             viewModel.setThemeColor(customColorInput)
                             showCustomColorDialog = false
-                        } catch (e: Exception) {
-                            // Invalid color, maybe show error or just ignore
+                        } catch (_: Exception) {
+                            // Invalid color, ignore
                         }
-                    }
-                ) {
-                    Text(
-                        text = "确定",
-                        color = 40.a1 withNight 80.a1,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCustomColorDialog = false }) {
-                    Text(
-                        text = "取消",
-                        color = 40.a1 withNight 80.a1,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                    },
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 16.dp,
+                        vertical = 8.dp
+                    ),
+                )
             }
-        )
+        }
     }
 
-    Column(
-        modifier = Modifier
-            .clip(SmoothRoundedCornerShape(16.dp))
-            .background(cardColor)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    AhuInsetCard(cornerRadius = AhuDimens.CardCornerMedium) {
         Text(text = "主题颜色", style = MaterialTheme.typography.headlineSmall)
-
-        // Use FlowRow or LazyRow if there are many colors. For now, a simple wrapped layout or Column is fine.
-        // Let's use a FlowRow equivalent or just a simple vertical list of rows if we want to be safe without experimental APIs,
-        // or just a Row with horizontal scroll if we expect few items.
-        // Given the design, a horizontal scrollable Row seems appropriate for color circles.
 
         Row(
             modifier = Modifier
@@ -432,7 +386,6 @@ fun ThemeColorSelector(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Custom Color Button
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -450,9 +403,7 @@ fun ThemeColorSelector(
                         .clip(SmoothRoundedCornerShape(12.dp))
                         .background(
                             if (isCustomColor && themeColor != null) Color(
-                                android.graphics.Color.parseColor(
-                                    themeColor
-                                )
+                                android.graphics.Color.parseColor(themeColor)
                             ) else MaterialTheme.colorScheme.surfaceVariant
                         ),
                     contentAlignment = Alignment.Center
@@ -516,9 +467,9 @@ fun ThemeColorSelector(
                         text = name,
                         style = MaterialTheme.typography.labelMedium,
                         color = if (isSelected) {
-                            50.a1
+                            AhuColors.primaryAction
                         } else {
-                            Color.Black withNight Color.White
+                            AhuColors.onSurface
                         }
                     )
                 }

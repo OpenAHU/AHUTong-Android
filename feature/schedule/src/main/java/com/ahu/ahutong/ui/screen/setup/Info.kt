@@ -1,6 +1,5 @@
 package com.ahu.ahutong.ui.screen.setup
 
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -26,9 +24,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -40,7 +36,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,11 +43,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.schedule.R
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreenBox
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.capsule.ContinuousCapsule
-import com.kyant.monet.a1
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
 
 @Composable
 fun Info(
@@ -67,27 +64,21 @@ fun Info(
     var currentWeek by rememberSaveable(scheduleConfig?.week, stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(scheduleConfig?.week?.toString() ?: "1"))
     }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
+    AhuScreenBox(
+        modifier = Modifier.imePadding()
     ) {
         Column(
             modifier = Modifier
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .systemBarsPadding()
                 .padding(bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal)
         ) {
-            Text(
-                text = stringResource(id = R.string.fill_in_info),
-                modifier = Modifier.padding(24.dp, 32.dp),
-                style = MaterialTheme.typography.headlineLarge
-            )
+            AhuPageHeader(title = stringResource(id = R.string.fill_in_info))
             Spacer(modifier = Modifier)
             Text(
                 text = stringResource(id = R.string.school_year),
-                modifier = Modifier.padding(horizontal = 24.dp),
+                modifier = Modifier.padding(horizontal = AhuDimens.TitleHorizontal),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )
@@ -95,9 +86,9 @@ fun Info(
                 value = schoolYear,
                 onValueChange = { schoolYear = it },
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AhuDimens.ContentHorizontal)
                     .clip(ContinuousCapsule)
-                    .background(100.n1 withNight 20.n1),
+                    .background(AhuColors.card),
                 textStyle = LocalTextStyle.current.copy(color = LocalContentColor.current),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
@@ -109,7 +100,7 @@ fun Info(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = AhuDimens.TitleHorizontal)
                         .height(64.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -118,15 +109,15 @@ fun Info(
             }
             Text(
                 text = stringResource(id = R.string.school_term),
-                modifier = Modifier.padding(horizontal = 24.dp),
+                modifier = Modifier.padding(horizontal = AhuDimens.TitleHorizontal),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )
             LazyRow(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AhuDimens.ContentHorizontal)
                     .clip(ContinuousCapsule)
-                    .background(100.n1 withNight 20.n1),
+                    .background(AhuColors.card),
                 contentPadding = PaddingValues(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -136,17 +127,17 @@ fun Info(
                         text = it,
                         modifier = Modifier
                             .clip(ContinuousCapsule)
-                            .background(if (isSelected) 90.a1 else Color.Unspecified)
+                            .background(if (isSelected) AhuColors.chipSelected else Color.Unspecified)
                             .clickable { schoolTerm = it }
                             .padding(16.dp, 8.dp),
-                        color = if (isSelected) 0.n1 else Color.Unspecified,
+                        color = if (isSelected) AhuColors.onPrimaryAction else Color.Unspecified,
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
             Text(
                 text = stringResource(id = R.string.current_week),
-                modifier = Modifier.padding(horizontal = 24.dp),
+                modifier = Modifier.padding(horizontal = AhuDimens.TitleHorizontal),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium
             )
@@ -154,9 +145,9 @@ fun Info(
                 value = currentWeek,
                 onValueChange = { currentWeek = it },
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AhuDimens.ContentHorizontal)
                     .clip(ContinuousCapsule)
-                    .background(100.n1 withNight 20.n1),
+                    .background(AhuColors.card),
                 textStyle = LocalTextStyle.current.copy(color = LocalContentColor.current),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
@@ -176,7 +167,7 @@ fun Info(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = AhuDimens.TitleHorizontal)
                         .height(64.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -184,30 +175,21 @@ fun Info(
                 }
             }
         }
-        CompositionLocalProvider(LocalIndication provides ripple(color = 0.n1)) {
-            Text(
-                text = stringResource(id = R.string.ok),
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(16.dp)
-                    .clip(ContinuousCapsule)
-                    .background(90.a1 withNight 85.a1)
-                    .clickable(
-                        role = Role.Button,
-                        onClick = {
-                            scheduleViewModel.saveTime(
-                                schoolYear = schoolYear.text,
-                                schoolTerm = schoolTerm,
-                                week = currentWeek.text.toIntOrNull() ?: 1
-                            )
-                            onSetup()
-                        }
-                    )
-                    .padding(24.dp, 16.dp),
-                color = 0.n1,
-                style = MaterialTheme.typography.titleMedium
-            )
-        }
+        AhuPrimaryButton(
+            text = stringResource(id = R.string.ok),
+            onClick = {
+                scheduleViewModel.saveTime(
+                    schoolYear = schoolYear.text,
+                    schoolTerm = schoolTerm,
+                    week = currentWeek.text.toIntOrNull() ?: 1
+                )
+                onSetup()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(AhuDimens.ContentHorizontal),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
+        )
     }
 }

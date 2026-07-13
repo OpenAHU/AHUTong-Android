@@ -18,22 +18,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -50,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,11 +52,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.ui.components.AhuDialog
+import com.ahu.ahutong.ui.components.AhuErrorToastEffect
+import com.ahu.ahutong.ui.components.AhuHeaderIconButton
+import com.ahu.ahutong.ui.components.AhuIconActionGroup
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreen
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCard
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCardSpec
 import com.ahu.ahutong.ui.screen.main.schedule.CourseDetailDialog
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.Hct.Companion.toHct
 import com.kyant.monet.LocalTonalPalettes
@@ -81,7 +81,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-import android.widget.Toast
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCardSpec.cellSpacing
 
 @Composable
@@ -104,7 +103,6 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
     var isSettingsVisible by rememberSaveable { mutableStateOf(false) }
     val activeScheduleResult = if (isPreviewNextSemester) nextScheduleResult else scheduleResult
     val schedule = activeScheduleResult?.getOrNull() ?: emptyList()
-    val context = LocalContext.current
 
     LaunchedEffect(currentWeek) {
         state.animateScrollToItem(
@@ -122,17 +120,14 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
         currentWeek = pagerState.currentPage + 1
     }
 
-    LaunchedEffect(scheduleResult) {
-        scheduleResult?.exceptionOrNull()?.let {
-            Toast.makeText(context, "加载课表失败: ${it.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    LaunchedEffect(nextScheduleResult) {
-        nextScheduleResult?.exceptionOrNull()?.let {
-            Toast.makeText(context, "加载下学期课表失败: ${it.message}", Toast.LENGTH_LONG).show()
-        }
-    }
+    AhuErrorToastEffect(
+        message = scheduleResult?.exceptionOrNull()?.message?.let { "加载课表失败: $it" },
+        onConsumed = {},
+    )
+    AhuErrorToastEffect(
+        message = nextScheduleResult?.exceptionOrNull()?.message?.let { "加载下学期课表失败: $it" },
+        onConsumed = {},
+    )
 
     LaunchedEffect(isPreviewNextSemester) {
         if (isPreviewNextSemester && nextScheduleResult == null) {
@@ -160,14 +155,10 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
     val currentWeekCourses = schedule
 
     var detailedCourse by rememberSaveable { mutableStateOf<Course?>(null) }
-    val settingsCardColor = 100.n1 withNight 20.n1
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    AhuScreen(
+        clearBottomNav = true,
+        scrollable = true,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
             modifier = Modifier.padding(end = 8.dp),
@@ -176,7 +167,7 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
             LazyRow(
                 modifier = Modifier.weight(1f),
                 state = state,
-                contentPadding = PaddingValues(horizontal = 16.dp),
+                contentPadding = PaddingValues(horizontal = AhuDimens.ContentHorizontal),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(20) {
@@ -185,9 +176,9 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                     CompositionLocalProvider(
                         LocalIndication provides ripple(
                             color = if (isSelected) {
-                                100.n1 withNight 0.n1
+                                AhuColors.onPrimaryAction
                             } else {
-                                0.n1 withNight 100.n1
+                                AhuColors.onSurface
                             }
                         )
                     ) {
@@ -198,7 +189,7 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                                 .background(
                                     animateColorAsState(
                                         targetValue = if (isSelected) {
-                                            40.a1 withNight 90.a1
+                                            AhuColors.chipSelected
                                         } else {
                                             Color.Transparent
                                         }
@@ -212,9 +203,9 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                                 .padding(16.dp, 8.dp),
                             color = animateColorAsState(
                                 targetValue = if (isSelected) {
-                                    100.n1 withNight 0.n1
+                                    AhuColors.onPrimaryAction
                                 } else {
-                                    0.n1 withNight 100.n1
+                                    AhuColors.onSurface
                                 }
                             ).value,
                             fontWeight = FontWeight.Bold,
@@ -224,15 +215,10 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                 }
             }
             // actions
-            Row(
-                modifier = Modifier
-                    .clip(ContinuousCapsule)
-                    .background(100.n1 withNight 30.n1)
-                    .padding(horizontal = 2.dp, vertical = 2.dp)
-            ) {
-
-                IconButton(
-                    modifier = Modifier.size(38.dp),
+            AhuIconActionGroup {
+                AhuHeaderIconButton(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = null,
                     onClick = {
                         if (isPreviewNextSemester) {
                             isPreviewNextSemester = false
@@ -243,40 +229,24 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                         scope.launch {
                             pagerState.animateScrollToPage((scheduleConfig?.week ?: 1) - 1)
                         }
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MyLocation,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(
-                    modifier = Modifier.size(38.dp),
-                    onClick = { isSettingsVisible = true }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(
-                    modifier = Modifier.size(38.dp),
+                    },
+                )
+                AhuHeaderIconButton(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = null,
+                    onClick = { isSettingsVisible = true },
+                )
+                AhuHeaderIconButton(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
                     onClick = {
                         if (isPreviewNextSemester) {
                             scheduleViewModel.refreshNextSchedule(true)
                         } else {
                             scheduleViewModel.refreshSchedule(true)
                         }
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                    },
+                )
             }
         }
         // schedule
@@ -296,8 +266,8 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                     Modifier
                         .fillMaxWidth()
                         .height(mainRowHeight + (cellHeight + cellSpacing) * 13 + 24.dp)
-                        .clip(SmoothRoundedCornerShape(32.dp))
-                        .background(99.n1 withNight 20.n1)
+                        .clip(SmoothRoundedCornerShape(AhuDimens.CardCorner))
+                        .background(AhuColors.card)
                         .padding(top = 8.dp)
                         .padding(cellSpacing)
                 }
@@ -328,7 +298,7 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                                     x = mainColumnWidth + (cellWidth + cellSpacing) * index + cellSpacing
                                 )
                                 .clip(SmoothRoundedCornerShape(8.dp))
-                                .background(if (isCurrentWeekday) 90.a1 else Color.Unspecified)
+                                .background(if (isCurrentWeekday) AhuColors.primaryAction else Color.Unspecified)
                         },
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -343,12 +313,12 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                                 "周六",
                                 "周日"
                             )[index],
-                            color = if (isCurrentWeekday) 0.n1 else Color.Unspecified,
+                            color = if (isCurrentWeekday) AhuColors.onPrimaryAction else Color.Unspecified,
                             style = MaterialTheme.typography.labelLarge
                         )
                         Text(
                             text = SimpleDateFormat("MM-dd", Locale.CHINA).format(date.time),
-                            color = if (isCurrentWeekday) 0.n1 else 50.n1 withNight 80.n1,
+                            color = if (isCurrentWeekday) AhuColors.onPrimaryAction else 50.n1 withNight 80.n1,
                             style = MaterialTheme.typography.labelSmall
                         )
                     }
@@ -420,7 +390,6 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
             ScheduleSettingsDialog(
                 isOverviewSchedule = isOverviewSchedule,
                 isPreviewNextSemester = isPreviewNextSemester,
-                backdropColor = settingsCardColor,
                 onOverviewChange = { isOverviewSchedule = it },
                 onPreviewNextSemesterChange = { isPreviewNextSemester = it },
                 onDismiss = { isSettingsVisible = false }
@@ -438,88 +407,84 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
 
 @Composable
 private fun ScheduleSettingsDialog(
-        isOverviewSchedule: Boolean,
-        isPreviewNextSemester: Boolean,
-        backdropColor: Color,
-        onOverviewChange: (Boolean) -> Unit,
-        onPreviewNextSemesterChange: (Boolean) -> Unit,
-        onDismiss: () -> Unit
-    ) {
-        AlertDialog(
-            containerColor = backdropColor,
-            onDismissRequest = onDismiss,
-            title = {
-                Text(
-                    text = "课表设置",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = 0.n1 withNight 100.n1
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ScheduleSettingRow(
-                        title = "总览课表",
-                        description = "显示全部周次的课程，重叠课程会平分同一块时间区域",
-                        selected = isOverviewSchedule,
-                        onSelect = onOverviewChange
-                    )
-                    ScheduleSettingRow(
-                        title = "预览下学期课表",
-                        description = "切换到教务系统中的下学期课表",
-                        selected = isPreviewNextSemester,
-                        onSelect = onPreviewNextSemesterChange
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = onDismiss) {
-                    Text(text = "完成")
-                }
-            }
+    isOverviewSchedule: Boolean,
+    isPreviewNextSemester: Boolean,
+    onOverviewChange: (Boolean) -> Unit,
+    onPreviewNextSemesterChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AhuDialog(onDismissRequest = onDismiss, scrollable = false) {
+        Text(
+            text = "课表设置",
+            modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleLarge,
+            color = AhuColors.onSurface
         )
-    }
-
-
-    @Composable
-    private fun ScheduleSettingRow(
-        title: String,
-        description: String,
-        selected: Boolean,
-        onSelect: (Boolean) -> Unit
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(SmoothRoundedCornerShape(12.dp))
-                .clickable { onSelect(!selected) }
-                .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = 0.n1 withNight 100.n1
-                )
-                Text(
-                    text = description,
-                    color = 50.n1 withNight 80.n1,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            Switch(
-                checked = selected,
-                onCheckedChange = onSelect,
-                modifier = Modifier.padding(start = 16.dp)
+            ScheduleSettingRow(
+                title = "总览课表",
+                description = "显示全部周次的课程，重叠课程会平分同一块时间区域",
+                selected = isOverviewSchedule,
+                onSelect = onOverviewChange
+            )
+            ScheduleSettingRow(
+                title = "预览下学期课表",
+                description = "切换到教务系统中的下学期课表",
+                selected = isPreviewNextSemester,
+                onSelect = onPreviewNextSemesterChange
             )
         }
+        AhuPrimaryButton(
+            text = "完成",
+            onClick = onDismiss,
+            modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
+        )
     }
+}
+
+@Composable
+private fun ScheduleSettingRow(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onSelect: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(SmoothRoundedCornerShape(12.dp))
+            .clickable { onSelect(!selected) }
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyLarge,
+                color = AhuColors.onSurface
+            )
+            Text(
+                text = description,
+                color = 50.n1 withNight 80.n1,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        Switch(
+            checked = selected,
+            onCheckedChange = onSelect,
+            modifier = Modifier.padding(start = AhuDimens.ContentHorizontal)
+        )
+    }
+}
 
 @Composable
 private fun OverviewCourseGroupCard(

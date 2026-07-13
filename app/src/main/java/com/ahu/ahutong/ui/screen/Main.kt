@@ -2,10 +2,7 @@ package com.ahu.ahutong.ui.screen
 
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -19,10 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,6 +33,8 @@ import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.sdk.RustSDK
+import com.ahu.ahutong.ui.components.AhuDialog
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.ElectricityDeposit
@@ -59,7 +56,7 @@ import com.ahu.ahutong.ui.screen.settings.License
 import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Login
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.ui.state.AboutViewModel
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.LoginViewModel
@@ -68,10 +65,6 @@ import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.utils.animatedComposable
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.capsule.ContinuousCapsule
-import com.kyant.monet.a1
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -106,7 +99,7 @@ fun Main(
             modifier = Modifier
                 .layerBackdrop(backdrop)
                 .fillMaxSize()
-                .background(96.n1 withNight 10.n1)
+                .background(AhuColors.pageBackground)
         ) {
             animatedComposable("home") {
                 Home(
@@ -299,39 +292,26 @@ fun Main(
         BottomNavBar(navController, backdrop)
     }
     if (isReLoginShown) {
-        Dialog(
+        AhuDialog(
             onDismissRequest = { onReLoginDismiss() },
             properties = DialogProperties(
                 dismissOnBackPress = false,
                 dismissOnClickOutside = false
             )
         ) {
-            Column(
-                modifier = Modifier
-                    .clip(SmoothRoundedCornerShape(32.dp))
-                    .background(96.n1 withNight 10.n1)
-                    .padding(vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Text(
-                    text = "当前登录状态已过期，请重新登录!",
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = "重新登录",
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .clip(ContinuousCapsule)
-                        .background(90.a1 withNight 30.n1)
-                        .clickable {
-                            navController.navigate("login")
-                            onReLoginDismiss()
-                        }
-                        .padding(12.dp, 8.dp),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+            Text(
+                text = "当前登录状态已过期，请重新登录!",
+                modifier = Modifier.padding(horizontal = 24.dp),
+                style = MaterialTheme.typography.titleLarge
+            )
+            AhuPrimaryButton(
+                text = "重新登录",
+                onClick = {
+                    navController.navigate("login")
+                    onReLoginDismiss()
+                },
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
         }
     }
 }

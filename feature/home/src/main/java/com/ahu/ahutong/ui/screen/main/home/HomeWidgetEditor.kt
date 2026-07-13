@@ -74,6 +74,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -101,15 +103,15 @@ fun HomeWidgetSlotLayout(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = AhuDimens.ContentHorizontal),
+        verticalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = AhuDimens.ContentHorizontal),
+            horizontalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal)
         ) {
             CampusCard(
                 balance = balance,
@@ -170,8 +172,8 @@ fun HomeWidgetSlotLayout(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(horizontal = AhuDimens.ContentHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal)
                 ) {
                     HomeWidgetSlot(
                         slotIndex = leftSlot,
@@ -317,12 +319,12 @@ private fun TextHomeWidgetCard(
             .clip(shape)
             .background(
                 when {
-                    isHighlighted -> 90.a1 withNight 35.a1
-                    else -> 100.n1 withNight 20.n1
+                    isHighlighted -> AhuColors.primaryAction
+                    else -> AhuColors.card
                 }
             )
             .then(interactionModifier)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = AhuDimens.ContentHorizontal),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -433,9 +435,9 @@ fun HomeWidgetLibrarySheet(
                         }
                     }
                 }
-                .clip(SmoothRoundedCornerShape(32.dp))
-                .background(100.n1 withNight 18.n1)
-                .padding(16.dp),
+                .clip(SmoothRoundedCornerShape(AhuDimens.CardCorner))
+                .background(AhuColors.card)
+                .padding(AhuDimens.ContentHorizontal),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(
@@ -513,7 +515,7 @@ private fun LibraryWidgetItem(
         modifier = Modifier
             .width(88.dp)
             .clip(SmoothRoundedCornerShape(18.dp))
-            .background(96.n1 withNight 28.n1)
+            .background(AhuColors.cardStrong)
             .onGloballyPositioned {
                 bounds = it.boundsInRoot()
                 onPositioned(spec.id, it.boundsInRoot())

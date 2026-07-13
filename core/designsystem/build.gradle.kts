@@ -30,13 +30,21 @@ dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.androidx.core.ktx)
 
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.foundation)
-    implementation(libs.androidx.material.icons.extended)
-    implementation(libs.material3)
-    implementation(libs.androidx.navigation.compose)
-    implementation(libs.monet)
-    implementation(libs.kyant0.backdrop)
-    implementation(libs.kyant0.capsule)
+    // ── UI stack re-export (api) ────────────────────────────────────────────
+    // Feature / app modules should depend on :core:designsystem only for UI.
+    // Do NOT re-declare Compose / Material3 / Monet / Capsule / Navigation here
+    // in feature modules unless you need a special optional library.
+    api(platform(libs.androidx.compose.bom))
+    api(libs.androidx.ui)
+    api(libs.androidx.foundation)
+    api(libs.androidx.material.icons.extended)
+    api(libs.material3)
+    api(libs.androidx.runtime.livedata)
+    api(libs.androidx.activity.compose)
+    api(libs.androidx.navigation.compose)
+    api(libs.androidx.hilt.navigation.compose)
+    api(libs.coil.compose)
+    api(libs.monet)
+    api(libs.kyant0.backdrop)
+    api(libs.kyant0.capsule)
 }

@@ -31,6 +31,7 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
     api(project(":core:datastore"))
+    api(project(":core:designsystem"))
     api(project(":data:schedule"))
 
     implementation(platform(libs.kotlin.bom))
@@ -38,13 +39,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
-
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.foundation)
     implementation(libs.androidx.glance.appwidget)
-    implementation(libs.monet)
-
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
 }

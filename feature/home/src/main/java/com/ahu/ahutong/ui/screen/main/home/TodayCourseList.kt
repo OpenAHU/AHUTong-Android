@@ -1,9 +1,8 @@
 package com.ahu.ahutong.ui.screen.main.home
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -16,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -30,8 +28,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.model.Course
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -44,21 +43,15 @@ fun TodayCourseList(
     enabled: Boolean = true
 ) {
     if (todayCourses.isEmpty()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(SmoothRoundedCornerShape(32.dp))
-                .background(100.n1 withNight 20.n1)
-                .then(
-                    if (enabled) {
-                        Modifier.clickable { navController?.navigate("schedule") }
-                    } else {
-                        Modifier
-                    }
-                )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        AhuCard(
+            modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
+            contentPadding = PaddingValues(AhuDimens.ContentHorizontal),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            onClick = if (enabled) {
+                { navController?.navigate("schedule") }
+            } else {
+                null
+            },
         ) {
             Text(
                 text = "今天暂无课程",
@@ -78,129 +71,130 @@ fun TodayCourseList(
         val range = ScheduleViewModel.getCourseTimeRangeInMinutes(it)
         currentMinutes > range.first
     }.coerceAtLeast(0)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(SmoothRoundedCornerShape(32.dp))
-            .background(100.n1 withNight 20.n1)
-            .then(
-                if (enabled) {
-                    Modifier.clickable { navController?.navigate("schedule") }
-                } else {
-                    Modifier
-                }
-            )
-            .padding(16.dp)
-            .composed {
-                val offColor = 70.n1 withNight 60.n1
-                val onColor = 50.a1 withNight 90.a1
-                val activatedColor = 90.a1
-                drawBehind {
-                    drawLine(
-                        color = offColor,
-                        start = Offset(4.dp.toPx(), 12.dp.toPx()),
-                        end = Offset(4.dp.toPx(), size.height - 12.dp.toPx()),
-                        strokeWidth = 1.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(
-                            intervals = floatArrayOf(4.dp.toPx(), 4.dp.toPx()),
-                            phase = 8.dp.toPx()
-                        )
-                    )
-                    drawLine(
-                        color = onColor,
-                        start = Offset(4.dp.toPx(), 12.dp.toPx()),
-                        end = Offset(
-                            4.dp.toPx(),
-                            40.dp.toPx() * currentCourseIndex + 12.dp.toPx()
-                        ),
-                        strokeWidth = 2.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(
-                            intervals = floatArrayOf(6.dp.toPx(), 4.dp.toPx()),
-                            phase = 4.dp.toPx()
-                        )
-                    )
-                    repeat(currentCourseIndex + 1) {
-                        drawCircle(
-                            color = onColor,
-                            radius = 4.dp.toPx(),
-                            center = Offset(
-                                4.dp.toPx(),
-                                40.dp.toPx() * it + 12.dp.toPx()
+    AhuCard(
+        modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
+        contentPadding = PaddingValues(AhuDimens.ContentHorizontal),
+        verticalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal),
+        onClick = if (enabled) {
+            { navController?.navigate("schedule") }
+        } else {
+            null
+        },
+    ) {
+        // Timeline drawing sits on an inner column so AhuCard keeps the surface shell.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .composed {
+                    val offColor = 70.n1 withNight 60.n1
+                    val onColor = 50.a1 withNight 90.a1
+                    val activatedColor = 90.a1
+                    drawBehind {
+                        drawLine(
+                            color = offColor,
+                            start = Offset(4.dp.toPx(), 12.dp.toPx()),
+                            end = Offset(4.dp.toPx(), size.height - 12.dp.toPx()),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(
+                                intervals = floatArrayOf(4.dp.toPx(), 4.dp.toPx()),
+                                phase = 8.dp.toPx()
                             )
                         )
-                    }
-                    repeat(todayCourses.size - currentCourseIndex - 1) {
-                        drawCircle(
-                            color = offColor,
-                            radius = 2.dp.toPx(),
-                            center = Offset(
+                        drawLine(
+                            color = onColor,
+                            start = Offset(4.dp.toPx(), 12.dp.toPx()),
+                            end = Offset(
                                 4.dp.toPx(),
-                                40.dp.toPx() * (currentCourseIndex + 1 + it) + 12.dp.toPx()
+                                40.dp.toPx() * currentCourseIndex + 12.dp.toPx()
                             ),
-                            style = Stroke(2.dp.toPx())
+                            strokeWidth = 2.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(
+                                intervals = floatArrayOf(6.dp.toPx(), 4.dp.toPx()),
+                                phase = 4.dp.toPx()
+                            )
                         )
+                        repeat(currentCourseIndex + 1) {
+                            drawCircle(
+                                color = onColor,
+                                radius = 4.dp.toPx(),
+                                center = Offset(
+                                    4.dp.toPx(),
+                                    40.dp.toPx() * it + 12.dp.toPx()
+                                )
+                            )
+                        }
+                        repeat(todayCourses.size - currentCourseIndex - 1) {
+                            drawCircle(
+                                color = offColor,
+                                radius = 2.dp.toPx(),
+                                center = Offset(
+                                    4.dp.toPx(),
+                                    40.dp.toPx() * (currentCourseIndex + 1 + it) + 12.dp.toPx()
+                                ),
+                                style = Stroke(2.dp.toPx())
+                            )
+                        }
+                        val currentCourseRange =
+                            ScheduleViewModel.getCourseTimeRangeInMinutes(
+                                todayCourses[currentCourseIndex]
+                            )
+                        if (currentMinutes in currentCourseRange) {
+                            drawRoundRect(
+                                color = activatedColor,
+                                topLeft = Offset(
+                                    0f,
+                                    40.dp.toPx() * currentCourseIndex - 12.dp.toPx()
+                                ),
+                                size = Size(size.width + 8.dp.toPx(), 48.dp.toPx()),
+                                cornerRadius = CornerRadius(24.dp.toPx())
+                            )
+                        }
                     }
-                    val currentCourseRange =
-                        ScheduleViewModel.getCourseTimeRangeInMinutes(
-                            todayCourses[currentCourseIndex]
-                        )
-                    if (currentMinutes in currentCourseRange) {
-                        drawRoundRect(
-                            color = activatedColor,
-                            topLeft = Offset(
-                                0f,
-                                40.dp.toPx() * currentCourseIndex - 12.dp.toPx()
-                            ),
-                            size = Size(size.width + 8.dp.toPx(), 48.dp.toPx()),
-                            cornerRadius = CornerRadius(24.dp.toPx())
-                        )
-                    }
+                },
+            verticalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal)
+        ) {
+            todayCourses.forEach { course ->
+                val isOngoing = currentMinutes in ScheduleViewModel.getCourseTimeRangeInMinutes(course)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 24.dp)
+                        .padding(start = AhuDimens.TitleHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${course.startTime} - ${course.startTime + course.length - 1}",
+                        modifier = Modifier.width(48.dp),
+                        color = if (isOngoing) 20.n1 else 50.n1 withNight 80.n1,
+                        fontWeight = if (isOngoing) FontWeight.Bold else null,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = course.name,
+                        modifier = Modifier.weight(1f),
+                        color = if (isOngoing) 0.n1 else Color.Unspecified,
+                        fontWeight = if (isOngoing) FontWeight.Bold else null,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = shortenLocation(course.location),
+                        modifier = Modifier.widthIn(min = 56.dp, max = 96.dp),
+                        color = if (isOngoing) 20.n1 else 50.n1 withNight 80.n1,
+                        fontWeight = if (isOngoing) FontWeight.Bold else null,
+                        textAlign = TextAlign.End,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 }
-            },
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        todayCourses.forEach { course ->
-            val isOngoing = currentMinutes in ScheduleViewModel.getCourseTimeRangeInMinutes(course)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 24.dp)
-                    .padding(start = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${course.startTime} - ${course.startTime + course.length - 1}",
-                    modifier = Modifier.width(48.dp),
-                    color = if (isOngoing) 20.n1 else 50.n1 withNight 80.n1,
-                    fontWeight = if (isOngoing) FontWeight.Bold else null,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    text = course.name,
-                    modifier = Modifier.weight(1f),
-                    color = if (isOngoing) 0.n1 else Color.Unspecified,
-                    fontWeight = if (isOngoing) FontWeight.Bold else null,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    text = shortenLocation(course.location),
-                    modifier = Modifier.widthIn(min = 56.dp, max = 96.dp),
-                    color = if (isOngoing) 20.n1 else 50.n1 withNight 80.n1,
-                    fontWeight = if (isOngoing) FontWeight.Bold else null,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    style = MaterialTheme.typography.bodyLarge
-                )
             }
         }
     }

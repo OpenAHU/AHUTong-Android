@@ -23,8 +23,8 @@ import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ScheduleViewModel
-import com.kyant.monet.a1
-import com.kyant.monet.withNight
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,19 +61,20 @@ fun AtAGlance(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp, 8.dp, 16.dp, 0.dp),
+                .padding(32.dp, 8.dp, AhuDimens.ContentHorizontal, 0.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = date,
+                color = AhuColors.onSurface,
                 style = MaterialTheme.typography.bodyLarge
             )
         }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(SmoothRoundedCornerShape(32.dp))
+                .clip(SmoothRoundedCornerShape(AhuDimens.CardCorner))
                 .then(
                     if (enabled) {
                         Modifier.clickable { navController.navigate("schedule") }
@@ -90,6 +91,7 @@ fun AtAGlance(
                     hasRemainingCourses -> "下节课是"
                     else -> "今日课程"
                 },
+                color = AhuColors.onSurface,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.bodyLarge
             )
@@ -102,7 +104,7 @@ fun AtAGlance(
                 modifier = if (currentCourse != null || hasRemainingCourses) {
                     Modifier
                         .composed {
-                            val color = 50.a1 withNight 90.a1
+                            val color = AhuColors.primaryAction
                             drawBehind {
                                 drawLine(
                                     color = color,
@@ -120,6 +122,7 @@ fun AtAGlance(
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                color = AhuColors.onSurface,
                 style = MaterialTheme.typography.headlineLarge
             )
             Text(

@@ -12,22 +12,18 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -52,24 +47,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.PayState
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.AhuChip
+import com.ahu.ahutong.ui.components.AhuDialog
+import com.ahu.ahutong.ui.components.AhuInsetCard
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreen
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
+import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import kotlinx.coroutines.delay
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -86,7 +88,6 @@ fun ElectricityDeposit(
             }
 
             else -> {
-
             }
         }
     }
@@ -144,25 +145,13 @@ fun ElectricityDeposit(
     var password by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding(),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Text(
-            text = "电控缴费",
-            modifier = Modifier.padding(24.dp, 32.dp),
-            style = MaterialTheme.typography.headlineMedium
-        )
+    AhuScreen(clearBottomNav = false) {
+        AhuPageHeader(title = "电控缴费")
 
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .fillMaxWidth()
-                .clip(SmoothRoundedCornerShape(16.dp))
-                .background(100.n1 withNight 20.n1)
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            contentPadding = PaddingValues(0.dp),
+            verticalArrangement = Arrangement.Top,
         ) {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -170,13 +159,11 @@ fun ElectricityDeposit(
                     .padding(16.dp)
                     .fillMaxWidth()
                     .clickable { campusDropdownExpanded = true },
-
-                ) {
+            ) {
                 Text(
                     text = "选择校区",
                     style = MaterialTheme.typography.titleMedium
                 )
-
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -193,12 +180,14 @@ fun ElectricityDeposit(
 
                     DropdownMenu(
                         expanded = campusDropdownExpanded,
-                        modifier = Modifier.heightIn(max = 350.dp).background(99.n1 withNight 10.n1),
+                        modifier = Modifier
+                            .heightIn(max = 350.dp)
+                            .background(AhuColors.pageBackground),
                         onDismissRequest = { campusDropdownExpanded = false },
                     ) {
                         campusList.forEach { campus ->
                             DropdownMenuItem(
-                                text = { Text(campus.name, color = 10.n1 withNight 90.n1) },
+                                text = { Text(campus.name, color = AhuColors.onSurface) },
                                 onClick = {
                                     viewModel.onCampusSelected(campus)
                                     campusDropdownExpanded = false
@@ -233,12 +222,14 @@ fun ElectricityDeposit(
 
                     DropdownMenu(
                         expanded = buildingsDropdownExpanded,
-                        modifier = Modifier.heightIn(max = 450.dp).background(99.n1 withNight 10.n1),
+                        modifier = Modifier
+                            .heightIn(max = 450.dp)
+                            .background(AhuColors.pageBackground),
                         onDismissRequest = { buildingsDropdownExpanded = false },
                     ) {
                         buildingsList.forEach { building ->
                             DropdownMenuItem(
-                                text = { Text(building.name, color = 10.n1 withNight 90.n1) },
+                                text = { Text(building.name, color = AhuColors.onSurface) },
                                 onClick = {
                                     viewModel.onBuildingSelected(building)
                                     buildingsDropdownExpanded = false
@@ -273,12 +264,14 @@ fun ElectricityDeposit(
 
                     DropdownMenu(
                         expanded = floorsDropdownExpanded,
-                        modifier = Modifier.heightIn(max = 450.dp).background(99.n1 withNight 10.n1),
+                        modifier = Modifier
+                            .heightIn(max = 450.dp)
+                            .background(AhuColors.pageBackground),
                         onDismissRequest = { floorsDropdownExpanded = false },
                     ) {
                         floorsList.forEach { floor ->
                             DropdownMenuItem(
-                                text = { Text(floor.name, color = 10.n1 withNight 90.n1) },
+                                text = { Text(floor.name, color = AhuColors.onSurface) },
                                 onClick = {
                                     viewModel.onfloorSelected(floor)
                                     floorsDropdownExpanded = false
@@ -314,11 +307,13 @@ fun ElectricityDeposit(
                     DropdownMenu(
                         expanded = roomsDropdownExpanded,
                         onDismissRequest = { roomsDropdownExpanded = false },
-                        modifier = Modifier.heightIn(max = 500.dp).background(99.n1 withNight 10.n1)
+                        modifier = Modifier
+                            .heightIn(max = 500.dp)
+                            .background(AhuColors.pageBackground)
                     ) {
                         roomsList.forEach { room ->
                             DropdownMenuItem(
-                                text = { Text(room.name, color = 10.n1 withNight 90.n1) },
+                                text = { Text(room.name, color = AhuColors.onSurface) },
                                 onClick = {
                                     viewModel.onRoomSelected(room)
                                     roomsDropdownExpanded = false
@@ -342,15 +337,10 @@ fun ElectricityDeposit(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            Text(
+                            AhuChip(
                                 text = item.label,
-                                modifier = Modifier
-                                    .clip(SmoothRoundedCornerShape(16.dp))
-                                    .background(90.a1 withNight 30.n1)
-                                    .padding(8.dp)
-                                    .clickable { viewModel.selectHistory(item) },
-                                color = 10.n1 withNight 90.n1,
-                                style = MaterialTheme.typography.bodyMedium
+                                selected = true,
+                                onClick = { viewModel.selectHistory(item) },
                             )
                         }
                     }
@@ -361,10 +351,8 @@ fun ElectricityDeposit(
                 modifier = Modifier
                     .padding(16.dp)
                     .fillMaxWidth()
-                    // 4. 将 clickable 替换为 combinedClickable
                     .combinedClickable(
                         onClick = {
-                            // --- 这里是之前的单击逻辑，保持不变 ---
                             infoClickCount++
                             currentToast?.cancel()
                             val message = when {
@@ -406,19 +394,15 @@ fun ElectricityDeposit(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .fillMaxWidth()
-                .clip(SmoothRoundedCornerShape(16.dp))
-                .background(100.n1 withNight 20.n1),
+        AhuInsetCard(
+            cornerRadius = AhuDimens.CardCornerMedium,
+            contentPadding = PaddingValues(0.dp),
+            verticalArrangement = Arrangement.Top,
         ) {
-
             Text(
                 text = "缴费金额",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
-
             )
 
             TextField(
@@ -440,9 +424,13 @@ fun ElectricityDeposit(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                 ),
-                placeholder = { Text("请输入金额", color = 30.n1 withNight 70.n1) },
-                textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
-
+                placeholder = {
+                    Text(
+                        "请输入金额",
+                        color = AhuColors.onSurface.copy(alpha = 0.45f)
+                    )
+                },
+                textStyle = TextStyle(fontSize = 16.sp, color = AhuColors.onSurface),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Decimal,
                     imeAction = ImeAction.Done
@@ -453,23 +441,25 @@ fun ElectricityDeposit(
                 singleLine = true
             )
         }
+
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = AhuDimens.ContentHorizontal),
             horizontalArrangement = Arrangement.End
         ) {
             Box(
                 modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(16.dp)
-                    .clip(SmoothRoundedCornerShape(32.dp))
+                    .clip(ContinuousCapsule)
                     .background(
                         animateColorAsState(
                             targetValue = when (payState.value) {
-                                is PayState.Idle -> 90.a1 withNight 85.a1
+                                is PayState.Idle -> AhuColors.primaryAction
                                 is PayState.InProgress -> 70.a1 withNight 60.a1
                                 is PayState.Failed -> Color.Red
                                 is PayState.Succeeded -> 70.a1 withNight 60.a1
-                            }
+                            },
+                            label = "payStateBg"
                         ).value
                     )
                     .animateContentSize(spring(stiffness = Spring.StiffnessLow))
@@ -494,7 +484,7 @@ fun ElectricityDeposit(
                                     }
                                 )
                                 .padding(24.dp, 16.dp),
-                            color = 0.n1,
+                            color = AhuColors.onPrimaryAction,
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
@@ -540,9 +530,7 @@ fun ElectricityDeposit(
                                 text = "支付成功！ 订单号：${(payState.value as PayState.Succeeded).message}",
                                 modifier = Modifier
                                     .padding(4.dp)
-                                    .clickable {
-
-                                    },
+                                    .clickable { },
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.headlineSmall
@@ -576,88 +564,114 @@ fun ElectricityDeposit(
                 }
             }
         }
+
         if (showDialog) {
-            AlertDialog(
-                containerColor = 100.n1 withNight 20.n1,
-                onDismissRequest = { showDialog = false },
-                title = { Text("请输入校园卡密码", color = 10.n1 withNight 90.n1) },
-                text = {
-                    Column {
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { input ->
-                                if (input.length <= 6 && input.all { it.isDigit() }) {
-                                    password = input
-                                    errorMsg = null
-                                }
-                            },
-                            label = { Text("密码 (6位数字)", color = 40.n1 withNight 60.n1) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                            visualTransformation = PasswordVisualTransformation(),
-                            isError = errorMsg != null,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = 10.n1 withNight 90.n1,
-                                unfocusedTextColor = 10.n1 withNight 90.n1,
-                                focusedBorderColor = 20.n1 withNight 80.n1
-                            )
-                        )
-                        if (errorMsg != null) {
+            AhuDialog(onDismissRequest = { showDialog = false }) {
+                Text(
+                    text = "请输入校园卡密码",
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    color = AhuColors.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { input ->
+                            if (input.length <= 6 && input.all { it.isDigit() }) {
+                                password = input
+                                errorMsg = null
+                            }
+                        },
+                        label = {
                             Text(
-                                text = errorMsg!!,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
+                                "密码 (6位数字)",
+                                color = AhuColors.onSurface.copy(alpha = 0.55f)
                             )
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        if (password.length == 6) {
-                            showDialog = false
-                            // 调用 ViewModel 中的 pay 函数
-                            viewModel.pay(amount, password)
-                        } else {
-                            errorMsg = "密码必须是6位数字"
-                        }
-                    }) {
-                        Text("确认", color = 10.n1 withNight 90.n1)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showDialog = false
-                        password = ""
-                        errorMsg = null
-                    }) {
-                        Text("取消", color = 10.n1 withNight 90.n1)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
+                        isError = errorMsg != null,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = AhuColors.onSurface,
+                            unfocusedTextColor = AhuColors.onSurface,
+                            focusedBorderColor = AhuColors.onSurface.copy(alpha = 0.7f)
+                        )
+                    )
+                    if (errorMsg != null) {
+                        Text(
+                            text = errorMsg!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
-            )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                ) {
+                    AhuPrimaryButton(
+                        text = "取消",
+                        onClick = {
+                            showDialog = false
+                            password = ""
+                            errorMsg = null
+                        },
+                        containerColor = AhuColors.cardStrong,
+                        contentColor = AhuColors.onSurface,
+                    )
+                    AhuPrimaryButton(
+                        text = "确认",
+                        onClick = {
+                            if (password.length == 6) {
+                                showDialog = false
+                                viewModel.pay(amount, password)
+                            } else {
+                                errorMsg = "密码必须是6位数字"
+                            }
+                        },
+                    )
+                }
+            }
         }
+
         if (showResetDialog) {
-            AlertDialog(
-                onDismissRequest = { showResetDialog = false },
-                title = { Text("确认操作") },
-                text = { Text("您确定要将累计充值金额清零吗？此操作不可撤销。") },
-                confirmButton = {
-                    TextButton(
+            AhuDialog(onDismissRequest = { showResetDialog = false }) {
+                Text(
+                    text = "确认操作",
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    color = AhuColors.onSurface,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    text = "您确定要将累计充值金额清零吗？此操作不可撤销。",
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    color = AhuColors.onSurface.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                ) {
+                    AhuPrimaryButton(
+                        text = "取消",
+                        onClick = { showResetDialog = false },
+                        containerColor = AhuColors.cardStrong,
+                        contentColor = AhuColors.onSurface,
+                    )
+                    AhuPrimaryButton(
+                        text = "确认",
                         onClick = {
                             viewModel.clearElectricityChargeInfo()
                             Toast.makeText(context, "累计记录已清零", Toast.LENGTH_SHORT).show()
                             showResetDialog = false
-                        }
-                    ) {
-                        Text("确认")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showResetDialog = false }
-                    ) {
-                        Text("取消")
-                    }
+                        },
+                    )
                 }
-            )
+            }
         }
     }
 }

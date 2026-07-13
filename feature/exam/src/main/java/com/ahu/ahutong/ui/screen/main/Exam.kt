@@ -1,21 +1,15 @@
 package com.ahu.ahutong.ui.screen.main
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -36,12 +30,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -50,17 +42,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.exam.R
+import com.ahu.ahutong.ui.components.AhuCard
+import com.ahu.ahutong.ui.components.AhuErrorToastEffect
+import com.ahu.ahutong.ui.components.AhuHeaderIconButton
+import com.ahu.ahutong.ui.components.AhuListGroup
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuScreen
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ExamViewModel
 import com.ahu.ahutong.ui.state.RefreshState
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +71,6 @@ fun Exam(
     val exam = examViewModel.data.observeAsState().value?.getOrNull()
     val isLoading by examViewModel.isLoading.collectAsState()
     val errorMessage by examViewModel.errorMessage.collectAsState()
-    val context = LocalContext.current
 
     LaunchedEffect(mockRefreshRevision) {
         if (mockRefreshRevision > 0 && examViewModel.isMockMode()) {
@@ -82,11 +78,8 @@ fun Exam(
         }
     }
 
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            examViewModel.errorMessage.value = null
-        }
+    AhuErrorToastEffect(errorMessage) {
+        examViewModel.errorMessage.value = null
     }
 
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
@@ -98,15 +91,7 @@ fun Exam(
         exam.orEmpty()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 80.dp)
-            .systemBarsPadding()
-            .padding(bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
+    AhuScreen {
         // 标题栏 / 搜索栏
         if (isSearchActive) {
             // 搜索模式：回退按钮 + TextField + 清除按钮
@@ -136,8 +121,8 @@ fun Exam(
                         disabledContainerColor = Color.Transparent,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = 0.n1 withNight 100.n1,
-                        unfocusedTextColor = 0.n1 withNight 100.n1,
+                        focusedTextColor = AhuColors.onSurface,
+                        unfocusedTextColor = AhuColors.onSurface,
                         cursorColor = 90.a1 withNight 90.a1,
                     ),
                     trailingIcon = if (searchQuery.isNotEmpty()) {
@@ -151,24 +136,17 @@ fun Exam(
             }
         } else {
             // 正常模式：标题 + 搜索/刷新按钮
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp, 32.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(id = R.string.exam),
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Row {
-                    IconButton(onClick = { isSearchActive = true }) {
-                        Icon(Icons.Default.Search, contentDescription = "搜索")
-                    }
+            AhuPageHeader(
+                title = stringResource(id = R.string.exam),
+                actions = {
+                    AhuHeaderIconButton(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "搜索",
+                        onClick = { isSearchActive = true },
+                    )
                     RefreshButton(examViewModel)
-                }
-            }
+                },
+            )
         }
 
         if (isLoading != true) {
@@ -179,21 +157,12 @@ fun Exam(
                         { parseStartTime(it.time) ?: LocalDateTime.MAX }
                     )
                 )
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .clip(SmoothRoundedCornerShape(32.dp)),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
+                AhuListGroup {
                     sortedExams.forEach {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(SmoothRoundedCornerShape(4.dp))
-                                .background(100.n1 withNight 20.n1)
-                                .clickable {}
-                                .padding(24.dp, 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        AhuCard(
+                            cornerRadius = AhuDimens.ListItemCorner,
+                            onClick = {},
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -253,23 +222,21 @@ fun Exam(
                         isSearchActive && searchQuery.isNotBlank() -> "未找到包含「${searchQuery}」的考试"
                         else -> "目前没有任何考试"
                     },
-                    modifier = Modifier.padding(24.dp),
-                    style = MaterialTheme.typography.titleLarge
+                    modifier = Modifier.padding(AhuDimens.TitleHorizontal),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = AhuColors.onSurface.copy(alpha = 0.6f),
                 )
             }
         } else {
-            Box(
+            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .wrapContentSize(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    CircularProgressIndicator()
-                    Text("加载中…")
-                }
+                CircularProgressIndicator(color = AhuColors.primaryAction)
+                Text("加载中…")
             }
         }
     }
@@ -317,12 +284,11 @@ private fun RefreshButton(examViewModel: ExamViewModel) {
             }
         }
         RefreshState.IDLE -> {
-            IconButton(onClick = { examViewModel.loadExam(isRefresh = true) }) {
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "刷新"
-                )
-            }
+            AhuHeaderIconButton(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "刷新",
+                onClick = { examViewModel.loadExam(isRefresh = true) },
+            )
         }
     }
 }

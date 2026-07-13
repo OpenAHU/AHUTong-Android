@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -65,8 +64,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.login.R
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuScreenBox
 import com.ahu.ahutong.ui.state.LoginState
 import com.ahu.ahutong.ui.state.LoginViewModel
+import com.ahu.ahutong.ui.theme.AhuColors
+import com.ahu.ahutong.ui.theme.AhuDimens
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -113,23 +116,17 @@ fun Login(
         activity?.finish()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
+    AhuScreenBox(
+        modifier = Modifier.imePadding()
     ) {
         Column(
             modifier = Modifier
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .systemBarsPadding()
                 .padding(bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(AhuDimens.ContentHorizontal)
         ) {
-            Text(
-                text = stringResource(id = R.string.log_in),
-                modifier = Modifier.padding(24.dp, 32.dp),
-                style = MaterialTheme.typography.headlineLarge
-            )
+            AhuPageHeader(title = stringResource(id = R.string.log_in))
             Spacer(modifier = Modifier)
             Box(
                 modifier = Modifier
@@ -175,9 +172,9 @@ fun Login(
                 value = userID,
                 onValueChange = { userID = it },
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AhuDimens.ContentHorizontal)
                     .clip(ContinuousCapsule)
-                    .background(100.n1 withNight 20.n1)
+                    .background(AhuColors.card)
                     .onFocusChanged {
                         if (it.isFocused) {
                             focusIndex = 0
@@ -201,7 +198,7 @@ fun Login(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = AhuDimens.TitleHorizontal)
                         .height(64.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -219,9 +216,9 @@ fun Login(
                 value = password,
                 onValueChange = { password = it },
                 modifier = Modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = AhuDimens.ContentHorizontal)
                     .clip(ContinuousCapsule)
-                    .background(100.n1 withNight 20.n1)
+                    .background(AhuColors.card)
                     .onFocusChanged {
                         if (it.isFocused) {
                             focusIndex = 1
@@ -256,7 +253,7 @@ fun Login(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = AhuDimens.TitleHorizontal)
                         .height(64.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {

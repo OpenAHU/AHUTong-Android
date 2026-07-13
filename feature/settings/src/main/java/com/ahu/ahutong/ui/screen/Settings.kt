@@ -11,14 +11,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.ClearAll
@@ -42,24 +39,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.feature.settings.R
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.AhuDialog
+import com.ahu.ahutong.ui.components.AhuInsetCard
+import com.ahu.ahutong.ui.components.AhuListGroup
+import com.ahu.ahutong.ui.components.AhuListItem
+import com.ahu.ahutong.ui.components.AhuPageHeader
+import com.ahu.ahutong.ui.components.AhuPrimaryButton
+import com.ahu.ahutong.ui.components.AhuScreen
+import com.ahu.ahutong.ui.components.AhuSectionTitle
+import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.ui.state.AboutViewModel
 import com.kyant.capsule.ContinuousCapsule
-import com.kyant.monet.a1
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
 
 /**
  * Settings shell. App-side effects (update check / clear session) are injected by the host
@@ -102,18 +101,10 @@ fun Settings(
             .getOrElse { "获取失败" }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Text(
-            text = stringResource(id = R.string.setting),
-            modifier = Modifier.padding(24.dp, 32.dp),
-            style = MaterialTheme.typography.headlineLarge
+    AhuScreen(clearBottomNav = true) {
+        AhuPageHeader(
+            title = stringResource(id = R.string.setting),
+            titleStyle = MaterialTheme.typography.headlineLarge,
         )
         var count by remember { mutableStateOf(0) }
         var lastClickTime by remember { mutableStateOf(0L) }
@@ -139,14 +130,9 @@ fun Settings(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .clip(SmoothRoundedCornerShape(32.dp))
-                .background(90.a1 withNight 20.n1)
-                .padding(24.dp, 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+        AhuInsetCard(
+            containerColor = AhuColors.accentSurface,
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -160,7 +146,7 @@ fun Settings(
                     contentDescription = null,
                     modifier = Modifier
                         .clip(ContinuousCapsule)
-                        .background(100.n1)
+                        .background(AhuColors.card)
                         .padding(4.dp)
                         .size(64.dp)
                         .clip(ContinuousCapsule)
@@ -178,20 +164,12 @@ fun Settings(
                 }
             }
         }
-        Text(
-            text = "账户信息",
-            modifier = Modifier.padding(horizontal = 24.dp),
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium
-        )
+
+        AhuSectionTitle(text = "账户信息")
         userName?.let { name ->
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .clip(SmoothRoundedCornerShape(32.dp))
-                    .background(100.n1 withNight 20.n1)
-                    .padding(bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            AhuInsetCard(
+                contentPadding = PaddingValues(bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Column(
                     modifier = Modifier
@@ -223,7 +201,7 @@ fun Settings(
                         modifier = Modifier
                             .weight(1f)
                             .clip(ContinuousCapsule)
-                            .background(100.n1 withNight 30.n1)
+                            .background(AhuColors.cardStrong)
                             .clickable { navController.navigate("login") }
                             .padding(12.dp, 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(
@@ -246,42 +224,27 @@ fun Settings(
             }
         }
 
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .clip(SmoothRoundedCornerShape(32.dp)),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            SettingItem(
+        AhuListGroup {
+            AhuListItem(
                 label = stringResource(id = R.string.preferences),
                 icon = Icons.Outlined.Tune,
-                onClick = { navController.navigate("preferences") }
+                onClick = { navController.navigate("preferences") },
             )
         }
 
-        Text(
-            text = "关于",
-            modifier = Modifier.padding(horizontal = 24.dp),
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium
-        )
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 16.dp)
-                .clip(SmoothRoundedCornerShape(32.dp)),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            SettingItem(
+        AhuSectionTitle(text = "关于")
+        AhuListGroup {
+            AhuListItem(
                 label = stringResource(id = R.string.license),
                 icon = Icons.Outlined.Article,
-                onClick = { navController.navigate("settings__license") }
+                onClick = { navController.navigate("settings__license") },
             )
-            SettingItem(
+            AhuListItem(
                 label = stringResource(id = R.string.contributors),
                 icon = Icons.Outlined.PeopleOutline,
-                onClick = { navController.navigate("settings__contributors") }
+                onClick = { navController.navigate("settings__contributors") },
             )
-            SettingItem(
+            AhuListItem(
                 label = stringResource(id = R.string.mine_tv_feedback),
                 icon = Icons.Outlined.Feedback,
                 onClick = {
@@ -299,112 +262,60 @@ fun Settings(
                             .makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT)
                             .show()
                     }
-                }
+                },
             )
-            SettingItem(
+            AhuListItem(
                 label = stringResource(id = R.string.setting_clear),
                 icon = Icons.Outlined.ClearAll,
-                onClick = { isClearCacheDialogShown = true }
+                onClick = { isClearCacheDialogShown = true },
             )
-            SettingItem(
+            AhuListItem(
                 label = stringResource(id = R.string.check_update),
                 icon = Icons.Outlined.Update,
-                onClick = { checkUpdate() }
+                onClick = { checkUpdate() },
             )
-            SettingItem(
+            AhuListItem(
                 label = stringResource(id = R.string.update_intro),
                 icon = Icons.Outlined.Article,
-                onClick = { isUpdateLogDialogShown = true }
+                onClick = { isUpdateLogDialogShown = true },
             )
         }
     }
     if (isClearCacheDialogShown) {
-        Dialog(onDismissRequest = { isClearCacheDialogShown = false }) {
-            Column(
-                modifier = Modifier
-                    .clip(SmoothRoundedCornerShape(32.dp))
-                    .background(96.n1 withNight 10.n1)
-                    .verticalScroll(rememberScrollState())
-                    .padding(vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Text(
-                    text = "您的登录状态、课表等信息将会被永久清除",
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = "清除",
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .clip(ContinuousCapsule)
-                        .background(90.a1 withNight 30.n1)
-                        .clickable {
-                            onClearAllData()
-                            Toast
-                                .makeText(context, "已清除所有数据", Toast.LENGTH_SHORT)
-                                .show()
-                            navController.navigate("login") {
-                                popUpTo(0)
-                            }
-                        }
-                        .padding(16.dp, 8.dp),
-                    style = MaterialTheme.typography.titleMedium
-                )
-            }
+        AhuDialog(onDismissRequest = { isClearCacheDialogShown = false }) {
+            Text(
+                text = "您的登录状态、课表等信息将会被永久清除",
+                modifier = Modifier.padding(horizontal = 24.dp),
+                style = MaterialTheme.typography.titleLarge
+            )
+            AhuPrimaryButton(
+                text = "清除",
+                onClick = {
+                    onClearAllData()
+                    Toast
+                        .makeText(context, "已清除所有数据", Toast.LENGTH_SHORT)
+                        .show()
+                    navController.navigate("login") {
+                        popUpTo(0)
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            )
         }
     }
     if (isUpdateLogDialogShown) {
-        Dialog(onDismissRequest = { isUpdateLogDialogShown = false }) {
-            Column(
-                modifier = Modifier
-                    .clip(SmoothRoundedCornerShape(32.dp))
-                    .background(96.n1 withNight 10.n1)
-                    .padding(vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Text(
-                    text = stringResource(id = R.string.update_intro),
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Column(
-                    modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp)
-                ) {
-                    Text(
-                        text = updateLog,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-            }
+        AhuDialog(onDismissRequest = { isUpdateLogDialogShown = false }) {
+            Text(
+                text = stringResource(id = R.string.update_intro),
+                modifier = Modifier.padding(horizontal = 24.dp),
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Text(
+                text = updateLog,
+                modifier = Modifier.padding(horizontal = 24.dp),
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
-    }
-}
-
-@Composable
-private fun SettingItem(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(4.dp))
-            .background(100.n1 withNight 20.n1)
-            .clickable(onClick = onClick)
-            .padding(24.dp, 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium
-        )
     }
 }
