@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
+import android.webkit.CookieManager as WebkitCookieManager
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
 import com.ahu.ahutong.core.common.AppSessionState
 import com.ahu.ahutong.data.crawler.manager.CookieManager
@@ -31,7 +32,6 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.data.mock.MockScenarioController
-import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.sdk.RustSDK
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuPrimaryButton
@@ -58,10 +58,11 @@ import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Login
 import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.ui.state.AboutViewModel
+import com.ahu.ahutong.ui.state.ApkUpdateViewModel
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.LoginViewModel
-import com.ahu.ahutong.ui.state.MainViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.ahu.ahutong.ui.update.loadApkUpdateChangelog
 import com.ahu.ahutong.utils.animatedComposable
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -71,7 +72,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun Main(
     navController: NavHostController,
-    mainViewModel: MainViewModel = viewModel(),
+    apkUpdateViewModel: ApkUpdateViewModel = viewModel(),
     loginViewModel: LoginViewModel = hiltViewModel(),
     discoveryViewModel: DiscoveryViewModel = hiltViewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
@@ -217,23 +218,19 @@ fun Main(
                     userName = AHUCache.getCurrentUser()?.name,
                     schoolTerm = AHUCache.getSchoolTerm(),
                     onCheckUpdate = { onResult ->
-                        mainViewModel.checkApkUpdateManually(context, onResult)
+                        apkUpdateViewModel.checkApkUpdateManually(context, onResult)
                     },
                     onClearAllData = {
-                        mainViewModel.logout()
+                        AHUCache.logout()
+                        WebkitCookieManager.getInstance().removeAllCookies(null)
+                        WebkitCookieManager.getInstance().flush()
                         AHUCache.clearAll()
                         RustSDK.init("")
                         CookieManager.cookieJar.clear()
                         CookieManager.cookieJar.clearSession()
                         AppSessionState.sessionExpired = true
                     },
-                    loadUpdateLog = {
-                        runCatching {
-                            AhuTong.API.getApkUpdateInfo().changelog
-                                ?.ifBlank { "暂无更新说明" }
-                                ?: "暂无更新说明"
-                        }.getOrElse { "获取失败" }
-                    },
+                    loadUpdateLog = { loadApkUpdateChangelog() },
                 )
             }
             animatedComposable("settings__license") {

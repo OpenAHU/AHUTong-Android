@@ -1,11 +1,9 @@
 package com.ahu.ahutong.ui.state
 
 import android.content.Context
-import android.webkit.CookieManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AppVersion
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.data.server.ApkSegmentDownloadPolicy
 import com.ahu.ahutong.data.server.ApkUpdatePolicy
@@ -38,7 +36,11 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.PriorityQueue
 
-class MainViewModel : ViewModel() {
+/**
+ * APK in-app update: check metadata, multi-range download, mirror fallback, install handoff.
+ * Host ([MainActivity]) owns install-permission UI and [FileProvider] install intent.
+ */
+class ApkUpdateViewModel : ViewModel() {
 
     companion object {
         private val apkDownloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -2229,11 +2231,5 @@ class MainViewModel : ViewModel() {
 
     fun markInstallHandled() {
         downloadedApkFile.value = null
-    }
-
-    fun logout() {
-        AHUCache.logout()
-        CookieManager.getInstance().removeAllCookies(null)
-        CookieManager.getInstance().flush()
     }
 }

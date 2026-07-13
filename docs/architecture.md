@@ -15,6 +15,7 @@
 | Phase 6 | 完成 | sink 下沉 + 删除 DataSource 门面 |
 | Phase 7 | 完成 | 适配器下沉进 `:data/*` / `:feature/*` |
 | Phase 8 | 完成 | 拆掉错误的「shell 大杂烩」：宿主回 app，可拆部分独立模块 |
+| Phase 9 | 完成 | APK 更新 / Debug 从 app 下沉为 feature 模块 |
 
 ## 模块一览
 
@@ -74,11 +75,15 @@ api(project(":core:designsystem"))
 :feature:portal / calendar / tools / settings / weather / classroom / repository
 :feature:widget          ← 课表微件 + 资源 / Manifest receivers
 :feature:notification    ← 课前提醒 + 调度绑定
+:feature:update          ← 应用内 APK 检查 / 分片下载 / 更新对话框
+:feature:debug           ← Debug 屏（Mock / 灰度 / Cookie / 课前提醒调试）
 ```
 
 - `:feature:classroom`：`AppFreeClassroomSource` 绑定 + debug/release Mock 场景数据
 - `:feature:notification`：绑定 `ScheduleReminderCoordinator` / `CourseReminderActions`
 - `:feature:widget`：Glance / 自适应微件；经 `ScheduleEntryPoint` 取课表，经 `AppLaunchIntents` 打开宿主
+- `:feature:update`：`ApkUpdateViewModel` + `ApkUpdateDialog`；宿主只负责安装权限与 FileProvider 安装
+- `:feature:debug`：Debug UI；Mock 数据仍在 classroom，Debug 依赖 schedule/home/notification 做联调
 
 ### App 宿主（真正的产品入口）
 
@@ -87,17 +92,16 @@ api(project(":core:designsystem"))
 | 保留 | 说明 |
 |------|------|
 | `AHUApplication` | `@HiltAndroidApp` + 进程初始化 |
-| `MainActivity` | 启动 Activity |
+| `MainActivity` | 启动 Activity + APK 安装权限 / FileProvider |
 | `Main` / `BottomNavBar` | 导航组合根 |
 | `AHUTheme` | 应用主题 |
-| `MainViewModel` / APK 更新 UI | 跨 feature 的宿主能力 |
-| `Debug` 屏 | 宿主级调试入口（Mock 数据在 classroom） |
 | 打包资源 | 启动图标、主题、`network_security_config`、jniLibs |
 
 微件 / 通知的组件 Manifest 由 library merge 进 APK。
 
 ## 可选后续
 
-1. Debug/Mock 再拆为 debug-only feature  
+1. `:feature:debug` 改为 debug-only source set / product flavor（Release 不打入）  
 2. 收紧 `internal` API  
 3. 将 `CourseReminderActions` 接口从 settings 挪到 notification，去掉反向依赖  
+4. `AhuTong` / `ApkUpdatePolicy` 从 crawler 挪到更合适的 data/update 域

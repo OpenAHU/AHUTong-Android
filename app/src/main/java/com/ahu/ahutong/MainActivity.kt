@@ -32,9 +32,9 @@ import com.ahu.ahutong.ui.component.ApkMirrorSourceDialog
 import com.ahu.ahutong.ui.component.ApkUpdateDialog
 import com.ahu.ahutong.ui.screen.Main
 import com.ahu.ahutong.ui.state.AboutViewModel
+import com.ahu.ahutong.ui.state.ApkUpdateViewModel
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.LoginViewModel
-import com.ahu.ahutong.ui.state.MainViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.theme.AHUTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var campusNativeGateway: CampusNativeGateway
 
-    private val mainViewModel: MainViewModel by viewModels()
+    private val apkUpdateViewModel: ApkUpdateViewModel by viewModels()
     private val loginViewModel: LoginViewModel by viewModels()
     private val discoveryViewModel: DiscoveryViewModel by viewModels()
     private val scheduleViewModel: ScheduleViewModel by viewModels()
@@ -69,61 +69,62 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 var isReLoginDialogShown by rememberSaveable { mutableStateOf(false) }
 
-                if (mainViewModel.showApkUpdateDialog.value && mainViewModel.apkUpdateInfo.value != null) {
+                if (apkUpdateViewModel.showApkUpdateDialog.value && apkUpdateViewModel.apkUpdateInfo.value != null) {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                     ApkUpdateDialog(
-                        info = mainViewModel.apkUpdateInfo.value!!,
-                        downloading = mainViewModel.apkDownloading.value,
-                        progress = mainViewModel.apkProgress.value,
-                        activeRangeCount = mainViewModel.apkActiveRangeCount.value,
-                        downloadSegments = mainViewModel.apkDownloadSegments.value,
-                        downloadElapsedText = mainViewModel.apkDownloadElapsedText.value,
-                        errorText = mainViewModel.apkErrorText.value,
-                        apkLocalReady = mainViewModel.apkLocalReady.value,
+                        info = apkUpdateViewModel.apkUpdateInfo.value!!,
+                        downloading = apkUpdateViewModel.apkDownloading.value,
+                        progress = apkUpdateViewModel.apkProgress.value,
+                        activeRangeCount = apkUpdateViewModel.apkActiveRangeCount.value,
+                        downloadSegments = apkUpdateViewModel.apkDownloadSegments.value,
+                        downloadElapsedText = apkUpdateViewModel.apkDownloadElapsedText.value,
+                        errorText = apkUpdateViewModel.apkErrorText.value,
+                        apkLocalReady = apkUpdateViewModel.apkLocalReady.value,
                         onConfirm = {
-                            mainViewModel.startApkDownload(
+                            apkUpdateViewModel.startApkDownload(
                                 this@MainActivity,
                                 installAfterDownload = true
                             )
                         },
                         onInstallLocal = {
-                            mainViewModel.installLocalApk(this@MainActivity)
+                            apkUpdateViewModel.installLocalApk(this@MainActivity)
                         },
                         onRedownload = {
-                            mainViewModel.startApkDownload(this@MainActivity, forceRedownload = true)
+                            apkUpdateViewModel.startApkDownload(this@MainActivity, forceRedownload = true)
                         },
                         onDismiss = {
-                            mainViewModel.showApkUpdateDialog.value = false
+                            apkUpdateViewModel.showApkUpdateDialog.value = false
                         },
                         onCancel = {
-                            mainViewModel.continueApkDownloadInBackground()
+                            apkUpdateViewModel.continueApkDownloadInBackground()
                             Toast.makeText(this@MainActivity, "已转到后台下载", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
-                if (mainViewModel.showApkMirrorPrompt.value) {
+                if (apkUpdateViewModel.showApkMirrorPrompt.value) {
                     ApkMirrorSourceDialog(
                         onUseMirror = {
-                            mainViewModel.switchApkDownloadToMirror(this@MainActivity)
+                            apkUpdateViewModel.switchApkDownloadToMirror(this@MainActivity)
                         },
                         onKeepOriginal = {
-                            mainViewModel.keepPrimaryApkDownload()
+                            apkUpdateViewModel.keepPrimaryApkDownload()
                         }
                     )
                 }
 
-                val downloaded = mainViewModel.downloadedApkFile.value
+                val downloaded = apkUpdateViewModel.downloadedApkFile.value
                 if (downloaded != null) {
                     androidx.compose.runtime.LaunchedEffect(downloaded) {
                         ensureInstallPermissionThen {
                             installApk(downloaded)
                         }
-                        mainViewModel.markInstallHandled()
+                        apkUpdateViewModel.markInstallHandled()
                     }
                 }
 
                 Main(
                     navController = navController,
+                    apkUpdateViewModel = apkUpdateViewModel,
                     loginViewModel = loginViewModel,
                     discoveryViewModel = discoveryViewModel,
                     scheduleViewModel = scheduleViewModel,
@@ -137,7 +138,7 @@ class MainActivity : ComponentActivity() {
 
     private fun init() {
         lifecycleScope.launchSafe {
-            mainViewModel.checkApkUpdate(this@MainActivity)
+            apkUpdateViewModel.checkApkUpdate(this@MainActivity)
         }
         WidgetUpdateScheduler.scheduleNext(this@MainActivity)
 
@@ -237,14 +238,14 @@ class MainActivity : ComponentActivity() {
         requestInstallPermissionLauncher.launch(intent)
     }
 
-    // Update download logic moved into MainViewModel
+    // Update download logic lives in :feature:update (ApkUpdateViewModel)
 
     private fun installApk(apkFile: File) {
         Log.i("ApkUpdate", "installApk called, file=${apkFile.absolutePath}")
 
         validateApkBeforeInstall(apkFile)?.let { error ->
             Log.w("ApkUpdate", "blocked APK install: $error")
-            mainViewModel.reportApkInstallError(error)
+            apkUpdateViewModel.reportApkInstallError(error)
             Toast.makeText(this, error, Toast.LENGTH_LONG).show()
             apkFile.delete()
             return
@@ -436,7 +437,7 @@ class MainActivity : ComponentActivity() {
             }
     }
 
-    // update check moved into MainViewModel
+    // update check lives in :feature:update (ApkUpdateViewModel)
 
 
 }

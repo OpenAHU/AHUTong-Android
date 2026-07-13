@@ -149,6 +149,8 @@ dependencies {
     implementation(project(":feature:repository"))
     implementation(project(":feature:widget"))
     implementation(project(":feature:notification"))
+    implementation(project(":feature:update"))
+    implementation(project(":feature:debug"))
 
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)
