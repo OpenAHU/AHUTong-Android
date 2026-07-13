@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,7 +14,9 @@ import com.ahu.ahutong.data.grade.GradeRepository
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
+import com.ahu.ahutong.feature.grade.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -23,9 +26,10 @@ import kotlinx.coroutines.launch
 class GradeViewModel @Inject constructor(
     private val gradeRepository: GradeRepository,
     private val gradeLocalStore: GradeLocalStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
-    var totalGradePointAverage by mutableStateOf("暂无")
-    var termGradePointAverage by mutableStateOf("暂无")
+    var totalGradePointAverage by mutableStateOf(appContext.getString(R.string.not_available))
+    var termGradePointAverage by mutableStateOf(appContext.getString(R.string.not_available))
     var grade by mutableStateOf<Grade?>(null)
     var schoolYear by mutableStateOf(schoolYears.firstOrNull())
     var schoolTerm by mutableStateOf(terms.keys.firstOrNull())
@@ -55,13 +59,19 @@ class GradeViewModel @Inject constructor(
                 }
                 is AppResult.Error -> {
                     gpaRankInfo = null
-                    rankEmptyMessage = "「${profile.displayName}」暂无排名信息"
+                    rankEmptyMessage = appContext.getString(
+                        R.string.no_rank_for_profile,
+                        profile.displayName,
+                    )
                     Log.w("GradeViewModel", "getGpaRank empty: ${result.message}")
                 }
             }
         } catch (t: Throwable) {
             gpaRankInfo = null
-            rankEmptyMessage = "获取排名失败：${t.message}"
+            rankEmptyMessage = appContext.getString(
+                R.string.failed_to_get_rank,
+                t.message ?: "",
+            )
             Log.w("GradeViewModel", "getGpaRank failed", t)
         } finally {
             rankLoading = false
@@ -91,7 +101,7 @@ class GradeViewModel @Inject constructor(
                 }
             }
         } catch (t: Throwable) {
-            errorMessage = t.message ?: "获取成绩失败"
+            errorMessage = t.message ?: appContext.getString(R.string.failed_to_get_grades)
         } finally {
             isLoading = false
         }
@@ -102,8 +112,9 @@ class GradeViewModel @Inject constructor(
         val profileGrade = profile?.let { perProfileGrades[it.id] }
         grade = profileGrade
         if (profileGrade == null) {
-            termGradePointAverage = "暂无"
-            totalGradePointAverage = "暂无"
+            val na = appContext.getString(R.string.not_available)
+            termGradePointAverage = na
+            totalGradePointAverage = na
         }
         schoolYear = schoolYears.firstOrNull()
         schoolTerm = terms.keys.firstOrNull()
@@ -154,7 +165,8 @@ class GradeViewModel @Inject constructor(
 
         snapshotFlow { gpaRankInfo }
             .onEach { info ->
-                totalGradePointAverage = info?.gpa?.let { "%.2f".format(it) } ?: "暂无"
+                totalGradePointAverage = info?.gpa?.let { "%.2f".format(it) }
+                    ?: appContext.getString(R.string.not_available)
                 refreshTermAndYearGPA()
             }
             .launchIn(viewModelScope)
@@ -190,13 +202,13 @@ class GradeViewModel @Inject constructor(
     private fun refreshTermAndYearGPA() {
         val g = grade
         if (g == null) {
-            termGradePointAverage = "暂无"
+            termGradePointAverage = appContext.getString(R.string.not_available)
             return
         }
         if (schoolYear == null || schoolTerm == null) return
         termGradePointAverage = g.termGradeList
             ?.find { it.schoolYear == schoolYear && it.term == schoolTerm }
             ?.termGradePointAverage
-            ?: "暂无"
+            ?: appContext.getString(R.string.not_available)
     }
 }

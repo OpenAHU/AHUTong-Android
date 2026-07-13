@@ -19,10 +19,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.ahu.ahutong.R
 import com.ahu.ahutong.ui.components.LiquidBottomTab
 import com.ahu.ahutong.ui.components.LiquidBottomTabs
 import com.kyant.backdrop.Backdrop
@@ -74,28 +76,40 @@ fun BoxScope.BottomNavBar(
                     imageVector = Icons.Outlined.Home,
                     contentDescription = null
                 )
-                Text(text = "主页", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = stringResource(id = R.string.nav_home),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
             LiquidBottomTab({ navController.navigatePreservingHome("schedule") }) {
                 Icon(
                     imageVector = Icons.Outlined.TableChart,
                     contentDescription = null
                 )
-                Text(text = "课表", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = stringResource(id = R.string.nav_schedule),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
             LiquidBottomTab({ navController.navigatePreservingHome("tools") }) {
                 Icon(
                     imageVector = Icons.Outlined.Build,
                     contentDescription = null
                 )
-                Text(text = "小工具", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = stringResource(id = R.string.nav_tools),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
             LiquidBottomTab({ navController.navigatePreservingHome("settings") }) {
                 Icon(
                     imageVector = Icons.Outlined.Settings,
                     contentDescription = null
                 )
-                Text(text = "设置", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = stringResource(id = R.string.nav_settings),
+                    style = MaterialTheme.typography.labelMedium
+                )
             }
         }
     }

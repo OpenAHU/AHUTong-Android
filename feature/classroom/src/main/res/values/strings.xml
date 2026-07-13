@@ -1,4 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="free_classroom">空闲教室</string>
+    <string name="select_campus">选择校区</string>
+    <string name="select_building">选择教学楼</string>
+    <string name="select_campus_first">请先选择校区</string>
+    <string name="no_buildings_for_campus">当前校区暂无教学楼</string>
+    <string name="no_buildings_data">当前校区暂无教学楼数据</string>
+    <string name="select_periods">选择节次</string>
+    <string name="morning">上午</string>
+    <string name="afternoon">下午</string>
+    <string name="evening">晚上</string>
+    <string name="period_unit">%1$d节</string>
+    <string name="default_periods_hint">未选择节次时，默认按 1-13 节查询</string>
+    <string name="select_date">选择日期</string>
+    <string name="today">今天</string>
+    <string name="tomorrow">明天</string>
+    <string name="start_date">开始: %1$s</string>
+    <string name="end_date">结束: %1$s</string>
+    <string name="searching">查询中...</string>
+    <string name="start_search_free_classroom">开始查询空闲教室</string>
+    <string name="expand_filters">展开筛选条件</string>
+    <string name="collapse_filters">收起筛选条件</string>
+    <string name="search_results">查询结果</string>
+    <string name="room_count">共 %1$d 间</string>
+    <string name="no_data_set_filters">暂无数据，请先设置条件后查询</string>
+    <string name="room_detail">%1$s  %2$d层  %3$s</string>
+    <string name="confirm">确定</string>
+    <string name="cancel">取消</string>
+    <string name="campus_qingyuan">磬苑校区</string>
+    <string name="campus_longhe">龙河校区</string>
+    <string name="search_failed">查询失败</string>
+    <string name="load_buildings_failed">获取教学楼失败</string>
 </resources>

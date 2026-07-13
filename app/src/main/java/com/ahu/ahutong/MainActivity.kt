@@ -97,7 +97,11 @@ class MainActivity : ComponentActivity() {
                         },
                         onCancel = {
                             apkUpdateViewModel.continueApkDownloadInBackground()
-                            Toast.makeText(this@MainActivity, "已转到后台下载", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(R.string.download_in_background),
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     )
                 }
@@ -205,7 +209,11 @@ class MainActivity : ComponentActivity() {
                     pendingInstallAction?.invoke()
                     pendingInstallAction = null
                 } else {
-                    Toast.makeText(this, "未授权安装权限，安装失败", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        getString(R.string.install_permission_denied),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
     }
@@ -274,11 +282,11 @@ class MainActivity : ComponentActivity() {
 
     private fun validateApkBeforeInstall(apkFile: File): String? {
         if (!apkFile.exists() || apkFile.length() <= 0L) {
-            return "安装包不存在或为空"
+            return getString(R.string.apk_missing_or_empty)
         }
 
         val canonicalApk = runCatching { apkFile.canonicalFile }.getOrElse {
-            return "安装包路径无效"
+            return getString(R.string.apk_path_invalid)
         }
         val trustedDirs = listOfNotNull(getExternalFilesDir(null), filesDir).mapNotNull {
             runCatching { it.canonicalFile }.getOrNull()
@@ -287,7 +295,7 @@ class MainActivity : ComponentActivity() {
             canonicalApk.path == dir.path || canonicalApk.path.startsWith(dir.path + File.separator)
         }
         if (!isInTrustedDir) {
-            return "安装包位置不可信"
+            return getString(R.string.apk_location_untrusted)
         }
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -298,17 +306,17 @@ class MainActivity : ComponentActivity() {
         }
 
         val archiveInfo = packageManager.getPackageArchiveInfo(canonicalApk.absolutePath, flags)
-            ?: return "安装包解析失败"
+            ?: return getString(R.string.apk_parse_failed)
         if (archiveInfo.packageName != packageName) {
-            return "安装包包名不匹配"
+            return getString(R.string.apk_package_mismatch)
         }
 
         if (versionCodeOf(archiveInfo) <= currentVersionCode()) {
-            return "安装包版本不高于当前版本"
+            return getString(R.string.apk_version_not_higher)
         }
 
         if (!hasMatchingSigningCertificate(archiveInfo, flags)) {
-            return "安装包签名与当前应用不一致"
+            return getString(R.string.apk_signature_mismatch)
         }
 
         return null

@@ -1,12 +1,15 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.classroom.FreeClassroomSource
 import com.ahu.ahutong.data.crawler.model.jwxt.FreeRoom
 import com.ahu.ahutong.data.crawler.model.jwxt.GetBuildingsResponseItem
 import com.ahu.ahutong.ext.launchSafe
+import com.ahu.ahutong.feature.classroom.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,10 +17,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 @HiltViewModel
 class FreeClassroomViewModel @Inject constructor(
     private val freeClassroomSource: FreeClassroomSource,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
     val campusOptions = listOf(
-        CampusOption(id = 1, name = "磬苑校区"),
-        CampusOption(id = 2, name = "龙河校区")
+        CampusOption(id = 1, name = context.getString(R.string.campus_qingyuan)),
+        CampusOption(id = 2, name = context.getString(R.string.campus_longhe))
     )
     val selectedCampusId = MutableStateFlow<Int?>(null)
     val buildings = MutableStateFlow<List<GetBuildingsResponseItem>>(emptyList())
@@ -95,12 +99,12 @@ class FreeClassroomViewModel @Inject constructor(
 
     fun searchFreeRooms() = viewModelScope.launchSafe {
         val campusId = selectedCampusId.value ?: run {
-            errorMessage.value = "请先选择校区"
+            errorMessage.value = context.getString(R.string.select_campus_first)
             return@launchSafe
         }
         val allBuildings = buildings.value
         if (allBuildings.isEmpty()) {
-            errorMessage.value = "当前校区暂无教学楼数据"
+            errorMessage.value = context.getString(R.string.no_buildings_data)
             return@launchSafe
         }
         val buildingIds = if (selectedBuildingIds.value.isEmpty()) {
@@ -129,7 +133,7 @@ class FreeClassroomViewModel @Inject constructor(
                 .distinctBy { "${it.id}-${it.building.id}" }
                 .sortedWith(compareBy({ it.building.nameZh }, { it.floor }, { it.nameZh }))
         }.onFailure {
-            errorMessage.value = it.message ?: "查询失败"
+            errorMessage.value = it.message ?: context.getString(R.string.search_failed)
         }
         isSearching.value = false
     }
@@ -147,7 +151,8 @@ class FreeClassroomViewModel @Inject constructor(
             buildings.value = sortedData
         }.onFailure {
             buildings.value = emptyList()
-            errorMessage.value = it.message ?: "获取教学楼失败"
+            errorMessage.value = it.message
+                ?: context.getString(R.string.load_buildings_failed)
         }
         isLoadingBuildings.value = false
     }

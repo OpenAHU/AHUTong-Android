@@ -1,21 +1,12 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.AHUResponse
 import com.ahu.ahutong.core.common.AppResult
+import com.ahu.ahutong.data.AHUResponse
 import com.ahu.ahutong.data.crawler.PayState
-import com.ahu.ahutong.data.payment.PaymentLocalStore
-import com.ahu.ahutong.data.payment.PaymentRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import okhttp3.FormBody
-import android.util.Log
 import com.ahu.ahutong.data.crawler.utils.generateNonce
 import com.ahu.ahutong.data.crawler.utils.getTimestamp
 import com.ahu.ahutong.data.crawler.utils.sha256
@@ -23,9 +14,21 @@ import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
 import com.ahu.ahutong.data.model.RoomSelectionInfo
+import com.ahu.ahutong.data.payment.PaymentLocalStore
+import com.ahu.ahutong.data.payment.PaymentRepository
+import com.ahu.ahutong.feature.payment.R
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import okhttp3.FormBody
 import kotlin.collections.joinToString
 import kotlin.collections.toMap
 import kotlin.jvm.java
@@ -126,6 +129,7 @@ data class AccountPayInfoData(
 class ElectricityDepositViewModel @Inject constructor(
     private val paymentRepository: PaymentRepository,
     private val paymentLocalStore: PaymentLocalStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
     var _payState = MutableStateFlow<PayState>(PayState.Idle)
     val payState : StateFlow<PayState> = _payState
@@ -221,19 +225,24 @@ class ElectricityDepositViewModel @Inject constructor(
                 _selectedFloor.value = selection.floor
                 _selectedRoom.value = selection.room
 
-                getCampus().data?.let { _campusList.value = it } ?: throw Exception("加载校区列表失败")
-                getBuildings().data?.let { _buildingsList.value = it } ?: throw Exception("加载楼栋列表失败")
-                getFloor().data?.let { _floorsList.value = it } ?: throw Exception("加载楼层列表失败")
-                getRoom().data?.let { _roomsList.value = it } ?: throw Exception("加载房间列表失败")
+                getCampus().data?.let { _campusList.value = it }
+                    ?: throw Exception(appContext.getString(R.string.load_campus_list_failed))
+                getBuildings().data?.let { _buildingsList.value = it }
+                    ?: throw Exception(appContext.getString(R.string.load_building_list_failed))
+                getFloor().data?.let { _floorsList.value = it }
+                    ?: throw Exception(appContext.getString(R.string.load_floor_list_failed))
+                getRoom().data?.let { _roomsList.value = it }
+                    ?: throw Exception(appContext.getString(R.string.load_room_list_failed))
                 getRoomInfo().data?.let {
                     _fullRoomDetails.value = it
                     _roomInfo.value = it.showData?.info
-                } ?: throw Exception("加载房间信息失败")
+                } ?: throw Exception(appContext.getString(R.string.load_room_info_failed))
 
                 Log.d("ElectricityDepositViewModel", "从缓存恢复选择成功")
 
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "恢复选择时发生未知错误"
+                _errorMessage.value = e.message
+                    ?: appContext.getString(R.string.restore_selection_unknown_error)
                 Log.e("ElectricityDepositViewModel", "恢复选择失败", e)
             } finally {
                 _isLoading.value = false
@@ -291,10 +300,11 @@ class ElectricityDepositViewModel @Inject constructor(
                 if (response.code == 0 && response.data != null) {
                     _campusList.value = response.data!!
                 } else {
-                    _errorMessage.value = response.msg ?: "加载校区失败"
+                    _errorMessage.value = response.msg
+                        ?: appContext.getString(R.string.load_campus_failed)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "网络错误: ${e.message}"
+                _errorMessage.value = appContext.getString(R.string.network_error, e.message)
             } finally {
                 _isLoading.value = false
             }
@@ -317,7 +327,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     Log.e("ElectricityDepositViewModel", "getCampus Error: Server returned empty body")
                     return responseWrapper
                 }
@@ -329,17 +339,17 @@ class ElectricityDepositViewModel @Inject constructor(
                     Log.d("ElectricityDepositViewModel", "getCampus Success: Loaded ${parsedResponse.map.data.size} items")
                 } else {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "解析数据失败，未找到校区列表"
+                    responseWrapper.msg = appContext.getString(R.string.parse_campus_list_failed)
                     Log.e("ElectricityDepositViewModel", "getCampus Parse Error: map.data is null")
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
                 Log.e("ElectricityDepositViewModel", "getCampus Network Error: ${res.code()} ${res.message()}")
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             Log.e("ElectricityDepositViewModel", "getCampus Exception", e)
             e.printStackTrace()
         }
@@ -348,7 +358,7 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private fun fetchBuildings() {
         if (_selectedCampus.value == null) {
-            _errorMessage.value = "请先选择一个校区"
+            _errorMessage.value = appContext.getString(R.string.please_select_a_campus_first)
             return
         }
 
@@ -360,10 +370,11 @@ class ElectricityDepositViewModel @Inject constructor(
                 if (response.code == 0 && response.data != null) {
                     _buildingsList.value = response.data!!
                 } else {
-                    _errorMessage.value = response.msg ?: "加载楼栋失败"
+                    _errorMessage.value = response.msg
+                        ?: appContext.getString(R.string.load_building_failed)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "网络错误: ${e.message}"
+                _errorMessage.value = appContext.getString(R.string.network_error, e.message)
             } finally {
                 _isLoading.value = false
             }
@@ -374,7 +385,7 @@ class ElectricityDepositViewModel @Inject constructor(
         val responseWrapper = AHUResponse<List<CampusDataItem>>()
         val selectedCampusValue = _selectedCampus.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedCampusValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_campus_empty)
             return responseWrapper
         }
 
@@ -396,7 +407,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     return responseWrapper
                 }
                 val parsedResponse = Gson().fromJson(responseBody, CampusApiResponse::class.java)
@@ -406,15 +417,15 @@ class ElectricityDepositViewModel @Inject constructor(
                     responseWrapper.data = parsedResponse.map.data
                 } else {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "解析数据失败，未找到楼栋列表"
+                    responseWrapper.msg = appContext.getString(R.string.parse_building_list_failed)
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             e.printStackTrace()
         } finally {
             _isLoading.value = false
@@ -424,7 +435,7 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private fun fetchFloor() {
         if (_selectedBuilding.value == null) {
-            _errorMessage.value = "请先选择一个楼栋"
+            _errorMessage.value = appContext.getString(R.string.please_select_a_building_first)
             return
         }
 
@@ -436,10 +447,11 @@ class ElectricityDepositViewModel @Inject constructor(
                 if (response.code == 0 && response.data != null) {
                     _floorsList.value = response.data!!
                 } else {
-                    _errorMessage.value = response.msg ?: "加载楼层失败"
+                    _errorMessage.value = response.msg
+                        ?: appContext.getString(R.string.load_floor_failed)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "网络错误: ${e.message}"
+                _errorMessage.value = appContext.getString(R.string.network_error, e.message)
             } finally {
                 _isLoading.value = false
             }
@@ -450,12 +462,12 @@ class ElectricityDepositViewModel @Inject constructor(
         val responseWrapper = AHUResponse<List<CampusDataItem>>()
         val selectedCampusValue = _selectedCampus.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedCampusValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_campus_empty)
             return responseWrapper
         }
         val selectedBuildingValue = _selectedBuilding.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedBuildingValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_building_empty)
             return responseWrapper
         }
 
@@ -476,7 +488,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     return responseWrapper
                 }
                 val parsedResponse = Gson().fromJson(responseBody, CampusApiResponse::class.java)
@@ -486,15 +498,15 @@ class ElectricityDepositViewModel @Inject constructor(
                     responseWrapper.data = parsedResponse.map.data
                 } else {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "解析数据失败，未找到楼层列表"
+                    responseWrapper.msg = appContext.getString(R.string.parse_floor_list_failed)
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             e.printStackTrace()
         }
         return responseWrapper
@@ -502,7 +514,7 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private fun fetchRoom() {
         if (_selectedFloor.value == null) {
-            _errorMessage.value = "请先选择一个楼层"
+            _errorMessage.value = appContext.getString(R.string.please_select_a_floor_first)
             return
         }
 
@@ -514,10 +526,11 @@ class ElectricityDepositViewModel @Inject constructor(
                 if (response.code == 0 && response.data != null) {
                     _roomsList.value = response.data!!
                 } else {
-                    _errorMessage.value = response.msg ?: "加载房间失败"
+                    _errorMessage.value = response.msg
+                        ?: appContext.getString(R.string.load_room_failed)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "网络错误: ${e.message}"
+                _errorMessage.value = appContext.getString(R.string.network_error, e.message)
             } finally {
                 _isLoading.value = false
             }
@@ -528,17 +541,17 @@ class ElectricityDepositViewModel @Inject constructor(
         val responseWrapper = AHUResponse<List<CampusDataItem>>()
         val selectedFloorValue = _selectedFloor.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedFloorValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_floor_empty)
             return responseWrapper
         }
         val selectedCampusValue = _selectedCampus.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "_selectedCampus内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_campus_state_empty)
             return responseWrapper
         }
         val selectedBuildingValue = _selectedBuilding.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedBuildingValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_building_empty)
             return responseWrapper
         }
 
@@ -560,7 +573,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     return responseWrapper
                 }
                 val parsedResponse = Gson().fromJson(responseBody, CampusApiResponse::class.java)
@@ -570,15 +583,15 @@ class ElectricityDepositViewModel @Inject constructor(
                     responseWrapper.data = parsedResponse.map.data
                 } else {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "解析数据失败，未找到房间列表"
+                    responseWrapper.msg = appContext.getString(R.string.parse_room_list_failed)
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             e.printStackTrace()
         }
         return responseWrapper
@@ -586,7 +599,7 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private fun fetchRoomInfo() {
         if (_selectedRoom.value == null) {
-            _errorMessage.value = "请先选择一个房间"
+            _errorMessage.value = appContext.getString(R.string.please_select_a_room_first)
             return
         }
 
@@ -599,10 +612,11 @@ class ElectricityDepositViewModel @Inject constructor(
                     _fullRoomDetails.value = response.data
                     _roomInfo.value = response.data.showData?.info
                 } else {
-                    _errorMessage.value = response.msg ?: "加载房间信息失败"
+                    _errorMessage.value = response.msg
+                        ?: appContext.getString(R.string.load_room_info_failed)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "网络错误: ${e.message}"
+                _errorMessage.value = appContext.getString(R.string.network_error, e.message)
             } finally {
                 _isLoading.value = false
             }
@@ -614,22 +628,22 @@ class ElectricityDepositViewModel @Inject constructor(
 
         val selectedRoomValue = _selectedRoom.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedRoomValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_room_empty)
             return responseWrapper
         }
         val selectedFloorValue = _selectedFloor.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedFloorValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_floor_empty)
             return responseWrapper
         }
         val selectedBuildingValue = _selectedBuilding.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedBuildingValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_building_empty)
             return responseWrapper
         }
         val selectedCampusValue = _selectedCampus.value?.value ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "selectedCampusValue内容为空"
+            responseWrapper.msg = appContext.getString(R.string.selected_campus_empty)
             return responseWrapper
         }
 
@@ -652,7 +666,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     return responseWrapper
                 }
                 val parsedResponse = Gson().fromJson(responseBody, RoomInfoApiResponse::class.java)
@@ -662,15 +676,15 @@ class ElectricityDepositViewModel @Inject constructor(
                     responseWrapper.data = parsedResponse.map
                 } else {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "解析数据失败，未找到房间信息"
+                    responseWrapper.msg = appContext.getString(R.string.parse_room_info_failed)
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             e.printStackTrace()
         }
         return responseWrapper
@@ -681,7 +695,7 @@ class ElectricityDepositViewModel @Inject constructor(
 
         val fullDetails = _fullRoomDetails.value?.data ?: run {
             responseWrapper.code = -1
-            responseWrapper.msg = "房间详细信息为空，无法支付"
+            responseWrapper.msg = appContext.getString(R.string.room_details_empty_cannot_pay)
             return responseWrapper
         }
         val paymentData = PaymentData(
@@ -695,7 +709,13 @@ class ElectricityDepositViewModel @Inject constructor(
             building = fullDetails.building ?: "",
             room = fullDetails.room ?: "",
             roomName = fullDetails.roomName ?: "",
-            myCustomInfo = "房间：${fullDetails.areaName} ${fullDetails.buildingName} ${fullDetails.floorName} ${fullDetails.roomName}"
+            myCustomInfo = appContext.getString(
+                R.string.room_custom_info,
+                fullDetails.areaName,
+                fullDetails.buildingName,
+                fullDetails.floorName,
+                fullDetails.roomName
+            )
         )
         val thirdPartyJson = Gson().toJson(paymentData)
         val formBody = buildSignedFormBody(
@@ -719,7 +739,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     return responseWrapper
                 }
                 val parsedResponse = Gson().fromJson(responseBody, OrderResponse::class.java)
@@ -733,11 +753,11 @@ class ElectricityDepositViewModel @Inject constructor(
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             e.printStackTrace()
         }
         return responseWrapper
@@ -763,7 +783,7 @@ class ElectricityDepositViewModel @Inject constructor(
             if (res.isSuccessful) {
                 if (responseBody.isNullOrEmpty()) {
                     responseWrapper.code = -1
-                    responseWrapper.msg = "服务器返回内容为空"
+                    responseWrapper.msg = appContext.getString(R.string.server_response_empty)
                     return responseWrapper
                 }
                 val parsedResponse = Gson().fromJson(responseBody, AccountPayInfoResponse::class.java)
@@ -777,11 +797,11 @@ class ElectricityDepositViewModel @Inject constructor(
                 }
             } else {
                 responseWrapper.code = res.code()
-                responseWrapper.msg = "请求接口失败: ${res.message()}"
+                responseWrapper.msg = appContext.getString(R.string.request_api_failed, res.message())
             }
         } catch (e: Exception) {
             responseWrapper.code = -1
-            responseWrapper.msg = "发生未知错误: ${e.message}"
+            responseWrapper.msg = appContext.getString(R.string.unknown_error_with_message, e.message)
             e.printStackTrace()
         }
         return responseWrapper
@@ -789,11 +809,11 @@ class ElectricityDepositViewModel @Inject constructor(
 
     fun pay(amount: String, password: String) {
         if (amount.toDoubleOrNull() ?: 0.0 <= 0) {
-            _errorMessage.value = "请输入有效金额"
+            _errorMessage.value = appContext.getString(R.string.please_enter_valid_amount)
             return
         }
         if (password.length != 6) {
-            _errorMessage.value = "请输入6位密码"
+            _errorMessage.value = appContext.getString(R.string.please_enter_6_digit_password)
             return
         }
 
@@ -807,7 +827,7 @@ class ElectricityDepositViewModel @Inject constructor(
 
                 val orderResult = getPaymentOrder(amount)
                 if (orderResult.code != 0 || orderResult.data == null) {
-                    val msg = orderResult.msg ?: "创建订单失败"
+                    val msg = orderResult.msg ?: appContext.getString(R.string.create_order_failed)
                     _errorMessage.value = msg
                     _payState.value = PayState.Failed(msg)
                     Log.e("ElectricityDepositViewModel", "创建订单失败: $msg")
@@ -819,7 +839,8 @@ class ElectricityDepositViewModel @Inject constructor(
                 val accountPayInfoResult = getAccountPayInfo(orderId)
                 val passwordMap = accountPayInfoResult.data?.passwordMap
                 if (accountPayInfoResult.code != 0 || passwordMap.isNullOrEmpty()) {
-                    val msg = accountPayInfoResult.msg ?: "获取支付信息失败"
+                    val msg = accountPayInfoResult.msg
+                        ?: appContext.getString(R.string.get_payment_info_failed)
                     _errorMessage.value = msg
                     _payState.value = PayState.Failed(msg)
                     Log.e("ElectricityDepositViewModel", "获取支付信息失败: $msg")
@@ -870,7 +891,10 @@ class ElectricityDepositViewModel @Inject constructor(
                         if (chargeAmount != null && chargeAmount > 0) {
                             val existingInfo = paymentLocalStore.getElectricityChargeInfo()
                             if (existingInfo == null) {
-                                val dateFormat = SimpleDateFormat("yyyy年MM月dd日", Locale.getDefault())
+                                val dateFormat = SimpleDateFormat(
+                                    appContext.getString(R.string.date_format_ymd),
+                                    Locale.getDefault()
+                                )
                                 val firstDate = dateFormat.format(Date())
                                 val newInfo = ElectricityChargeInfo(
                                     totalAmount = chargeAmount,
@@ -903,21 +927,25 @@ class ElectricityDepositViewModel @Inject constructor(
                         val updatedHistory = (listOf(newItem) + existingHistory.filter { selectionKey(it.selection) != key }).take(2)
                         paymentLocalStore.saveElectricityDepositHistory(updatedHistory)
                     } else {
-                        val errorMessage = parsedResponse.msg ?: "支付失败，未知错误"
+                        val errorMessage = parsedResponse.msg
+                            ?: appContext.getString(R.string.payment_failed_unknown)
                         _errorMessage.value = errorMessage
                         _payState.value = PayState.Failed(errorMessage)
                         Log.e("ElectricityDepositViewModel", "支付失败: $errorMessage")
                     }
                 } else {
                     val errorBody = finalRes.errorBody()?.string()
-                    val errorMessage = "支付失败: ${finalRes.message()}" + if (!errorBody.isNullOrBlank()) " ($errorBody)" else ""
+                    val errorMessage =
+                        appContext.getString(R.string.payment_failed_colon, finalRes.message()) +
+                            if (!errorBody.isNullOrBlank()) " ($errorBody)" else ""
                     _errorMessage.value = errorMessage
                     _payState.value = PayState.Failed(errorMessage)
                     Log.e("ElectricityDepositViewModel", errorMessage)
                 }
 
             } catch (e: Exception) {
-                val errorMessage = "支付请求异常: ${e.message}"
+                val errorMessage =
+                    appContext.getString(R.string.payment_request_exception, e.message)
                 _errorMessage.value = errorMessage
                 _payState.value = PayState.Failed(errorMessage)
                 Log.e("ElectricityDepositViewModel", errorMessage, e)
@@ -1036,8 +1064,9 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private fun normalizeLabel(raw: String): String {
         var value = raw.trim()
-        if (value.startsWith("房间：")) {
-            value = value.removePrefix("房间：").trim()
+        val roomPrefix = appContext.getString(R.string.room_prefix)
+        if (value.startsWith(roomPrefix)) {
+            value = value.removePrefix(roomPrefix).trim()
         }
         val parts = value.split(Regex("\\s+")).filter { it.isNotBlank() }
         return if (parts.isEmpty()) "" else parts.last()

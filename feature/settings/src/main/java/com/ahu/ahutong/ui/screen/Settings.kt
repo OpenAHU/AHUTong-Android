@@ -73,13 +73,15 @@ fun Settings(
     schoolTerm: String? = null,
     onCheckUpdate: (onResult: (String) -> Unit) -> Unit = {},
     onClearAllData: () -> Unit = {},
-    loadUpdateLog: suspend () -> String = { "暂无更新说明" },
+    loadUpdateLog: suspend () -> String = { "" },
 ) {
     val context = LocalContext.current as ComponentActivity
     var isClearCacheDialogShown by rememberSaveable { mutableStateOf(false) }
     var isUpdateLogDialogShown by rememberSaveable { mutableStateOf(false) }
     val tip by remember { aboutViewModel.tipState }
     var updateLog by remember { mutableStateOf("") }
+    val fetchFailed = stringResource(id = R.string.fetch_failed)
+    val noUpdateLog = stringResource(id = R.string.no_update_log)
 
     val appIconBitmap = remember(context) {
         val drawable = context.packageManager.getApplicationIcon(context.packageName)
@@ -98,7 +100,8 @@ fun Settings(
         }
 
         updateLog = runCatching { loadUpdateLog() }
-            .getOrElse { "获取失败" }
+            .getOrElse { fetchFailed }
+            .ifBlank { noUpdateLog }
     }
 
     AhuScreen(clearBottomNav = true) {
@@ -165,7 +168,7 @@ fun Settings(
             }
         }
 
-        AhuSectionTitle(text = "账户信息")
+        AhuSectionTitle(text = stringResource(id = R.string.section_account))
         userName?.let { name ->
             AhuInsetCard(
                 contentPadding = PaddingValues(bottom = 8.dp),
@@ -185,7 +188,12 @@ fun Settings(
                         val data = term.split('-')  //2025-2026-1
                         if (data.size == 3) {
                             Text(
-                                text = "第${data[0]}-${data[1]}学年 第${data[2]}学期",
+                                text = stringResource(
+                                    id = R.string.school_term_format,
+                                    data[0],
+                                    data[1],
+                                    data[2]
+                                ),
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
@@ -216,7 +224,7 @@ fun Settings(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "重新登录",
+                            text = stringResource(id = R.string.re_login),
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
@@ -232,7 +240,7 @@ fun Settings(
             )
         }
 
-        AhuSectionTitle(text = "关于")
+        AhuSectionTitle(text = stringResource(id = R.string.section_about))
         AhuListGroup {
             AhuListItem(
                 label = stringResource(id = R.string.license),
@@ -259,7 +267,11 @@ fun Settings(
                         )
                     } catch (e: Exception) {
                         Toast
-                            .makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT)
+                            .makeText(
+                                context,
+                                context.getString(R.string.install_qq_or_tim),
+                                Toast.LENGTH_SHORT
+                            )
                             .show()
                     }
                 },
@@ -284,16 +296,20 @@ fun Settings(
     if (isClearCacheDialogShown) {
         AhuDialog(onDismissRequest = { isClearCacheDialogShown = false }) {
             Text(
-                text = "您的登录状态、课表等信息将会被永久清除",
+                text = stringResource(id = R.string.clear_data_message),
                 modifier = Modifier.padding(horizontal = 24.dp),
                 style = MaterialTheme.typography.titleLarge
             )
             AhuPrimaryButton(
-                text = "清除",
+                text = stringResource(id = R.string.clear),
                 onClick = {
                     onClearAllData()
                     Toast
-                        .makeText(context, "已清除所有数据", Toast.LENGTH_SHORT)
+                        .makeText(
+                            context,
+                            context.getString(R.string.cleared_all_data),
+                            Toast.LENGTH_SHORT
+                        )
                         .show()
                     navController.navigate("login") {
                         popUpTo(0)

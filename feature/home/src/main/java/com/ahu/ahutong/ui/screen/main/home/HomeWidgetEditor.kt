@@ -65,6 +65,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +74,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
+import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.ui.theme.AhuDimens
@@ -295,7 +297,7 @@ private fun HomeWidgetSlot(
     }
 
     TextHomeWidgetCard(
-        title = spec.title,
+        title = stringResource(spec.titleResId),
         isEditing = isEditing,
         isHighlighted = isHighlighted,
         modifier = slotModifier
@@ -352,7 +354,7 @@ private fun EmptyHomeWidgetSlot(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "拖到这里",
+            text = stringResource(R.string.drop_here),
             color = 45.n1 withNight 70.n1,
             style = MaterialTheme.typography.labelLarge
         )
@@ -455,12 +457,12 @@ fun HomeWidgetLibrarySheet(
                 )
 
                 Text(
-                    text = "添加小工具",
+                    text = stringResource(R.string.add_tools),
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleLarge
                 )
                 Text(
-                    text = "此操作仅隐藏图标，您随时可以从小工具中重新添加。",
+                    text = stringResource(R.string.hide_icon_hint),
                     color = 45.n1 withNight 75.n1,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -473,7 +475,7 @@ fun HomeWidgetLibrarySheet(
             ) {
                 if (availableWidgets.isEmpty()) {
                     Text(
-                        text = "所有小工具都已添加到首页",
+                        text = stringResource(R.string.all_tools_added),
                         modifier = Modifier.padding(vertical = 16.dp),
                         color = 45.n1 withNight 75.n1,
                         style = MaterialTheme.typography.bodyMedium
@@ -565,7 +567,7 @@ private fun LibraryWidgetItem(
             tint = spec.tint
         )
         Text(
-            text = spec.title,
+            text = stringResource(spec.titleResId),
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             maxLines = 2,
@@ -603,7 +605,7 @@ fun HomeWidgetDragOverlay(
             .zIndex(2f)
     ) {
         TextHomeWidgetCard(
-            title = spec.title,
+            title = stringResource(spec.titleResId),
             isEditing = false,
             isHighlighted = false,
             modifier = Modifier.matchParentSize()

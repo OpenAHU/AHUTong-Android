@@ -53,7 +53,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.PayState
+import com.ahu.ahutong.feature.payment.R
 import com.ahu.ahutong.ui.components.AhuChip
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuInsetCard
@@ -97,7 +100,9 @@ fun BathroomDeposit(
             }
         }
     }
-    val options = listOf("竹园/龙河", "桔园/蕙园")
+    val bathroomZhuyuan = stringResource(R.string.bathroom_zhuyuan_longhe)
+    val bathroomJuyuan = stringResource(R.string.bathroom_juyuan_huiyuan)
+    val options = listOf(bathroomZhuyuan, bathroomJuyuan)
     var expanded by remember { mutableStateOf(false) }
     var bathroom by remember { mutableStateOf(options[0]) }
 
@@ -106,6 +111,7 @@ fun BathroomDeposit(
 
     var hasFocus by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     val info = viewmodel.info.collectAsState()
 
@@ -135,7 +141,7 @@ fun BathroomDeposit(
             focusManager.clearFocus()
         },
     ) {
-        AhuPageHeader(title = "浴室缴费")
+        AhuPageHeader(title = stringResource(R.string.bathroom_deposit))
 
         AhuInsetCard(
             cornerRadius = AhuDimens.CardCornerMedium,
@@ -150,7 +156,7 @@ fun BathroomDeposit(
                     .fillMaxWidth(),
             ) {
                 Text(
-                    text = "选择浴室",
+                    text = stringResource(R.string.select_bathroom),
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -201,7 +207,7 @@ fun BathroomDeposit(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "手机号", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.phone_number), style = MaterialTheme.typography.titleMedium)
                 TextField(
                     value = tel,
                     onValueChange = { value ->
@@ -239,7 +245,7 @@ fun BathroomDeposit(
                             horizontalArrangement = Arrangement.End
                         ) {
                             AhuChip(
-                                text = "上次充值：$it",
+                                text = stringResource(R.string.last_recharge, it),
                                 selected = true,
                                 onClick = {
                                     tel = it
@@ -259,18 +265,24 @@ fun BathroomDeposit(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "信息", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.info), style = MaterialTheme.typography.titleMedium)
 
+                val unknownError = stringResource(R.string.unknown_error)
                 val displayText = info.value?.let { it ->
                     when {
-                        it.data.map == null -> it.data.message ?: "未知错误"
+                        it.data.map == null -> it.data.message ?: unknownError
                         it.data.map!!.showData != null -> {
                             val showData = it.data.map!!.showData!!
-                            "${showData.phone}\n现金金额：${showData.cashAmount}元\n赠送金额：${showData.giftAmount}元"
+                            context.getString(
+                                R.string.bathroom_info_detail,
+                                showData.phone,
+                                showData.cashAmount,
+                                showData.giftAmount
+                            )
                         }
 
                         it.data.map!!.data?.message != null -> it.data.map!!.data!!.message!!
-                        else -> "未知错误"
+                        else -> unknownError
                     }
                 } ?: ""
 
@@ -284,7 +296,7 @@ fun BathroomDeposit(
             verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text = "缴费金额",
+                text = stringResource(R.string.payment_amount),
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
             )
@@ -305,7 +317,7 @@ fun BathroomDeposit(
                 colors = textFieldColors,
                 placeholder = {
                     Text(
-                        "请输入金额",
+                        stringResource(R.string.please_enter_amount),
                         color = AhuColors.onSurface.copy(alpha = 0.45f)
                     )
                 },
@@ -347,7 +359,7 @@ fun BathroomDeposit(
                     PayState.Idle -> {
                         CompositionLocalProvider(LocalIndication provides ripple(color = AhuColors.onPrimaryAction)) {
                             Text(
-                                text = "确认",
+                                text = stringResource(R.string.confirm),
                                 modifier = Modifier
                                     .clickable(
                                         role = Role.Button,
@@ -378,7 +390,7 @@ fun BathroomDeposit(
                                 strokeWidth = 6.dp
                             )
                             Text(
-                                text = "支付中",
+                                text = stringResource(R.string.paying),
                                 modifier = Modifier.padding(4.dp),
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
@@ -402,7 +414,7 @@ fun BathroomDeposit(
                                 tint = 100.n1
                             )
                             Text(
-                                text = "支付失败！ ${state.message}",
+                                text = stringResource(R.string.payment_failed_with_message, state.message),
                                 modifier = Modifier.padding(4.dp),
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
@@ -426,7 +438,7 @@ fun BathroomDeposit(
                                 tint = 100.n1
                             )
                             Text(
-                                text = "支付成功！ 订单号：${state.message}",
+                                text = stringResource(R.string.payment_success_order, state.message),
                                 modifier = Modifier
                                     .padding(4.dp)
                                     .clickable { },
@@ -443,7 +455,7 @@ fun BathroomDeposit(
         if (showDialog) {
             AhuDialog(onDismissRequest = { showDialog = false }) {
                 Text(
-                    text = "请输入校园卡密码",
+                    text = stringResource(R.string.enter_campus_card_password),
                     modifier = Modifier.padding(horizontal = 24.dp),
                     color = AhuColors.onSurface,
                     style = MaterialTheme.typography.titleLarge,
@@ -459,7 +471,7 @@ fun BathroomDeposit(
                         },
                         label = {
                             Text(
-                                "密码 (6位数字)",
+                                stringResource(R.string.password_6_digits),
                                 color = AhuColors.onSurface.copy(alpha = 0.55f)
                             )
                         },
@@ -483,7 +495,7 @@ fun BathroomDeposit(
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                 ) {
                     AhuPrimaryButton(
-                        text = "取消",
+                        text = stringResource(R.string.cancel),
                         onClick = {
                             showDialog = false
                             password = ""
@@ -493,7 +505,7 @@ fun BathroomDeposit(
                         contentColor = AhuColors.onSurface,
                     )
                     AhuPrimaryButton(
-                        text = "确认",
+                        text = stringResource(R.string.confirm),
                         onClick = {
                             if (password.length == 6) {
                                 showDialog = false
@@ -503,7 +515,7 @@ fun BathroomDeposit(
                                     password = password
                                 )
                             } else {
-                                errorMsg = "密码必须是6位数字"
+                                errorMsg = context.getString(R.string.password_must_be_6_digits)
                             }
                         },
                     )

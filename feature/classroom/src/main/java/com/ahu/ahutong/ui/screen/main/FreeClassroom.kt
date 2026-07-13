@@ -92,7 +92,7 @@ fun FreeClassroom(
             exit = shrinkVertically() + fadeOut()
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(AhuDimens.SectionSpacing)) {
-                FilterCard(title = "选择校区") {
+                FilterCard(title = stringResource(id = R.string.select_campus)) {
                     HorizontalChipRow {
                         items(campusOptions) { campus ->
                             AhuChip(
@@ -104,11 +104,11 @@ fun FreeClassroom(
                     }
                 }
 
-                FilterCard(title = "选择教学楼") {
+                FilterCard(title = stringResource(id = R.string.select_building)) {
                     when {
                         selectedCampusId == null -> {
                             Text(
-                                text = "请先选择校区",
+                                text = stringResource(id = R.string.select_campus_first),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AhuColors.onSurface.copy(alpha = 0.55f)
                             )
@@ -123,7 +123,7 @@ fun FreeClassroom(
 
                         buildings.isEmpty() -> {
                             Text(
-                                text = "当前校区暂无教学楼",
+                                text = stringResource(id = R.string.no_buildings_for_campus),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AhuColors.onSurface.copy(alpha = 0.55f)
                             )
@@ -146,24 +146,24 @@ fun FreeClassroom(
                 }
 
                 FilterCard(
-                    title = "选择节次",
+                    title = stringResource(id = R.string.select_periods),
                     trailingHeader = {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             AhuChip(
-                                text = "上午",
+                                text = stringResource(id = R.string.morning),
                                 selected = (1..5).all { it in selectedUnits },
                                 onClick = { freeClassroomViewModel.toggleUnitsRange(1, 5) },
                             )
                             AhuChip(
-                                text = "下午",
+                                text = stringResource(id = R.string.afternoon),
                                 selected = (6..10).all { it in selectedUnits },
                                 onClick = { freeClassroomViewModel.toggleUnitsRange(6, 10) },
                             )
                             AhuChip(
-                                text = "晚上",
+                                text = stringResource(id = R.string.evening),
                                 selected = (11..13).all { it in selectedUnits },
                                 onClick = { freeClassroomViewModel.toggleUnitsRange(11, 13) },
                             )
@@ -173,28 +173,28 @@ fun FreeClassroom(
                     HorizontalChipRow {
                         items((1..13).toList()) { unit ->
                             AhuChip(
-                                text = "${unit}节",
+                                text = stringResource(id = R.string.period_unit, unit),
                                 selected = unit in selectedUnits,
                                 onClick = { freeClassroomViewModel.toggleUnit(unit) },
                             )
                         }
                     }
                     Text(
-                        text = "未选择节次时，默认按 1-13 节查询",
+                        text = stringResource(id = R.string.default_periods_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = AhuColors.onSurface.copy(alpha = 0.55f)
                     )
                 }
 
                 FilterCard(
-                    title = "选择日期",
+                    title = stringResource(id = R.string.select_date),
                     trailingHeader = {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             AhuChip(
-                                text = "今天",
+                                text = stringResource(id = R.string.today),
                                 selected = startDate == LocalDate.now() && endDate == LocalDate.now(),
                                 onClick = {
                                     freeClassroomViewModel.setDateRange(
@@ -204,7 +204,7 @@ fun FreeClassroom(
                                 },
                             )
                             AhuChip(
-                                text = "明天",
+                                text = stringResource(id = R.string.tomorrow),
                                 selected = startDate == LocalDate.now().plusDays(1) &&
                                     endDate == LocalDate.now().plusDays(1),
                                 onClick = {
@@ -244,8 +244,9 @@ fun FreeClassroom(
                     HorizontalChipRow {
                         item {
                             AhuChip(
-                                text = "开始: " + startDate.format(
-                                    DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                                text = stringResource(
+                                    id = R.string.start_date,
+                                    startDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                                 ),
                                 selected = true,
                                 onClick = { showStartDatePicker = true },
@@ -253,8 +254,9 @@ fun FreeClassroom(
                         }
                         item {
                             AhuChip(
-                                text = "结束: " + endDate.format(
-                                    DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                                text = stringResource(
+                                    id = R.string.end_date,
+                                    endDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                                 ),
                                 selected = true,
                                 onClick = { showEndDatePicker = true },
@@ -271,7 +273,11 @@ fun FreeClassroom(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AhuPrimaryButton(
-                text = if (isSearching) "查询中..." else "开始查询空闲教室",
+                text = if (isSearching) {
+                    stringResource(id = R.string.searching)
+                } else {
+                    stringResource(id = R.string.start_search_free_classroom)
+                },
                 onClick = {
                     freeClassroomViewModel.searchFreeRooms()
                     isFilterCollapsed = true
@@ -293,7 +299,11 @@ fun FreeClassroom(
                     } else {
                         Icons.Default.KeyboardArrowUp
                     },
-                    contentDescription = if (isFilterCollapsed) "展开筛选条件" else "收起筛选条件",
+                    contentDescription = if (isFilterCollapsed) {
+                        stringResource(id = R.string.expand_filters)
+                    } else {
+                        stringResource(id = R.string.collapse_filters)
+                    },
                     onClick = { isFilterCollapsed = !isFilterCollapsed },
                 )
             }
@@ -309,11 +319,11 @@ fun FreeClassroom(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "查询结果",
+                    text = stringResource(id = R.string.search_results),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "共 ${rooms.size} 间",
+                    text = stringResource(id = R.string.room_count, rooms.size),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AhuColors.onSurface.copy(alpha = 0.55f)
                 )
@@ -325,7 +335,7 @@ fun FreeClassroom(
                 )
             } else if (rooms.isEmpty()) {
                 Text(
-                    text = "暂无数据，请先设置条件后查询",
+                    text = stringResource(id = R.string.no_data_set_filters),
                     style = MaterialTheme.typography.bodyMedium
                 )
             } else {
@@ -338,7 +348,12 @@ fun FreeClassroom(
                     ) {
                         Text(text = room.nameZh, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "${room.building.nameZh}  ${room.floor}层  ${room.remark ?: ""}",
+                            text = stringResource(
+                                id = R.string.room_detail,
+                                room.building.nameZh,
+                                room.floor,
+                                room.remark ?: ""
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = AhuColors.onSurface.copy(alpha = 0.55f)
                         )

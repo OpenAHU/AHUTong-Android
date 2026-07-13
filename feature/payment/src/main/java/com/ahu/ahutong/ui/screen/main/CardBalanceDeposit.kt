@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ahu.ahutong.feature.payment.R
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuInsetCard
 import com.ahu.ahutong.ui.components.AhuPageHeader
@@ -110,7 +112,7 @@ fun CardBalanceDeposit(
     }
 
     AhuScreen(clearBottomNav = false) {
-        AhuPageHeader(title = "校园卡充值")
+        AhuPageHeader(title = stringResource(R.string.campus_card_recharge))
 
         AhuInsetCard(
             cornerRadius = AhuDimens.CardCornerMedium,
@@ -124,7 +126,7 @@ fun CardBalanceDeposit(
                     .fillMaxWidth(),
             ) {
                 Text(
-                    text = "校园卡账户",
+                    text = stringResource(R.string.campus_card_account),
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -147,7 +149,7 @@ fun CardBalanceDeposit(
 
                     is CardAccountState.Error -> {
                         Text(
-                            text = "加载失败",
+                            text = stringResource(R.string.load_failed),
                             color = Color.Red
                         )
                     }
@@ -159,11 +161,13 @@ fun CardBalanceDeposit(
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = "账户余额", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.account_balance), style = MaterialTheme.typography.titleMedium)
                 Text(
                     text = cardInfo.value?.data?.card?.getOrNull(0)
-                        ?.accinfo?.getOrNull(0)?.balance?.let { String.format("￥%.2f", it / 100.0) }
-                        ?: "￥--",
+                        ?.accinfo?.getOrNull(0)?.balance?.let {
+                            stringResource(R.string.balance_yuan, it / 100.0)
+                        }
+                        ?: stringResource(R.string.balance_placeholder),
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -175,7 +179,7 @@ fun CardBalanceDeposit(
             verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text = "充值金额",
+                text = stringResource(R.string.recharge_amount),
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
             )
@@ -202,7 +206,7 @@ fun CardBalanceDeposit(
                 ),
                 placeholder = {
                     Text(
-                        "请输入金额",
+                        stringResource(R.string.please_enter_amount),
                         color = AhuColors.onSurface.copy(alpha = 0.45f)
                     )
                 },
@@ -244,7 +248,7 @@ fun CardBalanceDeposit(
                     PaymentState.Idle -> {
                         CompositionLocalProvider(LocalIndication provides ripple(color = AhuColors.onPrimaryAction)) {
                             Text(
-                                text = "确认",
+                                text = stringResource(R.string.confirm),
                                 modifier = Modifier
                                     .clickable(
                                         role = Role.Button,
@@ -275,7 +279,7 @@ fun CardBalanceDeposit(
                                 strokeWidth = 6.dp
                             )
                             Text(
-                                text = "支付中",
+                                text = stringResource(R.string.paying),
                                 modifier = Modifier.padding(4.dp),
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
@@ -299,7 +303,7 @@ fun CardBalanceDeposit(
                                 tint = 100.n1
                             )
                             Text(
-                                text = "支付失败！错误信息：${state.message}",
+                                text = stringResource(R.string.payment_failed_with_error, state.message),
                                 modifier = Modifier.padding(4.dp),
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
@@ -323,7 +327,7 @@ fun CardBalanceDeposit(
                                 tint = 100.n1
                             )
                             Text(
-                                text = "支付成功！订单号：${state.orderId}",
+                                text = stringResource(R.string.payment_success_order_compact, state.orderId),
                                 modifier = Modifier
                                     .padding(4.dp)
                                     .clickable {
@@ -340,9 +344,10 @@ fun CardBalanceDeposit(
         }
 
         if (showConfirmDialog) {
+            val notObtained = stringResource(R.string.not_obtained)
             AhuDialog(onDismissRequest = { showConfirmDialog = false }) {
                 Text(
-                    text = "确认支付",
+                    text = stringResource(R.string.confirm_payment),
                     modifier = Modifier.padding(horizontal = 24.dp),
                     color = AhuColors.onSurface,
                     style = MaterialTheme.typography.titleLarge,
@@ -352,19 +357,23 @@ fun CardBalanceDeposit(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "请选择支付方式。银行卡支付将从绑定的银行卡扣除￥$amount 元；支付宝支付会复制本地校园卡信息并跳转支付宝校园卡小程序。",
+                        stringResource(R.string.payment_method_description, amount),
                         color = AhuColors.onSurface.copy(alpha = 0.6f)
                     )
                     Text(
-                        text = "姓名：${campusCardUserName.ifBlank { "未获取到" }}\n学号：${campusCardStudentId.ifBlank { "未获取到" }}",
+                        text = stringResource(
+                            R.string.name_and_student_id,
+                            campusCardUserName.ifBlank { notObtained },
+                            campusCardStudentId.ifBlank { notObtained }
+                        ),
                         color = AhuColors.onSurface,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         text = if (campusCardUserName.isBlank() || campusCardStudentId.isBlank()) {
-                            "本地姓名或学号缺失，跳转后请在支付宝中手动填写。"
+                            stringResource(R.string.identity_missing_manual)
                         } else {
-                            "点击支付宝支付后将复制以上信息，跳转后可在支付宝中粘贴填写。"
+                            stringResource(R.string.identity_copy_hint)
                         },
                         color = AhuColors.onSurface.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodySmall
@@ -377,7 +386,7 @@ fun CardBalanceDeposit(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     AhuPrimaryButton(
-                        text = "支付宝支付",
+                        text = stringResource(R.string.alipay_payment),
                         onClick = {
                             val identityState = copyCampusCardIdentity(
                                 context = context,
@@ -385,9 +394,12 @@ fun CardBalanceDeposit(
                                 studentId = campusCardStudentId
                             )
                             val message = when (identityState) {
-                                CampusCardIdentityCopyState.Complete -> "已复制姓名和学号"
-                                CampusCardIdentityCopyState.Partial -> "本地信息不完整，已复制可用信息"
-                                CampusCardIdentityCopyState.Empty -> "本地未找到姓名和学号，请在支付宝中手动填写"
+                                CampusCardIdentityCopyState.Complete ->
+                                    context.getString(R.string.copied_name_and_student_id)
+                                CampusCardIdentityCopyState.Partial ->
+                                    context.getString(R.string.copied_partial_info)
+                                CampusCardIdentityCopyState.Empty ->
+                                    context.getString(R.string.no_local_identity_manual)
                             }
                             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                             openAlipayCampusCard(context)
@@ -396,7 +408,7 @@ fun CardBalanceDeposit(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     AhuPrimaryButton(
-                        text = "银行卡支付",
+                        text = stringResource(R.string.bank_card_payment),
                         onClick = {
                             if (accountState is CardAccountState.Ready) {
                                 viewModel.charge(amount)
@@ -404,7 +416,7 @@ fun CardBalanceDeposit(
                             } else {
                                 Toast.makeText(
                                     context,
-                                    "校园卡账户仍在加载，请稍后重试",
+                                    context.getString(R.string.campus_card_still_loading),
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -414,7 +426,7 @@ fun CardBalanceDeposit(
                         contentColor = AhuColors.onSurface,
                     )
                     AhuPrimaryButton(
-                        text = "取消",
+                        text = stringResource(R.string.cancel),
                         onClick = { showConfirmDialog = false },
                         modifier = Modifier.fillMaxWidth(),
                         containerColor = AhuColors.chipUnselected,
@@ -443,9 +455,14 @@ private fun copyCampusCardIdentity(
         return CampusCardIdentityCopyState.Empty
     }
 
-    val clipText = "姓名：$trimmedName\n学号：$trimmedStudentId"
+    val clipText = context.getString(R.string.name_and_student_id, trimmedName, trimmedStudentId)
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("校园卡身份信息", clipText))
+    clipboard.setPrimaryClip(
+        ClipData.newPlainText(
+            context.getString(R.string.clipboard_label_campus_card_identity),
+            clipText
+        )
+    )
 
     return if (trimmedName.isNotEmpty() && trimmedStudentId.isNotEmpty()) {
         CampusCardIdentityCopyState.Complete
@@ -472,6 +489,10 @@ private fun openAlipayCampusCard(context: Context) {
     }.isSuccess
 
     if (!openedFallback) {
-        Toast.makeText(context, "无法打开支付宝校园卡，请稍后重试", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            context,
+            context.getString(R.string.cannot_open_alipay_campus_card),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }

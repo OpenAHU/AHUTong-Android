@@ -8,9 +8,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.theme.AhuDimens
 
@@ -26,7 +28,7 @@ fun ElectricityCard(
         onClick = { navController.navigate("electricity_pay") },
     ) {
         Text(
-            "电费充值",
+            stringResource(R.string.electricity_recharge),
             modifier = Modifier
                 .padding(horizontal = AhuDimens.TitleHorizontal)
                 .align(Alignment.CenterHorizontally),

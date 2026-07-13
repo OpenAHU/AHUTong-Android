@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,7 +11,9 @@ import com.ahu.ahutong.data.auth.AuthRepository
 import com.ahu.ahutong.data.auth.AuthRuntimeReset
 import com.ahu.ahutong.data.auth.AuthSessionStore
 import com.ahu.ahutong.ext.launchSafe
+import com.ahu.ahutong.feature.login.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,6 +28,7 @@ class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val authSessionStore: AuthSessionStore,
     private val authRuntimeReset: AuthRuntimeReset,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
     var state by mutableStateOf(LoginState.Idle)
     var failureMessage by mutableStateOf("")
@@ -36,7 +40,7 @@ class LoginViewModel @Inject constructor(
     fun loginWithCrawler(userID: String, password: String) {
         if (userID.isBlank() || password.isBlank()) {
             state = LoginState.Failed
-            failureMessage = "请将信息填写完整"
+            failureMessage = appContext.getString(R.string.please_fill_complete)
             return
         }
 
@@ -54,7 +58,10 @@ class LoginViewModel @Inject constructor(
                     is AppResult.Success -> {
                         authSessionStore.persistLoginSuccess(response.data, password)
                         state = LoginState.Succeeded
-                        succeedMessage = "欢迎，${response.data.name}！"
+                        succeedMessage = appContext.getString(
+                            R.string.welcome_user,
+                            response.data.name,
+                        )
                     }
                     is AppResult.Error -> {
                         state = LoginState.Failed
@@ -63,7 +70,7 @@ class LoginViewModel @Inject constructor(
                 }
             } catch (e: Throwable) {
                 state = LoginState.Failed
-                failureMessage = e.message ?: "登录失败"
+                failureMessage = e.message ?: appContext.getString(R.string.login_failed)
             }
         }
     }

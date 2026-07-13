@@ -113,7 +113,7 @@ fun Exam(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 8.dp),
-                    placeholder = { Text("搜索课程名称…") },
+                    placeholder = { Text(stringResource(R.string.search_course_name)) },
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
@@ -141,7 +141,7 @@ fun Exam(
                 actions = {
                     AhuHeaderIconButton(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "搜索",
+                        contentDescription = stringResource(R.string.search),
                         onClick = { isSearchActive = true },
                     )
                     RefreshButton(examViewModel)
@@ -192,10 +192,10 @@ fun Exam(
                                 ) {
                                     Text(
                                         text = when (isFinished) {
-                                            0 -> "进行中"
-                                            1 -> "未开始"
-                                            2 -> "已结束"
-                                            else -> "时间解析错误"
+                                            0 -> stringResource(R.string.status_in_progress)
+                                            1 -> stringResource(R.string.status_not_started)
+                                            2 -> stringResource(R.string.status_finished)
+                                            else -> stringResource(R.string.status_time_parse_error)
                                         },
                                         color = Color.White,
                                         fontSize = 12.sp,
@@ -204,12 +204,16 @@ fun Exam(
                                 }
                             }
                             Text(
-                                text = "考试时间：${it.time}",
+                                text = stringResource(R.string.exam_time, it.time),
                                 color = 30.n1 withNight 90.n1,
                                 style = MaterialTheme.typography.bodyLarge
                             )
                             Text(
-                                text = "地点：${it.location}，座位号：${it.seatNum}",
+                                text = stringResource(
+                                    R.string.exam_location_seat,
+                                    it.location,
+                                    it.seatNum,
+                                ),
                                 color = 50.n1 withNight 80.n1,
                                 style = MaterialTheme.typography.bodyMedium
                             )
@@ -219,8 +223,9 @@ fun Exam(
             } else {
                 Text(
                     text = when {
-                        isSearchActive && searchQuery.isNotBlank() -> "未找到包含「${searchQuery}」的考试"
-                        else -> "目前没有任何考试"
+                        isSearchActive && searchQuery.isNotBlank() ->
+                            stringResource(R.string.no_exam_matching, searchQuery)
+                        else -> stringResource(R.string.no_exams)
                     },
                     modifier = Modifier.padding(AhuDimens.TitleHorizontal),
                     style = MaterialTheme.typography.titleLarge,
@@ -236,7 +241,7 @@ fun Exam(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 CircularProgressIndicator(color = AhuColors.primaryAction)
-                Text("加载中…")
+                Text(stringResource(R.string.loading))
             }
         }
     }
@@ -258,7 +263,7 @@ private fun RefreshButton(examViewModel: ExamViewModel) {
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    "刷新中…",
+                    stringResource(R.string.refreshing),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -277,7 +282,7 @@ private fun RefreshButton(examViewModel: ExamViewModel) {
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    "已更新",
+                    stringResource(R.string.updated),
                     fontSize = 12.sp,
                     color = Color(0xFF4CAF50)
                 )
@@ -286,7 +291,7 @@ private fun RefreshButton(examViewModel: ExamViewModel) {
         RefreshState.IDLE -> {
             AhuHeaderIconButton(
                 imageVector = Icons.Default.Refresh,
-                contentDescription = "刷新",
+                contentDescription = stringResource(R.string.refresh),
                 onClick = { examViewModel.loadExam(isRefresh = true) },
             )
         }

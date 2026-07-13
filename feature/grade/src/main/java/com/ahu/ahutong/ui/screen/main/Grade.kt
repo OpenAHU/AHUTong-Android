@@ -107,6 +107,8 @@ fun Grade(
         }
         .orEmpty()
 
+    val notAvailable = stringResource(R.string.not_available)
+
     AhuScreen {
         AhuPageHeader(
             title = stringResource(id = R.string.grade),
@@ -114,7 +116,7 @@ fun Grade(
                 AhuIconActionGroup {
                     AhuHeaderIconButton(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "刷新成绩",
+                        contentDescription = stringResource(R.string.refresh_grades),
                         onClick = { gradeViewModel.refreshGrade() },
                     )
                     AhuHeaderIconButton(
@@ -141,7 +143,7 @@ fun Grade(
                             cursorColor = 90.a1 withNight 90.a1,
                         ),
                         placeholder = {
-                            Text("搜索课程")
+                            Text(stringResource(R.string.search_course))
                         }
                     )
                 }
@@ -178,8 +180,11 @@ fun Grade(
                     }
                 )
                 .orEmpty()
-            val selectedTermText =
-                "${gradeViewModel.schoolYear} 第${gradeViewModel.schoolTerm}学期"
+            val selectedTermText = stringResource(
+                R.string.term_label,
+                gradeViewModel.schoolYear.orEmpty(),
+                gradeViewModel.schoolTerm.orEmpty(),
+            )
 
             ExposedDropdownMenuBox(
                 expanded = termMenuExpanded,
@@ -196,7 +201,7 @@ fun Grade(
                         .menuAnchor()
                         .fillMaxWidth(),
                     shape = ContinuousCapsule,
-                    label = { Text("选择学期") },
+                    label = { Text(stringResource(R.string.select_term)) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = 10.n1 withNight 90.n1,
                         unfocusedTextColor = 10.n1 withNight 90.n1,
@@ -226,7 +231,11 @@ fun Grade(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    text = "${term.schoolYear} 第${term.term}学期",
+                                    text = stringResource(
+                                        R.string.term_label,
+                                        term.schoolYear,
+                                        term.term,
+                                    ),
                                     color = AhuColors.onSurface
                                 )
                             },
@@ -258,11 +267,20 @@ fun Grade(
                 }
 
                 val infoList = listOf(
-                    "本学期平均绩点" to gradeViewModel.termGradePointAverage,
-                    "全程平均绩点" to gradeViewModel.totalGradePointAverage,
-                    "全程专业排名" to ((gpaRankInfo?.majorRank ?: "暂无").toString() + "/" + (gpaRankInfo?.majorHeadCount ?: "暂无")),
-                    "该学期专业排名" to ((currentRank?.majorRank ?: "暂无").toString() + "/" + (gpaRankInfo?.majorHeadCount ?: "暂无")),
-                    "最后更新时间" to (gpaRankInfo?.updatedDateTimeStr ?: "暂无")
+                    stringResource(R.string.term_gpa) to gradeViewModel.termGradePointAverage,
+                    stringResource(R.string.total_gpa) to gradeViewModel.totalGradePointAverage,
+                    stringResource(R.string.total_major_rank) to stringResource(
+                        R.string.rank_format,
+                        (gpaRankInfo?.majorRank ?: notAvailable).toString(),
+                        (gpaRankInfo?.majorHeadCount ?: notAvailable).toString(),
+                    ),
+                    stringResource(R.string.term_major_rank) to stringResource(
+                        R.string.rank_format,
+                        (currentRank?.majorRank ?: notAvailable).toString(),
+                        (gpaRankInfo?.majorHeadCount ?: notAvailable).toString(),
+                    ),
+                    stringResource(R.string.last_update_time) to
+                        (gpaRankInfo?.updatedDateTimeStr ?: notAvailable),
                 )
 
                 infoList.forEach { (title, value) ->
@@ -287,7 +305,11 @@ fun Grade(
             ) {
                 searchResultsByTerm.forEach { (term, items) ->
                     Text(
-                        text = "${term.schoolYear} 第${term.term}学期",
+                        text = stringResource(
+                            R.string.term_label,
+                            term.schoolYear,
+                            term.term,
+                        ),
                         style = MaterialTheme.typography.titleMedium
                     )
 
@@ -309,9 +331,13 @@ fun Grade(
             // Show empty message specific to selected profile
             val emptyMsg = if (gradeViewModel.studentProfiles.size > 1) {
                 val p = gradeViewModel.studentProfiles.getOrNull(gradeViewModel.selectedProfileIndex)
-                if (p != null) "「${p.displayName}」暂无成绩" else "该学期目前没有任何成绩"
+                if (p != null) {
+                    stringResource(R.string.no_grades_for_profile, p.displayName)
+                } else {
+                    stringResource(R.string.no_grades_for_term)
+                }
             } else {
-                "该学期目前没有任何成绩"
+                stringResource(R.string.no_grades_for_term)
             }
             Text(
                 text = emptyMsg,
@@ -338,7 +364,12 @@ private fun GradeCard(
         )
 
         Text(
-            text = "成绩: ${item.grade}    绩点: ${item.gradePoint}    学分: ${item.credit}",
+            text = stringResource(
+                R.string.grade_detail_line,
+                item.grade.orEmpty(),
+                item.gradePoint.orEmpty(),
+                item.credit.orEmpty(),
+            ),
             color = 30.n1 withNight 90.n1,
             style = MaterialTheme.typography.bodyLarge
         )

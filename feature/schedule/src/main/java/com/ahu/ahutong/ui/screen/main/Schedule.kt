@@ -43,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuErrorToastEffect
 import com.ahu.ahutong.ui.components.AhuHeaderIconButton
@@ -120,12 +123,17 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
         currentWeek = pagerState.currentPage + 1
     }
 
+    val context = LocalContext.current
     AhuErrorToastEffect(
-        message = scheduleResult?.exceptionOrNull()?.message?.let { "加载课表失败: $it" },
+        message = scheduleResult?.exceptionOrNull()?.message?.let {
+            context.getString(R.string.load_schedule_failed, it)
+        },
         onConsumed = {},
     )
     AhuErrorToastEffect(
-        message = nextScheduleResult?.exceptionOrNull()?.message?.let { "加载下学期课表失败: $it" },
+        message = nextScheduleResult?.exceptionOrNull()?.message?.let {
+            context.getString(R.string.load_next_schedule_failed, it)
+        },
         onConsumed = {},
     )
 
@@ -305,13 +313,13 @@ fun Schedule(scheduleViewModel: ScheduleViewModel = hiltViewModel()) {
                     ) {
                         Text(
                             text = arrayOf(
-                                "周一",
-                                "周二",
-                                "周三",
-                                "周四",
-                                "周五",
-                                "周六",
-                                "周日"
+                                stringResource(R.string.weekday_mon),
+                                stringResource(R.string.weekday_tue),
+                                stringResource(R.string.weekday_wed),
+                                stringResource(R.string.weekday_thu),
+                                stringResource(R.string.weekday_fri),
+                                stringResource(R.string.weekday_sat),
+                                stringResource(R.string.weekday_sun)
                             )[index],
                             color = if (isCurrentWeekday) AhuColors.onPrimaryAction else Color.Unspecified,
                             style = MaterialTheme.typography.labelLarge
@@ -415,7 +423,7 @@ private fun ScheduleSettingsDialog(
 ) {
     AhuDialog(onDismissRequest = onDismiss, scrollable = false) {
         Text(
-            text = "课表设置",
+            text = stringResource(R.string.schedule_settings),
             modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleLarge,
@@ -426,20 +434,20 @@ private fun ScheduleSettingsDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ScheduleSettingRow(
-                title = "总览课表",
-                description = "显示全部周次的课程，重叠课程会平分同一块时间区域",
+                title = stringResource(R.string.overview_schedule),
+                description = stringResource(R.string.overview_schedule_desc),
                 selected = isOverviewSchedule,
                 onSelect = onOverviewChange
             )
             ScheduleSettingRow(
-                title = "预览下学期课表",
-                description = "切换到教务系统中的下学期课表",
+                title = stringResource(R.string.preview_next_semester),
+                description = stringResource(R.string.preview_next_semester_desc),
                 selected = isPreviewNextSemester,
                 onSelect = onPreviewNextSemesterChange
             )
         }
         AhuPrimaryButton(
-            text = "完成",
+            text = stringResource(R.string.done),
             onClick = onDismiss,
             modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
         )
@@ -562,7 +570,9 @@ private fun OverviewCourseGroupCard(
                                 )
                             )
                             Text(
-                                text = item.location.shortLocation(),
+                                text = item.location.shortLocation(
+                                    stringResource(R.string.unknown_location)
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(SmoothRoundedCornerShape(6.dp))
@@ -593,7 +603,7 @@ private fun OverviewCourseGroupCard(
     }
 }
 
-private fun String?.shortLocation(): String {
+private fun String?.shortLocation(unknownLabel: String): String {
     val location = this
         ?.replace("博学北楼", "博北")
         ?.replace("博学南楼", "博南")
@@ -607,5 +617,5 @@ private fun String?.shortLocation(): String {
 
 
         find(it)?.groupValues?.get(1) }
-    return labRoom ?: location.takeIf { !it.isNullOrBlank() } ?: "未知"
+    return labRoom ?: location.takeIf { !it.isNullOrBlank() } ?: unknownLabel
 }

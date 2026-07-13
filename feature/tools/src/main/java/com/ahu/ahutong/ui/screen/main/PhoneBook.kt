@@ -123,7 +123,7 @@ fun PhoneBook() {
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 8.dp),
-                        placeholder = { Text("搜索电话或部门") },
+                        placeholder = { Text(stringResource(R.string.search_phone_or_dept)) },
                         singleLine = true,
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
@@ -158,7 +158,7 @@ fun PhoneBook() {
                     if (searchResults.isEmpty() && searchQuery.isNotEmpty()) {
                         item {
                             Text(
-                                text = "未找到相关结果",
+                                text = stringResource(R.string.no_search_results),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(16.dp),
@@ -300,16 +300,16 @@ private fun TelNumbers(tel: Tel) {
         }
 
         primaryTel != null && secondaryTel == null -> {
-            Tel(tel = primaryTel, campus = "磬苑")
+            Tel(tel = primaryTel, campus = stringResource(R.string.campus_short_qingyuan))
         }
 
         primaryTel == null && secondaryTel != null -> {
-            Tel(tel = secondaryTel, campus = "龙河")
+            Tel(tel = secondaryTel, campus = stringResource(R.string.campus_short_longhe))
         }
 
         primaryTel != null && secondaryTel != null && primaryTel != secondaryTel -> {
-            Tel(tel = primaryTel, campus = "磬苑")
-            Tel(tel = secondaryTel, campus = "龙河")
+            Tel(tel = primaryTel, campus = stringResource(R.string.campus_short_qingyuan))
+            Tel(tel = secondaryTel, campus = stringResource(R.string.campus_short_longhe))
         }
     }
 }
@@ -350,7 +350,7 @@ private fun DialDialog(
             scrollable = false,
         ) {
             Text(
-                text = "请选择校区",
+                text = stringResource(R.string.select_campus),
                 modifier = Modifier.padding(horizontal = 24.dp),
                 style = MaterialTheme.typography.headlineMedium,
                 color = AhuColors.onSurface,
@@ -367,7 +367,7 @@ private fun DialDialog(
                     .height(IntrinsicSize.Min)
             ) {
                 Text(
-                    text = "磬苑校区",
+                    text = stringResource(R.string.campus_qingyuan),
                     modifier = Modifier
                         .weight(1f)
                         .clickable {
@@ -386,7 +386,7 @@ private fun DialDialog(
                         .background(AhuColors.onSurface.copy(alpha = 0.2f))
                 )
                 Text(
-                    text = "龙河校区",
+                    text = stringResource(R.string.campus_longhe),
                     modifier = Modifier
                         .weight(1f)
                         .clickable {

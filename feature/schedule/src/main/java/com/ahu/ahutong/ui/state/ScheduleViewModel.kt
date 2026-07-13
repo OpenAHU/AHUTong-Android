@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -12,7 +13,9 @@ import com.ahu.ahutong.data.schedule.ScheduleRepository
 import com.ahu.ahutong.data.schedule.ScheduleWeekResolver
 import com.ahu.ahutong.data.schedule.canLoadSchedule
 import com.ahu.ahutong.ext.launchSafe
+import com.ahu.ahutong.feature.schedule.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -31,6 +34,7 @@ class ScheduleViewModel @Inject constructor(
     private val scheduleLocalStore: ScheduleLocalStore,
     private val scheduleWeekResolver: ScheduleWeekResolver,
     private val scheduleReminderCoordinator: ScheduleReminderCoordinator,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
     val TAG = "ScheduleViewModel"
     val schedule = MutableLiveData<Result<List<Course>>>()
@@ -60,7 +64,9 @@ class ScheduleViewModel @Inject constructor(
         viewModelScope.launchSafe {
             withContext(Dispatchers.Main) {
                 if (!scheduleLocalStore.canLoadSchedule()) {
-                    schedule.value = Result.failure(Throwable("请先登录！"))
+                    schedule.value = Result.failure(
+                        Throwable(appContext.getString(R.string.please_login_exclamation))
+                    )
                     return@withContext
                 }
 
@@ -77,7 +83,9 @@ class ScheduleViewModel @Inject constructor(
         viewModelScope.launchSafe {
             withContext(Dispatchers.Main) {
                 if (!scheduleLocalStore.canLoadSchedule()) {
-                    nextSchedule.value = Result.failure(Throwable("请先登录"))
+                    nextSchedule.value = Result.failure(
+                        Throwable(appContext.getString(R.string.please_login))
+                    )
                     return@withContext
                 }
 

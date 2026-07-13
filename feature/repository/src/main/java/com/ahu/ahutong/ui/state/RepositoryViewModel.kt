@@ -14,6 +14,7 @@ import com.ahu.ahutong.data.repository.DownloadedFile
 import com.ahu.ahutong.data.repository.GitHubContentItem
 import com.ahu.ahutong.data.repository.RepoConfig
 import com.ahu.ahutong.data.repository.RepositoryManager
+import com.ahu.ahutong.feature.repository.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -125,14 +126,21 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
                         pendingPath = null,
                         isShowingCachedContents = if (failedNavigation) currentState.isShowingCachedContents else true,
                         cacheUpdatedAt = cached?.updateTime?.takeIf { it > 0L } ?: currentState.cacheUpdatedAt,
-                        error = if (failedNavigation) "无法进入 ${path.substringAfterLast('/')}，仍停留在当前目录" else null
+                        error = if (failedNavigation) {
+                            context.getString(
+                                R.string.cannot_enter_path,
+                                path.substringAfterLast('/')
+                            )
+                        } else {
+                            null
+                        }
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isRefreshing = false,
                         pendingPath = null,
-                        error = "加载失败: ${e.message}"
+                        error = context.getString(R.string.load_failed, e.message ?: "")
                     )
                 }
             }
@@ -189,19 +197,23 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
                         downloadedPaths = downloads,
                         downloadProgress = _uiState.value.downloadProgress - path
                     )
-                    Toast.makeText(context, "下载完成: ${item.name}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.download_complete, item.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
                     _uiState.value = _uiState.value.copy(
                         downloadingPaths = _uiState.value.downloadingPaths - path,
                         downloadProgress = _uiState.value.downloadProgress - path,
-                        error = "下载失败: ${item.name}"
+                        error = context.getString(R.string.download_failed_name, item.name)
                     )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     downloadingPaths = _uiState.value.downloadingPaths - path,
                     downloadProgress = _uiState.value.downloadProgress - path,
-                    error = "下载失败: ${e.message}"
+                    error = context.getString(R.string.download_failed_message, e.message ?: "")
                 )
             }
         }
@@ -210,7 +222,11 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
     fun openFile(item: GitHubContentItem) {
         val file = RepositoryManager.getLocalFile(item.path, context)
         if (file != null) openWithSystemViewer(file)
-        else Toast.makeText(context, "文件不存在，请先下载", Toast.LENGTH_SHORT).show()
+        else Toast.makeText(
+            context,
+            context.getString(R.string.file_not_found_download_first),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     fun deleteFile(path: String) {
@@ -227,23 +243,42 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
         if (localFile.exists()) openWithSystemViewer(localFile)
         else {
             deleteFile(file.path)
-            Toast.makeText(context, "文件已被删除", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.file_deleted),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     private fun openWithSystemViewer(file: File) {
         try {
-            if (!file.exists()) { Toast.makeText(context, "文件不存在", Toast.LENGTH_SHORT).show(); return }
+            if (!file.exists()) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.file_not_exist),
+                    Toast.LENGTH_SHORT
+                ).show()
+                return
+            }
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             val mimeType = getMimeType(file.name)
             if (!startFileViewer(uri, file.name, mimeType) &&
                 (mimeType == "*/*" || !startFileViewer(uri, file.name, "*/*"))
             ) {
-                Toast.makeText(context, "没有找到可打开此文件的软件", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.no_app_to_open_file),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } catch (e: Exception) {
             android.util.Log.e("RepoViewer", "打开失败: ${e.message}", e)
-            Toast.makeText(context, "打开失败: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.open_failed, e.message ?: ""),
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -255,7 +290,10 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
             this.clipData = clipData
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val chooserIntent = Intent.createChooser(viewIntent, "选择打开方式").apply {
+        val chooserIntent = Intent.createChooser(
+            viewIntent,
+            context.getString(R.string.choose_open_with)
+        ).apply {
             this.clipData = clipData
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

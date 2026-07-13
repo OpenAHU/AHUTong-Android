@@ -98,7 +98,7 @@ fun BoxScope.LoginDynamicIsland(
                         strokeWidth = 6.dp
                     )
                     Text(
-                        text = "登录中",
+                        text = stringResource(id = R.string.logging_in),
                         modifier = Modifier.padding(4.dp),
                         color = 100.n1,
                         fontWeight = FontWeight.Bold,

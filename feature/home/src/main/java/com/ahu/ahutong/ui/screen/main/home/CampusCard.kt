@@ -218,7 +218,7 @@ private fun CardView(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "充\n值",
+                text = stringResource(id = R.string.recharge_vertical),
                 style = MaterialTheme.typography.titleMedium
             )
         }
@@ -299,7 +299,7 @@ private fun QRcodeView(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回"
+                    contentDescription = stringResource(id = R.string.back)
                 )
             }
 
@@ -313,7 +313,7 @@ private fun QRcodeView(
             ) {
                 Icon(
                     imageVector = Icons.Default.Fullscreen,
-                    contentDescription = "放大"
+                    contentDescription = stringResource(id = R.string.enlarge)
                 )
             }
         }
@@ -340,7 +340,7 @@ private fun QRcodeView(
                             )
                     )
                 } ?: Text(
-                    text = "加载失败"
+                    text = stringResource(id = R.string.load_failed)
                 )
             } else {
                 CircularProgressIndicator(color = AhuColors.primaryAction)

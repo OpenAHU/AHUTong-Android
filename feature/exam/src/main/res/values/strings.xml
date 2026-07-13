@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="exam">考场查询</string>
+    <string name="search_course_name">搜索课程名称…</string>
+    <string name="search">搜索</string>
+    <string name="refresh">刷新</string>
+    <string name="status_in_progress">进行中</string>
+    <string name="status_not_started">未开始</string>
+    <string name="status_finished">已结束</string>
+    <string name="status_time_parse_error">时间解析错误</string>
+    <string name="exam_time">考试时间：%1$s</string>
+    <string name="exam_location_seat">地点：%1$s，座位号：%2$s</string>
+    <string name="no_exam_matching">未找到包含「%1$s」的考试</string>
+    <string name="no_exams">目前没有任何考试</string>
+    <string name="loading">加载中…</string>
+    <string name="refreshing">刷新中…</string>
+    <string name="updated">已更新</string>
+    <string name="account_not_logged_in">账户未登录</string>
 </resources>

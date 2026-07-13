@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.crawler.PayState
+import com.ahu.ahutong.feature.payment.R
 import com.ahu.ahutong.ui.components.AhuChip
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuInsetCard
@@ -122,9 +124,9 @@ fun ElectricityDeposit(
     }
     fun validateBefore(level: Int): Boolean {
         val msg = when {
-            level >= 1 && selectedCampus == null -> "请先选择校区"
-            level >= 2 && selectedBuilding == null -> "请先选择楼栋"
-            level >= 3 && selectedFloor == null -> "请先选择楼层"
+            level >= 1 && selectedCampus == null -> context.getString(R.string.please_select_campus_first)
+            level >= 2 && selectedBuilding == null -> context.getString(R.string.please_select_building_first)
+            level >= 3 && selectedFloor == null -> context.getString(R.string.please_select_floor_first)
             else -> null
         }
         return if (msg != null) {
@@ -146,7 +148,7 @@ fun ElectricityDeposit(
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     AhuScreen(clearBottomNav = false) {
-        AhuPageHeader(title = "电控缴费")
+        AhuPageHeader(title = stringResource(R.string.electricity_deposit))
 
         AhuInsetCard(
             cornerRadius = AhuDimens.CardCornerMedium,
@@ -161,7 +163,7 @@ fun ElectricityDeposit(
                     .clickable { campusDropdownExpanded = true },
             ) {
                 Text(
-                    text = "选择校区",
+                    text = stringResource(R.string.select_campus),
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -171,11 +173,11 @@ fun ElectricityDeposit(
                         .clickable { campusDropdownExpanded = true }
                 ) {
                     Text(
-                        text = selectedCampus?.name ?: "请选择校区"
+                        text = selectedCampus?.name ?: stringResource(R.string.please_select_campus)
                     )
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "展开校区列表"
+                        contentDescription = stringResource(R.string.expand_campus_list)
                     )
 
                     DropdownMenu(
@@ -205,7 +207,7 @@ fun ElectricityDeposit(
                     .clickable { openBuildingMenu() },
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = "选择楼栋", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.select_building), style = MaterialTheme.typography.titleMedium)
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -213,11 +215,11 @@ fun ElectricityDeposit(
                         .clickable { openBuildingMenu() }
                 ) {
                     Text(
-                        text = selectedBuilding?.name ?: "请选择楼栋"
+                        text = selectedBuilding?.name ?: stringResource(R.string.please_select_building)
                     )
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "展开楼栋列表"
+                        contentDescription = stringResource(R.string.expand_building_list)
                     )
 
                     DropdownMenu(
@@ -247,7 +249,7 @@ fun ElectricityDeposit(
                     .clickable { openFloorMenu() },
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = "选择楼层", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.select_floor), style = MaterialTheme.typography.titleMedium)
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -255,11 +257,11 @@ fun ElectricityDeposit(
                         .clickable { openFloorMenu() },
                 ) {
                     Text(
-                        text = selectedFloor?.name ?: "请选择楼层"
+                        text = selectedFloor?.name ?: stringResource(R.string.please_select_floor)
                     )
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "展开楼层列表"
+                        contentDescription = stringResource(R.string.expand_floor_list)
                     )
 
                     DropdownMenu(
@@ -289,7 +291,7 @@ fun ElectricityDeposit(
                     .clickable { openRoomMenu() },
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = "选择房间", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.select_room), style = MaterialTheme.typography.titleMedium)
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -297,11 +299,11 @@ fun ElectricityDeposit(
                         .clickable { openRoomMenu() },
                 ) {
                     Text(
-                        text = selectedRoom?.name ?: "请选择房间"
+                        text = selectedRoom?.name ?: stringResource(R.string.please_select_room)
                     )
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "展开房间列表"
+                        contentDescription = stringResource(R.string.expand_room_list)
                     )
 
                     DropdownMenu(
@@ -356,20 +358,20 @@ fun ElectricityDeposit(
                             infoClickCount++
                             currentToast?.cancel()
                             val message = when {
-                                infoClickCount == 1 -> "点击五次查看累计充值记录，长按清空记录"
-                                infoClickCount == 2 -> "再点击三次即可查看累计充值记录"
-                                infoClickCount == 3 -> "再点击两次即可查看累计充值记录"
-                                infoClickCount == 4 -> "再点击一次即可查看累计充值记录"
+                                infoClickCount == 1 -> context.getString(R.string.charge_info_hint_1)
+                                infoClickCount == 2 -> context.getString(R.string.charge_info_hint_2)
+                                infoClickCount == 3 -> context.getString(R.string.charge_info_hint_3)
+                                infoClickCount == 4 -> context.getString(R.string.charge_info_hint_4)
                                 infoClickCount >= 5 -> {
                                     val chargeInfo = viewModel.getElectricityChargeInfo()
                                     if (chargeInfo != null) {
-                                        "从${chargeInfo.firstChargeDate}起累计电费充值金额为：${
-                                            "%.2f".format(
-                                                chargeInfo.totalAmount
-                                            )
-                                        }元"
+                                        context.getString(
+                                            R.string.charge_info_total,
+                                            chargeInfo.firstChargeDate,
+                                            "%.2f".format(chargeInfo.totalAmount)
+                                        )
                                     } else {
-                                        "暂无充值记录"
+                                        context.getString(R.string.no_charge_record)
                                     }
                                 }
 
@@ -389,7 +391,7 @@ fun ElectricityDeposit(
                     ),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(text = "信息", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.info), style = MaterialTheme.typography.titleMedium)
                 Text(text = roomInfo?.replace("，", "\n") ?: "")
             }
         }
@@ -400,7 +402,7 @@ fun ElectricityDeposit(
             verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text = "缴费金额",
+                text = stringResource(R.string.payment_amount),
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
             )
@@ -426,7 +428,7 @@ fun ElectricityDeposit(
                 ),
                 placeholder = {
                     Text(
-                        "请输入金额",
+                        stringResource(R.string.please_enter_amount),
                         color = AhuColors.onSurface.copy(alpha = 0.45f)
                     )
                 },
@@ -467,18 +469,18 @@ fun ElectricityDeposit(
                 when (payState.value) {
                     is PayState.Idle -> {
                         Text(
-                            text = "确认",
+                            text = stringResource(R.string.confirm),
                             modifier = Modifier
                                 .clickable(
                                     role = Role.Button,
                                     onClick = {
                                         when {
-                                            selectedCampus == null -> showToast("请先选择校区")
-                                            selectedBuilding == null -> showToast("请先选择楼栋")
-                                            selectedFloor == null -> showToast("请先选择楼层")
-                                            selectedRoom == null -> showToast("请先选择房间")
-                                            amount.isBlank() -> showToast("请输入缴费金额")
-                                            (amount.toDoubleOrNull() ?: 0.0) <= 0.0 -> showToast("请输入有效金额")
+                                            selectedCampus == null -> showToast(context.getString(R.string.please_select_campus_first))
+                                            selectedBuilding == null -> showToast(context.getString(R.string.please_select_building_first))
+                                            selectedFloor == null -> showToast(context.getString(R.string.please_select_floor_first))
+                                            selectedRoom == null -> showToast(context.getString(R.string.please_select_room_first))
+                                            amount.isBlank() -> showToast(context.getString(R.string.please_enter_payment_amount))
+                                            (amount.toDoubleOrNull() ?: 0.0) <= 0.0 -> showToast(context.getString(R.string.please_enter_valid_amount))
                                             else -> showDialog = true
                                         }
                                     }
@@ -503,7 +505,7 @@ fun ElectricityDeposit(
                                 strokeWidth = 6.dp
                             )
                             Text(
-                                text = "支付中...",
+                                text = stringResource(R.string.paying_ellipsis),
                                 modifier = Modifier.padding(4.dp),
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
@@ -527,7 +529,10 @@ fun ElectricityDeposit(
                                 tint = 100.n1
                             )
                             Text(
-                                text = "支付成功！ 订单号：${(payState.value as PayState.Succeeded).message}",
+                                text = stringResource(
+                                    R.string.payment_success_order,
+                                    (payState.value as PayState.Succeeded).message
+                                ),
                                 modifier = Modifier
                                     .padding(4.dp)
                                     .clickable { },
@@ -553,7 +558,7 @@ fun ElectricityDeposit(
                                 tint = 100.n1
                             )
                             Text(
-                                text = "支付失败！",
+                                text = stringResource(R.string.payment_failed),
                                 modifier = Modifier.padding(4.dp),
                                 color = 100.n1,
                                 fontWeight = FontWeight.Bold,
@@ -568,7 +573,7 @@ fun ElectricityDeposit(
         if (showDialog) {
             AhuDialog(onDismissRequest = { showDialog = false }) {
                 Text(
-                    text = "请输入校园卡密码",
+                    text = stringResource(R.string.enter_campus_card_password),
                     modifier = Modifier.padding(horizontal = 24.dp),
                     color = AhuColors.onSurface,
                     style = MaterialTheme.typography.titleLarge,
@@ -584,7 +589,7 @@ fun ElectricityDeposit(
                         },
                         label = {
                             Text(
-                                "密码 (6位数字)",
+                                stringResource(R.string.password_6_digits),
                                 color = AhuColors.onSurface.copy(alpha = 0.55f)
                             )
                         },
@@ -612,7 +617,7 @@ fun ElectricityDeposit(
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                 ) {
                     AhuPrimaryButton(
-                        text = "取消",
+                        text = stringResource(R.string.cancel),
                         onClick = {
                             showDialog = false
                             password = ""
@@ -622,13 +627,13 @@ fun ElectricityDeposit(
                         contentColor = AhuColors.onSurface,
                     )
                     AhuPrimaryButton(
-                        text = "确认",
+                        text = stringResource(R.string.confirm),
                         onClick = {
                             if (password.length == 6) {
                                 showDialog = false
                                 viewModel.pay(amount, password)
                             } else {
-                                errorMsg = "密码必须是6位数字"
+                                errorMsg = context.getString(R.string.password_must_be_6_digits)
                             }
                         },
                     )
@@ -639,13 +644,13 @@ fun ElectricityDeposit(
         if (showResetDialog) {
             AhuDialog(onDismissRequest = { showResetDialog = false }) {
                 Text(
-                    text = "确认操作",
+                    text = stringResource(R.string.confirm_operation),
                     modifier = Modifier.padding(horizontal = 24.dp),
                     color = AhuColors.onSurface,
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Text(
-                    text = "您确定要将累计充值金额清零吗？此操作不可撤销。",
+                    text = stringResource(R.string.confirm_clear_charge_record),
                     modifier = Modifier.padding(horizontal = 24.dp),
                     color = AhuColors.onSurface.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodyMedium,
@@ -657,16 +662,20 @@ fun ElectricityDeposit(
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                 ) {
                     AhuPrimaryButton(
-                        text = "取消",
+                        text = stringResource(R.string.cancel),
                         onClick = { showResetDialog = false },
                         containerColor = AhuColors.cardStrong,
                         contentColor = AhuColors.onSurface,
                     )
                     AhuPrimaryButton(
-                        text = "确认",
+                        text = stringResource(R.string.confirm),
                         onClick = {
                             viewModel.clearElectricityChargeInfo()
-                            Toast.makeText(context, "累计记录已清零", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.charge_record_cleared),
+                                Toast.LENGTH_SHORT
+                            ).show()
                             showResetDialog = false
                         },
                     )

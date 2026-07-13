@@ -5,4 +5,16 @@
     <string name="log_in">登录</string>
     <string name="hint_userid">请输入您的学号</string>
     <string name="hint_wisdom_password">请输入您的智慧安大密码</string>
+    <string name="logging_in">登录中</string>
+    <string name="please_fill_complete">请将信息填写完整</string>
+    <string name="welcome_user">欢迎，%1$s！</string>
+    <string name="login_failed">登录失败</string>
+    <string name="agree">同意</string>
+    <string name="disagree">拒绝</string>
+    <string name="agreement_title">温馨提示与免责声明</string>
+    <string name="agreement_body">1. 本项目完全开源，任何人均可基于本项目进行二次开发或分发。\n2. 由于开源特性，非官方渠道下载或安装的应用可能存在安全风险，请务必确保应用来源可信。\n3. 本项目不会收集、存储或泄露用户的任何个人信息，也不会侵犯用户的合法权利。\n4. 用户在使用本项目或其二次开发版本时，应自行判断安全性并承担相应风险。因非官方或非正版应用造成的财产损失，开发者不承担任何责任。\n5. 使用本应用即表示您已阅读并理解本免责声明，并同意自行承担使用风险。</string>
+    <string name="privacy_title">隐私政策</string>
+    <string name="privacy_body">1. 安大通不会将您的用户数据上传到云服务器。\n2. 安大通会记录运行时的软件内（仅限安大通）页面信息，用于分析用户群体的使用习惯，并及时做功能调整。\n3. 安大通记录的页面信息中，不包括您的个人数据。\n4. 一切您的个人数据，不会被分享至第三方（学校属于两方平台）。\n\n截止2025/11/09，安大通并未实现上传数据等相关功能。目前该功能处于试验阶段，记录到的数据仅存储在本地，依赖安卓的存储隔离保障安全性。</string>
+    <string name="business_title">商业合作</string>
+    <string name="business_body">目前安大通的商业价值处于探索阶段，为了持久化发展、优化广大同学的体验，急需几名大一/大二的同学做发展规划。\n如果您有兴趣，欢迎联系我们！QQ群1006203134\n另外，如果您对安大通有任何想法或建议，也欢迎加群反馈！</string>
 </resources>

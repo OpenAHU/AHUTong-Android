@@ -8,7 +8,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.VisualTransformation
+import com.ahu.ahutong.core.designsystem.R
 import com.ahu.ahutong.ui.theme.AhuColors
 import com.kyant.capsule.ContinuousCapsule
 
@@ -20,9 +22,10 @@ fun AhuSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "搜索",
+    placeholder: String? = null,
     singleLine: Boolean = true,
 ) {
+    val placeholderText = placeholder ?: stringResource(id = R.string.search)
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -37,7 +40,7 @@ fun AhuSearchField(
             unfocusedBorderColor = AhuColors.onSurface.copy(alpha = 0.2f),
         ),
         placeholder = {
-            Text(placeholder, color = AhuColors.onSurface.copy(alpha = 0.45f))
+            Text(placeholderText, color = AhuColors.onSurface.copy(alpha = 0.45f))
         },
     )
 }

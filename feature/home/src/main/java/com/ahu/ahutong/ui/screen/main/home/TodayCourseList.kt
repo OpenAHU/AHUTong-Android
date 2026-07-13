@@ -22,12 +22,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.theme.AhuDimens
@@ -54,12 +56,12 @@ fun TodayCourseList(
             },
         ) {
             Text(
-                text = "今天暂无课程",
+                text = stringResource(R.string.no_courses_today),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "点击查看完整课表",
+                text = stringResource(R.string.click_view_full_schedule),
                 color = 50.n1 withNight 80.n1,
                 style = MaterialTheme.typography.bodyMedium
             )

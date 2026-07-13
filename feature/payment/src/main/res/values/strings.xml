@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common -->
+    <string name="confirm">确认</string>
+    <string name="cancel">取消</string>
+    <string name="info">信息</string>
+    <string name="payment_amount">缴费金额</string>
+    <string name="please_enter_amount">请输入金额</string>
+    <string name="paying">支付中</string>
+    <string name="paying_ellipsis">支付中...</string>
+    <string name="payment_failed">支付失败！</string>
+    <string name="payment_failed_with_message">支付失败！ %1$s</string>
+    <string name="payment_failed_with_error">支付失败！错误信息：%1$s</string>
+    <string name="payment_success_order">支付成功！ 订单号：%1$s</string>
+    <string name="payment_success_order_compact">支付成功！订单号：%1$s</string>
+    <string name="enter_campus_card_password">请输入校园卡密码</string>
+    <string name="password_6_digits">密码 (6位数字)</string>
+    <string name="password_must_be_6_digits">密码必须是6位数字</string>
+    <string name="unknown_error">未知错误</string>
+    <string name="please_enter_valid_amount">请输入有效金额</string>
+
+    <!-- ElectricityDeposit -->
+    <string name="electricity_deposit">电控缴费</string>
+    <string name="select_campus">选择校区</string>
+    <string name="please_select_campus">请选择校区</string>
+    <string name="expand_campus_list">展开校区列表</string>
+    <string name="select_building">选择楼栋</string>
+    <string name="please_select_building">请选择楼栋</string>
+    <string name="expand_building_list">展开楼栋列表</string>
+    <string name="select_floor">选择楼层</string>
+    <string name="please_select_floor">请选择楼层</string>
+    <string name="expand_floor_list">展开楼层列表</string>
+    <string name="select_room">选择房间</string>
+    <string name="please_select_room">请选择房间</string>
+    <string name="expand_room_list">展开房间列表</string>
+    <string name="please_select_campus_first">请先选择校区</string>
+    <string name="please_select_building_first">请先选择楼栋</string>
+    <string name="please_select_floor_first">请先选择楼层</string>
+    <string name="please_select_room_first">请先选择房间</string>
+    <string name="please_enter_payment_amount">请输入缴费金额</string>
+    <string name="charge_info_hint_1">点击五次查看累计充值记录，长按清空记录</string>
+    <string name="charge_info_hint_2">再点击三次即可查看累计充值记录</string>
+    <string name="charge_info_hint_3">再点击两次即可查看累计充值记录</string>
+    <string name="charge_info_hint_4">再点击一次即可查看累计充值记录</string>
+    <string name="charge_info_total">从%1$s起累计电费充值金额为：%2$s元</string>
+    <string name="no_charge_record">暂无充值记录</string>
+    <string name="confirm_operation">确认操作</string>
+    <string name="confirm_clear_charge_record">您确定要将累计充值金额清零吗？此操作不可撤销。</string>
+    <string name="charge_record_cleared">累计记录已清零</string>
+
+    <!-- ElectricityDepositViewModel -->
+    <string name="load_campus_list_failed">加载校区列表失败</string>
+    <string name="load_building_list_failed">加载楼栋列表失败</string>
+    <string name="load_floor_list_failed">加载楼层列表失败</string>
+    <string name="load_room_list_failed">加载房间列表失败</string>
+    <string name="load_room_info_failed">加载房间信息失败</string>
+    <string name="restore_selection_unknown_error">恢复选择时发生未知错误</string>
+    <string name="load_campus_failed">加载校区失败</string>
+    <string name="load_building_failed">加载楼栋失败</string>
+    <string name="load_floor_failed">加载楼层失败</string>
+    <string name="load_room_failed">加载房间失败</string>
+    <string name="network_error">网络错误: %1$s</string>
+    <string name="please_select_a_campus_first">请先选择一个校区</string>
+    <string name="please_select_a_building_first">请先选择一个楼栋</string>
+    <string name="please_select_a_floor_first">请先选择一个楼层</string>
+    <string name="please_select_a_room_first">请先选择一个房间</string>
+    <string name="please_enter_6_digit_password">请输入6位密码</string>
+    <string name="create_order_failed">创建订单失败</string>
+    <string name="get_payment_info_failed">获取支付信息失败</string>
+    <string name="payment_failed_unknown">支付失败，未知错误</string>
+    <string name="payment_failed_colon">支付失败: %1$s</string>
+    <string name="payment_request_exception">支付请求异常: %1$s</string>
+    <string name="server_response_empty">服务器返回内容为空</string>
+    <string name="parse_campus_list_failed">解析数据失败，未找到校区列表</string>
+    <string name="parse_building_list_failed">解析数据失败，未找到楼栋列表</string>
+    <string name="parse_floor_list_failed">解析数据失败，未找到楼层列表</string>
+    <string name="parse_room_list_failed">解析数据失败，未找到房间列表</string>
+    <string name="parse_room_info_failed">解析数据失败，未找到房间信息</string>
+    <string name="request_api_failed">请求接口失败: %1$s</string>
+    <string name="unknown_error_with_message">发生未知错误: %1$s</string>
+    <string name="room_details_empty_cannot_pay">房间详细信息为空，无法支付</string>
+    <string name="selected_campus_empty">selectedCampusValue内容为空</string>
+    <string name="selected_building_empty">selectedBuildingValue内容为空</string>
+    <string name="selected_floor_empty">selectedFloorValue内容为空</string>
+    <string name="selected_room_empty">selectedRoomValue内容为空</string>
+    <string name="selected_campus_state_empty">_selectedCampus内容为空</string>
+    <string name="room_custom_info">房间：%1$s %2$s %3$s %4$s</string>
+    <string name="room_prefix">房间：</string>
+    <string name="date_format_ymd">yyyy年MM月dd日</string>
+
+    <!-- BathroomDeposit -->
+    <string name="bathroom_deposit">浴室缴费</string>
+    <string name="select_bathroom">选择浴室</string>
+    <string name="bathroom_zhuyuan_longhe">竹园/龙河</string>
+    <string name="bathroom_juyuan_huiyuan">桔园/蕙园</string>
+    <string name="phone_number">手机号</string>
+    <string name="last_recharge">上次充值：%1$s</string>
+    <string name="bathroom_info_detail">%1$s\n现金金额：%2$s元\n赠送金额：%3$s元</string>
+
+    <!-- BathroomDepositViewModel -->
+    <string name="phone_custom_info">手机号：%1$s</string>
+    <string name="order_id_not_obtained">未获取到订单号</string>
+
+    <!-- CardBalanceDeposit -->
+    <string name="campus_card_recharge">校园卡充值</string>
+    <string name="campus_card_account">校园卡账户</string>
+    <string name="load_failed">加载失败</string>
+    <string name="account_balance">账户余额</string>
+    <string name="balance_yuan">￥%1$.2f</string>
+    <string name="balance_placeholder">￥--</string>
+    <string name="recharge_amount">充值金额</string>
+    <string name="confirm_payment">确认支付</string>
+    <string name="payment_method_description">请选择支付方式。银行卡支付将从绑定的银行卡扣除￥%1$s 元；支付宝支付会复制本地校园卡信息并跳转支付宝校园卡小程序。</string>
+    <string name="name_and_student_id">姓名：%1$s\n学号：%2$s</string>
+    <string name="not_obtained">未获取到</string>
+    <string name="identity_missing_manual">本地姓名或学号缺失，跳转后请在支付宝中手动填写。</string>
+    <string name="identity_copy_hint">点击支付宝支付后将复制以上信息，跳转后可在支付宝中粘贴填写。</string>
+    <string name="alipay_payment">支付宝支付</string>
+    <string name="bank_card_payment">银行卡支付</string>
+    <string name="copied_name_and_student_id">已复制姓名和学号</string>
+    <string name="copied_partial_info">本地信息不完整，已复制可用信息</string>
+    <string name="no_local_identity_manual">本地未找到姓名和学号，请在支付宝中手动填写</string>
+    <string name="campus_card_still_loading">校园卡账户仍在加载，请稍后重试</string>
+    <string name="clipboard_label_campus_card_identity">校园卡身份信息</string>
+    <string name="cannot_open_alipay_campus_card">无法打开支付宝校园卡，请稍后重试</string>
+
+    <!-- CardBalanceDepositViewModel -->
+    <string name="error_user_info_not_obtained">异常: 未获取到用户信息</string>
+    <string name="error_order_id_not_obtained">异常: 未获取到订单号</string>
+    <string name="payment_failed_simple">支付失败</string>
+    <string name="error_with_message">异常: %1$s</string>
+</resources>

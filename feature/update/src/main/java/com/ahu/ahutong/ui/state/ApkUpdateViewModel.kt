@@ -8,6 +8,7 @@ import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.data.server.ApkSegmentDownloadPolicy
 import com.ahu.ahutong.data.server.ApkUpdatePolicy
 import com.ahu.ahutong.data.server.model.ApkUpdateInfo
+import com.ahu.ahutong.feature.update.R
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -136,6 +137,7 @@ class ApkUpdateViewModel : ViewModel() {
     private var apkDownloadJob: Job? = null
     private var installAfterApkDownload = false
     private var showDialogWhenApkDownloadCompletes = false
+    private var appContext: Context? = null
 
     private val apkFileRegex = Regex("""^update-(\d+)\.apk(?:\.(?:part|meta))?$""")
 
@@ -158,6 +160,7 @@ class ApkUpdateViewModel : ViewModel() {
      * 全部在 IO 线程执行，不阻塞主线程
      */
     suspend fun checkApkUpdate(context: Context) = withContext(Dispatchers.IO) {
+        appContext = context.applicationContext
         val dir = context.getExternalFilesDir(null) ?: context.filesDir
 
         // 1. 清理版本号 <= 当前版本的残留 APK（安全校验文件名）
@@ -211,6 +214,7 @@ class ApkUpdateViewModel : ViewModel() {
      * 直接安装本地已缓存的 APK（用户点击"安装"按钮）
      */
     fun installLocalApk(context: Context) {
+        appContext = context.applicationContext
         val update = selectedValidatedUpdate() ?: return
         viewModelScope.launch(Dispatchers.IO) {
             val dir = context.getExternalFilesDir(null) ?: context.filesDir
@@ -219,7 +223,7 @@ class ApkUpdateViewModel : ViewModel() {
                 withContext(Dispatchers.Main) {
                     apkLocalReady.value = false
                     apkDownloadElapsedText.value = null
-                    apkErrorText.value = "本地文件已丢失，请重新下载"
+                    apkErrorText.value = context.getString(R.string.local_file_missing)
                 }
                 return@launch
             }
@@ -227,7 +231,7 @@ class ApkUpdateViewModel : ViewModel() {
                 withContext(Dispatchers.Main) {
                     apkLocalReady.value = false
                     apkDownloadElapsedText.value = null
-                    apkErrorText.value = "本地文件已损坏，请重新下载"
+                    apkErrorText.value = context.getString(R.string.local_file_corrupted)
                 }
                 return@launch
             }
@@ -242,6 +246,7 @@ class ApkUpdateViewModel : ViewModel() {
         forceRedownload: Boolean = false,
         installAfterDownload: Boolean = false
     ) {
+        appContext = context.applicationContext
         val update = selectedValidatedUpdate() ?: return
         if (apkDownloading.value) return
         apkDownloading.value = true
@@ -253,7 +258,7 @@ class ApkUpdateViewModel : ViewModel() {
         showApkMirrorPrompt.value = false
         apkUsingMirrorSource.value = false
         installAfterApkDownload = installAfterDownload
-        val appContext = context.applicationContext
+        val appContext = this.appContext!!
 
         if (!forceRedownload) {
             // 检查本地是否已存在该版本 APK 并校验完整性（IO 安全）
@@ -389,7 +394,10 @@ class ApkUpdateViewModel : ViewModel() {
                     apkProgress.value = null
                     apkActiveRangeCount.value = null
                     apkDownloadSegments.value = emptyList()
-                    apkDownloadElapsedText.value = formatDownloadElapsed(System.currentTimeMillis() - downloadStartedAt)
+                    apkDownloadElapsedText.value = formatDownloadElapsed(
+                        context,
+                        System.currentTimeMillis() - downloadStartedAt
+                    )
                     showApkMirrorPrompt.value = false
                     apkUsingMirrorSource.value = false
                     apkLocalReady.value = true
@@ -415,7 +423,8 @@ class ApkUpdateViewModel : ViewModel() {
                     apkDownloadElapsedText.value = null
                     showApkMirrorPrompt.value = false
                     apkUsingMirrorSource.value = false
-                    apkErrorText.value = e.message ?: "下载失败"
+                    apkErrorText.value = e.message
+                        ?: context.getString(R.string.download_failed)
                     if (showDialogWhenApkDownloadCompletes) {
                         showDialogWhenApkDownloadCompletes = false
                         showApkUpdateDialog.value = true
@@ -432,11 +441,12 @@ class ApkUpdateViewModel : ViewModel() {
     }
 
     fun switchApkDownloadToMirror(context: Context) {
+        appContext = context.applicationContext
         val update = selectedValidatedUpdate() ?: return
         showApkMirrorPrompt.value = false
         if (!apkDownloading.value || apkUsingMirrorSource.value) return
 
-        val appContext = context.applicationContext
+        val appContext = this.appContext!!
         apkDownloadScope.launch {
             apkDownloadJob?.cancelAndJoin()
             withContext(Dispatchers.Main) {
@@ -2084,11 +2094,15 @@ class ApkUpdateViewModel : ViewModel() {
         return String.format(Locale.US, "%.1f%%", progress.coerceIn(0f, 1f) * 100f)
     }
 
-    private fun formatDownloadElapsed(elapsedMillis: Long): String {
+    private fun formatDownloadElapsed(context: Context, elapsedMillis: Long): String {
         val totalSeconds = ((elapsedMillis.coerceAtLeast(0L) + 999L) / 1000L).coerceAtLeast(1L)
         val minutes = totalSeconds / 60L
         val seconds = totalSeconds % 60L
-        return "${minutes}分${seconds}秒"
+        return context.getString(
+            R.string.download_elapsed_format,
+            minutes.toInt(),
+            seconds.toInt()
+        )
     }
 
     private fun percentText(value: Double): String {
@@ -2145,13 +2159,14 @@ class ApkUpdateViewModel : ViewModel() {
         context: Context,
         onResult: (String) -> Unit
     ) {
+        appContext = context.applicationContext
         if (apkUpdateChecking.value) {
-            onResult("正在检查更新")
+            onResult(context.getString(R.string.checking_update))
             return
         }
 
         apkUpdateChecking.value = true
-        val appContext = context.applicationContext
+        val appContext = this.appContext!!
 
         viewModelScope.launch(Dispatchers.IO) {
             val resultText = try {
@@ -2162,9 +2177,13 @@ class ApkUpdateViewModel : ViewModel() {
                 val update = ApkUpdatePolicy.validate(info, AppVersion.code()).getOrElse { error ->
                     return@launch finishManualUpdateCheck(
                         if (ApkUpdatePolicy.isNoUpdateFailure(error)) {
-                            "已是最新版本"
+                            appContext.getString(R.string.already_latest)
                         } else {
-                            "检查更新失败：${error.message ?: "更新信息无效"}"
+                            appContext.getString(
+                                R.string.check_update_failed,
+                                error.message
+                                    ?: appContext.getString(R.string.update_info_invalid)
+                            )
                         },
                         onResult
                     )
@@ -2184,10 +2203,16 @@ class ApkUpdateViewModel : ViewModel() {
                     showApkUpdateDialog.value = true
                 }
 
-                "发现新版本 ${update.info.versionName}"
+                appContext.getString(
+                    R.string.new_version_found,
+                    update.info.versionName.orEmpty()
+                )
             } catch (e: Exception) {
                 Log.w("ApkUpdate", "manual update check failed", e)
-                "检查更新失败：${e.message ?: "请稍后重试"}"
+                appContext.getString(
+                    R.string.check_update_failed,
+                    e.message ?: appContext.getString(R.string.please_retry_later)
+                )
             }
 
             finishManualUpdateCheck(resultText, onResult)
@@ -2207,7 +2232,9 @@ class ApkUpdateViewModel : ViewModel() {
     private fun selectedValidatedUpdate(): ApkUpdatePolicy.ValidatedUpdate? {
         val info = apkUpdateInfo.value ?: return null
         return ApkUpdatePolicy.validate(info, AppVersion.code()).getOrElse {
-            apkErrorText.value = it.message ?: "更新信息校验失败"
+            apkErrorText.value = it.message
+                ?: appContext?.getString(R.string.update_info_verify_failed)
+                ?: "更新信息校验失败"
             apkLocalReady.value = false
             Log.w("ApkUpdate", "invalid APK update metadata: ${it.message}")
             null

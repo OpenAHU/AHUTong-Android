@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +49,7 @@ import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.repository.GitHubContentItem
 import com.ahu.ahutong.data.repository.RepoConfig
 import com.ahu.ahutong.data.repository.RepositoryManager
+import com.ahu.ahutong.feature.repository.R
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.components.AhuHeaderIconButton
 import com.ahu.ahutong.ui.components.AhuLoading
@@ -82,7 +84,7 @@ fun Repository(
         ) {
             AhuHeaderIconButton(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
+                contentDescription = stringResource(id = R.string.back),
                 onClick = {
                     if (!viewModel.goBack()) {
                         if (state.selectedRepoId != null) viewModel.resetToRepoSelector()
@@ -97,7 +99,7 @@ fun Repository(
                         if (state.currentPath.isEmpty()) repo.name
                         else state.currentPath.substringAfterLast('/')
                     }
-                    else -> "学习资料"
+                    else -> stringResource(id = R.string.learning_materials)
                 },
                 style = MaterialTheme.typography.titleLarge,
                 color = AhuColors.onSurface,
@@ -114,12 +116,12 @@ fun Repository(
             } else if (state.selectedRepoId != null) {
                 AhuHeaderIconButton(
                     imageVector = Icons.Outlined.Refresh,
-                    contentDescription = "刷新",
+                    contentDescription = stringResource(id = R.string.refresh),
                     onClick = { viewModel.refreshCurrentDirectory() },
                 )
             }
             TextButton(onClick = { navController.navigate("repository_downloads") }) {
-                Text("已下载")
+                Text(stringResource(id = R.string.downloaded))
             }
         }
 
@@ -173,7 +175,7 @@ fun Repository(
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = { viewModel.clearError() }) {
-                    Text("关闭", color = Color(0xFFFF5252))
+                    Text(stringResource(id = R.string.close), color = Color(0xFFFF5252))
                 }
             }
         }
@@ -206,7 +208,7 @@ fun Repository(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                "此目录为空",
+                                stringResource(id = R.string.empty_directory),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = AhuColors.onSurface.copy(alpha = 0.6f),
                             )
@@ -262,13 +264,17 @@ private fun RepositorySyncStatus(
     isShowingCachedContents: Boolean,
     cacheUpdatedAt: Long?
 ) {
+    val context = LocalContext.current
     val text = when {
-        pendingPath != null -> "正在打开 ${pendingPath.substringAfterLast('/')}"
-        isRefreshing -> "正在同步 GitHub 最新目录"
+        pendingPath != null -> stringResource(
+            id = R.string.opening_path,
+            pendingPath.substringAfterLast('/')
+        )
+        isRefreshing -> stringResource(id = R.string.syncing_github)
         isShowingCachedContents -> {
-            val cacheTime = formatCacheAge(cacheUpdatedAt)
-            if (cacheTime.isEmpty()) "GitHub 连接失败，当前显示上次缓存"
-            else "GitHub 连接失败，当前显示 $cacheTime 的缓存"
+            val cacheTime = formatCacheAge(context, cacheUpdatedAt)
+            if (cacheTime.isEmpty()) stringResource(id = R.string.github_failed_last_cache)
+            else stringResource(id = R.string.github_failed_cache_at, cacheTime)
         }
         else -> return
     }
@@ -391,13 +397,13 @@ private fun RepositoryItemRow(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Outlined.TaskAlt,
-                                "已下载",
+                                stringResource(id = R.string.downloaded),
                                 tint = Color(0xFF4CAF50),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                "已下载",
+                                stringResource(id = R.string.downloaded),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF4CAF50)
                             )
@@ -406,14 +412,17 @@ private fun RepositoryItemRow(
                             onClick = onOpen,
                             contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Text("打开", style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                stringResource(id = R.string.open),
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                     }
                 } else {
                     IconButton(onClick = onDownload, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Outlined.CloudDownload,
-                            "下载",
+                            stringResource(id = R.string.download),
                             tint = Color(0xFF42A5F5),
                             modifier = Modifier.size(22.dp)
                         )
@@ -442,17 +451,17 @@ internal fun formatSize(bytes: Long): String = when {
     else -> "${bytes / (1024 * 1024 * 1024)}GB"
 }
 
-private fun formatCacheAge(cacheUpdatedAt: Long?): String {
+private fun formatCacheAge(context: android.content.Context, cacheUpdatedAt: Long?): String {
     if (cacheUpdatedAt == null || cacheUpdatedAt <= 0L) return ""
     val diffMillis = (System.currentTimeMillis() - cacheUpdatedAt).coerceAtLeast(0L)
     val minutes = diffMillis / (60 * 1000)
     val hours = minutes / 60
     val days = hours / 24
     return when {
-        minutes < 1 -> "刚刚"
-        minutes < 60 -> "${minutes}分钟前"
-        hours < 24 -> "${hours}小时前"
-        else -> "${days}天前"
+        minutes < 1 -> context.getString(R.string.just_now)
+        minutes < 60 -> context.getString(R.string.minutes_ago, minutes.toInt())
+        hours < 24 -> context.getString(R.string.hours_ago, hours.toInt())
+        else -> context.getString(R.string.days_ago, days.toInt())
     }
 }
 
@@ -467,9 +476,13 @@ private fun RepositoryFooter(repoUrl: String) {
             .padding(horizontal = 16.dp, vertical = 24.dp),
         horizontalArrangement = Arrangement.Center
     ) {
-        Text("发现新资料？向", style = MaterialTheme.typography.bodySmall, color = textColor)
         Text(
-            "GitHub 仓库",
+            stringResource(id = R.string.footer_discover_prefix),
+            style = MaterialTheme.typography.bodySmall,
+            color = textColor
+        )
+        Text(
+            stringResource(id = R.string.footer_github_repo),
             style = MaterialTheme.typography.bodySmall,
             color = linkColor,
             modifier = Modifier.clickable {
@@ -481,9 +494,13 @@ private fun RepositoryFooter(repoUrl: String) {
                 )
             }
         )
-        Text("提 PR 或向开发者", style = MaterialTheme.typography.bodySmall, color = textColor)
         Text(
-            "联系",
+            stringResource(id = R.string.footer_pr_or_contact),
+            style = MaterialTheme.typography.bodySmall,
+            color = textColor
+        )
+        Text(
+            stringResource(id = R.string.footer_contact),
             style = MaterialTheme.typography.bodySmall,
             color = linkColor,
             modifier = Modifier.clickable {
@@ -495,6 +512,10 @@ private fun RepositoryFooter(repoUrl: String) {
                 )
             }
         )
-        Text("资料", style = MaterialTheme.typography.bodySmall, color = textColor)
+        Text(
+            stringResource(id = R.string.footer_materials),
+            style = MaterialTheme.typography.bodySmall,
+            color = textColor
+        )
     }
 }

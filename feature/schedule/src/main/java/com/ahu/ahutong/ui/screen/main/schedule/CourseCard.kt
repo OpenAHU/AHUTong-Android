@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.LocalTonalPalettes
 import com.kyant.monet.PaletteStyle
@@ -84,9 +86,10 @@ fun CourseCard(
                         ?.replace("笃行北楼", "笃北")
                         ?.replace("互联大楼", "互楼")
                         ?.replace("体育场", "体")
-                        .takeIf { !it.isNullOrBlank() } ?: "未知"
+                        .takeIf { !it.isNullOrBlank() }
+                        ?: stringResource(R.string.unknown_location)
                 } else {
-                    "非本周"
+                    stringResource(R.string.not_this_week)
                 },
 
                 modifier = Modifier

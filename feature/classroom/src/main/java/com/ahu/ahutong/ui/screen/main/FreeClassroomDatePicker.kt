@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.ahu.ahutong.feature.classroom.R
 import com.ahu.ahutong.ui.theme.AhuColors
 import java.time.Instant
 import java.time.LocalDate
@@ -67,7 +69,7 @@ fun MyDatePickerDialog(
                     contentColor = AhuColors.onSurface
                 )
             ) {
-                Text("确定")
+                Text(stringResource(id = R.string.confirm))
             }
         },
         dismissButton = {
@@ -77,7 +79,7 @@ fun MyDatePickerDialog(
                     contentColor = AhuColors.onSurface
                 )
             ) {
-                Text("取消")
+                Text(stringResource(id = R.string.cancel))
             }
         },
         colors = colors

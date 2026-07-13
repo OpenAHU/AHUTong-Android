@@ -49,11 +49,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.weather.WeatherResponse
+import com.ahu.ahutong.feature.weather.R
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.components.AhuHeaderIconButton
 import com.ahu.ahutong.ui.components.AhuIconActionGroup
@@ -115,7 +117,7 @@ fun Weather(
                     showSearch = false
                     searchCity = ""
                 }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "关闭搜索")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.close_search))
                 }
                 val doSearch = {
                     if (searchCity.isNotBlank()) {
@@ -128,7 +130,7 @@ fun Weather(
                     onValueChange = { searchCity = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("输入城市名，如 合肥") },
+                    placeholder = { Text(stringResource(R.string.search_city_placeholder)) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = AhuColors.onSurface,
                         unfocusedTextColor = AhuColors.onSurface,
@@ -139,11 +141,11 @@ fun Weather(
                     trailingIcon = {
                         if (searchCity.isNotEmpty()) {
                             IconButton(onClick = { searchCity = "" }) {
-                                Icon(Icons.Default.Close, "清空")
+                                Icon(Icons.Default.Close, stringResource(R.string.clear))
                             }
                         } else {
                             IconButton(onClick = { doSearch() }) {
-                                Icon(Icons.Default.Search, "搜索")
+                                Icon(Icons.Default.Search, stringResource(R.string.search))
                             }
                         }
                     }
@@ -151,26 +153,30 @@ fun Weather(
             }
         } else {
             AhuPageHeader(
-                title = weatherViewModel.locationName.ifBlank { "天气" },
+                title = weatherViewModel.locationName.ifBlank { stringResource(R.string.weather) },
                 titleStyle = MaterialTheme.typography.headlineSmall,
                 actions = {
                     AhuIconActionGroup {
                         AhuHeaderIconButton(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "搜索城市",
+                            contentDescription = stringResource(R.string.search_city),
                             onClick = { showSearch = true },
                         )
                         AhuHeaderIconButton(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "设置",
+                            contentDescription = stringResource(R.string.settings),
                             onClick = { showSettings = true },
                         )
                         AhuHeaderIconButton(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "刷新",
+                            contentDescription = stringResource(R.string.refresh),
                             onClick = {
                                 weatherViewModel.refresh()
-                                Toast.makeText(context, "已刷新", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.refreshed),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             },
                         )
                     }
@@ -204,7 +210,7 @@ fun Weather(
                     )
                     Spacer(Modifier.height(16.dp))
                     AhuPrimaryButton(
-                        text = "重试",
+                        text = stringResource(R.string.retry),
                         onClick = { weatherViewModel.refresh() },
                     )
                 }
@@ -213,7 +219,7 @@ fun Weather(
 
                 weather.forecast?.let { forecast ->
                     Text(
-                        "未来预报",
+                        stringResource(R.string.forecast),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = AhuColors.onSurface,
@@ -233,7 +239,7 @@ fun Weather(
                 weather.hourlyForecast?.let { hourly ->
                     if (hourly.isNotEmpty()) {
                         Text(
-                            "逐小时预报",
+                            stringResource(R.string.hourly_forecast),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = AhuColors.onSurface,
@@ -247,7 +253,7 @@ fun Weather(
 
                 weather.lifeIndices?.let { indices ->
                     Text(
-                        "生活指数",
+                        stringResource(R.string.life_indices),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = AhuColors.onSurface,
@@ -276,13 +282,13 @@ fun Weather(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    "天气设置",
+                    stringResource(R.string.weather_settings),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = AhuColors.onSurface
                 )
                 Text(
-                    "选择要在首页卡片上显示的信息：",
+                    stringResource(R.string.weather_settings_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = AhuColors.onSurface.copy(alpha = 0.55f)
                 )
@@ -291,19 +297,19 @@ fun Weather(
                 data class SettingItem(val key: String, val label: String, val value: Boolean, val onChange: (Boolean) -> Unit)
 
                 val settings = listOf(
-                    SettingItem("showOnHome", "在首页显示天气", config.showOnHome) {
+                    SettingItem("showOnHome", stringResource(R.string.show_on_home), config.showOnHome) {
                         weatherViewModel.updateHomeConfig(config.copy(showOnHome = it))
                     },
-                    SettingItem("showLocation", "显示城市名", config.showLocation) {
+                    SettingItem("showLocation", stringResource(R.string.show_location), config.showLocation) {
                         weatherViewModel.updateHomeConfig(config.copy(showLocation = it))
                     },
-                    SettingItem("showTemp", "显示温度", config.showTemp) {
+                    SettingItem("showTemp", stringResource(R.string.show_temp), config.showTemp) {
                         weatherViewModel.updateHomeConfig(config.copy(showTemp = it))
                     },
-                    SettingItem("showWeather", "显示天气状况", config.showWeather) {
+                    SettingItem("showWeather", stringResource(R.string.show_weather), config.showWeather) {
                         weatherViewModel.updateHomeConfig(config.copy(showWeather = it))
                     },
-                    SettingItem("showAqi", "显示空气质量", config.showAqi) {
+                    SettingItem("showAqi", stringResource(R.string.show_aqi), config.showAqi) {
                         weatherViewModel.updateHomeConfig(config.copy(showAqi = it))
                     },
                 )
@@ -361,7 +367,10 @@ private fun WeatherCard(weather: WeatherResponse) {
                 modifier = Modifier.padding(top = 4.dp)
             )
             Text(
-                text = "体感 ${weather.feelsLike?.toInt() ?: "--"}°",
+                text = stringResource(
+                    R.string.feels_like,
+                    weather.feelsLike?.toInt()?.toString() ?: "--"
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = AhuColors.onSurface.copy(alpha = 0.55f),
                 modifier = Modifier.padding(top = 2.dp)
@@ -371,9 +380,9 @@ private fun WeatherCard(weather: WeatherResponse) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                InfoItem("湿度", "${weather.humidity ?: "--"}%")
-                InfoItem("风力", weather.windPower ?: "--")
-                InfoItem("能见度", "${weather.visibility?.toInt() ?: "--"}km")
+                InfoItem(stringResource(R.string.humidity), "${weather.humidity ?: "--"}%")
+                InfoItem(stringResource(R.string.wind_power), weather.windPower ?: "--")
+                InfoItem(stringResource(R.string.visibility), "${weather.visibility?.toInt() ?: "--"}km")
             }
         }
     }
@@ -446,9 +455,16 @@ private fun AqiCard(weather: WeatherResponse) {
             }
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("空气${weather.aqiCategory ?: ""}", fontWeight = FontWeight.Bold, color = AhuColors.onSurface)
                 Text(
-                    "主要污染物：${weather.aqiPrimary ?: "无"}",
+                    stringResource(R.string.air_quality, weather.aqiCategory.orEmpty()),
+                    fontWeight = FontWeight.Bold,
+                    color = AhuColors.onSurface
+                )
+                Text(
+                    stringResource(
+                        R.string.primary_pollutant,
+                        weather.aqiPrimary ?: stringResource(R.string.none)
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = AhuColors.onSurface.copy(alpha = 0.55f)
                 )
@@ -460,6 +476,7 @@ private fun AqiCard(weather: WeatherResponse) {
 @Composable
 private fun UmbrellaCard(weather: WeatherResponse) {
     val (needUmbrella, maxPop) = remember(weather) {
+        // Match API weather text keywords (data matching, not UI chrome)
         val rainKeywords = listOf("雨", "雪", "雹")
         val containsRain = { s: String? -> s != null && rainKeywords.any { s.contains(it) } }
 
@@ -478,11 +495,26 @@ private fun UmbrellaCard(weather: WeatherResponse) {
     }
 
     val (title, subtitle) = when {
-        !needUmbrella -> Pair("无需雨伞", "当前及短期预报无降水")
-        maxPop >= 60 -> Pair("务必带伞 \u2614", "未来6小时降雨概率高达 ${maxPop}%")
-        maxPop >= 40 -> Pair("建议带伞 \u2614", "未来6小时降雨概率 ${maxPop}%")
-        maxPop > 0 -> Pair("可能降雨 \u2614", "降水概率 ${maxPop}%，建议随身带伞")
-        else -> Pair("建议带伞 \u2614", "当前天气或预报有降雨")
+        !needUmbrella -> Pair(
+            stringResource(R.string.no_umbrella),
+            stringResource(R.string.no_umbrella_desc)
+        )
+        maxPop >= 60 -> Pair(
+            stringResource(R.string.must_umbrella),
+            stringResource(R.string.must_umbrella_desc, maxPop)
+        )
+        maxPop >= 40 -> Pair(
+            stringResource(R.string.suggest_umbrella),
+            stringResource(R.string.suggest_umbrella_pop_desc, maxPop)
+        )
+        maxPop > 0 -> Pair(
+            stringResource(R.string.maybe_rain),
+            stringResource(R.string.maybe_rain_desc, maxPop)
+        )
+        else -> Pair(
+            stringResource(R.string.suggest_umbrella),
+            stringResource(R.string.suggest_umbrella_default_desc)
+        )
     }
 
     val bgColor = if (needUmbrella) {
@@ -518,7 +550,11 @@ private fun HourlyCard(h: com.ahu.ahutong.data.weather.HourlyForecast) {
     val sep = if (timeStr.contains("T")) "T" else " "
     val datePart = timeStr.substringAfter("-").take(5) // "MM-DD"
     val hour = timeStr.substringAfter(sep).take(2)     // "HH"
-    val label = if (datePart.length == 5 && hour.length == 2) "${datePart}日${hour}时" else timeStr
+    val label = if (datePart.length == 5 && hour.length == 2) {
+        stringResource(R.string.hourly_time_format, datePart, hour)
+    } else {
+        timeStr
+    }
     Column(
         modifier = Modifier
             .width(88.dp)
@@ -548,17 +584,17 @@ private fun HourlyCard(h: com.ahu.ahutong.data.weather.HourlyForecast) {
 @Composable
 private fun LifeIndicesGrid(indices: com.ahu.ahutong.data.weather.LifeIndices) {
     val items = listOf(
-        "穿衣" to indices.clothing,
-        "紫外线" to indices.uv,
-        "洗车" to indices.carWash,
-        "运动" to indices.exercise,
-        "感冒" to indices.coldRisk,
-        "防晒" to indices.sunscreen,
-        "舒适度" to indices.comfort,
-        "晾晒" to indices.drying,
-        "交通" to indices.traffic,
-        "过敏" to indices.allergy,
-        "钓鱼" to indices.fishing,
+        stringResource(R.string.index_clothing) to indices.clothing,
+        stringResource(R.string.index_uv) to indices.uv,
+        stringResource(R.string.index_car_wash) to indices.carWash,
+        stringResource(R.string.index_exercise) to indices.exercise,
+        stringResource(R.string.index_cold) to indices.coldRisk,
+        stringResource(R.string.index_sunscreen) to indices.sunscreen,
+        stringResource(R.string.index_comfort) to indices.comfort,
+        stringResource(R.string.index_drying) to indices.drying,
+        stringResource(R.string.index_traffic) to indices.traffic,
+        stringResource(R.string.index_allergy) to indices.allergy,
+        stringResource(R.string.index_fishing) to indices.fishing,
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.filter { it.second != null }.chunked(2).forEach { row ->

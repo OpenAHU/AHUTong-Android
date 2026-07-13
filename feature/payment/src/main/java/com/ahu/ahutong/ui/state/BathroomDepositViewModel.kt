@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,8 +14,10 @@ import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.payment.PaymentLocalStore
 import com.ahu.ahutong.data.payment.PaymentRepository
 import com.ahu.ahutong.ext.launchSafe
+import com.ahu.ahutong.feature.payment.R
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +28,7 @@ import kotlinx.coroutines.withContext
 class BathroomDepositViewModel @Inject constructor(
     private val paymentRepository: PaymentRepository,
     private val paymentLocalStore: PaymentLocalStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     val TAG = "BathroomDepositViewModel"
@@ -72,7 +76,7 @@ class BathroomDepositViewModel @Inject constructor(
         viewModelScope.launchSafe {
             withContext(Dispatchers.Default) {
                 info.value!!.data.map!!.data?.let { data ->
-                    data.myCustomInfo = "手机号：${data.telPhone}"
+                    data.myCustomInfo = appContext.getString(R.string.phone_custom_info, data.telPhone)
                     val thirdPartyJson = Gson().toJson(data)
                     val request = BathroomRequest(bathroom, amount, thirdPartyJson)
 
@@ -82,7 +86,9 @@ class BathroomDepositViewModel @Inject constructor(
                             val regex = """"orderid"\s*:\s*"([^"]+)"""".toRegex()
                             val orderId = regex.find(jsonString)?.groups?.get(1)?.value
                             if (orderId == null) {
-                                _payState.value = PayState.Failed(message = "未获取到订单号")
+                                _payState.value = PayState.Failed(
+                                    message = appContext.getString(R.string.order_id_not_obtained)
+                                )
                                 return@withContext
                             }
 
@@ -114,7 +120,8 @@ class BathroomDepositViewModel @Inject constructor(
                                             PayState.Succeeded(message = payResponse.data)
                                     } else {
                                         _payState.value = PayState.Failed(
-                                            message = payResponse?.msg ?: "未知错误",
+                                            message = payResponse?.msg
+                                                ?: appContext.getString(R.string.unknown_error),
                                         )
                                     }
                                 }

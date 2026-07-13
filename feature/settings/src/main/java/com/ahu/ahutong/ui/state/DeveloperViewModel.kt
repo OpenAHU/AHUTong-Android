@@ -2,10 +2,10 @@ package com.ahu.ahutong.ui.state
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.core.net.toUri
+import com.ahu.ahutong.feature.settings.R
 
 /**
  *
@@ -39,7 +39,11 @@ class DeveloperViewModel : ViewModel() {
                         }
                     )
                 } catch (e: Exception) {
-                    Toast.makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.install_qq_or_tim),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
     }
@@ -49,7 +53,11 @@ class DeveloperViewModel : ViewModel() {
         override val img: String = ""
         override val onclick: (Context) -> Unit
             get() = { context ->
-                Toast.makeText(context, "请联系任意一位小伙伴", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.contact_any_partner),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
     }
 

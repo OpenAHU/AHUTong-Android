@@ -33,11 +33,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ahu.ahutong.feature.calendar.R
 import com.ahu.ahutong.ui.components.AhuErrorToastEffect
 import com.ahu.ahutong.ui.components.AhuScreenBox
 import com.ahu.ahutong.ui.state.SchoolCalendarViewModel
@@ -80,12 +82,20 @@ fun SchoolCalendar(
             scope.launch(Dispatchers.IO) {
                 FileUtils.saveImageToGallery(context, calendarFile)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.saved_to_gallery),
+                        Toast.LENGTH_SHORT
+                    ).show()
                     navController.popBackStack()
                 }
             }
         } else {
-            Toast.makeText(context, "需要存储权限才能保存校历", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.storage_permission_required),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -156,16 +166,20 @@ fun SchoolCalendar(
                         scope.launch(Dispatchers.IO) {
                             FileUtils.saveImageToGallery(context, calendarFile!!)
                             withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "已保存到相册", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.saved_to_gallery),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 navController.popBackStack()
                             }
                         }
                     }
                 }) {
-                    Text("保存", color = Color.White)
+                    Text(stringResource(id = R.string.save), color = Color.White)
                 }
                 TextButton(onClick = { navController.popBackStack() }) {
-                    Text("退出", color = Color.White)
+                    Text(stringResource(id = R.string.exit), color = Color.White)
                 }
             }
         }
@@ -180,7 +194,11 @@ fun SchoolCalendar(
             ) {
                 CircularProgressIndicator()
                 Text(
-                    text = if (progress > 0f) "正在下载 ${(progress * 100).toInt()}%" else "正在获取校历...",
+                    text = if (progress > 0f) {
+                        stringResource(id = R.string.downloading_percent, (progress * 100).toInt())
+                    } else {
+                        stringResource(id = R.string.fetching_calendar)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.White
                 )

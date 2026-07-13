@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.feature.tools.R
@@ -54,12 +55,12 @@ fun Tools(
 
     AhuScreen(clearBottomNav = true) {
         AhuPageHeader(
-            title = "小工具",
+            title = stringResource(R.string.tools),
             actions = {
                 if (homeEditEnabled) {
                     AhuHeaderIconButton(
                         imageVector = Icons.Outlined.Edit,
-                        contentDescription = "编辑首页",
+                        contentDescription = stringResource(R.string.edit_home),
                         onClick = {
                             onEditHome()
                             navController.navigate("home") {
@@ -82,7 +83,7 @@ fun Tools(
                 .filter { it.id !in homeWidgetIds }
                 .forEach { widget ->
                     AhuToolItem(
-                        title = widget.title,
+                        title = stringResource(widget.titleResId),
                         iconResId = widget.iconId,
                         tint = widget.tint,
                         onClick = { navController.navigate(widget.route) },
@@ -96,17 +97,17 @@ fun Tools(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "添加桌面课表微件",
+                text = stringResource(R.string.add_schedule_widget),
                 modifier = Modifier.padding(24.dp),
                 style = MaterialTheme.typography.titleLarge,
             )
             Image(
                 painter = painterResource(id = R.mipmap.schedule_widget_prev),
-                contentDescription = "桌面课表微件",
+                contentDescription = stringResource(R.string.schedule_widget_preview),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
             AhuPrimaryButton(
-                text = "添加",
+                text = stringResource(R.string.add),
                 onClick = onPinScheduleWidget,
                 modifier = Modifier.padding(16.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),

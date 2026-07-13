@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="phone_book">电话本</string>
+    <string name="tools">小工具</string>
+    <string name="edit_home">编辑首页</string>
+    <string name="add_schedule_widget">添加桌面课表微件</string>
+    <string name="schedule_widget_preview">桌面课表微件</string>
+    <string name="add">添加</string>
+    <string name="search_phone_or_dept">搜索电话或部门</string>
+    <string name="no_search_results">未找到相关结果</string>
+    <string name="select_campus">请选择校区</string>
+    <string name="campus_qingyuan">磬苑校区</string>
+    <string name="campus_longhe">龙河校区</string>
+    <string name="campus_short_qingyuan">磬苑</string>
+    <string name="campus_short_longhe">龙河</string>
 </resources>

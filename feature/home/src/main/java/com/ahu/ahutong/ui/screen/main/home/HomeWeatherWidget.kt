@@ -12,11 +12,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.weather.WeatherApi
 import com.ahu.ahutong.data.weather.WeatherResponse
+import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.theme.AhuColors
 import com.ahu.ahutong.ui.theme.AhuDimens
@@ -141,7 +143,11 @@ fun HomeWeatherWidget(
                             else -> "\u26AA"
                         }
                         Text(
-                            text = "$aqiEmoji 空气${w.aqi} ${w.aqiCategory ?: ""}",
+                            text = "$aqiEmoji " + stringResource(
+                                R.string.air_quality,
+                                w.aqi.toString(),
+                                w.aqiCategory.orEmpty(),
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = 50.n1 withNight 80.n1
                         )
@@ -157,10 +163,10 @@ fun HomeWeatherWidget(
                         val pops = w.hourlyForecast?.take(6)?.mapNotNull { it.pop } ?: emptyList()
                         val maxPop = if (pops.isNotEmpty()) pops.max() else 0
                         val label = when {
-                            maxPop >= 60 -> "务必带伞"
-                            maxPop >= 40 -> "建议带伞"
-                            maxPop > 0 -> "可能降雨"
-                            else -> "带伞"
+                            maxPop >= 60 -> stringResource(R.string.must_bring_umbrella)
+                            maxPop >= 40 -> stringResource(R.string.suggest_bring_umbrella)
+                            maxPop > 0 -> stringResource(R.string.possible_rain)
+                            else -> stringResource(R.string.bring_umbrella)
                         }
                         Text("\u2614", fontSize = 24.sp)
                         Spacer(Modifier.height(2.dp))
@@ -185,7 +191,7 @@ fun HomeWeatherWidget(
                             color = 80.a1 withNight 90.a1
                         )
                         Text(
-                            text = "防晒",
+                            text = stringResource(R.string.sunscreen),
                             fontSize = 12.sp,
                             color = 50.n1 withNight 80.n1
                         )

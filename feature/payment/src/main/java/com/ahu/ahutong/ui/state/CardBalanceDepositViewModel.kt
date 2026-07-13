@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AppResult
@@ -10,8 +11,10 @@ import com.ahu.ahutong.data.crawler.model.ycard.PayResponse
 import com.ahu.ahutong.data.payment.PaymentLocalStore
 import com.ahu.ahutong.data.payment.PaymentRepository
 import com.ahu.ahutong.ext.launchSafe
+import com.ahu.ahutong.feature.payment.R
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +25,7 @@ import kotlinx.coroutines.withContext
 class CardBalanceDepositViewModel @Inject constructor(
     private val paymentRepository: PaymentRepository,
     private val paymentLocalStore: PaymentLocalStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     val TAG = "CardBalanceDepositViewModel"
@@ -60,7 +64,9 @@ class CardBalanceDepositViewModel @Inject constructor(
             }
 
             if (accountInfo == null) {
-                _paymentState.value = PaymentState.Error("异常: 未获取到用户信息")
+                _paymentState.value = PaymentState.Error(
+                    appContext.getString(R.string.error_user_info_not_obtained)
+                )
                 return@withContext
             }
 
@@ -70,7 +76,9 @@ class CardBalanceDepositViewModel @Inject constructor(
                     val regex = Regex("[?]orderid=([^&]+)")
                     val orderId = regex.find(orderResponse.data.requestUrl)?.groupValues?.get(1)
                     if (orderId == null) {
-                        _paymentState.value = PaymentState.Error("异常: 未获取到订单号")
+                        _paymentState.value = PaymentState.Error(
+                            appContext.getString(R.string.error_order_id_not_obtained)
+                        )
                         return@withContext
                     }
 
@@ -85,8 +93,10 @@ class CardBalanceDepositViewModel @Inject constructor(
                                     _paymentState.value = PaymentState.Success(parsed.data)
                                     load()
                                 } else {
-                                    _paymentState.value =
-                                        PaymentState.Error(parsed?.msg ?: "支付失败")
+                                    _paymentState.value = PaymentState.Error(
+                                        parsed?.msg
+                                            ?: appContext.getString(R.string.payment_failed_simple)
+                                    )
                                 }
                             }
                             is AppResult.Error -> {
@@ -94,7 +104,9 @@ class CardBalanceDepositViewModel @Inject constructor(
                             }
                         }
                     } catch (e: Exception) {
-                        _paymentState.value = PaymentState.Error("异常: ${e.message}")
+                        _paymentState.value = PaymentState.Error(
+                            appContext.getString(R.string.error_with_message, e.message)
+                        )
                     }
                 }
                 is AppResult.Error -> {

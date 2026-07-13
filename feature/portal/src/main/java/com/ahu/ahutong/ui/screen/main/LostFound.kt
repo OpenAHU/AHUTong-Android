@@ -3,7 +3,6 @@ package com.ahu.ahutong.ui.screen.main
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,12 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
+import com.ahu.ahutong.feature.portal.R
 import com.ahu.ahutong.ui.components.AhuBottomSheet
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.components.AhuChip
@@ -175,7 +176,10 @@ fun LostFound(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         AhuSegmentedTabs(
-                            options = listOf("失物招领", "寻物启事"),
+                            options = listOf(
+                                stringResource(R.string.lost_found),
+                                stringResource(R.string.looking_for),
+                            ),
                             selectedIndex = (lostFoundViewModel.currentState - 1).coerceIn(0, 1),
                             onSelect = { lostFoundViewModel.switchState(it + 1) },
                             modifier = Modifier.weight(1f),
@@ -183,10 +187,14 @@ fun LostFound(
                         AhuIconActionGroup {
                             AhuHeaderIconButton(
                                 imageVector = Icons.Default.Refresh,
-                                contentDescription = "刷新",
+                                contentDescription = stringResource(R.string.refresh),
                                 onClick = {
                                     lostFoundViewModel.refreshList()
-                                    Toast.makeText(context, "刷新成功", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.refresh_success),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
                                 },
                             )
                             AhuHeaderIconButton(
@@ -195,7 +203,11 @@ fun LostFound(
                                 } else {
                                     Icons.Default.Search
                                 },
-                                contentDescription = if (searchExpanded) "关闭搜索" else "搜索",
+                                contentDescription = if (searchExpanded) {
+                                    stringResource(R.string.close_search)
+                                } else {
+                                    stringResource(R.string.search)
+                                },
                                 onClick = {
                                     searchExpanded = !searchExpanded
                                     if (!searchExpanded) searchQuery = ""
@@ -208,7 +220,7 @@ fun LostFound(
                         AhuSearchField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = "搜索全部信息",
+                            placeholder = stringResource(R.string.search_all_info),
                         )
                     }
                 }
@@ -219,7 +231,7 @@ fun LostFound(
                 item {
                     AhuFilterBar(scrollable = true) {
                         AhuChip(
-                            text = "全部校区",
+                            text = stringResource(R.string.all_campuses),
                             selected = selectedCampus == null,
                             onClick = { selectedCampus = null },
                         )
@@ -235,7 +247,7 @@ fun LostFound(
                 item {
                     AhuFilterBar(scrollable = true) {
                         AhuChip(
-                            text = "全部类型",
+                            text = stringResource(R.string.all_types),
                             selected = selectedType == null,
                             onClick = { selectedType = null },
                         )
@@ -261,15 +273,19 @@ fun LostFound(
                 ) {
                     Text(
                         text = if (searchExpanded && searchQuery.isNotBlank()) {
-                            "搜索「$searchQuery」到 ${filteredList.size} 条记录"
+                            stringResource(
+                                R.string.search_result_count,
+                                searchQuery,
+                                filteredList.size,
+                            )
                         } else {
-                            "共 ${filteredList.size} 条记录"
+                            stringResource(R.string.total_record_count, filteredList.size)
                         },
                         style = MaterialTheme.typography.titleMedium,
                         color = AhuColors.onSurface,
                     )
                     AhuTextButton(
-                        text = "管理我的帖子",
+                        text = stringResource(R.string.manage_my_posts),
                         onClick = { showMyPostSheet = true },
                     )
                 }
@@ -299,20 +315,39 @@ fun LostFound(
 
     // ── 详情 ──────────────────────────────────────────────────────────────
     selectedItem?.let { item ->
+        val unknown = stringResource(R.string.unknown)
         AhuBottomSheet(
             onDismissRequest = { selectedItem = null },
-            title = item.title ?: "无标题",
+            title = item.title ?: stringResource(R.string.no_title),
         ) {
-            Text("联系人：${item.linkman ?: "未知"}", color = AhuColors.onSurface)
-            Text("联系电话：${item.phone ?: "未知"}", color = AhuColors.onSurface)
-            Text("校区：${item.campusName ?: "未知"}", color = AhuColors.onSurface)
-            Text("类型：${item.lostType?.typeName ?: "未知"}", color = AhuColors.onSurface)
-            Text("发布时间：${item.createtime ?: "未知"}", color = AhuColors.onSurface)
-            Text("证件号：${item.num1 ?: "未知"}", color = AhuColors.onSurface)
+            Text(
+                stringResource(R.string.contact_person_value, item.linkman ?: unknown),
+                color = AhuColors.onSurface,
+            )
+            Text(
+                stringResource(R.string.contact_phone_value, item.phone ?: unknown),
+                color = AhuColors.onSurface,
+            )
+            Text(
+                stringResource(R.string.campus_value, item.campusName ?: unknown),
+                color = AhuColors.onSurface,
+            )
+            Text(
+                stringResource(R.string.type_value, item.lostType?.typeName ?: unknown),
+                color = AhuColors.onSurface,
+            )
+            Text(
+                stringResource(R.string.publish_time_value, item.createtime ?: unknown),
+                color = AhuColors.onSurface,
+            )
+            Text(
+                stringResource(R.string.id_number_value, item.num1 ?: unknown),
+                color = AhuColors.onSurface,
+            )
 
             if (item.imgs.isNotEmpty()) {
                 Text(
-                    text = "相关图片",
+                    text = stringResource(R.string.related_images),
                     style = MaterialTheme.typography.titleMedium,
                     color = AhuColors.onSurface,
                 )
@@ -364,10 +399,13 @@ fun LostFound(
         }
         AhuBottomSheet(
             onDismissRequest = { showMyPostSheet = false },
-            title = "管理我的帖子",
+            title = stringResource(R.string.manage_my_posts),
         ) {
             if (myPosts.isEmpty()) {
-                Text("暂无帖子", color = AhuColors.onSurface.copy(alpha = 0.6f))
+                Text(
+                    stringResource(R.string.no_posts),
+                    color = AhuColors.onSurface.copy(alpha = 0.6f),
+                )
             } else {
                 myPosts.forEach { item ->
                     AhuCard {
@@ -378,7 +416,7 @@ fun LostFound(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = item.title ?: "无标题",
+                                    text = item.title ?: stringResource(R.string.no_title),
                                     fontWeight = FontWeight.Bold,
                                     color = AhuColors.onSurface,
                                 )
@@ -388,11 +426,15 @@ fun LostFound(
                                 )
                             }
                             AhuTextButton(
-                                text = "删除",
+                                text = stringResource(R.string.delete),
                                 onClick = {
                                     item.id?.let { id ->
                                         lostFoundViewModel.deleteLostFound(id)
-                                        Toast.makeText(context, "删除成功", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.delete_success),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
                                     }
                                 },
                             )
@@ -420,10 +462,18 @@ fun LostFound(
                     state = state,
                 )
                 showPublishSheet = false
-                Toast.makeText(context, "发布成功", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.publish_success),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
             onValidationError = {
-                Toast.makeText(context, "请填写完整信息", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.please_fill_complete_info),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
         )
     }
@@ -435,6 +485,7 @@ private fun LostFoundListCard(
     keyword: String,
     onClick: () -> Unit,
 ) {
+    val unknown = stringResource(R.string.unknown)
     AhuCard(
         modifier = Modifier.padding(horizontal = AhuDimens.ContentHorizontal),
         cornerRadius = AhuDimens.ListItemCorner,
@@ -442,23 +493,39 @@ private fun LostFoundListCard(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         AhuHighlightText(
-            text = item.title ?: "无标题",
+            text = item.title ?: stringResource(R.string.no_title),
             keyword = keyword,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleMedium,
             color = AhuColors.onSurface,
         )
-        HighlightedField(label = "联系人", value = item.linkman ?: "未知", keyword = keyword)
-        HighlightedField(label = "联系电话", value = item.phone ?: "未知", keyword = keyword)
-        HighlightedField(label = "校区", value = item.campusName ?: "未知", keyword = keyword)
         HighlightedField(
-            label = "类型",
-            value = item.lostType?.typeName ?: "未知",
+            label = stringResource(R.string.contact_person),
+            value = item.linkman ?: unknown,
             keyword = keyword,
         )
-        HighlightedField(label = "证件号", value = item.num1 ?: "未知", keyword = keyword)
+        HighlightedField(
+            label = stringResource(R.string.contact_phone),
+            value = item.phone ?: unknown,
+            keyword = keyword,
+        )
+        HighlightedField(
+            label = stringResource(R.string.campus),
+            value = item.campusName ?: unknown,
+            keyword = keyword,
+        )
+        HighlightedField(
+            label = stringResource(R.string.type),
+            value = item.lostType?.typeName ?: unknown,
+            keyword = keyword,
+        )
+        HighlightedField(
+            label = stringResource(R.string.id_number),
+            value = item.num1 ?: unknown,
+            keyword = keyword,
+        )
         Text(
-            text = item.createtime ?: "未知时间",
+            text = item.createtime ?: stringResource(R.string.unknown_time),
             color = AhuColors.onSurface.copy(alpha = 0.6f),
         )
     }
@@ -506,20 +573,40 @@ private fun PublishLostFoundSheet(
     AhuBottomSheet(
         onDismissRequest = onDismiss,
         scrollable = true,
-        title = "发布帖子",
+        title = stringResource(R.string.publish_post),
     ) {
         Text(
-            text = "*目前智慧安大图片功能有时无法使用，请大家文字描述尽量详尽",
+            text = stringResource(R.string.image_unavailable_hint),
             color = AhuColors.onSurface.copy(alpha = 0.55f),
             style = MaterialTheme.typography.bodyMedium,
         )
 
-        AhuTextField(value = linkman, onValueChange = { linkman = it }, label = "联系人 *")
-        AhuTextField(value = phone, onValueChange = { phone = it }, label = "联系电话 *")
-        AhuTextField(value = title, onValueChange = { title = it }, label = "描述内容 *")
-        AhuTextField(value = num1, onValueChange = { num1 = it }, label = "证件号（可选）")
+        AhuTextField(
+            value = linkman,
+            onValueChange = { linkman = it },
+            label = stringResource(R.string.contact_person_required),
+        )
+        AhuTextField(
+            value = phone,
+            onValueChange = { phone = it },
+            label = stringResource(R.string.contact_phone_required),
+        )
+        AhuTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = stringResource(R.string.description_required),
+        )
+        AhuTextField(
+            value = num1,
+            onValueChange = { num1 = it },
+            label = stringResource(R.string.id_number_optional),
+        )
 
-        Text("选择校区", style = MaterialTheme.typography.titleSmall, color = AhuColors.onSurface)
+        Text(
+            stringResource(R.string.select_campus),
+            style = MaterialTheme.typography.titleSmall,
+            color = AhuColors.onSurface,
+        )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(allCampus) { campus ->
                 AhuChip(
@@ -530,7 +617,11 @@ private fun PublishLostFoundSheet(
             }
         }
 
-        Text("选择类型", style = MaterialTheme.typography.titleSmall, color = AhuColors.onSurface)
+        Text(
+            stringResource(R.string.select_type),
+            style = MaterialTheme.typography.titleSmall,
+            color = AhuColors.onSurface,
+        )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(allTypes) { type ->
                 AhuChip(
@@ -541,22 +632,26 @@ private fun PublishLostFoundSheet(
             }
         }
 
-        Text("选择事件类型", style = MaterialTheme.typography.titleSmall, color = AhuColors.onSurface)
+        Text(
+            stringResource(R.string.select_event_type),
+            style = MaterialTheme.typography.titleSmall,
+            color = AhuColors.onSurface,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AhuChip(
-                text = "失物招领",
+                text = stringResource(R.string.lost_found),
                 selected = publishState == "1",
                 onClick = { publishState = "1" },
             )
             AhuChip(
-                text = "寻物启事",
+                text = stringResource(R.string.looking_for),
                 selected = publishState == "2",
                 onClick = { publishState = "2" },
             )
         }
 
         AhuPrimaryButton(
-            text = "发布",
+            text = stringResource(R.string.publish),
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 if (

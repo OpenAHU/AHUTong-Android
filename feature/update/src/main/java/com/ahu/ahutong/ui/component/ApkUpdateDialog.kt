@@ -23,10 +23,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.ahu.ahutong.data.server.model.ApkUpdateInfo
+import com.ahu.ahutong.feature.update.R
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuPrimaryButton
 import com.ahu.ahutong.ui.theme.AhuColors
@@ -79,7 +81,10 @@ fun ApkUpdateDialog(
                 tint = contentColor
             )
             Text(
-                text = "发现新版本 ${info.versionName ?: info.versionCode}",
+                text = stringResource(
+                    id = R.string.new_version_found,
+                    info.versionName ?: info.versionCode.toString()
+                ),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.headlineSmall,
                 color = contentColor
@@ -92,27 +97,28 @@ fun ApkUpdateDialog(
                 .padding(horizontal = 24.dp),
         ) {
             Text(
-                text = "版本号：${info.versionCode}",
+                text = stringResource(id = R.string.version_code, info.versionCode),
                 style = MaterialTheme.typography.bodyMedium,
                 color = contentColor
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "更新内容：",
+                text = stringResource(id = R.string.update_content),
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.bodyMedium,
                 color = contentColor
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = info.changelog?.ifBlank { "暂无更新说明" } ?: "暂无更新说明",
+                text = info.changelog?.ifBlank { null }
+                    ?: stringResource(id = R.string.no_update_log),
                 style = MaterialTheme.typography.bodyMedium,
                 color = contentColor
             )
             if (!downloadElapsedText.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "本次下载耗时：$downloadElapsedText",
+                    text = stringResource(id = R.string.download_elapsed, downloadElapsedText),
                     style = MaterialTheme.typography.bodyMedium,
                     color = secondaryContentColor
                 )
@@ -150,14 +156,20 @@ fun ApkUpdateDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "下载进度：${(progress * 100).toInt()}%",
+                            text = stringResource(
+                                id = R.string.download_progress,
+                                (progress * 100).toInt()
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = contentColor
                         )
                         if (activeRangeCount != null) {
                             Spacer(Modifier.width(12.dp))
                             Text(
-                                text = "活跃分片：${activeRangeCount}片",
+                                text = stringResource(
+                                    id = R.string.active_segments,
+                                    activeRangeCount
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = contentColor
                             )
@@ -169,7 +181,7 @@ fun ApkUpdateDialog(
             if (!errorText.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "错误：",
+                    text = stringResource(id = R.string.error_label),
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.bodyMedium,
                     color = contentColor
@@ -192,23 +204,23 @@ fun ApkUpdateDialog(
         ) {
             if (apkLocalReady && !downloading) {
                 TextButton(onClick = onRedownload) {
-                    Text("重新下载", color = contentColor)
+                    Text(stringResource(id = R.string.redownload), color = contentColor)
                 }
             }
             if (downloading && !info.force) {
                 TextButton(onClick = onCancel) {
-                    Text("后台下载", color = contentColor)
+                    Text(stringResource(id = R.string.background_download), color = contentColor)
                 }
             } else if (!downloading && !info.force) {
                 TextButton(onClick = onDismiss) {
-                    Text("稍后更新", color = contentColor)
+                    Text(stringResource(id = R.string.update_later), color = contentColor)
                 }
             }
             AhuPrimaryButton(
                 text = when {
-                    downloading -> "下载中…"
-                    apkLocalReady -> "安装"
-                    else -> "下载并安装"
+                    downloading -> stringResource(id = R.string.downloading)
+                    apkLocalReady -> stringResource(id = R.string.install)
+                    else -> stringResource(id = R.string.download_and_install)
                 },
                 onClick = if (apkLocalReady && !downloading) onInstallLocal else onConfirm,
                 enabled = !downloading,
@@ -232,14 +244,14 @@ fun ApkMirrorSourceDialog(
         ),
     ) {
         Text(
-            text = "下载较慢",
+            text = stringResource(id = R.string.slow_download_title),
             modifier = Modifier.padding(horizontal = 24.dp),
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.headlineSmall,
             color = contentColor
         )
         Text(
-            text = "当前下载超过 5 秒仍未达到 30%，是否切换到镜像源继续下载？文件校验仍使用官方源提供的信息。",
+            text = stringResource(id = R.string.slow_download_message),
             modifier = Modifier.padding(horizontal = 24.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = contentColor
@@ -252,10 +264,10 @@ fun ApkMirrorSourceDialog(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onKeepOriginal) {
-                Text("继续原下载", color = contentColor)
+                Text(stringResource(id = R.string.continue_original_download), color = contentColor)
             }
             AhuPrimaryButton(
-                text = "使用镜像源",
+                text = stringResource(id = R.string.use_mirror_source),
                 onClick = onUseMirror,
             )
         }

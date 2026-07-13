@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">安大通</string>
+    <string name="nav_home">主页</string>
+    <string name="nav_schedule">课表</string>
+    <string name="nav_tools">小工具</string>
+    <string name="nav_settings">设置</string>
+    <string name="session_expired_message">当前登录状态已过期，请重新登录!</string>
+    <string name="re_login">重新登录</string>
+    <string name="download_in_background">已转到后台下载</string>
+    <string name="install_permission_denied">未授权安装权限，安装失败</string>
+    <string name="apk_missing_or_empty">安装包不存在或为空</string>
+    <string name="apk_path_invalid">安装包路径无效</string>
+    <string name="apk_location_untrusted">安装包位置不可信</string>
+    <string name="apk_parse_failed">安装包解析失败</string>
+    <string name="apk_package_mismatch">安装包包名不匹配</string>
+    <string name="apk_version_not_higher">安装包版本不高于当前版本</string>
+    <string name="apk_signature_mismatch">安装包签名与当前应用不一致</string>
 </resources>

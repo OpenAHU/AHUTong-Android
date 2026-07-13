@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="grade">成绩单</string>
+    <string name="refresh_grades">刷新成绩</string>
+    <string name="search_course">搜索课程</string>
+    <string name="select_term">选择学期</string>
+    <string name="term_label">%1$s 第%2$s学期</string>
+    <string name="term_gpa">本学期平均绩点</string>
+    <string name="total_gpa">全程平均绩点</string>
+    <string name="total_major_rank">全程专业排名</string>
+    <string name="term_major_rank">该学期专业排名</string>
+    <string name="last_update_time">最后更新时间</string>
+    <string name="not_available">暂无</string>
+    <string name="rank_format">%1$s/%2$s</string>
+    <string name="no_grades_for_profile">「%1$s」暂无成绩</string>
+    <string name="no_grades_for_term">该学期目前没有任何成绩</string>
+    <string name="grade_detail_line">成绩: %1$s    绩点: %2$s    学分: %3$s</string>
+    <string name="no_rank_for_profile">「%1$s」暂无排名信息</string>
+    <string name="failed_to_get_rank">获取排名失败：%1$s</string>
+    <string name="failed_to_get_grades">获取成绩失败</string>
 </resources>

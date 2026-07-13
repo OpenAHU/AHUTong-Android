@@ -9,15 +9,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.weather.WeatherPreferences
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import com.ahu.ahutong.data.weather.WeatherApi
+import com.ahu.ahutong.data.weather.WeatherPreferences
 import com.ahu.ahutong.data.weather.WeatherResponse
+import com.ahu.ahutong.feature.weather.R
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Locale
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
 data class WeatherHomeConfig(
     val showOnHome: Boolean = false,
@@ -30,6 +32,7 @@ data class WeatherHomeConfig(
 @HiltViewModel
 class WeatherViewModel @Inject constructor(
     private val weatherPreferences: WeatherPreferences,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     var weather by mutableStateOf<WeatherResponse?>(null)
@@ -71,7 +74,7 @@ class WeatherViewModel @Inject constructor(
                 Log.d("Weather", "Fetched weather for city=$city, temp=${result.temperature}")
             } catch (e: Exception) {
                 Log.e("Weather", "Failed to fetch weather", e)
-                errorMessage = e.message ?: "获取天气失败"
+                errorMessage = e.message ?: appContext.getString(R.string.fetch_weather_failed)
             } finally {
                 isLoading = false
             }
@@ -101,7 +104,7 @@ class WeatherViewModel @Inject constructor(
                 Log.d("Weather", "Fetched weather for adcode=$adcode, temp=${result.temperature}")
             } catch (e: Exception) {
                 Log.e("Weather", "Failed to fetch weather by adcode", e)
-                errorMessage = e.message ?: "获取天气失败"
+                errorMessage = e.message ?: appContext.getString(R.string.fetch_weather_failed)
             } finally {
                 isLoading = false
             }
@@ -156,7 +159,7 @@ class WeatherViewModel @Inject constructor(
                     weather = result
                     errorMessage = null
                 } catch (e2: Exception) {
-                    errorMessage = e2.message ?: "获取天气失败"
+                    errorMessage = e2.message ?: appContext.getString(R.string.fetch_weather_failed)
                 }
             } finally {
                 isLoading = false

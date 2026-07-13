@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.repository.DownloadedFile
+import com.ahu.ahutong.feature.repository.R
 import com.ahu.ahutong.ui.components.AhuCard
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.components.AhuEmptyState
@@ -86,11 +88,15 @@ fun RepositoryDownloads(
         ) {
             AhuHeaderIconButton(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
+                contentDescription = stringResource(id = R.string.back),
                 onClick = { navController.popBackStack() },
             )
             Text(
-                text = if (isManaging) "已选择 ${selectedPaths.size} 项" else "已下载文件",
+                text = if (isManaging) {
+                    stringResource(id = R.string.selected_count, selectedPaths.size)
+                } else {
+                    stringResource(id = R.string.downloaded_files)
+                },
                 style = MaterialTheme.typography.titleLarge,
                 color = AhuColors.onSurface,
                 modifier = Modifier.weight(1f)
@@ -100,14 +106,17 @@ fun RepositoryDownloads(
                     isManaging = !isManaging
                     if (!isManaging) selectedPaths = emptySet()
                 }) {
-                    Text(if (isManaging) "完成" else "管理")
+                    Text(
+                        if (isManaging) stringResource(id = R.string.done)
+                        else stringResource(id = R.string.manage)
+                    )
                 }
             }
         }
 
         if (files.isEmpty()) {
             AhuEmptyState(
-                text = "暂无下载文件\n浏览学习资料时可下载文件",
+                text = stringResource(id = R.string.no_downloaded_files),
             )
         } else {
             LazyColumn(
@@ -152,7 +161,13 @@ fun RepositoryDownloads(
                             selectedPaths = if (selectedPaths.size == files.size) emptySet()
                             else files.map { it.path }.toSet()
                         }) {
-                            Text(if (selectedPaths.size == files.size) "取消全选" else "全选")
+                            Text(
+                                if (selectedPaths.size == files.size) {
+                                    stringResource(id = R.string.deselect_all)
+                                } else {
+                                    stringResource(id = R.string.select_all)
+                                }
+                            )
                         }
                         TextButton(
                             onClick = {
@@ -163,7 +178,7 @@ fun RepositoryDownloads(
                             enabled = selectedPaths.isNotEmpty()
                         ) {
                             Text(
-                                "删除选中 (${selectedPaths.size})",
+                                stringResource(id = R.string.delete_selected, selectedPaths.size),
                                 color = if (selectedPaths.isNotEmpty()) Color(0xFFFF5252)
                                 else AhuColors.onSurface.copy(alpha = 0.5f)
                             )
@@ -176,8 +191,8 @@ fun RepositoryDownloads(
 
     deleteConfirmPath?.let { path ->
         ConfirmDialog(
-            title = "确认删除",
-            message = "确定要删除此文件吗？",
+            title = stringResource(id = R.string.confirm_delete_title),
+            message = stringResource(id = R.string.confirm_delete_message),
             onCancel = { deleteConfirmPath = null },
             onConfirm = {
                 viewModel.deleteFile(path)
@@ -190,8 +205,8 @@ fun RepositoryDownloads(
 
     batchDeleteTargets?.let { targets ->
         ConfirmDialog(
-            title = "批量删除",
-            message = "确定要删除选中的 ${targets.size} 个文件吗？",
+            title = stringResource(id = R.string.batch_delete_title),
+            message = stringResource(id = R.string.batch_delete_message, targets.size),
             onCancel = { batchDeleteTargets = null },
             onConfirm = {
                 targets.forEach { viewModel.deleteFile(it) }
@@ -233,7 +248,7 @@ private fun ConfirmDialog(
             horizontalArrangement = Arrangement.End
         ) {
             Text(
-                text = "取消",
+                text = stringResource(id = R.string.cancel),
                 modifier = Modifier
                     .clickable { onCancel() }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -242,7 +257,7 @@ private fun ConfirmDialog(
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = "删除",
+                text = stringResource(id = R.string.delete),
                 modifier = Modifier
                     .clickable { onConfirm() }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -276,7 +291,11 @@ private fun DownloadedFileRow(
         if (isManaging) {
             Icon(
                 imageVector = if (isSelected) Icons.Filled.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
-                contentDescription = if (isSelected) "已选择" else "未选择",
+                contentDescription = if (isSelected) {
+                    stringResource(id = R.string.selected)
+                } else {
+                    stringResource(id = R.string.not_selected)
+                },
                 tint = if (isSelected) AhuColors.primaryAction else AhuColors.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.size(24.dp)
             )
@@ -329,14 +348,14 @@ private fun DownloadedFileRow(
             IconButton(onClick = { onClick() }, modifier = Modifier.padding(start = 4.dp)) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
-                    contentDescription = "打开",
+                    contentDescription = stringResource(id = R.string.open),
                     modifier = Modifier.size(22.dp)
                 )
             }
             IconButton(onClick = onDelete, modifier = Modifier.padding(start = 4.dp)) {
                 Icon(
                     imageVector = Icons.Outlined.Delete,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(id = R.string.delete),
                     tint = Color(0xFFFF5252),
                     modifier = Modifier.size(22.dp)
                 )

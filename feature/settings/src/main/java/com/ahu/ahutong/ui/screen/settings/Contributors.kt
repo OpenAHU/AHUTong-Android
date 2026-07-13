@@ -81,7 +81,7 @@ fun Contributors(
                                         style = MaterialTheme.typography.bodyLarge
                                     )
                                     Text(
-                                        text = "QQ: ${it.qq}",
+                                        text = stringResource(id = R.string.qq_format, it.qq),
                                         color = AhuColors.onSurface.copy(alpha = 0.55f),
                                         style = MaterialTheme.typography.bodyMedium
                                     )

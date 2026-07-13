@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="new_version_found">发现新版本 %1$s</string>
+    <string name="version_code">版本号：%1$d</string>
+    <string name="update_content">更新内容：</string>
+    <string name="no_update_log">暂无更新说明</string>
+    <string name="download_elapsed">本次下载耗时：%1$s</string>
+    <string name="download_progress">下载进度：%1$d%%</string>
+    <string name="active_segments">活跃分片：%1$d片</string>
+    <string name="error_label">错误：</string>
+    <string name="redownload">重新下载</string>
+    <string name="background_download">后台下载</string>
+    <string name="update_later">稍后更新</string>
+    <string name="downloading">下载中…</string>
+    <string name="install">安装</string>
+    <string name="download_and_install">下载并安装</string>
+    <string name="slow_download_title">下载较慢</string>
+    <string name="slow_download_message">当前下载超过 5 秒仍未达到 30%，是否切换到镜像源继续下载？文件校验仍使用官方源提供的信息。</string>
+    <string name="continue_original_download">继续原下载</string>
+    <string name="use_mirror_source">使用镜像源</string>
+
+    <string name="fetch_failed">获取失败</string>
+    <string name="local_file_missing">本地文件已丢失，请重新下载</string>
+    <string name="local_file_corrupted">本地文件已损坏，请重新下载</string>
+    <string name="download_failed">下载失败</string>
+    <string name="checking_update">正在检查更新</string>
+    <string name="already_latest">已是最新版本</string>
+    <string name="check_update_failed">检查更新失败：%1$s</string>
+    <string name="update_info_invalid">更新信息无效</string>
+    <string name="please_retry_later">请稍后重试</string>
+    <string name="update_info_verify_failed">更新信息校验失败</string>
+    <string name="download_elapsed_format">%1$d分%2$d秒</string>
+</resources>

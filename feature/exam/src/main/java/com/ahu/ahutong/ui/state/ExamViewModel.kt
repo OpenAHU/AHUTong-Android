@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,8 +9,10 @@ import com.ahu.ahutong.data.exam.ExamLocalStore
 import com.ahu.ahutong.data.exam.ExamRepository
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.ext.launchSafe
+import com.ahu.ahutong.feature.exam.R
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,6 +25,7 @@ enum class RefreshState { IDLE, LOADING, UPDATED }
 class ExamViewModel @Inject constructor(
     private val examRepository: ExamRepository,
     private val examLocalStore: ExamLocalStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
     val data = MutableLiveData<Result<List<Exam>>>()
     val isLoading = MutableStateFlow<Boolean?>(null)
@@ -43,8 +47,9 @@ class ExamViewModel @Inject constructor(
             val userId = examLocalStore.getCurrentUserId()
             val userName = examLocalStore.getCurrentUserName()
             if (userId == null && !examLocalStore.isMockMode()) {
-                data.value = Result.failure(Throwable("账户未登录"))
-                errorMessage.value = "账户未登录"
+                val notLoggedIn = appContext.getString(R.string.account_not_logged_in)
+                data.value = Result.failure(Throwable(notLoggedIn))
+                errorMessage.value = notLoggedIn
                 return@launchSafe
             }
 

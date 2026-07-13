@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.state
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,7 +14,9 @@ import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundPublishRequest
 import com.ahu.ahutong.data.portal.LostFoundLocalStore
 import com.ahu.ahutong.data.portal.LostFoundRepository
+import com.ahu.ahutong.feature.portal.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.launch
 
@@ -21,6 +24,7 @@ import kotlinx.coroutines.launch
 class LostFoundViewModel @Inject constructor(
     private val lostFoundRepository: LostFoundRepository,
     private val lostFoundLocalStore: LostFoundLocalStore,
+    @ApplicationContext private val appContext: Context,
 ) : ViewModel() {
 
     var allCampus by mutableStateOf<AllCampus?>(null)
@@ -82,7 +86,7 @@ class LostFoundViewModel @Inject constructor(
             }
         } catch (t: Throwable) {
             if (allCampus == null) {
-                errorMessage = t.message ?: "获取校区失败"
+                errorMessage = t.message ?: appContext.getString(R.string.failed_to_get_campus)
             }
         } finally {
             campusLoading = false
@@ -113,7 +117,7 @@ class LostFoundViewModel @Inject constructor(
             }
         } catch (t: Throwable) {
             if (allLostFoundType == null) {
-                errorMessage = t.message ?: "获取类型失败"
+                errorMessage = t.message ?: appContext.getString(R.string.failed_to_get_type)
             }
         } finally {
             typeLoading = false
@@ -156,7 +160,7 @@ class LostFoundViewModel @Inject constructor(
                 }
             }
         } catch (t: Throwable) {
-            errorMessage = t.message ?: "获取列表失败"
+            errorMessage = t.message ?: appContext.getString(R.string.failed_to_get_list)
         } finally {
             listLoading = false
         }
@@ -188,7 +192,7 @@ class LostFoundViewModel @Inject constructor(
                     }
                 }
             } catch (t: Throwable) {
-                errorMessage = t.message ?: "刷新失败"
+                errorMessage = t.message ?: appContext.getString(R.string.failed_to_refresh)
             } finally {
                 isRefreshing = false
             }
@@ -220,7 +224,7 @@ class LostFoundViewModel @Inject constructor(
                     }
                 }
             } catch (t: Throwable) {
-                errorMessage = t.message ?: "加载更多失败"
+                errorMessage = t.message ?: appContext.getString(R.string.failed_to_load_more)
             } finally {
                 isLoadingMore = false
             }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -25,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import android.webkit.CookieManager as WebkitCookieManager
+import com.ahu.ahutong.R
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
 import com.ahu.ahutong.core.common.AppSessionState
 import com.ahu.ahutong.data.crawler.manager.CookieManager
@@ -230,7 +232,7 @@ fun Main(
                         CookieManager.cookieJar.clearSession()
                         AppSessionState.sessionExpired = true
                     },
-                    loadUpdateLog = { loadApkUpdateChangelog() },
+                    loadUpdateLog = { loadApkUpdateChangelog(context) },
                 )
             }
             animatedComposable("settings__license") {
@@ -297,12 +299,12 @@ fun Main(
             )
         ) {
             Text(
-                text = "当前登录状态已过期，请重新登录!",
+                text = stringResource(id = R.string.session_expired_message),
                 modifier = Modifier.padding(horizontal = 24.dp),
                 style = MaterialTheme.typography.titleLarge
             )
             AhuPrimaryButton(
-                text = "重新登录",
+                text = stringResource(id = R.string.re_login),
                 onClick = {
                     navController.navigate("login")
                     onReLoginDismiss()

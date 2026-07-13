@@ -5,4 +5,35 @@
     <string name="school_term">学期</string>
     <string name="current_week">当前周</string>
     <string name="ok">确定</string>
+
+    <string name="load_schedule_failed">加载课表失败: %1$s</string>
+    <string name="load_next_schedule_failed">加载下学期课表失败: %1$s</string>
+    <string name="weekday_mon">周一</string>
+    <string name="weekday_tue">周二</string>
+    <string name="weekday_wed">周三</string>
+    <string name="weekday_thu">周四</string>
+    <string name="weekday_fri">周五</string>
+    <string name="weekday_sat">周六</string>
+    <string name="weekday_sun">周日</string>
+    <string name="schedule_settings">课表设置</string>
+    <string name="overview_schedule">总览课表</string>
+    <string name="overview_schedule_desc">显示全部周次的课程，重叠课程会平分同一块时间区域</string>
+    <string name="preview_next_semester">预览下学期课表</string>
+    <string name="preview_next_semester_desc">切换到教务系统中的下学期课表</string>
+    <string name="done">完成</string>
+    <string name="unknown_location">未知</string>
+    <string name="not_this_week">非本周</string>
+    <string name="weekday_num_1">一</string>
+    <string name="weekday_num_2">二</string>
+    <string name="weekday_num_3">三</string>
+    <string name="weekday_num_4">四</string>
+    <string name="weekday_num_5">五</string>
+    <string name="weekday_num_6">六</string>
+    <string name="weekday_num_7">七</string>
+    <string name="week_range">%1$d - %2$d </string>
+    <string name="week_range_even">%1$d - %2$d (双周)</string>
+    <string name="week_range_odd">%1$d - %2$d (单周)</string>
+    <string name="course_time_detail">第%1$s周的周%2$s，第 %3$d-%4$d 节课</string>
+    <string name="please_login_exclamation">请先登录！</string>
+    <string name="please_login">请先登录</string>
 </resources>

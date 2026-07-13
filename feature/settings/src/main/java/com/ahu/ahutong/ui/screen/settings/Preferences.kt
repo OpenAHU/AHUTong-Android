@@ -79,7 +79,11 @@ fun Preferences() {
             preferencesViewModel.courseReminderActions.reschedule(context)
         } else {
             preferencesViewModel.setCourseReminderEnabled(false)
-            Toast.makeText(context, "未授予通知权限，无法开启课前提醒", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.pref_notification_permission_denied),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -93,7 +97,7 @@ fun Preferences() {
             cornerRadius = AhuDimens.CardCornerMedium,
             onClick = { preferencesViewModel.setShowQRCode(!preferencesViewModel.showQRCode.value) },
         ) {
-            Text(text = "主页", style = MaterialTheme.typography.headlineSmall)
+            Text(text = stringResource(R.string.pref_section_home), style = MaterialTheme.typography.headlineSmall)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -101,7 +105,7 @@ fun Preferences() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "主页默认显示支付二维码")
+                Text(text = stringResource(R.string.pref_show_qr_on_home))
                 LiquidToggle(
                     selected = { showQRCode },
                     onSelect = { preferencesViewModel.setShowQRCode(!preferencesViewModel.showQRCode.value) },
@@ -135,7 +139,10 @@ fun Preferences() {
                 }
             },
         ) {
-            Text(text = "通知", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = stringResource(id = R.string.pref_section_notification),
+                style = MaterialTheme.typography.headlineSmall
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -147,9 +154,9 @@ fun Preferences() {
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(text = "课前提醒")
+                    Text(text = stringResource(id = R.string.pref_course_reminder))
                     Text(
-                        text = "上课前 10 分钟提醒下一节课",
+                        text = stringResource(id = R.string.pref_course_reminder_desc),
                         color = AhuColors.onSurface.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -183,7 +190,10 @@ fun Preferences() {
         }
 
         AhuInsetCard(cornerRadius = AhuDimens.CardCornerMedium) {
-            Text(text = "通知增强", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = stringResource(id = R.string.pref_section_notification_enhanced),
+                style = MaterialTheme.typography.headlineSmall
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -195,9 +205,9 @@ fun Preferences() {
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(text = "课前倒计时岛卡提醒（实验性）")
+                    Text(text = stringResource(id = R.string.pref_live_countdown))
                     Text(
-                        text = "仅部分系统支持 需同时开启课前提醒",
+                        text = stringResource(id = R.string.pref_live_countdown_desc),
                         color = AhuColors.onSurface.copy(alpha = 0.55f),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -210,7 +220,7 @@ fun Preferences() {
                         if (enabled && Build.VERSION.SDK_INT < 36) {
                             Toast.makeText(
                                 context,
-                                "当前 Android 版本暂不支持岛卡提醒",
+                                context.getString(R.string.pref_live_countdown_unsupported),
                                 Toast.LENGTH_SHORT
                             ).show()
                             preferencesViewModel.setCourseReminderLiveCountdownEnabled(false)
@@ -229,7 +239,7 @@ fun Preferences() {
                     if (Build.VERSION.SDK_INT < 36) {
                         Toast.makeText(
                             context,
-                            "当前 Android 版本暂不支持岛卡提醒",
+                            context.getString(R.string.pref_live_countdown_unsupported),
                             Toast.LENGTH_SHORT
                         ).show()
                     } else {
@@ -246,7 +256,7 @@ fun Preferences() {
                 },
                 modifier = Modifier.align(Alignment.End)
             ) {
-                Text(text = "管理系统岛卡权限")
+                Text(text = stringResource(id = R.string.pref_manage_live_permission))
             }
         }
 
@@ -254,7 +264,10 @@ fun Preferences() {
             cornerRadius = AhuDimens.CardCornerMedium,
             onClick = { preferencesViewModel.setUseLiquidGlass(!preferencesViewModel.useLiquidGlass.value) },
         ) {
-            Text(text = "液态玻璃", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = stringResource(id = R.string.pref_section_liquid_glass),
+                style = MaterialTheme.typography.headlineSmall
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -262,7 +275,7 @@ fun Preferences() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "启用液态玻璃效果")
+                Text(text = stringResource(id = R.string.pref_enable_liquid_glass))
                 LiquidToggle(
                     selected = { useLiquidGlass },
                     onSelect = { preferencesViewModel.setUseLiquidGlass(!preferencesViewModel.useLiquidGlass.value) },
@@ -284,19 +297,19 @@ fun ThemeColorSelector(
     var customColorInput by remember { mutableStateOf("") }
 
     val colors = listOf(
-        null to "默认",
-        "#FF4A90E2" to "极光蓝",
-        "#FFE07A9F" to "樱花粉",
-        "#FFF4A261" to "落日橙",
-        "#FF5C6BC0" to "靛夜蓝",
-        "#FF6A994E" to "苔藓绿",
-        "#FF9B7EDE" to "薰衣草紫",
-        "#FFD64550" to "绯红花",
-        "#FF4CC9F0" to "天空青",
-        "#FF2E8B57" to "森林翡翠",
-        "#FF6A4C93" to "午夜紫",
-        "#FFFF6F61" to "珊瑚粉",
-        "#FF7ED9C3" to "北极薄荷"
+        null to stringResource(id = R.string.theme_color_default),
+        "#FF4A90E2" to stringResource(id = R.string.theme_color_aurora_blue),
+        "#FFE07A9F" to stringResource(id = R.string.theme_color_sakura_pink),
+        "#FFF4A261" to stringResource(id = R.string.theme_color_sunset_orange),
+        "#FF5C6BC0" to stringResource(id = R.string.theme_color_indigo_night),
+        "#FF6A994E" to stringResource(id = R.string.theme_color_moss_green),
+        "#FF9B7EDE" to stringResource(id = R.string.theme_color_lavender),
+        "#FFD64550" to stringResource(id = R.string.theme_color_crimson),
+        "#FF4CC9F0" to stringResource(id = R.string.theme_color_sky_cyan),
+        "#FF2E8B57" to stringResource(id = R.string.theme_color_forest_jade),
+        "#FF6A4C93" to stringResource(id = R.string.theme_color_midnight_purple),
+        "#FFFF6F61" to stringResource(id = R.string.theme_color_coral_pink),
+        "#FF7ED9C3" to stringResource(id = R.string.theme_color_arctic_mint)
     )
 
     val isCustomColor = themeColor != null && colors.none { it.first == themeColor }
@@ -307,7 +320,7 @@ fun ThemeColorSelector(
             scrollable = false,
         ) {
             Text(
-                text = "自定义主题颜色",
+                text = stringResource(id = R.string.pref_custom_theme_color),
                 modifier = Modifier.padding(horizontal = 24.dp),
                 color = AhuColors.onSurface,
                 style = MaterialTheme.typography.titleLarge,
@@ -318,7 +331,7 @@ fun ThemeColorSelector(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "请输入ARGB Hex颜色代码 (例如 #FF007FAC)",
+                    text = stringResource(id = R.string.pref_custom_color_hint),
                     color = AhuColors.onSurface.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -348,7 +361,7 @@ fun ThemeColorSelector(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "取消",
+                    text = stringResource(id = R.string.cancel),
                     modifier = Modifier
                         .clickable { showCustomColorDialog = false }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -357,7 +370,7 @@ fun ThemeColorSelector(
                     style = MaterialTheme.typography.labelLarge,
                 )
                 AhuPrimaryButton(
-                    text = "确定",
+                    text = stringResource(id = R.string.confirm),
                     onClick = {
                         try {
                             android.graphics.Color.parseColor(customColorInput)
@@ -377,7 +390,10 @@ fun ThemeColorSelector(
     }
 
     AhuInsetCard(cornerRadius = AhuDimens.CardCornerMedium) {
-        Text(text = "主题颜色", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = stringResource(id = R.string.pref_theme_color),
+            style = MaterialTheme.typography.headlineSmall
+        )
 
         Row(
             modifier = Modifier
@@ -423,7 +439,7 @@ fun ThemeColorSelector(
                     }
                 }
                 Text(
-                    text = "自定义",
+                    text = stringResource(id = R.string.custom),
                     style = MaterialTheme.typography.labelMedium
                 )
             }

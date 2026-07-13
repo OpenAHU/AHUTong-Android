@@ -15,12 +15,14 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.feature.home.R
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.theme.AhuColors
@@ -87,9 +89,9 @@ fun AtAGlance(
         ) {
             Text(
                 text = when {
-                    currentCourse != null -> "正在上课"
-                    hasRemainingCourses -> "下节课是"
-                    else -> "今日课程"
+                    currentCourse != null -> stringResource(R.string.in_class)
+                    hasRemainingCourses -> stringResource(R.string.next_class_is)
+                    else -> stringResource(R.string.today_courses)
                 },
                 color = AhuColors.onSurface,
                 fontWeight = FontWeight.Bold,
@@ -99,7 +101,7 @@ fun AtAGlance(
                 text = when {
                     currentCourse != null -> currentCourse.name
                     hasRemainingCourses -> todayCourses[currentCourseIndex].name
-                    else -> "已全部上完"
+                    else -> stringResource(R.string.all_courses_done)
                 },
                 modifier = if (currentCourse != null || hasRemainingCourses) {
                     Modifier
@@ -130,11 +132,10 @@ fun AtAGlance(
                     currentCourse != null -> {
                         val duration =
                             ScheduleViewModel.getCourseTimeRangeInMinutes(currentCourse).last - currentMinutes
-                        "距下课还有 " + when {
-                            duration % 60 == 0 -> "${duration / 60}小时整"
-                            duration > 60 -> "${duration / 60}小时${duration % 60}分钟"
-                            else -> "${duration}分钟"
-                        }
+                        stringResource(
+                            R.string.time_until_class_end,
+                            formatDuration(duration),
+                        )
                     }
 
                     hasRemainingCourses -> {
@@ -142,19 +143,32 @@ fun AtAGlance(
                             ScheduleViewModel.getCourseTimeRangeInMinutes(
                                 todayCourses[currentCourseIndex]
                             ).first - currentMinutes
-                        "还有 " + when {
-                            duration % 60 == 0 -> "${duration / 60}小时整"
-                            duration > 60 -> "${duration / 60}小时${duration % 60}分钟"
-                            else -> "${duration}分钟"
-                        } + "，在 ${todayCourses[currentCourseIndex].location}"
+                        stringResource(
+                            R.string.time_until_class_start,
+                            formatDuration(duration),
+                            todayCourses[currentCourseIndex].location.orEmpty(),
+                        )
                     }
 
-                    else -> "准备您自己的安排吧"
+                    else -> stringResource(R.string.prepare_own_schedule)
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Clip,
                 style = MaterialTheme.typography.bodyLarge
             )
         }
+    }
+}
+
+@Composable
+private fun formatDuration(duration: Int): String {
+    return when {
+        duration % 60 == 0 -> stringResource(R.string.hours_exact, duration / 60)
+        duration > 60 -> stringResource(
+            R.string.hours_and_minutes,
+            duration / 60,
+            duration % 60,
+        )
+        else -> stringResource(R.string.minutes_only, duration)
     }
 }

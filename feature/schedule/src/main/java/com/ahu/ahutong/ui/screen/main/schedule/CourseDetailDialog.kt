@@ -21,9 +21,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.ui.components.AhuDialog
 import com.ahu.ahutong.ui.theme.AhuColors
 import com.kyant.monet.n1
@@ -38,14 +40,34 @@ fun CourseDetailDialog(
    val courses = course.weekIndexes.last() - course.weekIndexes.first()
 
     val numToChinese = mapOf(
-        1 to "一",
-        2 to "二",
-        3 to "三",
-        4 to "四",
-        5 to "五",
-        6 to "六",
-        7 to "七"
+        1 to stringResource(R.string.weekday_num_1),
+        2 to stringResource(R.string.weekday_num_2),
+        3 to stringResource(R.string.weekday_num_3),
+        4 to stringResource(R.string.weekday_num_4),
+        5 to stringResource(R.string.weekday_num_5),
+        6 to stringResource(R.string.weekday_num_6),
+        7 to stringResource(R.string.weekday_num_7)
     )
+    val weekPart = when {
+        courses == course.weekIndexes.size - 1 -> stringResource(
+            R.string.week_range,
+            course.weekIndexes.first(),
+            course.weekIndexes.last()
+        )
+        courses == (course.weekIndexes.size - 1) * 2 && course.weekIndexes.first() % 2 == 0 ->
+            stringResource(
+                R.string.week_range_even,
+                course.weekIndexes.first(),
+                course.weekIndexes.last()
+            )
+        courses == (course.weekIndexes.size - 1) * 2 && course.weekIndexes.first() % 2 == 0 ->
+            stringResource(
+                R.string.week_range_odd,
+                course.weekIndexes.first(),
+                course.weekIndexes.last()
+            )
+        else -> course.weekIndexes.toString()
+    }
     AhuDialog(onDismissRequest = onDismiss, scrollable = false) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp),
@@ -57,14 +79,13 @@ fun CourseDetailDialog(
                 style = MaterialTheme.typography.headlineMedium
             )
             Text(
-                text = "第${
-                    when {
-                        courses  == course.weekIndexes.size - 1 -> "${course.weekIndexes.first()} - ${course.weekIndexes.last()} "   //[1,2,3,4,5,6]
-                        courses == (course.weekIndexes.size - 1) * 2 && course.weekIndexes.first()%2==0 -> "${course.weekIndexes.first()} - ${course.weekIndexes.last()} (双周)"    // [1,3,5,7]  [5,7,9,11,13]
-                        courses == (course.weekIndexes.size - 1) * 2 && course.weekIndexes.first()%2==0 -> "${course.weekIndexes.first()} - ${course.weekIndexes.last()} (单周)"    // [2,4,6,8]
-                        else -> course.weekIndexes.toString()  //[1,2,3,5,6,7,11]
-                    }
-                }周的周${numToChinese[course.weekday]}，第 ${course.startTime}-${course.startTime + course.length - 1} 节课",
+                text = stringResource(
+                    R.string.course_time_detail,
+                    weekPart,
+                    numToChinese[course.weekday].orEmpty(),
+                    course.startTime,
+                    course.startTime + course.length - 1
+                ),
                 color = AhuColors.onSurface,
                 style = MaterialTheme.typography.titleMedium
             )

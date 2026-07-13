@@ -1,4 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="card_money">校园卡余额</string>
+    <string name="bathroom_payment">浴室缴费</string>
+    <string name="electricity_control_payment">电控缴费</string>
+    <string name="electricity_recharge">电费充值</string>
+    <string name="grade_report">成绩单</string>
+    <string name="phone_book">电话本</string>
+    <string name="exam_query">考场查询</string>
+    <string name="school_calendar">校历</string>
+    <string name="free_classroom">空闲教室</string>
+    <string name="lost_and_found">失物招领</string>
+    <string name="weather">天气</string>
+    <string name="learning_materials">学习资料</string>
+    <string name="recharge_vertical">充\n值</string>
+    <string name="back">返回</string>
+    <string name="enlarge">放大</string>
+    <string name="load_failed">加载失败</string>
+    <string name="in_class">正在上课</string>
+    <string name="next_class_is">下节课是</string>
+    <string name="today_courses">今日课程</string>
+    <string name="all_courses_done">已全部上完</string>
+    <string name="time_until_class_end">距下课还有 %1$s</string>
+    <string name="time_until_class_start">还有 %1$s，在 %2$s</string>
+    <string name="hours_exact">%1$d小时整</string>
+    <string name="hours_and_minutes">%1$d小时%2$d分钟</string>
+    <string name="minutes_only">%1$d分钟</string>
+    <string name="prepare_own_schedule">准备您自己的安排吧</string>
+    <string name="no_courses_today">今天暂无课程</string>
+    <string name="click_view_full_schedule">点击查看完整课表</string>
+    <string name="drop_here">拖到这里</string>
+    <string name="add_tools">添加小工具</string>
+    <string name="hide_icon_hint">此操作仅隐藏图标，您随时可以从小工具中重新添加。</string>
+    <string name="all_tools_added">所有小工具都已添加到首页</string>
+    <string name="must_bring_umbrella">务必带伞</string>
+    <string name="suggest_bring_umbrella">建议带伞</string>
+    <string name="possible_rain">可能降雨</string>
+    <string name="bring_umbrella">带伞</string>
+    <string name="sunscreen">防晒</string>
+    <string name="air_quality">空气%1$s %2$s</string>
 </resources>
