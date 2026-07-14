@@ -515,6 +515,9 @@ object AHURepository {
 
     suspend fun getQrcode(): Result<String> =
         withContext(Dispatchers.IO) {
+            if (AHUCache.getMockData()) {
+                return@withContext Result.success("AHUTONG-MOCK-PAYMENT-CODE")
+            }
             getHttpClient()?.let { httpClient ->
                 val httpResult = httpClient.getQrcode()
                 if (httpResult.isSuccess) {

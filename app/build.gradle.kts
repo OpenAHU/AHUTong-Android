@@ -32,7 +32,8 @@ android {
         versionName = "3.1.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            // x86_64 is retained only so the fixed UI baseline can run on GitHub's emulator.
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -98,8 +99,8 @@ val buildRustSdkArm64 by tasks.registering(Exec::class) {
     commandLine(
         "cargo",
         "ndk",
-        "-t",
-        "arm64-v8a",
+        "-t", "arm64-v8a",
+        "-t", "x86_64",
         "-o",
         project.file("src/main/jniLibs").absolutePath,
         "build",
@@ -146,6 +147,8 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.androidx.core.ktx)
     testImplementation(kotlin("test-junit"))
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 
     implementation(libs.zxing.android.embedded)
     implementation(libs.hilt.android)

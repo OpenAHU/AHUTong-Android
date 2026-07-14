@@ -1,0 +1,101 @@
+name: Android UI Baseline
+
+on:
+  push:
+    branches:
+      - "p/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ui-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out fixed UI branch
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-linux-android,aarch64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Cache Gradle and Cargo
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Cache Rust SDK
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            sdk
+            GuiXu-Rust
+
+      - name: Build fixed Android UI and state seeder
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Capture 390 x 844 Android baseline
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: sh .github/scripts/capture-android-ui-baseline.sh
+
+      - name: Verify baseline dimensions
+        run: |
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+
+          images = sorted(Path("${{ runner.temp }}/android-ui-baseline").glob("*.png"))
+          assert len(images) == 43, len(images)
+          for image in images:
+              with image.open("rb") as handle:
+                  signature = handle.read(24)
+              assert signature[:8] == b"\x89PNG\r\n\x1a\n", image
+              size = struct.unpack(">II", signature[16:24])
+              assert size == (1170, 2532), (image, size)
+          PY
+
+      - name: Upload fixed Android UI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AHUTong-android-ui-baseline-${{ github.run_number }}
+          path: ${{ runner.temp }}/android-ui-baseline
+          if-no-files-found: warn
+          retention-days: 7

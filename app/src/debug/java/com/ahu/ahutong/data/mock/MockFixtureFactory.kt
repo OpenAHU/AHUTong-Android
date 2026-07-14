@@ -17,6 +17,7 @@ import com.ahu.ahutong.data.crawler.model.ycard.Accinfo
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
 import com.ahu.ahutong.data.crawler.model.ycard.Card as YCard
 import com.ahu.ahutong.data.crawler.model.ycard.Data as YCardData
+import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.BathRoom
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.BizTypeAssoc
@@ -39,6 +40,7 @@ object MockFixtureFactory {
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     private val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+    private val lostFoundReferenceDateTime = LocalDateTime.of(2026, 7, 14, 10, 0)
 
     fun academic(
         variant: AcademicVariant,
@@ -115,8 +117,8 @@ object MockFixtureFactory {
     ): MockDiscoveryProfile =
         when (variant) {
             DiscoveryVariant.Standard -> discoveryProfile(
-                lostCount = 14,
-                foundCount = 10,
+                lostCount = 3,
+                foundCount = 1,
                 activeType = "mixed"
             )
             DiscoveryVariant.ActiveLostFound -> discoveryProfile(
@@ -186,7 +188,17 @@ object MockFixtureFactory {
                 )
             ),
             exams = listOf(
-                exam("操作系统", "博学南楼 A210", examTime(today, LocalTime.now().minusMinutes(20), LocalTime.now().plusMinutes(80)), "18", false),
+                exam(
+                    "操作系统",
+                    "博学南楼 A210",
+                    examTime(
+                        today,
+                        DebugClock.nowLocalDateTime().toLocalTime().minusMinutes(20),
+                        DebugClock.nowLocalDateTime().toLocalTime().plusMinutes(80)
+                    ),
+                    "18",
+                    false
+                ),
                 exam("计算机网络", "笃行北楼 B402", examTime(today.plusDays(2), LocalTime.of(9, 0), LocalTime.of(11, 0)), "32", false),
                 exam("数据库系统", "文典阁 205", examTime(today.plusDays(5), LocalTime.of(14, 30), LocalTime.of(16, 30)), "07", false),
                 exam("软件工程", "博学南楼 A101", examTime(today.minusDays(3), LocalTime.of(8, 0), LocalTime.of(10, 0)), "21", true)
@@ -628,10 +640,10 @@ object MockFixtureFactory {
     ): LostFoundItem = LostFoundItem(
         id = id,
         title = "$title - $detail",
-        phone = if (ownerMode) "13800000000" else "1390000${(1000..9999).random()}",
+        phone = if (ownerMode) "13800000000" else "1390000${(1000 + createdOffsetHours).toString().padStart(4, '0')}",
         linkman = if (ownerMode) "Mock 本人" else "Mock 同学",
-        createuser = if (ownerMode) "U20260001" else "U2026${(1000..9999).random()}",
-        createtime = LocalDateTime.now().minusHours(createdOffsetHours).format(dateTimeFormatter),
+        createuser = if (ownerMode) "U20260001" else "U2026${(1000 + createdOffsetHours).toString().padStart(4, '0')}",
+        createtime = lostFoundReferenceDateTime.minusHours(createdOffsetHours).format(dateTimeFormatter),
         state = state,
         audituser = "mock-auditor",
         auditresult = "1",
@@ -644,13 +656,13 @@ object MockFixtureFactory {
         imgs = listOf(
             LostFoundImage(
                 imgId = "$id-img",
-                imgPath = "https://mock.ahu.edu.cn/images/$id.jpg",
-                createtime = LocalDateTime.now().minusHours(createdOffsetHours).format(dateTimeFormatter),
+                imgPath = "/mock-images/$id.jpg",
+                createtime = lostFoundReferenceDateTime.minusHours(createdOffsetHours).format(dateTimeFormatter),
                 lostid = id
             )
         ),
         pubuser = LostFoundUser(
-            idNumber = if (ownerMode) "U20260001" else "U2026${(1000..9999).random()}",
+            idNumber = if (ownerMode) "U20260001" else "U2026${(1000 + createdOffsetHours).toString().padStart(4, '0')}",
             unitUid = "CS",
             unitName = "计算机科学与技术学院",
             userName = if (ownerMode) "Mock 本人" else "Mock 同学",
