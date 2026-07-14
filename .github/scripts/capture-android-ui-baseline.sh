@@ -48,6 +48,24 @@ if matches:
 PY
 }
 
+node_contains_point() {
+  attribute="$1"
+  value="$2"
+  path="$3"
+  python3 - "$attribute" "$value" "$path" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+attribute, value, path = sys.argv[1], sys.argv[2], sys.argv[3]
+for node in ET.parse(path).iter("node"):
+    if value in node.attrib.get(attribute, ""):
+        values = list(map(int, re.findall(r"\d+", node.attrib["bounds"])))
+        print((values[0] + values[2]) // 2, (values[1] + values[3]) // 2)
+        break
+PY
+}
+
 tap_text() {
   label="$1"
   attempt=0
@@ -93,6 +111,30 @@ tap_last_text() {
   # shellcheck disable=SC2086
   adb shell input tap $point
   sleep 2
+}
+
+tap_text_contains() {
+  label="$1"
+  attempt=0
+  while [ "$attempt" -lt 10 ]; do
+    adb shell uiautomator dump /sdcard/window.xml >/dev/null
+    adb pull /sdcard/window.xml "$window_xml" >/dev/null
+    point="$(node_contains_point text "$label" "$window_xml")"
+    if [ -z "$point" ]; then
+      point="$(node_contains_point content-desc "$label" "$window_xml")"
+    fi
+    if [ -n "$point" ]; then
+      # shellcheck disable=SC2086
+      adb shell input tap $point
+      sleep 2
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+  cp "$window_xml" "$output_dir/missing-contains-${label}.xml"
+  echo "Timed out tapping Android node containing: $label" >&2
+  return 1
 }
 
 tap_visible_text() {
@@ -271,6 +313,39 @@ adb shell am force-stop com.ahu.ahutong
 adb shell am start -W -n com.ahu.ahutong/.MainActivity
 wait_for_text 校园卡余额
 capture 15-home-return
+tap_text_contains "充"
+wait_for_text "校园卡充值"
+capture 15-card-recharge
+tap_text "请输入金额"
+adb shell input text 10
+adb shell input keyevent 66
+tap_text "确认"
+wait_for_text "确认支付"
+capture 15-card-recharge-dialog
+tap_text "取消"
+adb shell input keyevent 4
+wait_for_text "浴室缴费"
+tap_text "浴室缴费"
+wait_for_text "选择浴室"
+capture 15-bathroom-payment
+adb shell input keyevent 4
+wait_for_text "电控缴费"
+tap_text "电控缴费"
+wait_for_text "选择校区"
+capture 15-electricity-payment
+adb shell input keyevent 4
+tap_text "设置"
+# The product exposes Debug by tapping the application card eight times within
+# one second. Fixed coordinates target that card in the 1170x2532 evidence
+# viewport; there is intentionally no product-only test route.
+for _ in 1 2 3 4 5 6 7 8; do
+  adb shell input tap 600 680
+done
+wait_for_text "Debug"
+capture 15-debug
+adb shell input keyevent 4
+tap_text "主页"
+wait_for_text "校园卡余额"
 tap_text 校园卡余额
 wait_for_text "QR Code"
 capture 16-card-qrcode

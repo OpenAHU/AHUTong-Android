@@ -82,7 +82,7 @@ jobs:
           from pathlib import Path
 
           images = sorted(Path("${{ runner.temp }}/android-ui-baseline").glob("*.png"))
-          assert len(images) == 43, len(images)
+          assert len(images) == 48, len(images)
           for image in images:
               with image.open("rb") as handle:
                   signature = handle.read(24)
