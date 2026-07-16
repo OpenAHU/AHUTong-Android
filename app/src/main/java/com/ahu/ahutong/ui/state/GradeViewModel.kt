@@ -31,19 +31,30 @@ class GradeViewModel : ViewModel() {
     var studentProfiles by mutableStateOf<List<GradeStudentProfile>>(emptyList())
     var selectedProfileIndex by mutableStateOf(0)
 
-    /** 每个 profile ID → Grade（null = 该专业无成绩） */
     private var perProfileGrades: Map<String, Grade?> = emptyMap()
 
     fun getGpaRank() = viewModelScope.launch {
         rankLoading = true
         rankEmptyMessage = null
+        // 并行调用 getGrade 时 profiles 可能还未加载完，从缓存补一次
+        if (studentProfiles.isEmpty()) {
+            studentProfiles = AHUCache.getGradeStudentProfiles()
+        }
+        val profile = studentProfiles.getOrNull(selectedProfileIndex)
+        if (profile == null) {
+            Log.w("GradeViewModel", "getGpaRank: no profile available")
+            rankEmptyMessage = "暂无排名信息"
+            rankLoading = false
+            return@launch
+        }
         try {
-            val profile = studentProfiles.getOrNull(selectedProfileIndex)
-            val studentId = profile?.id ?: return@launch
+            val studentId = profile.id
+            Log.d("GradeViewModel", "getGpaRank: fetching for id=$studentId")
             val result = AHURepository.getGpaRankInfo(studentId)
             if (result.code == 0 && result.data != null) {
                 gpaRankInfo = result.data
                 AHUCache.saveGpaRankInfo(studentId, result.data)
+                Log.d("GradeViewModel", "getGpaRank: success gpa=${result.data.gpa}")
             } else {
                 gpaRankInfo = null
                 rankEmptyMessage = "「${profile.displayName}」暂无排名信息"
@@ -64,14 +75,13 @@ class GradeViewModel : ViewModel() {
             val result = AHURepository.getGrade(isRefresh)
             if (result.isSuccess) {
                 grade = result.getOrNull()
-                // 加载由 CrawlerDataSource 写入的 per-profile 缓存
                 perProfileGrades = AHUCache.getPerProfileGrades()
                 studentProfiles = AHUCache.getGradeStudentProfiles()
-                // 如果 per-profile 缓存为空（单学号学生首次加载），直接使用合并后的 grade
+                // 成绩就绪后自动拉排名
+                getGpaRank()
                 if (perProfileGrades.isNotEmpty()) {
                     switchToSelectedProfile()
                 } else {
-                    // 无 per-profile 数据：单学号学生直接用合并 grade，重置学期选择
                     schoolYear = schoolYears.firstOrNull()
                     schoolTerm = terms.keys.firstOrNull()
                     refreshTermAndYearGPA()
@@ -91,7 +101,6 @@ class GradeViewModel : ViewModel() {
         val profile = studentProfiles.getOrNull(selectedProfileIndex)
         val profileGrade = profile?.let { perProfileGrades[it.id] }
         grade = profileGrade
-        // 新专业的成绩可能为空或不同学期，重置学期选择和绩点到默认
         if (profileGrade == null) {
             termGradePointAverage = "暂无"
             totalGradePointAverage = "暂无"
@@ -108,7 +117,6 @@ class GradeViewModel : ViewModel() {
             isRefreshing = true
             try {
                 getGarde(true)
-                getGpaRank()
             } finally {
                 isRefreshing = false
             }
@@ -143,7 +151,6 @@ class GradeViewModel : ViewModel() {
             .onEach { refreshTermAndYearGPA() }
             .launchIn(viewModelScope)
 
-        // 切换专业 → 清空旧排名 + 切成绩 + 重新获取排名
         snapshotFlow { selectedProfileIndex }
             .onEach {
                 if (studentProfiles.isNotEmpty()) {
@@ -157,7 +164,6 @@ class GradeViewModel : ViewModel() {
 
         studentProfiles = if (AHUCache.getMockData()) emptyList() else AHUCache.getGradeStudentProfiles()
         perProfileGrades = AHUCache.getPerProfileGrades()
-        // 加载第一个专业的缓存排名
         studentProfiles.firstOrNull()?.let {
             gpaRankInfo = AHUCache.getGpaRankInfo(it.id)
         }

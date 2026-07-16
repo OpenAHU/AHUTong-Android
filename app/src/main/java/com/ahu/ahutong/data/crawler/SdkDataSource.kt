@@ -97,20 +97,24 @@ class SdkDataSource : BaseDataSource {
     }
 
     override suspend fun getGrade(): AHUResponse<Grade> {
+        val result: AHUResponse<Grade>
         // 优先使用 HTTP 客户端
         val httpClient = getHttpClient()
         if (httpClient != null) {
             Log.d("LocalServiceClient", "[getGrade] Using HTTP client")
-            val result = httpClient.getGrade()
-            if (result.isSuccess) {
-                val data = result.getOrThrow()
-                return convertGradeResponse(data)
+            val httpResult = httpClient.getGrade()
+            if (httpResult.isSuccess) {
+                result = convertGradeResponse(httpResult.getOrThrow())
+                populateProfiles()
+                return result
             }
 
-            Log.w("LocalServiceClient", "[getGrade] HTTP failed, fallback to JNI: ${result.exceptionOrNull()?.message}")
+            Log.w("LocalServiceClient", "[getGrade] HTTP failed, fallback to JNI: ${httpResult.exceptionOrNull()?.message}")
             val jniResult = RustSDK.getGradeSafe()
             if (jniResult.isSuccess) {
-                return convertGradeResponse(jniResult.getOrThrow())
+                result = convertGradeResponse(jniResult.getOrThrow())
+                populateProfiles()
+                return result
             }
 
             Log.w("LocalServiceClient", "[getGrade] JNI failed, fallback to Android crawler: ${jniResult.exceptionOrNull()?.message}")
@@ -119,9 +123,11 @@ class SdkDataSource : BaseDataSource {
 
         // Fallback: 直接 JNI 调用
         Log.d("LocalServiceClient", "[getGrade] Fallback to JNI")
-        val result = RustSDK.getGradeSafe()
-        if (result.isSuccess) {
-            return convertGradeResponse(result.getOrThrow())
+        val jniResult = RustSDK.getGradeSafe()
+        if (jniResult.isSuccess) {
+            result = convertGradeResponse(jniResult.getOrThrow())
+            populateProfiles()
+            return result
         }
 
         return try {
@@ -129,7 +135,7 @@ class SdkDataSource : BaseDataSource {
         } catch (e: Exception) {
             val response = AHUResponse<Grade>()
             response.code = -1
-            val msg = result.exceptionOrNull()?.message
+            val msg = jniResult.exceptionOrNull()?.message
                 ?: "获取成绩失败"
             response.msg = if (msg.contains("error decoding response body", ignoreCase = true)) {
                 "教务系统返回异常（可能登录失效），请重新登录后重试"
@@ -138,6 +144,13 @@ class SdkDataSource : BaseDataSource {
             }
             response
         }
+    }
+
+    /** Ensure student profiles and per-profile grades are cached after SDK fetch */
+    private suspend fun populateProfiles() {
+        try {
+            crawlerFallback.getGradeStudentProfiles()
+        } catch (_: Exception) { }
     }
 
 
