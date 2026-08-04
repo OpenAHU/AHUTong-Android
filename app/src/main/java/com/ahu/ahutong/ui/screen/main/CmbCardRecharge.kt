@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -63,6 +64,7 @@ import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.ui.rememberBehaviorActionReporter
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
@@ -93,6 +95,51 @@ private const val CMB_SUBMIT_OBSERVER_SCRIPT = """
       : null;
     if (target) notify();
   }, true);
+})();
+"""
+
+private val CMB_NATIVE_STATE_BRIDGE_SCRIPT = """
+(function(){
+  function findRechargeComponent(){
+    var root = document.querySelector('#app');
+    var queue = root && root.__vue__ ? [root.__vue__] : [];
+    var seen = [];
+    while (queue.length) {
+      var current = queue.shift();
+      if (!current || seen.indexOf(current) >= 0) continue;
+      seen.push(current);
+      if (typeof current.rechargeOrders === 'function' && Array.isArray(current.cardList)) {
+        return current;
+      }
+      if (current.${'$'}children) queue = queue.concat(current.${'$'}children);
+    }
+    return null;
+  }
+  function publish(){
+    var component = findRechargeComponent();
+    if (!component || !component.cardList.length) return;
+    var account = component.cardList[component.cardIndex || 0] || component.cardList[0];
+    var methods = (component.payType || []).map(function(item, index){
+      return {
+        pageIndex: index,
+        name: String(item.payPrdName || ('支付方式 ' + (index + 1)))
+      };
+    });
+    var payload = JSON.stringify({
+      studentNumber: String(account.empno || ''),
+      balance: Number(account.balance || 0),
+      paymentMethods: methods
+    });
+    if (payload === window.__ahutongRechargeLastPayload) return;
+    window.__ahutongRechargeLastPayload = payload;
+    window.AhuTongRechargeBridge.onRechargeState(payload);
+  }
+  window.__ahutongPublishRechargeState = publish;
+  if (!window.__ahutongRechargeStateObserverInstalled) {
+    window.__ahutongRechargeStateObserverInstalled = true;
+    window.setInterval(publish, 500);
+  }
+  publish();
 })();
 """
 
@@ -132,18 +179,36 @@ fun CmbCardRecharge(
     var loadRequestVersion by remember { mutableIntStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
     var isRechargeSuccessPage by remember { mutableStateOf(false) }
+    var nativeData by remember { mutableStateOf<CmbRechargeNativeData?>(null) }
+    var showWebContent by remember { mutableStateOf(false) }
+    var forceWebContent by remember { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) }
     var successReturnBounds by remember {
         mutableStateOf<CmbRechargeNormalizedBounds?>(null)
     }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val isWebContentVisible = showWebContent || forceWebContent
 
-    BackHandler(onBack = onExit)
+    BackHandler {
+        val currentWebView = webView
+        if (forceWebContent && isCmbRechargeNativeEntryUrl(currentWebView?.url)) {
+            forceWebContent = false
+        } else if (isWebContentVisible && currentWebView?.canGoBack() == true) {
+            currentWebView.goBack()
+        } else {
+            onExit()
+        }
+    }
 
     fun reloadEntry() {
         progress = 0
         isLoading = true
         errorMessage = null
         isRechargeSuccessPage = false
+        nativeData = null
+        showWebContent = false
+        forceWebContent = false
+        isSubmitting = false
         successReturnBounds = null
         webView?.stopLoading()
         loadRequestVersion += 1
@@ -155,6 +220,10 @@ fun CmbCardRecharge(
         errorMessage = null
         entryUrl = null
         isRechargeSuccessPage = false
+        nativeData = null
+        showWebContent = false
+        forceWebContent = false
+        isSubmitting = false
         successReturnBounds = null
         val token = withContext(Dispatchers.IO) { TokenManager.awaitToken() }
         if (token.isNullOrBlank()) {
@@ -220,7 +289,9 @@ fun CmbCardRecharge(
             entryUrl?.let { url ->
                 val requestVersion = loadRequestVersion
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = if (isWebContentVisible) 1f else 0f },
                     factory = { viewContext ->
                         createCmbRechargeWebView(
                             context = viewContext,
@@ -233,8 +304,24 @@ fun CmbCardRecharge(
                                 if (!isSuccessPage) successReturnBounds = null
                             },
                             onSuccessReturnBoundsChanged = { successReturnBounds = it },
+                            onNativeDataChanged = { pageData ->
+                                nativeData = pageData
+                                errorMessage = null
+                                isSubmitting = false
+                                showWebContent = false
+                            },
+                            onPageChanged = { currentUrl ->
+                                if (isCmbRechargeNativeEntryUrl(currentUrl)) {
+                                    if (showWebContent) forceWebContent = false
+                                    showWebContent = false
+                                } else {
+                                    showWebContent = true
+                                    isSubmitting = false
+                                }
+                            },
                             onMainFrameError = { error ->
                                 errorMessage = error
+                                isSubmitting = false
                             },
                             onExternalLink = { externalUrl ->
                                 openExternalLink(context, externalUrl)
@@ -273,14 +360,46 @@ fun CmbCardRecharge(
                 }
             }
 
-            if (isLoading) {
+            if (!isWebContentVisible) {
+                CmbRechargeNativePanel(
+                    data = nativeData,
+                    errorMessage = errorMessage,
+                    isSubmitting = isSubmitting,
+                    onRetry = {
+                        if (entryUrl == null) {
+                            tokenRequestVersion += 1
+                        } else {
+                            reloadEntry()
+                        }
+                    },
+                    onManagePaymentMethods = {
+                        forceWebContent = true
+                    },
+                    onSubmit = { amount, paymentMethodIndex ->
+                        behaviorReporter.organic(AppActionId.SUBMIT_CMB_CARD_RECHARGE)
+                        isSubmitting = true
+                        forceWebContent = true
+                        webView?.submitCmbRecharge(
+                            amount = amount,
+                            paymentMethodIndex = paymentMethodIndex,
+                            onRejected = { message ->
+                                isSubmitting = false
+                                forceWebContent = false
+                                errorMessage = message
+                            }
+                        )
+                    }
+                )
+            }
+
+            if (isWebContentVisible && isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = colorScheme.primary
                 )
             }
 
-            if (progress in 1..99) {
+            if (isWebContentVisible && progress in 1..99) {
                 LinearProgressIndicator(
                     progress = { progress / 100f },
                     modifier = Modifier
@@ -289,7 +408,7 @@ fun CmbCardRecharge(
                 )
             }
 
-            errorMessage?.let { message ->
+            if (isWebContentVisible) errorMessage?.let { message ->
                 Column(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -359,6 +478,8 @@ private fun createCmbRechargeWebView(
     onProgressChanged: (Int) -> Unit,
     onSuccessPageChanged: (Boolean) -> Unit,
     onSuccessReturnBoundsChanged: (CmbRechargeNormalizedBounds?) -> Unit,
+    onNativeDataChanged: (CmbRechargeNativeData) -> Unit,
+    onPageChanged: (String?) -> Unit,
     onMainFrameError: (String) -> Unit,
     onExternalLink: (String) -> Unit,
     onSubmitIntent: () -> Unit
@@ -381,6 +502,10 @@ private fun createCmbRechargeWebView(
         }
         android.webkit.CookieManager.getInstance().setAcceptCookie(true)
         addJavascriptInterface(CmbBehaviorBridge(this, onSubmitIntent), "AhuTongBehaviorBridge")
+        addJavascriptInterface(
+            CmbRechargeStateBridge(this, onNativeDataChanged),
+            "AhuTongRechargeBridge"
+        )
         val boundsLocator = CmbRechargeBoundsLocator(this, onSuccessReturnBoundsChanged)
         tag = CmbRechargeWebViewState(boundsLocator = boundsLocator)
 
@@ -389,6 +514,9 @@ private fun createCmbRechargeWebView(
                 onProgressChanged(newProgress)
                 if (newProgress >= 100) {
                     onLoadingChanged(false)
+                    if (view != null && isCmbRechargeNativeEntryUrl(view.url)) {
+                        view.evaluateJavascript(CMB_NATIVE_STATE_BRIDGE_SCRIPT, null)
+                    }
                 }
             }
         }
@@ -424,16 +552,21 @@ private fun createCmbRechargeWebView(
                 onLoadingChanged(true)
                 boundsLocator.clear()
                 updateSuccessPage(url)
+                onPageChanged(url)
                 super.onPageStarted(view, url, favicon)
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 onLoadingChanged(false)
                 updateSuccessPage(url)
+                onPageChanged(url)
                 if (view != null) {
                     applyCmbRechargePageStyle(view, url, pageStyleScript())
                     if (url?.let(Uri::parse)?.let(::isAuditedCmbSubmitPage) == true) {
                         view.evaluateJavascript(CMB_SUBMIT_OBSERVER_SCRIPT, null)
+                    }
+                    if (isCmbRechargeNativeEntryUrl(url)) {
+                        view.evaluateJavascript(CMB_NATIVE_STATE_BRIDGE_SCRIPT, null)
                     }
                     boundsLocator.locate(url)
                 }
@@ -445,6 +578,10 @@ private fun createCmbRechargeWebView(
                 url: String?,
                 isReload: Boolean
             ) {
+                onPageChanged(url)
+                if (view != null && isCmbRechargeNativeEntryUrl(url)) {
+                    view.evaluateJavascript(CMB_NATIVE_STATE_BRIDGE_SCRIPT, null)
+                }
                 if (updateSuccessPage(url) && view != null) boundsLocator.locate(url)
                 super.doUpdateVisitedHistory(view, url, isReload)
             }
@@ -462,6 +599,45 @@ private fun createCmbRechargeWebView(
                 }
                 super.onReceivedError(view, request, error)
             }
+        }
+    }
+}
+
+private data class CmbRechargeBridgePayload(
+    val studentNumber: String = "",
+    val balance: Double = 0.0,
+    val paymentMethods: List<CmbRechargeBridgePaymentMethod> = emptyList()
+)
+
+private data class CmbRechargeBridgePaymentMethod(
+    val pageIndex: Int = -1,
+    val name: String = ""
+)
+
+private class CmbRechargeStateBridge(
+    private val webView: WebView,
+    private val onNativeDataChanged: (CmbRechargeNativeData) -> Unit
+) {
+    private val gson = Gson()
+
+    @JavascriptInterface
+    fun onRechargeState(payload: String) {
+        webView.post {
+            if (!isCmbRechargeNativeEntryUrl(webView.url)) return@post
+            val parsed = runCatching {
+                gson.fromJson(payload, CmbRechargeBridgePayload::class.java)
+            }.getOrNull() ?: return@post
+            val methods = parsed.paymentMethods
+                .filter { it.pageIndex >= 0 && it.name.isNotBlank() }
+                .distinctBy { it.pageIndex }
+                .map { CmbRechargePaymentMethod(pageIndex = it.pageIndex, name = it.name) }
+            onNativeDataChanged(
+                CmbRechargeNativeData(
+                    studentNumber = parsed.studentNumber,
+                    balance = normalizeCmbRechargeBalance(parsed.balance),
+                    paymentMethods = methods
+                )
+            )
         }
     }
 }
@@ -487,6 +663,54 @@ private class CmbBehaviorBridge(
     }
 
     private companion object { const val NATIVE_SUBMIT_DEBOUNCE_MS = 1_000L }
+}
+
+private fun WebView.submitCmbRecharge(
+    amount: String,
+    paymentMethodIndex: Int,
+    onRejected: (String) -> Unit
+) {
+    val amountValue = amount.toDoubleOrNull()
+    if (
+        !isCmbRechargeNativeEntryUrl(url) ||
+        amountValue == null ||
+        amountValue <= 0.0 ||
+        amountValue > 1_000.0 ||
+        paymentMethodIndex < 0
+    ) {
+        onRejected("充值页面状态已变化，请重试")
+        return
+    }
+    val script = """
+        (function(){
+          var root = document.querySelector('#app');
+          var queue = root && root.__vue__ ? [root.__vue__] : [];
+          var seen = [];
+          var component = null;
+          while (queue.length) {
+            var current = queue.shift();
+            if (!current || seen.indexOf(current) >= 0) continue;
+            seen.push(current);
+            if (typeof current.rechargeOrders === 'function' && Array.isArray(current.payType)) {
+              component = current;
+              break;
+            }
+            var children = current[String.fromCharCode(36) + 'children'];
+            if (children) queue = queue.concat(children);
+          }
+          if (!component || !component.payType[$paymentMethodIndex]) return 'not-ready';
+          component.tranAmt = $amountValue;
+          component.payTypeIndex = $paymentMethodIndex;
+          component.cardIndex = 0;
+          component.charge();
+          return 'submitted';
+        })();
+    """.trimIndent()
+    evaluateJavascript(script) { result ->
+        if (result != "\"submitted\"") {
+            onRejected("充值页面尚未准备好，请稍后重试")
+        }
+    }
 }
 
 private class CmbRechargeWebViewState(
@@ -654,6 +878,25 @@ internal fun isCmbRechargeStyleTarget(url: String?): Boolean {
         else -> false
     }
 }
+
+internal fun isCmbRechargeNativeEntryUrl(url: String?): Boolean {
+    if (url.isNullOrBlank()) return false
+    val uri = runCatching { URI(url) }.getOrNull() ?: return false
+    val scheme = uri.scheme.orEmpty().lowercase()
+    val host = uri.host.orEmpty().lowercase()
+    val path = uri.path.orEmpty().trimEnd('/').lowercase()
+    val hasTrustedPort = when (scheme) {
+        "http" -> uri.port in setOf(-1, 80)
+        "https" -> uri.port in setOf(-1, 443)
+        else -> false
+    }
+    return hasTrustedPort &&
+        host == "epay92.ahu.edu.cn" &&
+        path == "/cashier-mobile/charge"
+}
+
+internal fun normalizeCmbRechargeBalance(balanceInCents: Double): Double =
+    if (balanceInCents.isFinite()) balanceInCents / 100.0 else 0.0
 
 private fun buildCmbRechargeEntryUrl(token: String): String {
     return Uri.Builder()

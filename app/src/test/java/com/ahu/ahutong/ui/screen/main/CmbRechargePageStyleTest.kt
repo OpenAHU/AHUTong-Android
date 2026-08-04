@@ -2,6 +2,7 @@ package com.ahu.ahutong.ui.screen.main
 
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -181,6 +182,41 @@ class CmbRechargePageStyleTest {
             )
         )
 
+    }
+
+    @Test
+    fun nativeEntryUrlIsStrictlyScoped() {
+        assertTrue(
+            isCmbRechargeNativeEntryUrl(
+                "http://epay92.ahu.edu.cn/cashier-mobile/charge?disable=1"
+            )
+        )
+        assertTrue(
+            isCmbRechargeNativeEntryUrl(
+                "https://epay92.ahu.edu.cn/cashier-mobile/charge/"
+            )
+        )
+        assertFalse(
+            isCmbRechargeNativeEntryUrl(
+                "https://epay92.ahu.edu.cn.evil.example/cashier-mobile/charge"
+            )
+        )
+        assertFalse(
+            isCmbRechargeNativeEntryUrl(
+                "https://epay92.ahu.edu.cn/cashier-mobile/chargeResult"
+            )
+        )
+        assertFalse(
+            isCmbRechargeNativeEntryUrl(
+                "https://epay92.ahu.edu.cn:444/cashier-mobile/charge"
+            )
+        )
+    }
+
+    @Test
+    fun nativeBalanceConvertsServerCentsToYuan() {
+        assertEquals(7.79, normalizeCmbRechargeBalance(779.0), 0.0001)
+        assertEquals(0.0, normalizeCmbRechargeBalance(Double.NaN), 0.0001)
     }
 
     @Test
