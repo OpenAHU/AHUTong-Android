@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +79,7 @@ class VersionPlan:
     code: int
     name: str
     rollback: bool
+    same_version_hotfix: bool = False
 
 
 def fail(message: str, code: int = 1) -> None:
@@ -440,7 +442,16 @@ def resolve_versions(
     proposal_code = max(local_code, server_code) + 1
     proposal_name = bump_patch(max_version_name(local_name, server_name))
     published_name = server_name or local_name
-    rollback = explicit_name is not None and compare_version_names(explicit_name, published_name) < 0
+    explicit_comparison = (
+        compare_version_names(explicit_name, published_name)
+        if explicit_name is not None
+        else None
+    )
+    rollback = explicit_comparison is not None and explicit_comparison < 0
+    same_version_hotfix = (
+        explicit_comparison == 0
+        and server_name is not None
+    )
 
     if rollback:
         target_code = explicit_code if explicit_code is not None else server_code + 1
@@ -452,6 +463,29 @@ def resolve_versions(
             f"target versionCode={target_code}, versionName={explicit_name}"
         )
         return VersionPlan(code=target_code, name=explicit_name, rollback=True)
+
+    if same_version_hotfix:
+        if local_name != explicit_name:
+            raise ReleaseError(
+                "Same-version hotfix publishing requires the work branch versionName to match "
+                f"the requested server version ({explicit_name}); local versionName is {local_name}."
+            )
+        target_code = explicit_code if explicit_code is not None else max(local_code, server_code) + 1
+        if target_code <= max(local_code, server_code):
+            raise ReleaseError(
+                "Same-version hotfix versionCode must be greater than local and server versionCode."
+            )
+        print(
+            "Same-version hotfix requested: "
+            f"server versionCode={server_code}, versionName={published_name}; "
+            f"target versionCode={target_code}, versionName={explicit_name}"
+        )
+        return VersionPlan(
+            code=target_code,
+            name=explicit_name,
+            rollback=False,
+            same_version_hotfix=True,
+        )
 
     if mismatch:
         print("Local and server versions differ.")
@@ -575,6 +609,17 @@ def fetch_origin(repo: Path) -> None:
         print("No origin remote found; skipping fetch.")
 
 
+def fetch_origin_branches(repo: Path, branches: list[str]) -> None:
+    if not git_remote_exists(repo, "origin"):
+        print("No origin remote found; skipping branch fetch.")
+        return
+    refspecs = [
+        f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
+        for branch in dict.fromkeys(branches)
+    ]
+    git_run(repo, ["fetch", "origin", *refspecs])
+
+
 def git_ref_exists(repo: Path, ref: str) -> bool:
     result = subprocess.run(
         ["git", "rev-parse", "--verify", "--quiet", ref],
@@ -587,6 +632,16 @@ def git_ref_exists(repo: Path, ref: str) -> bool:
 
 def git_resolve_ref(repo: Path, ref: str) -> str:
     return git_capture(repo, ["rev-parse", ref])
+
+
+def git_is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=str(repo),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
 
 
 def release_branch(version_name: str) -> str:
@@ -664,6 +719,151 @@ def ensure_base_branch(repo: Path, base_branch: str) -> str:
     raise ReleaseError(f"Base branch does not exist locally or on origin: {base_branch}")
 
 
+def same_version_hotfix_source_commits(
+    repo: Path,
+    target_version: str,
+    base_branch: str,
+) -> tuple[str, str, str, list[str]]:
+    source_branch = git_capture(repo, ["branch", "--show-current"])
+    target_branch = release_branch(target_version)
+    if not source_branch:
+        raise ReleaseError("Cannot publish from detached HEAD; checkout a named work branch first.")
+    if source_branch in {base_branch, target_branch}:
+        raise ReleaseError(
+            "Same-version hotfix publishing must start from a dedicated work branch, not "
+            f"{source_branch}."
+        )
+
+    base_ref = (
+        f"refs/remotes/origin/{base_branch}"
+        if git_ref_exists(repo, f"refs/remotes/origin/{base_branch}")
+        else f"refs/heads/{base_branch}"
+    )
+    release_ref = f"refs/remotes/origin/{target_branch}"
+    if not git_ref_exists(repo, base_ref):
+        raise ReleaseError(f"Base branch does not exist locally or on origin: {base_branch}")
+    if not git_ref_exists(repo, release_ref):
+        raise ReleaseError(
+            f"Same-version hotfix publishing requires existing origin/{target_branch}."
+        )
+    if not git_is_ancestor(repo, base_ref, source_branch):
+        raise ReleaseError(
+            f"{source_branch} must be a fast-forward descendant of origin/{base_branch} "
+            "before same-version hotfix publishing."
+        )
+
+    commits_text = git_capture(repo, ["rev-list", "--reverse", f"{base_ref}..{source_branch}"])
+    commits = [line for line in commits_text.splitlines() if line]
+    if not commits:
+        raise ReleaseError(
+            f"{source_branch} has no commits to apply beyond origin/{base_branch}."
+        )
+    merge_commits = git_capture(
+        repo,
+        ["rev-list", "--merges", f"{base_ref}..{source_branch}"],
+        check=False,
+    )
+    if merge_commits:
+        raise ReleaseError(
+            "Same-version hotfix source commits must be linear; merge commits cannot be "
+            "cherry-picked automatically."
+        )
+    return source_branch, base_ref, release_ref, commits
+
+
+def commit_version_bump_on_current_branch(
+    repo: Path,
+    version_code: int,
+    version_name: str,
+) -> str:
+    require_clean_worktree(repo)
+    update_local_versions(repo, version_code, version_name)
+    changed = git_capture(repo, ["status", "--porcelain", "--", "app/build.gradle.kts"])
+    if not changed:
+        raise ReleaseError(
+            f"Version metadata already records versionCode={version_code}, "
+            f"versionName={version_name}; refusing to create an empty hotfix release commit."
+        )
+    git_run(repo, ["add", "app/build.gradle.kts"])
+    git_run(repo, ["commit", "-m", f"chore(release): bump version to {version_name}"])
+    return git_resolve_ref(repo, "HEAD")
+
+
+def prepare_same_version_hotfix(
+    repo: Path,
+    target_version: str,
+    target_code: int,
+    base_branch: str,
+) -> tuple[str, str]:
+    require_clean_worktree(repo)
+    fetch_origin(repo)
+    fetch_origin_branches(repo, [base_branch, release_branch(target_version)])
+    source_branch, _, release_ref, source_commits = same_version_hotfix_source_commits(
+        repo,
+        target_version,
+        base_branch,
+    )
+    target_branch = release_branch(target_version)
+    old_release_commit = git_resolve_ref(repo, release_ref)
+    token = uuid.uuid4().hex[:12]
+    prepared_base = f"release-prep-base-{token}"
+    prepared_release = f"release-prep-hotfix-{token}"
+    success = False
+
+    try:
+        git_run(repo, ["branch", prepared_base, source_branch])
+        git_run(repo, ["checkout", prepared_base])
+        version_commit = commit_version_bump_on_current_branch(
+            repo,
+            target_code,
+            target_version,
+        )
+
+        git_run(repo, ["branch", prepared_release, release_ref])
+        git_run(repo, ["checkout", prepared_release])
+        for source_commit in source_commits:
+            git_run(repo, ["cherry-pick", source_commit])
+        git_run(repo, ["cherry-pick", version_commit])
+        prepared_base_commit = git_resolve_ref(repo, prepared_base)
+        prepared_release_commit = git_resolve_ref(repo, prepared_release)
+
+        git_run(
+            repo,
+            [
+                "push",
+                "--atomic",
+                "origin",
+                f"{prepared_base_commit}:refs/heads/{base_branch}",
+                f"{prepared_release_commit}:refs/heads/{target_branch}",
+            ],
+        )
+        fetch_origin(repo)
+        if git_ref_exists(repo, f"refs/heads/{base_branch}"):
+            git_run(repo, ["branch", "-f", base_branch, f"origin/{base_branch}"])
+        else:
+            git_run(repo, ["branch", "--track", base_branch, f"origin/{base_branch}"])
+        git_run(repo, ["checkout", "-B", target_branch, f"origin/{target_branch}"])
+        success = True
+        return old_release_commit, target_branch
+    finally:
+        if git_ref_exists(repo, "CHERRY_PICK_HEAD"):
+            subprocess.run(["git", "cherry-pick", "--abort"], cwd=str(repo))
+        current_branch = git_capture(repo, ["branch", "--show-current"], check=False)
+        if not success and current_branch != source_branch:
+            subprocess.run(["git", "checkout", source_branch], cwd=str(repo))
+        for temporary_branch in (prepared_base, prepared_release):
+            if (
+                git_ref_exists(repo, f"refs/heads/{temporary_branch}")
+                and git_capture(repo, ["branch", "--show-current"], check=False) != temporary_branch
+            ):
+                subprocess.run(
+                    ["git", "branch", "-D", temporary_branch],
+                    cwd=str(repo),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+
+
 def integrate_current_branch_into_base(repo: Path, base_branch: str) -> str:
     source_branch = git_capture(repo, ["branch", "--show-current"])
     if not source_branch:
@@ -710,6 +910,7 @@ def prepare_release_branches(
     target_code: int | None,
     previous_release_ref: str,
     rollback: bool = False,
+    same_version_hotfix: bool = False,
     base_branch: str = "master",
 ) -> tuple[str | None, str]:
     require_clean_worktree(repo)
@@ -721,6 +922,16 @@ def prepare_release_branches(
         if current_branch != target_branch:
             git_run(repo, ["checkout", target_branch])
         return None, target_branch
+
+    if same_version_hotfix:
+        if target_code is None:
+            raise ReleaseError("Same-version hotfix releases require a target versionCode.")
+        return prepare_same_version_hotfix(
+            repo,
+            target_version,
+            target_code,
+            base_branch,
+        )
 
     if target_code is None:
         raise ReleaseError("Normal releases require a target versionCode before preparing release branches.")
@@ -990,7 +1201,11 @@ def main() -> int:
         )
         target_code = version_plan.code
         target_name = version_plan.name
-        previous_release_name = None if version_plan.rollback else (server_name or local_name)
+        previous_release_name = (
+            None
+            if version_plan.rollback or version_plan.same_version_hotfix
+            else (server_name or local_name)
+        )
         previous_branch = (
             release_branch(previous_release_name)
             if previous_release_name and previous_release_name != target_name
@@ -1000,12 +1215,29 @@ def main() -> int:
         release_commit = None
         if args.dry_run:
             fetch_origin(repo)
+            if version_plan.same_version_hotfix:
+                fetch_origin_branches(repo, [args.base_branch, target_branch])
             if version_plan.rollback and not release_branch_available(repo, target_name):
                 raise ReleaseError(
                     f"Rollback publish requires existing {target_branch} locally or on origin; "
                     "refusing to create it from the current branch."
                 )
-            if not version_plan.rollback:
+            if version_plan.same_version_hotfix:
+                source_branch, _, release_ref, source_commits = same_version_hotfix_source_commits(
+                    repo,
+                    target_name,
+                    args.base_branch,
+                )
+                print(
+                    f"[DRY-RUN] Would apply {len(source_commits)} commit(s) from "
+                    f"{source_branch} to {release_ref}."
+                )
+                print(
+                    f"[DRY-RUN] Would commit versionCode={target_code}, "
+                    f"versionName={target_name} and atomically push "
+                    f"{args.base_branch} with {target_branch}."
+                )
+            elif not version_plan.rollback:
                 source_branch = git_capture(repo, ["branch", "--show-current"])
                 print(f"[DRY-RUN] Would fast-forward merge {source_branch} into {args.base_branch}.")
                 print(
@@ -1023,6 +1255,7 @@ def main() -> int:
                 target_code=target_code,
                 previous_release_ref=args.previous_release_ref,
                 rollback=version_plan.rollback,
+                same_version_hotfix=version_plan.same_version_hotfix,
                 base_branch=args.base_branch,
             )
             release_commit = require_pushed_release_branch(repo, target_branch)
@@ -1041,6 +1274,8 @@ def main() -> int:
             print(f"Release commit: {release_commit}")
         if version_plan.rollback:
             print("Release mode: rollback publish with incremented versionCode")
+        elif version_plan.same_version_hotfix:
+            print("Release mode: same-version hotfix with incremented versionCode")
         print(f"Android SDK: {android_sdk_dir(repo)}")
         print(f"zipalign: {find_build_tool(repo, 'zipalign')}")
         print(f"apksigner: {find_build_tool(repo, 'apksigner')}")

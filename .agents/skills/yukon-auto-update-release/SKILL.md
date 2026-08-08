@@ -28,7 +28,10 @@ Do not use this skill for requests such as "打 release 包", "构建 release", 
 
 7. Use the ignored `config.local.json` in the AIO main worktree. Do not copy it into the Android subrepository or a linked worktree. If it is missing, follow "First-Use Credential Setup" below and never ask the user to paste secrets into the conversation.
 8. If the script reports a local/server version mismatch, stop and ask the user to choose one of the two options printed by the script. Do not modify versions, build, or upload until the user confirms.
-9. For normal forward releases, first fast-forward merge the current work branch, for example `p/Yukon163/feat/<task-name>`, into `master`; update `app/build.gradle.kts` on `master`; commit `chore(release): bump version to {versionName}`; push `master`; then create or validate `release/{target versionName}` at that exact `master` commit. For rollback releases where the target `versionName` is lower than the server `versionName`, the target release branch must already exist locally or on `origin`; never create a rollback target branch from the current `HEAD`.
+9. Select the release mode from the explicit target and server version:
+   - Newer target: fast-forward the work branch into `master`, commit the version bump, then create or validate `release/{target versionName}` at that exact commit.
+   - Same target: require an existing remote release branch, apply every linear work-branch commit beyond `origin/master` to that release branch, keep `versionName`, increment `versionCode`, and atomically push `master` with the release branch.
+   - Older target: treat it as rollback and require an existing release branch; never create it from the current work branch.
 10. Do not ask the user for release notes by default. Normal releases derive `apk_changelog.txt` from the diff between `release/{previous versionName}` and `release/{target versionName}`. Rollback releases always use generic changelog text unless the user explicitly supplies safe generic notes.
 11. After the script succeeds, verify:
 
@@ -36,7 +39,7 @@ Do not use this skill for requests such as "打 release 包", "构建 release", 
    curl https://openahu.org/api/check_apk_update
    ```
 
-12. Confirm the helper pushed `master` and `release/{target versionName}` for normal forward releases. For rollback releases, commit and push only if an explicit branch-policy decision requires recording the rollback publish metadata.
+12. Confirm the helper pushed `master` and `release/{target versionName}` for forward and same-version hotfix releases. For rollback releases, commit and push only if an explicit branch-policy decision requires recording the rollback publish metadata.
 13. Record the full commit SHA printed for `release/{target versionName}`. When running under the AIO workflow, return that exact branch and commit to the AIO release skill so it can update the Android gitlink through its release-branch gate.
 
 ## First-Use Credential Setup
@@ -76,6 +79,8 @@ It performs these actions:
 - Defaults to patch-incrementing `versionName`, for example `3.1.5 -> 3.1.6`.
 - Accepts explicit `--version-code` and `--version-name` when the user explicitly gives a target version.
 - Treats explicit `--version-name` lower than the server `versionName` as rollback publish: build from `release/{versionName}`, keep that display `versionName`, but publish with `versionCode = serverVersionCode + 1` unless a higher explicit `--version-code` is supplied.
+- Treats an explicit `--version-name` equal to the server `versionName` as a same-version hotfix. It requires the local `versionName` to match, requires an existing `origin/release/{versionName}`, increments `versionCode`, and rejects work branches with no new commits or merge commits.
+- Prepares same-version hotfix commits on temporary local branches. It cherry-picks the complete linear `origin/master..work-branch` range into the release branch and uses one atomic push for `master` and `release/{versionName}`, so a conflict cannot leave only one remote branch updated.
 - For normal forward releases, fast-forward merges the current branch into `master`, updates and commits the target version on `master`, pushes `master`, and creates missing `release/{target versionName}` at the resulting `master` commit.
 - Rejects an existing normal-release target branch if it does not point to the current `master` commit, preventing release branches from being based on stale feature branch heads or separate release-only version bumps.
 - Ensures `release/{previous versionName}` exists for changelog baselines, creating it when needed from `--previous-release-ref`.
@@ -122,6 +127,8 @@ Always publish from `release/{target versionName}`. If the branch exists locally
 
 For normal forward releases, integrate code in this order: current work branch -> `master` -> `release/{target versionName}`. The helper script uses fast-forward merges only. If the current branch cannot fast-forward into `master`, stop and rebase/sync manually before publishing. Commit the version bump on `master` before creating the release branch. Create a missing target release branch from current `master`; if the target release branch already exists but does not point to current `master`, stop instead of publishing from a stale or release-only branch. During the first migration to release branches, also create `release/{previous versionName}` if missing so future changelog diffs have a stable baseline.
 
+For a same-version hotfix, require the user to explicitly name the already-published server version. Start from a clean dedicated work branch based on `origin/master`. Require all work-branch-only commits to be linear, then apply the complete range to the existing remote release branch. Keep `versionName`, increment `versionCode`, and atomically push the prepared `master` and release tips. Do not create a missing same-version release branch, do not publish only the current commit when the work branch contains multiple dependent commits, and do not push either branch if cherry-pick preparation fails.
+
 For rollback releases, where the user explicitly requested a `versionName` lower than the server `versionName`, the target branch must already exist locally or on `origin`. Build the old code from that branch, but keep the published `versionCode` greater than the current server `versionCode`; Android will not install an APK whose `versionCode` is less than or equal to the installed app. Keep the requested `versionName` as display text.
 
 Generate release notes from the two release branches, not from memory or from a free-form user prompt:
@@ -150,6 +157,8 @@ If local and server versions differ during a normal forward release, the script 
 Ask the user which option to use. Do not continue automatically.
 
 This mismatch rule does not apply when the user explicitly requests an older target `versionName` such as `发版3.1.4` while the server is already `3.1.5`; that is rollback publish. In rollback publish, require an existing `release/3.1.4` branch and use `serverVersionCode + 1` as the default `versionCode`.
+
+It also does not apply when the user explicitly requests the same server `versionName`. That is a same-version hotfix publish, not a normal forward release. Require the work branch and server to use that same `versionName`, and default to `max(localVersionCode, serverVersionCode) + 1`.
 
 ## Dry Run
 

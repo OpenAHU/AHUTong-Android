@@ -18,6 +18,50 @@ sys.modules[SPEC.name] = release_publish
 SPEC.loader.exec_module(release_publish)
 
 
+def git(repo: Path, *args: str) -> str:
+    return subprocess.check_output(
+        ["git", *args],
+        cwd=repo,
+        text=True,
+        stderr=subprocess.STDOUT,
+    ).strip()
+
+
+def create_release_repository(root: Path, release_conflict: bool = False) -> tuple[Path, Path]:
+    remote = root / "remote.git"
+    repo = root / "repo"
+    subprocess.run(["git", "init", "--bare", str(remote)], check=True, capture_output=True)
+    subprocess.run(["git", "init", "-b", "master", str(repo)], check=True, capture_output=True)
+    git(repo, "config", "user.name", "Release Test")
+    git(repo, "config", "user.email", "release-test@example.invalid")
+    gradle = repo / "app" / "build.gradle.kts"
+    gradle.parent.mkdir(parents=True)
+    gradle.write_text(
+        'android {\n    defaultConfig {\n        versionCode = 42\n        versionName = "3.2.2"\n    }\n}\n',
+        encoding="utf-8",
+    )
+    (repo / "feature.txt").write_text("base\n", encoding="utf-8")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "feat: establish release baseline")
+    git(repo, "remote", "add", "origin", str(remote))
+    git(repo, "push", "-u", "origin", "master")
+    git(repo, "switch", "-c", "release/3.2.2")
+    if release_conflict:
+        (repo / "feature.txt").write_text("release-only\n", encoding="utf-8")
+        git(repo, "add", "feature.txt")
+        git(repo, "commit", "-m", "fix: release-only baseline")
+    git(repo, "push", "-u", "origin", "release/3.2.2")
+    git(repo, "switch", "master")
+    git(repo, "switch", "-c", "p/Yukon/fix/hotfix")
+    (repo / "feature.txt").write_text("hotfix\n", encoding="utf-8")
+    git(repo, "add", "feature.txt")
+    git(repo, "commit", "-m", "fix: apply production hotfix")
+    (repo / "hotfix-details.txt").write_text("dependent follow-up\n", encoding="utf-8")
+    git(repo, "add", "hotfix-details.txt")
+    git(repo, "commit", "-m", "fix: complete production hotfix")
+    return repo, remote
+
+
 class ChangelogTests(unittest.TestCase):
     def test_mixed_diff_keeps_only_visible_subjects(self) -> None:
         subjects = "feat: add visible timetable shortcut\nchore: enable debug rollout"
@@ -80,6 +124,74 @@ class RollbackVersionTests(unittest.TestCase):
                     raise RuntimeError("publish failed")
 
             self.assertEqual(original, gradle_file.read_bytes())
+
+
+class SameVersionHotfixTests(unittest.TestCase):
+    def test_equal_explicit_server_version_selects_hotfix_mode(self) -> None:
+        plan = release_publish.resolve_versions(
+            local_code=42,
+            local_name="3.2.2",
+            server_code=42,
+            server_name="3.2.2",
+            explicit_code=None,
+            explicit_name="3.2.2",
+            on_mismatch="abort",
+        )
+
+        self.assertEqual(43, plan.code)
+        self.assertEqual("3.2.2", plan.name)
+        self.assertFalse(plan.rollback)
+        self.assertTrue(plan.same_version_hotfix)
+
+    def test_hotfix_atomically_updates_master_and_existing_release(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo, remote = create_release_repository(Path(temp_dir))
+            old_release = git(repo, "rev-parse", "origin/release/3.2.2")
+            git(repo, "update-ref", "-d", "refs/remotes/origin/release/3.2.2")
+
+            baseline, branch = release_publish.prepare_same_version_hotfix(
+                repo,
+                target_version="3.2.2",
+                target_code=43,
+                base_branch="master",
+            )
+
+            self.assertEqual(old_release, baseline)
+            self.assertEqual("release/3.2.2", branch)
+            master_tip = git(remote, "rev-parse", "refs/heads/master")
+            release_tip = git(remote, "rev-parse", "refs/heads/release/3.2.2")
+            self.assertNotEqual(old_release, master_tip)
+            self.assertNotEqual(old_release, release_tip)
+            self.assertEqual("hotfix", git(remote, "show", "master:feature.txt"))
+            self.assertEqual("hotfix", git(remote, "show", "release/3.2.2:feature.txt"))
+            self.assertEqual(
+                "dependent follow-up",
+                git(remote, "show", "release/3.2.2:hotfix-details.txt"),
+            )
+            self.assertIn("versionCode = 43", git(remote, "show", "master:app/build.gradle.kts"))
+            self.assertIn(
+                "versionCode = 43",
+                git(remote, "show", "release/3.2.2:app/build.gradle.kts"),
+            )
+
+    def test_cherry_pick_conflict_leaves_both_remote_branches_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo, remote = create_release_repository(Path(temp_dir), release_conflict=True)
+            old_master = git(remote, "rev-parse", "refs/heads/master")
+            old_release = git(remote, "rev-parse", "refs/heads/release/3.2.2")
+
+            with self.assertRaises(release_publish.ReleaseError):
+                release_publish.prepare_same_version_hotfix(
+                    repo,
+                    target_version="3.2.2",
+                    target_code=43,
+                    base_branch="master",
+                )
+
+            self.assertEqual(old_master, git(remote, "rev-parse", "refs/heads/master"))
+            self.assertEqual(old_release, git(remote, "rev-parse", "refs/heads/release/3.2.2"))
+            self.assertEqual("p/Yukon/fix/hotfix", git(repo, "branch", "--show-current"))
+            self.assertEqual("", git(repo, "status", "--porcelain"))
 
 
 class SigningTests(unittest.TestCase):
