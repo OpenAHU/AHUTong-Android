@@ -391,8 +391,8 @@ object TelemetryV3PayloadValidator {
 internal const val TELEMETRY_V3_MIN_TASK_SAMPLES = 64
 internal const val TELEMETRY_V3_METRIC_SCHEMA_VERSION = 2
 internal const val TELEMETRY_V3_STORAGE_SCHEMA_VERSION = 1
-// Raise only after the fixed openahu.org endpoint accepts schema v3 credentials and batches.
-internal const val TELEMETRY_SERVER_SCHEMA_VERSION = 2
+// The production openahu.org endpoint accepts schema v3 credentials and batches.
+internal const val TELEMETRY_SERVER_SCHEMA_VERSION = 3
 internal const val CALIBRATION_BIN_COUNT = 10
 
 internal fun emptyCalibrationBins(): List<V3CalibrationBin> = List(CALIBRATION_BIN_COUNT) { index ->

@@ -14,6 +14,7 @@ import com.ahu.ahutong.personalization.telemetry.DELIVERY_BLOCK_REASONS
 import com.ahu.ahutong.personalization.telemetry.ModelQualityV3BatchRequest
 import com.ahu.ahutong.personalization.telemetry.ModelQualityV3TaskReport
 import com.ahu.ahutong.personalization.telemetry.TelemetryV3PayloadValidator
+import com.ahu.ahutong.personalization.telemetry.TELEMETRY_SERVER_SCHEMA_VERSION
 import com.ahu.ahutong.personalization.telemetry.V3DeliveryAggregate
 import com.ahu.ahutong.personalization.telemetry.V3DeliveryLaneAggregate
 import com.ahu.ahutong.personalization.telemetry.V3NamedCount
@@ -21,11 +22,18 @@ import com.ahu.ahutong.personalization.telemetry.StoredActionMetric
 import com.ahu.ahutong.personalization.telemetry.sanitizeStoredActionMetrics
 import com.google.gson.Gson
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TelemetryPayloadPrivacyTest {
+
+    @Test
+    fun currentClientUsesV3TelemetryContract() {
+        assertEquals(3, TELEMETRY_SERVER_SCHEMA_VERSION)
+    }
+
     @Test
     fun reportContainsOnlyAggregatesAndRandomIdentifiers() {
         val json = Gson().toJson(ModelQualityBatchRequest(batchId = "random-batch", reports = listOf(validReport())))
