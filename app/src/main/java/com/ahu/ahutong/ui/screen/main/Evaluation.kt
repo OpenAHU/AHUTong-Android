@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen.main
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,10 +20,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
@@ -58,14 +61,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ahu.ahutong.R
 import com.ahu.ahutong.data.model.EvalQuestion
 import com.ahu.ahutong.data.model.EvalTask
 import com.ahu.ahutong.data.model.EvalTeacher
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.state.EvaluationViewModel
 import com.kyant.monet.a1
 import com.kyant.monet.n1
@@ -98,10 +105,30 @@ fun Evaluation(
         }
     }
 
+    if (isRadiantUi) {
+        BackHandler(enabled = currentTask != null) { viewModel.backToList() }
+    }
+
     if (currentTask != null) {
         EvaluationFormScreen(viewModel)
     } else {
         EvaluationListScreen(viewModel)
+    }
+}
+
+@Composable
+private fun EvalCircleButton(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick) { content() }
     }
 }
 
@@ -174,15 +201,20 @@ private fun EvaluationListScreen(viewModel: EvaluationViewModel) {
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
+    val body: @Composable () -> Unit = {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .systemBarsPadding()
+                .padding(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (isRadiantUi) {
+                Spacer(modifier = Modifier.height(72.dp))
+            }
+            if (!isRadiantUi) {
+            Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 24.dp, top = 32.dp, end = 16.dp),
@@ -239,6 +271,7 @@ private fun EvaluationListScreen(viewModel: EvaluationViewModel) {
                     contentDescription = "评教预设",
                     tint = 0.n1 withNight 100.n1
                 )
+            }
             }
         }
 
@@ -320,6 +353,71 @@ private fun EvaluationListScreen(viewModel: EvaluationViewModel) {
                 )
             }
         }
+    }
+    }
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = "教评",
+            subtitle = semesters.firstOrNull { it.id == selectedSemesterId }?.nameZh,
+            contentEdgeToEdge = true,
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box {
+                        EvalCircleButton(onClick = { semesterExpanded = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_filter),
+                                contentDescription = "选择学期",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = semesterExpanded,
+                            onDismissRequest = { semesterExpanded = false },
+                            containerColor = 100.n1 withNight 20.n1
+                        ) {
+                            semesters.forEach { semester ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = semester.nameZh,
+                                            color = 0.n1 withNight 100.n1
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.selectedSemesterId.value = semester.id
+                                        viewModel.loadEvaluationList()
+                                        semesterExpanded = false
+                                    },
+                                    leadingIcon = if (semester.id == selectedSemesterId) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                tint = 40.a1 withNight 80.a1
+                                            )
+                                        }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+                    EvalCircleButton(onClick = { presetDialogShown = true }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_config),
+                            contentDescription = "评教预设",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        ) { body() }
+    } else {
+        body()
     }
 }
 
@@ -455,47 +553,7 @@ private fun EvaluationFormScreen(viewModel: EvaluationViewModel) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { viewModel.backToList() }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = 0.n1 withNight 100.n1
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = currentCourseName,
-                    color = 0.n1 withNight 100.n1,
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "${currentTeacher?.teacherName.orEmpty()} · $currentLessonName",
-                    color = 30.n1 withNight 90.n1,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            IconButton(onClick = { presetDialogShown = true }) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "评教预设",
-                    tint = 0.n1 withNight 100.n1
-                )
-            }
-        }
-
-        HorizontalDivider(color = 90.n1 withNight 30.n1, thickness = 0.5.dp)
+    val body: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
 
         if (isLoading && questions.isEmpty()) {
             Box(
@@ -515,6 +573,9 @@ private fun EvaluationFormScreen(viewModel: EvaluationViewModel) {
                     .padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                if (isRadiantUi) {
+                    Spacer(modifier = Modifier.height(72.dp))
+                }
                 Spacer(Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -624,6 +685,72 @@ private fun EvaluationFormScreen(viewModel: EvaluationViewModel) {
                     Text("匿名")
                 }
             }
+        }
+    }
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = currentCourseName,
+            subtitle = "${currentTeacher?.teacherName.orEmpty()} · $currentLessonName",
+            contentEdgeToEdge = true,
+            trailingContent = {
+                EvalCircleButton(onClick = { presetDialogShown = true }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_config),
+                        contentDescription = "评教预设",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                body()
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewModel.backToList() }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = 0.n1 withNight 100.n1
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = currentCourseName,
+                        color = 0.n1 withNight 100.n1,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = "${currentTeacher?.teacherName.orEmpty()} · $currentLessonName",
+                        color = 30.n1 withNight 90.n1,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                IconButton(onClick = { presetDialogShown = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "评教预设",
+                        tint = 0.n1 withNight 100.n1
+                    )
+                }
+            }
+
+            HorizontalDivider(color = 90.n1 withNight 30.n1, thickness = 0.5.dp)
+
+            body()
         }
     }
 }

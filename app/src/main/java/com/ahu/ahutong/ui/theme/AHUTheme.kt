@@ -20,7 +20,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.colorResource
 import androidx.core.view.WindowCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ahu.ahutong.data.model.UiStyle
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.LocalUiStyle
 import com.ahu.ahutong.ui.state.PreferencesViewModel
 import com.kyant.monet.LocalTonalPalettes
 import com.kyant.monet.TonalPalettes.Companion.toTonalPalettes
@@ -34,7 +36,8 @@ fun AHUTheme(content: @Composable () -> Unit) {
     val preferencesViewModel: PreferencesViewModel = hiltViewModel()
     val themeColorHex by preferencesViewModel.themeColor.collectAsState()
     val themeMode by preferencesViewModel.appThemeMode.collectAsState()
-    val useLiquidGlass by preferencesViewModel.useLiquidGlass.collectAsState()
+    val uiStyle by preferencesViewModel.uiStyle.collectAsState()
+    val useLiquidGlass = uiStyle != UiStyle.ORIGINAL
     val isDarkTheme = themeMode.resolve(isSystemInDarkTheme())
     val configuration = LocalConfiguration.current
     val themeConfiguration = remember(configuration, isDarkTheme) {
@@ -81,6 +84,7 @@ fun AHUTheme(content: @Composable () -> Unit) {
             CompositionLocalProvider(
                 LocalContentColor provides if (isDarkTheme) 100.n1 else 0.n1,
                 LocalIsLiquidGlassEnabled provides useLiquidGlass,
+                LocalUiStyle provides uiStyle,
                 content = content
             )
         }

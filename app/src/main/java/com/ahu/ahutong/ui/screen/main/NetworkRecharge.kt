@@ -55,6 +55,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.data.crawler.PayState
+import com.ahu.ahutong.ui.components.GlassCard
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.NetworkRechargePageState
 import com.ahu.ahutong.ui.state.NetworkRechargeUiData
@@ -96,18 +99,82 @@ fun NetworkRecharge(
         }
     }
 
-    Column(
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = "网费充值",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    when (val state = pageState) {
+                        NetworkRechargePageState.Loading -> LoadingCard()
+                        is NetworkRechargePageState.Error -> ErrorCard(
+                            message = state.message,
+                            onRetry = { viewModel.load() }
+                        )
+                        is NetworkRechargePageState.Ready -> {
+                            NetworkAccountCard(data = state.data)
+                            AmountCard(
+                                amount = amount,
+                                amountError = amountError,
+                                quickAmounts = state.data.quickAmounts,
+                                maxAmount = state.data.maxAmount,
+                                onAmountChange = { value ->
+                                    if (value.isEmpty()) {
+                                        amount = value
+                                        amountError = null
+                                        return@AmountCard
+                                    }
+                                    val regex = Regex("^\\d*\\.?\\d{0,2}$")
+                                    if (regex.matches(value)) {
+                                        amount = value
+                                        amountError = null
+                                    }
+                                },
+                                onQuickAmountClick = { quickAmount ->
+                                    amount = normalizeQuickAmount(quickAmount)
+                                    amountError = null
+                                },
+                                onDone = { focusManager.clearFocus() }
+                            )
+
+                            RechargeActionRow(
+                                payState = payState,
+                                onConfirm = {
+                                    focusManager.clearFocus()
+                                    val amountValue = amount.toDoubleOrNull()
+                                    val maxAmount = state.data.maxAmount?.toDoubleOrNull()
+                                    amountError = when {
+                                        amount.isBlank() -> "请输入充值金额"
+                                        amountValue == null || amountValue <= 0.0 -> "请输入有效金额"
+                                        maxAmount != null && amountValue > maxAmount ->
+                                            "单次最高可充值 ${state.data.maxAmount} 元"
+
+                                        else -> null
+                                    }
+                                    if (amountError == null) {
+                                        password = ""
+                                        passwordError = null
+                                        showDialog = true
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        )
+    } else {
+        Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .systemBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        Text(
-            text = "网费充值",
-            modifier = Modifier.padding(24.dp, 32.dp),
-            style = MaterialTheme.typography.headlineMedium
-        )
+        ) {
+            Text(
+                text = "网费充值",
+                modifier = Modifier.padding(24.dp, 32.dp),
+                style = MaterialTheme.typography.headlineMedium
+            )
 
         when (val state = pageState) {
             NetworkRechargePageState.Loading -> {
@@ -169,6 +236,7 @@ fun NetworkRecharge(
                 )
             }
         }
+    }
     }
 
     if (showDialog) {
@@ -241,16 +309,32 @@ fun NetworkRecharge(
 
 @Composable
 private fun LoadingCard() {
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator(color = 30.n1 withNight 70.n1)
+    if (isRadiantUi) {
+        GlassCard(
+            containerColor = 100.n1 withNight 20.n1,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = 30.n1 withNight 70.n1)
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(SmoothRoundedCornerShape(24.dp))
+                .background(100.n1 withNight 20.n1)
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = 30.n1 withNight 70.n1)
+        }
     }
 }
 
@@ -259,26 +343,50 @@ private fun ErrorCard(
     message: String,
     onRetry: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = message,
-            color = 10.n1 withNight 90.n1,
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Text(
-            text = "重试",
-            modifier = Modifier.clickable(onClick = onRetry),
-            color = 30.n1 withNight 70.n1,
-            style = MaterialTheme.typography.titleMedium
-        )
+    if (isRadiantUi) {
+        GlassCard(
+            containerColor = 100.n1 withNight 20.n1,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = message,
+                    color = 10.n1 withNight 90.n1,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    text = "重试",
+                    modifier = Modifier.clickable(onClick = onRetry),
+                    color = 30.n1 withNight 70.n1,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(SmoothRoundedCornerShape(24.dp))
+                .background(100.n1 withNight 20.n1)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = message,
+                color = 10.n1 withNight 90.n1,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = "重试",
+                modifier = Modifier.clickable(onClick = onRetry),
+                color = 30.n1 withNight 70.n1,
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
     }
 }
 
@@ -286,48 +394,96 @@ private fun ErrorCard(
 private fun NetworkAccountCard(
     data: NetworkRechargeUiData
 ) {
-    Column(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = data.feeName,
-            style = MaterialTheme.typography.titleLarge
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+    if (isRadiantUi) {
+        GlassCard(
+            containerColor = 100.n1 withNight 20.n1,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = data.feeName,
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "充值账号",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = data.account.ifBlank { "--" },
+                        color = 10.n1 withNight 90.n1,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+                data.stats.forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = label,
+                            color = 40.n1 withNight 60.n1,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = value.ifBlank { "--" },
+                            color = 10.n1 withNight 90.n1,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(SmoothRoundedCornerShape(24.dp))
+                .background(100.n1 withNight 20.n1)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "充值账号",
-                style = MaterialTheme.typography.titleMedium
+                text = data.feeName,
+                style = MaterialTheme.typography.titleLarge
             )
-            Text(
-                text = data.account.ifBlank { "--" },
-                color = 10.n1 withNight 90.n1,
-                style = MaterialTheme.typography.bodyLarge
-            )
-        }
-        data.stats.forEach { (label, value) ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = label,
-                    color = 40.n1 withNight 60.n1,
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "充值账号",
+                    style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = value.ifBlank { "--" },
+                    text = data.account.ifBlank { "--" },
                     color = 10.n1 withNight 90.n1,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyLarge
                 )
+            }
+            data.stats.forEach { (label, value) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = label,
+                        color = 40.n1 withNight 60.n1,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = value.ifBlank { "--" },
+                        color = 10.n1 withNight 90.n1,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
             }
         }
     }
@@ -343,74 +499,146 @@ private fun AmountCard(
     onQuickAmountClick: (String) -> Unit,
     onDone: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1)
-    ) {
-        Text(
-            text = "充值金额",
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.titleMedium
-        )
+    if (isRadiantUi) {
+        GlassCard(
+            containerColor = 100.n1 withNight 20.n1,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column {
+                Text(
+                    text = "充值金额",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.titleMedium
+                )
 
-        if (quickAmounts.isNotEmpty()) {
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                quickAmounts.forEach { quickAmount ->
-                    Text(
-                        text = quickAmount,
+                if (quickAmounts.isNotEmpty()) {
+                    FlowRow(
                         modifier = Modifier
-                            .clip(SmoothRoundedCornerShape(16.dp))
-                            .background(90.a1 withNight 30.n1)
-                            .clickable { onQuickAmountClick(quickAmount) }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        color = 10.n1 withNight 90.n1,
-                        style = MaterialTheme.typography.bodyMedium
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        quickAmounts.forEach { quickAmount ->
+                            Text(
+                                text = quickAmount,
+                                modifier = Modifier
+                                    .clip(SmoothRoundedCornerShape(16.dp))
+                                    .background(90.a1 withNight 30.n1)
+                                    .clickable { onQuickAmountClick(quickAmount) }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                color = 10.n1 withNight 90.n1,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                TextField(
+                    value = amount,
+                    onValueChange = onAmountChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    placeholder = {
+                        Text(
+                            text = if (maxAmount.isNullOrBlank()) "请输入金额" else "请输入金额，单次最高 $maxAmount 元",
+                            color = 30.n1 withNight 70.n1
+                        )
+                    },
+                    textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onDone() }),
+                    singleLine = true
+                )
+
+                amountError?.let {
+                    Text(
+                        text = it,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
         }
-
-        TextField(
-            value = amount,
-            onValueChange = onAmountChange,
-            modifier = Modifier.fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
-            ),
-            placeholder = {
-                Text(
-                    text = if (maxAmount.isNullOrBlank()) "请输入金额" else "请输入金额，单次最高 $maxAmount 元",
-                    color = 30.n1 withNight 70.n1
-                )
-            },
-            textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Decimal,
-                imeAction = ImeAction.Done
-            ),
-            keyboardActions = KeyboardActions(onDone = { onDone() }),
-            singleLine = true
-        )
-
-        amountError?.let {
+    } else {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(SmoothRoundedCornerShape(24.dp))
+                .background(100.n1 withNight 20.n1)
+        ) {
             Text(
-                text = it,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                text = "充值金额",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.titleMedium
             )
+
+            if (quickAmounts.isNotEmpty()) {
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    quickAmounts.forEach { quickAmount ->
+                        Text(
+                            text = quickAmount,
+                            modifier = Modifier
+                                .clip(SmoothRoundedCornerShape(16.dp))
+                                .background(90.a1 withNight 30.n1)
+                                .clickable { onQuickAmountClick(quickAmount) }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            color = 10.n1 withNight 90.n1,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
+            TextField(
+                value = amount,
+                onValueChange = onAmountChange,
+                modifier = Modifier.fillMaxWidth(),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                placeholder = {
+                    Text(
+                        text = if (maxAmount.isNullOrBlank()) "请输入金额" else "请输入金额，单次最高 $maxAmount 元",
+                        color = 30.n1 withNight 70.n1
+                    )
+                },
+                textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = { onDone() }),
+                singleLine = true
+            )
+
+            amountError?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }

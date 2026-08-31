@@ -1,4 +1,4 @@
-package com.ahu.ahutong.ui.screen.main
+﻿package com.ahu.ahutong.ui.screen.main
 
 import android.content.Context
 import android.content.Intent
@@ -12,11 +12,13 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -25,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -52,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,11 +65,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.ahu.ahutong.R
 import com.ahu.ahutong.data.repository.GitHubContentItem
 import com.ahu.ahutong.data.repository.RepositoryDirectorySummary
 import com.ahu.ahutong.data.repository.RepositoryManager
 import com.ahu.ahutong.ui.state.RepositoryMarkdownUiState
 import com.ahu.ahutong.ui.state.RepositoryViewModel
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -127,54 +134,10 @@ fun Repository(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-            .background(96.n1 withNight 10.n1)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回"
-                )
-            }
-            Text(
-                text = "学习资料",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.weight(1f)
-            )
-            RepositoryRefreshButton(
-                loading = state.isLoading || state.isRefreshing || sharedState.isCacheWarming,
-                onRefresh = {
-                    behaviorReporter.organic(
-                        if (state.error == null) AppActionId.MANUAL_REFRESH_REPOSITORY
-                        else AppActionId.RETRY_REPOSITORY
-                    )
-                    viewModel.refreshDirectory(path)
-                }
-            )
-            IconButton(onClick = { navController.navigate("repository_downloads") }) {
-                Icon(
-                    imageVector = Icons.Outlined.Download,
-                    contentDescription = "已下载",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            IconButton(onClick = { navController.navigate("repository_settings") }) {
-                Icon(
-                    imageVector = Icons.Outlined.Tune,
-                    contentDescription = "学习资料设置"
-                )
-            }
+    val body: @Composable ColumnScope.() -> Unit = {
+        if (isRadiantUi) {
+            Spacer(modifier = Modifier.height(72.dp))
         }
-
         RepositoryBreadcrumb(
             currentPath = path,
             onPathClick = { targetPath ->
@@ -288,6 +251,104 @@ fun Repository(
                     }
                 }
             }
+        }
+    }
+
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = "学习资料",
+            contentEdgeToEdge = true,
+            trailingContent = {
+                RepositoryTitleButton(
+                    loading = state.isLoading || state.isRefreshing || sharedState.isCacheWarming,
+                    onClick = {
+                        behaviorReporter.organic(
+                            if (state.error == null) AppActionId.MANUAL_REFRESH_REPOSITORY
+                            else AppActionId.RETRY_REPOSITORY
+                        )
+                        viewModel.refreshDirectory(path)
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_refresh),
+                        contentDescription = "刷新",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                RepositoryTitleButton(onClick = { navController.navigate("repository_downloads") }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_download),
+                        contentDescription = "已下载",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                RepositoryTitleButton(onClick = { navController.navigate("repository_settings") }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_config),
+                        contentDescription = "学习资料设置",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .navigationBarsPadding()
+            ) {
+                body()
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .background(96.n1 withNight 10.n1)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回"
+                    )
+                }
+                Text(
+                    text = "学习资料",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                RepositoryRefreshButton(
+                    loading = state.isLoading || state.isRefreshing || sharedState.isCacheWarming,
+                    onRefresh = {
+                        behaviorReporter.organic(
+                            if (state.error == null) AppActionId.MANUAL_REFRESH_REPOSITORY
+                            else AppActionId.RETRY_REPOSITORY
+                        )
+                        viewModel.refreshDirectory(path)
+                    }
+                )
+                IconButton(onClick = { navController.navigate("repository_downloads") }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Download,
+                        contentDescription = "已下载",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(onClick = { navController.navigate("repository_settings") }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Tune,
+                        contentDescription = "学习资料设置"
+                    )
+                }
+            }
+
+            body()
         }
     }
 
@@ -416,6 +477,32 @@ private fun RepositoryRefreshButton(
                 imageVector = Icons.Outlined.Refresh,
                 contentDescription = "刷新"
             )
+        }
+    }
+}
+
+@Composable
+private fun RepositoryTitleButton(
+    loading: Boolean = false,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick, enabled = !loading) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                content()
+            }
         }
     }
 }

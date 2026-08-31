@@ -47,10 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -58,12 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.shadow.Shadow
 
 data class SettingsChoice<T>(
     val value: T,
@@ -146,13 +138,6 @@ fun SettingsConfirmationDialog(
 }
 
 @Composable
-fun settingsScreenBackground(): Color = if (LocalIsLiquidGlassEnabled.current) {
-    MaterialTheme.colorScheme.surfaceContainerLowest
-} else {
-    MaterialTheme.colorScheme.surface
-}
-
-@Composable
 fun settingsGroupColor(): Color = if (LocalIsLiquidGlassEnabled.current) {
     MaterialTheme.colorScheme.surface.copy(alpha = 0.86f)
 } else {
@@ -164,35 +149,7 @@ fun SettingsBackdropContainer(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.(Backdrop) -> Unit
 ) {
-    val backdrop = rememberLayerBackdrop()
-    val liquid = LocalIsLiquidGlassEnabled.current
-    val background = settingsScreenBackground()
-    val primary = MaterialTheme.colorScheme.primary
-    val secondary = MaterialTheme.colorScheme.secondary
-
-    Box(modifier = modifier.background(background)) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clipToBounds()
-                .layerBackdrop(backdrop)
-                .background(
-                    if (liquid) {
-                        Brush.verticalGradient(
-                            listOf(
-                                background,
-                                primary.copy(alpha = 0.08f),
-                                secondary.copy(alpha = 0.05f),
-                                background
-                            )
-                        )
-                    } else {
-                        Brush.linearGradient(listOf(background, background))
-                    }
-                )
-        )
-        content(backdrop)
-    }
+    GlassBackdropContainer(modifier = modifier, content = content)
 }
 
 @Composable
@@ -204,12 +161,7 @@ fun SettingsPageHeader(
 ) {
     val isLiquid = LocalIsLiquidGlassEnabled.current
     val backShape = SmoothRoundedCornerShape(24.dp)
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val glassTint = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.64f)
-    } else {
-        Color.White.copy(alpha = 0.46f)
-    }
+    val glassTint = liquidGlassTint()
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -266,12 +218,7 @@ fun SettingsHeroCard(
 ) {
     val isLiquid = LocalIsLiquidGlassEnabled.current
     val shape = SmoothRoundedCornerShape(28.dp)
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val glassTint = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.64f)
-    } else {
-        Color.White.copy(alpha = 0.46f)
-    }
+    val glassTint = liquidGlassTint()
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -301,12 +248,7 @@ fun SettingsSection(
 ) {
     val isLiquid = LocalIsLiquidGlassEnabled.current
     val shape = SmoothRoundedCornerShape(if (isLiquid) 26.dp else 24.dp)
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val glassTint = if (isDark) {
-        MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.64f)
-    } else {
-        Color.White.copy(alpha = 0.46f)
-    }
+    val glassTint = liquidGlassTint()
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -339,28 +281,6 @@ fun SettingsSection(
     }
 }
 
-private fun Modifier.liquidGlassSurface(
-    backdrop: Backdrop,
-    shape: Shape,
-    surfaceColor: Color
-): Modifier = drawBackdrop(
-    backdrop = backdrop,
-    shape = { shape },
-    effects = {
-        vibrancy()
-        blur(18.dp.toPx())
-    },
-    shadow = {
-        Shadow(
-            radius = 14.dp,
-            color = Color.Black.copy(alpha = 0.12f)
-        )
-    },
-    onDrawSurface = {
-        drawRect(surfaceColor)
-    }
-)
-
 @Composable
 fun SettingsActionRow(
     title: String,
@@ -368,6 +288,7 @@ fun SettingsActionRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     leadingIcon: ImageVector? = null,
+    leadingPainter: Painter? = null,
     value: String? = null,
     destructive: Boolean = false,
     showChevron: Boolean = true,
@@ -383,7 +304,22 @@ fun SettingsActionRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            leadingIcon?.let {
+            if (leadingPainter != null) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(SmoothRoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = leadingPainter,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            } else leadingIcon?.let {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -420,7 +356,7 @@ fun SettingsActionRow(
                 )
             }
         }
-        SettingsDivider(visible = showDivider, leadingInset = if (leadingIcon == null) 20.dp else 74.dp)
+        SettingsDivider(visible = showDivider, leadingInset = if (leadingIcon == null && leadingPainter == null) 20.dp else 74.dp)
     }
 }
 

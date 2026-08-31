@@ -52,16 +52,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.SecondarySearchState
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ExamViewModel
 import com.ahu.ahutong.ui.state.RefreshState
@@ -131,188 +137,269 @@ fun Exam(
         exam.orEmpty()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 80.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // 标题栏 / 搜索栏
-        if (isSearchActive) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = {
+    if (isRadiantUi) {
+        // RadiantUI：标题栏套用统一二级页框架（搜索态也在框架内），刷新简化为图标按钮
+        SecondaryPageScaffold(
+            title = stringResource(id = R.string.exam),
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ExamTitleButton(R.drawable.ic_find, "搜索") { isSearchActive = true }
+                    ExamTitleButton(R.drawable.ic_refresh, "刷新") {
+                        behaviorReporter.organic(AppActionId.MANUAL_REFRESH_EXAM)
+                        examViewModel.loadExam(isRefresh = true)
+                    }
+                }
+            },
+            search = SecondarySearchState(
+                query = searchQuery,
+                visible = isSearchActive,
+                placeholder = "搜索课程名称…",
+                onQueryChange = { searchQuery = it },
+                onClose = {
                     isSearchActive = false
                     searchQuery = ""
-                }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = 0.n1 withNight 100.n1
-                    )
-                }
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                    placeholder = {
-                        Text("搜索课程名称…", color = 50.n1 withNight 70.n1)
-                    },
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        disabledContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = 0.n1 withNight 100.n1,
-                        unfocusedTextColor = 0.n1 withNight 100.n1,
-                        cursorColor = 90.a1 withNight 90.a1,
-                    ),
-                    trailingIcon = if (searchQuery.isNotEmpty()) {
-                        {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Clear",
-                                    tint = 50.n1 withNight 80.n1
-                                )
-                            }
-                        }
-                    } else null
-                )
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 24.dp, end = 16.dp, top = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = stringResource(id = R.string.exam),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = 0.n1 withNight 100.n1
-                )
-                Row {
-                    IconButton(onClick = { isSearchActive = true }) {
+                },
+                onSubmit = {}
+            )
+        ) {
+            ExamContent(
+                filteredExams = filteredExams,
+                isSearchActive = isSearchActive,
+                searchQuery = searchQuery,
+                isLoading = isLoading,
+                horizontal = 0.dp
+            )
+        }
+    } else {
+        // Original / Liquid Glass：完整保留原标题栏/搜索栏观感与刷新文本态（冻结不动）
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .systemBarsPadding()
+                .padding(bottom = 80.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (isSearchActive) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = {
+                        isSearchActive = false
+                        searchQuery = ""
+                    }) {
                         Icon(
-                            Icons.Default.Search,
-                            contentDescription = "搜索",
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
                             tint = 0.n1 withNight 100.n1
                         )
                     }
-                    RefreshButton(examViewModel)
-                }
-            }
-        }
-
-        if (isLoading != true) {
-            if (!filteredExams.isNullOrEmpty()) {
-                val sortedExams = filteredExams.sortedWith(
-                    compareBy(
-                        { calcTime(it.time) },
-                        { parseStartTime(it.time) ?: LocalDateTime.MAX }
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        placeholder = {
+                            Text("搜索课程名称…", color = 50.n1 withNight 70.n1)
+                        },
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedTextColor = 0.n1 withNight 100.n1,
+                            unfocusedTextColor = 0.n1 withNight 100.n1,
+                            cursorColor = 90.a1 withNight 90.a1,
+                        ),
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = 50.n1 withNight 80.n1
+                                    )
+                                }
+                            }
+                        } else null
                     )
-                )
-                // Split into active and finished
-                val activeExams = sortedExams.filter { calcTime(it.time) != 2 }
-                val finishedExams = sortedExams.filter { calcTime(it.time) == 2 }
-                var showFinished by rememberSaveable { mutableStateOf(false) }
-
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 16.dp, top = 24.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Active exams — always visible
-                    activeExams.forEach { examItem ->
-                        ExamCard(examItem = examItem, status = calcTime(examItem.time))
-                    }
-
-                    // Finished exams — collapsible
-                    if (finishedExams.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(SmoothRoundedCornerShape(12.dp))
-                                .background(100.n1 withNight 20.n1)
-                                .clickable { showFinished = !showFinished }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "已结束 (${finishedExams.size})",
-                                color = 30.n1 withNight 90.n1,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium
-                            )
+                    Text(
+                        text = stringResource(id = R.string.exam),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = 0.n1 withNight 100.n1
+                    )
+                    Row {
+                        IconButton(onClick = { isSearchActive = true }) {
                             Icon(
-                                imageVector = if (showFinished) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = if (showFinished) "收起" else "展开",
-                                tint = 50.n1 withNight 70.n1
+                                Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = 0.n1 withNight 100.n1
                             )
                         }
+                        RefreshButton(examViewModel)
+                    }
+                }
+            }
 
-                        AnimatedVisibility(
-                            visible = showFinished,
-                            enter = expandVertically(),
-                            exit = shrinkVertically()
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                finishedExams.forEach { examItem ->
-                                    ExamCard(examItem = examItem, status = 2)
-                                }
+            ExamContent(
+                filteredExams = filteredExams,
+                isSearchActive = isSearchActive,
+                searchQuery = searchQuery,
+                isLoading = isLoading,
+                horizontal = 16.dp
+            )
+        }
+    }
+}
+
+/** 标题栏右侧圆形图标按钮，样式与统一二级页框架一致。 */
+@Composable
+private fun ExamTitleButton(
+    icon: Int,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = contentDescription,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+/** 考试列表内容（卡片 / 已结束折叠 / 空态 / 加载态），Radiant 与经典模式复用。 */
+@Composable
+private fun ExamContent(
+    filteredExams: List<com.ahu.ahutong.data.model.Exam>,
+    isSearchActive: Boolean,
+    searchQuery: String,
+    isLoading: Boolean?,
+    horizontal: Dp
+) {
+    if (isLoading != true) {
+        if (filteredExams.isNotEmpty()) {
+            val sortedExams = filteredExams.sortedWith(
+                compareBy(
+                    { calcTime(it.time) },
+                    { parseStartTime(it.time) ?: LocalDateTime.MAX }
+                )
+            )
+            // Split into active and finished
+            val activeExams = sortedExams.filter { calcTime(it.time) != 2 }
+            val finishedExams = sortedExams.filter { calcTime(it.time) == 2 }
+            var showFinished by rememberSaveable { mutableStateOf(false) }
+
+            Column(
+                modifier = Modifier.padding(horizontal = horizontal),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Active exams — always visible
+                activeExams.forEach { examItem ->
+                    ExamCard(examItem = examItem, status = calcTime(examItem.time))
+                }
+
+                // Finished exams — collapsible
+                if (finishedExams.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(SmoothRoundedCornerShape(12.dp))
+                            .background(100.n1 withNight 20.n1)
+                            .clickable { showFinished = !showFinished }
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "已结束 (${finishedExams.size})",
+                            color = 30.n1 withNight 90.n1,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Icon(
+                            imageVector = if (showFinished) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (showFinished) "收起" else "展开",
+                            tint = 50.n1 withNight 70.n1
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = showFinished,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            finishedExams.forEach { examItem ->
+                                ExamCard(examItem = examItem, status = 2)
                             }
                         }
                     }
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 80.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = when {
-                            isSearchActive && searchQuery.isNotBlank() -> "未找到包含「${searchQuery}」的考试"
-                            else -> "目前没有任何考试"
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = 50.n1 withNight 80.n1
-                    )
                 }
             }
         } else {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 120.dp),
+                    .padding(vertical = 80.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        strokeWidth = 3.dp,
-                        color = 90.a1 withNight 90.a1
-                    )
-                    Text(
-                        "加载中…",
-                        color = 50.n1 withNight 80.n1,
-                        fontSize = 14.sp
-                    )
-                }
+                Text(
+                    text = when {
+                        isSearchActive && searchQuery.isNotBlank() -> "未找到包含「${searchQuery}」的考试"
+                        else -> "目前没有任何考试"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = 50.n1 withNight 80.n1
+                )
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 120.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    strokeWidth = 3.dp,
+                    color = 90.a1 withNight 90.a1
+                )
+                Text(
+                    "加载中…",
+                    color = 50.n1 withNight 80.n1,
+                    fontSize = 14.sp
+                )
             }
         }
     }

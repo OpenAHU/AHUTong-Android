@@ -73,6 +73,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.ui.components.GlassCard
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.BathroomDepositViewModel
 import com.kyant.monet.a1
@@ -129,7 +132,382 @@ fun BathroomDeposit(
         unfocusedIndicatorColor = Color.Transparent,
     )
 
-    Column(
+    var radiantShowDialog by remember { mutableStateOf(false) }
+    var radiantPassword by remember { mutableStateOf("") }
+    var radiantErrorMsg by remember { mutableStateOf<String?>(null) }
+
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = "浴室缴费",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    GlassCard(
+                        containerColor = 100.n1 withNight 20.n1,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "选择浴室",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            ExposedDropdownMenuBox(
+                                expanded = expanded,
+                                onExpandedChange = { expanded = !expanded }
+                            ) {
+                                TextField(
+                                    value = bathroom,
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                                    },
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .width(150.dp),
+                                    colors = textFieldColors,
+                                    textStyle = TextStyle(
+                                        textAlign = TextAlign.End,
+                                        fontSize = 16.sp,
+                                        color = 10.n1 withNight 90.n1
+                                    ),
+                                    singleLine = true
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false },
+                                    modifier = Modifier.background(99.n1 withNight 10.n1)
+                                ) {
+                                    options.forEach { selectionOption ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(selectionOption, color = 10.n1 withNight 90.n1)
+                                            },
+                                            onClick = {
+                                                bathroom = selectionOption
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(text = "手机号", style = MaterialTheme.typography.titleMedium)
+                            TextField(
+                                value = tel,
+                                onValueChange = { value ->
+                                    tel = value
+                                },
+                                modifier = Modifier
+                                    .width(150.dp)
+                                    .onFocusChanged {
+                                        if (!it.isFocused && hasFocus && !tel.isEmpty()) {
+                                            viewmodel.getBathroomInfo(bathroom, tel)
+                                        }
+                                        hasFocus = it.isFocused
+                                    },
+                                colors = textFieldColors,
+                                textStyle = TextStyle(
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 16.sp,
+                                    color = 10.n1 withNight 90.n1
+                                ),
+                                singleLine = true
+                            )
+                        }
+                        lastTel?.let {
+                            Row(horizontalArrangement = Arrangement.End) {
+                                AnimatedVisibility(
+                                    visible = (lastTel != null && !hasFocus),
+                                    enter = fadeIn() + slideInVertically(),
+                                    exit = fadeOut() + slideOutVertically()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        Text(
+                                            text = "上次充值：$it",
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(90.a1 withNight 30.n1)
+                                                .padding(8.dp)
+                                                .clickable {
+                                                    tel = it
+                                                    viewmodel.getBathroomInfo(bathroom, tel)
+                                                    lastTel = null
+                                                }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(text = "信息", style = MaterialTheme.typography.titleMedium)
+                            val displayText = info.value?.let { it ->
+                                when {
+                                    it.data.map == null -> it.data.message ?: "未知错误"
+                                    it.data.map!!.showData != null -> {
+                                        val showData = it.data.map!!.showData!!
+                                        "${showData.phone}\n现金金额：${showData.cashAmount}元\n赠送金额：${showData.giftAmount}元"
+                                    }
+
+                                    it.data.map!!.data?.message != null ->
+                                        it.data.map!!.data!!.message!!
+
+                                    else -> "未知错误"
+                                }
+                            } ?: ""
+                            Text(text = displayText)
+                        }
+                        }
+                    }
+                    GlassCard(
+                        containerColor = 100.n1 withNight 20.n1,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                        Text(
+                            text = "缴费金额",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        TextField(
+                            value = amount,
+                            onValueChange = { newText ->
+                                if (newText.isEmpty()) {
+                                    amount = newText
+                                    return@TextField
+                                }
+                                val regex = Regex("^\\d*\\.?\\d{0,2}$")
+                                if (regex.matches(newText)) {
+                                    amount = newText
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = textFieldColors,
+                            placeholder = { Text("请输入金额", color = 30.n1 withNight 70.n1) },
+                            textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                            singleLine = true
+                        )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .navigationBarsPadding()
+                                .padding(16.dp)
+                                .clip(SmoothRoundedCornerShape(32.dp))
+                                .background(
+                                    animateColorAsState(
+                                        targetValue = when (payState.value) {
+                                            is PayState.Idle -> 90.a1 withNight 85.a1
+                                            is PayState.InProgress -> 70.a1 withNight 60.a1
+                                            is PayState.Failed -> Color.Red
+                                            is PayState.Succeeded -> 70.a1 withNight 60.a1
+                                        }
+                                    ).value
+                                )
+                                .animateContentSize(spring(stiffness = Spring.StiffnessLow))
+                        ) {
+                            when (val state = payState.value) {
+                                PayState.Idle -> {
+                                    CompositionLocalProvider(LocalIndication provides ripple(color = 0.n1)) {
+                                        Text(
+                                            text = "确认",
+                                            modifier = Modifier
+                                                .clickable(
+                                                    role = Role.Button,
+                                                    onClick = {
+                                                        if (!amount.isEmpty() && info.value != null) {
+                                                            radiantShowDialog = true
+                                                        } else {
+
+                                                        }
+                                                    }
+                                                )
+                                                .padding(24.dp, 16.dp),
+                                            color = 0.n1,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                    }
+                                }
+
+                                PayState.InProgress -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(56.dp),
+                                            color = 100.n1,
+                                            strokeWidth = 6.dp
+                                        )
+                                        Text(
+                                            text = "支付中",
+                                            modifier = Modifier.padding(4.dp),
+                                            color = 100.n1,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.headlineSmall
+                                        )
+                                    }
+                                }
+
+                                is PayState.Failed -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(56.dp),
+                                            tint = 100.n1
+                                        )
+                                        Text(
+                                            text = "支付失败！ ${state.message}",
+                                            modifier = Modifier.padding(4.dp),
+                                            color = 100.n1,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.headlineSmall
+                                        )
+                                    }
+                                }
+
+                                is PayState.Succeeded -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(56.dp),
+                                            tint = 100.n1
+                                        )
+                                        Text(
+                                            text = "支付成功！ 订单号：${state.message}",
+                                            modifier = Modifier
+                                                .padding(4.dp)
+                                                .clickable {
+
+                                                },
+                                            color = 100.n1,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.headlineSmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        if (radiantShowDialog) {
+            AlertDialog(
+                containerColor = 100.n1 withNight 20.n1,
+                titleContentColor = 10.n1 withNight 90.n1,
+                textContentColor = 10.n1 withNight 90.n1,
+                onDismissRequest = { radiantShowDialog = false },
+                title = { Text("请输入校园卡密码") },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = radiantPassword,
+                            onValueChange = { input ->
+                                if (input.length <= 6 && input.all { it.isDigit() }) {
+                                    radiantPassword = input
+                                    radiantErrorMsg = null
+                                }
+                            },
+                            label = { Text("密码 (6位数字)", color = 40.n1 withNight 60.n1) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = PasswordVisualTransformation(),
+                            isError = radiantErrorMsg != null,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = 10.n1 withNight 90.n1,
+                                unfocusedTextColor = 10.n1 withNight 90.n1,
+                                focusedBorderColor = 20.n1 withNight 80.n1
+                            )
+                        )
+                        if (radiantErrorMsg != null) {
+                            Text(
+                                text = radiantErrorMsg!!,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (radiantPassword.length == 6) {
+                            radiantShowDialog = false
+                            behaviorReporter.organic(AppActionId.CONFIRM_BATHROOM_PAYMENT)
+                            viewmodel.pay(
+                                bathroom = bathroom,
+                                amount = amount,
+                                password = radiantPassword
+                            )
+                        } else {
+                            radiantErrorMsg = "密码必须是6位数字"
+                        }
+                    }) {
+                        Text("确认", color = 10.n1 withNight 90.n1)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        radiantShowDialog = false
+                        radiantPassword = ""
+                        radiantErrorMsg = null
+                    }) {
+                        Text("取消", color = 10.n1 withNight 90.n1)
+                    }
+                }
+            )
+        }
+    } else {
+        Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
@@ -538,5 +916,6 @@ fun BathroomDeposit(
             }
         }
     }
+}
 }
 

@@ -64,6 +64,7 @@ import com.ahu.ahutong.ui.components.SettingsBackdropContainer
 import com.ahu.ahutong.ui.components.SettingsInfoRow
 import com.ahu.ahutong.ui.components.SettingsHeroCard
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.SettingsPageHeader
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -124,6 +125,7 @@ fun Settings(
             SettingsPageHeader(title = stringResource(id = R.string.setting))
 
         val isLiquid = LocalIsLiquidGlassEnabled.current
+        val isRadiant = isRadiantUi
         val heroContentColor = if (isLiquid) {
             MaterialTheme.colorScheme.onSurface
         } else {
@@ -174,7 +176,8 @@ fun Settings(
                 )
                 SettingsActionRow(
                     title = "重新登录",
-                    leadingIcon = Icons.AutoMirrored.Outlined.Login,
+                    leadingIcon = if (isRadiant) null else Icons.AutoMirrored.Outlined.Login,
+                    leadingPainter = if (isRadiant) painterResource(R.drawable.ic_logout) else null,
                     showDivider = false,
                     onClick = { navController.navigate("login") }
                 )
@@ -189,12 +192,14 @@ fun Settings(
             SettingsActionRow(
                 title = stringResource(id = R.string.preferences),
                 subtitle = "通知、外观、主页与智能体验",
-                leadingIcon = Icons.Outlined.Tune,
+                leadingIcon = if (isRadiant) null else Icons.Outlined.Tune,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_setting_config) else null,
                 onClick = { navController.navigate("preferences") }
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.check_update),
-                leadingIcon = Icons.Outlined.Update,
+                leadingIcon = if (isRadiant) null else Icons.Outlined.Update,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_update) else null,
                 showDivider = false,
                 onClick = {
                     mainViewModel.checkApkUpdateManually(context) { message ->
@@ -211,17 +216,20 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = stringResource(id = R.string.license),
-                leadingIcon = Icons.AutoMirrored.Outlined.Article,
+                leadingIcon = if (isRadiant) null else Icons.AutoMirrored.Outlined.Article,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_announcement) else null,
                 onClick = { navController.navigate("settings__license") }
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.contributors),
-                leadingIcon = Icons.Outlined.PeopleOutline,
+                leadingIcon = if (isRadiant) null else Icons.Outlined.PeopleOutline,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_peoples) else null,
                 onClick = { navController.navigate("settings__contributors") }
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.mine_tv_feedback),
-                leadingIcon = Icons.Outlined.Feedback,
+                leadingIcon = if (isRadiant) null else Icons.Outlined.Feedback,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_topic) else null,
                 onClick = {
                     runCatching {
                         context.startActivity(
@@ -237,13 +245,15 @@ fun Settings(
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.update_intro),
-                leadingIcon = Icons.AutoMirrored.Outlined.Article,
+                leadingIcon = if (isRadiant) null else Icons.AutoMirrored.Outlined.Article,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_log) else null,
                 onClick = { isUpdateLogDialogShown = true }
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.setting_clear),
                 subtitle = "清除登录状态、课表和本地数据",
-                leadingIcon = Icons.Outlined.ClearAll,
+                leadingIcon = if (isRadiant) null else Icons.Outlined.ClearAll,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_clear) else null,
                 destructive = true,
                 showDivider = false,
                 onClick = { isClearDataDialogShown = true }

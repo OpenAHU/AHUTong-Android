@@ -66,6 +66,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
+import com.ahu.ahutong.ui.components.GlassCard
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.CardAccountState
 import com.ahu.ahutong.ui.state.CardBalanceDepositViewModel
@@ -116,6 +119,376 @@ fun CardBalanceDeposit(
         }
     }
 
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = "校园卡充值",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                    GlassCard(
+                        containerColor = 100.n1 withNight 20.n1,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = "校园卡账户",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            when (val state = accountState) {
+                                CardAccountState.Loading -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = 30.n1 withNight 70.n1
+                                    )
+                                }
+
+                                is CardAccountState.Ready -> {
+                                    val accountInfo = state.cardInfo.data.card.getOrNull(0)
+                                        ?.accinfo?.getOrNull(0)
+                                    Text(
+                                        text = accountInfo?.let { "${it.name} ${it.type}" }
+                                            ?: "--"
+                                    )
+                                }
+
+                                is CardAccountState.Error -> {
+                                    Text(
+                                        text = "加载失败",
+                                        color = Color.Red
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(text = "账户余额", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = cardInfo.value?.data?.card?.getOrNull(0)
+                                    ?.accinfo?.getOrNull(0)?.balance
+                                    ?.let { String.format("￥%.2f", it / 100.0) }
+                                    ?: "￥--",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                        }
+                    }
+
+                    GlassCard(
+                        containerColor = 100.n1 withNight 20.n1,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                        Text(
+                            text = "充值金额",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        TextField(
+                            value = amount,
+                            onValueChange = { newText ->
+                                if (newText.isEmpty()) {
+                                    amount = newText
+                                    return@TextField
+                                }
+                                val regex = Regex("^\\d*\\.?\\d{0,2}$")
+                                if (regex.matches(newText)) {
+                                    amount = newText
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            placeholder = { Text("请输入金额", color = 30.n1 withNight 70.n1) },
+                            textStyle = TextStyle(fontSize = 16.sp, color = 10.n1 withNight 90.n1),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                            singleLine = true
+                        )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(start = 24.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "招商银行充值点这里",
+                            modifier = Modifier
+                                .clickable { showCmbPreferenceDialog = true }
+                                .padding(horizontal = 8.dp, vertical = 16.dp),
+                            color = 30.n1 withNight 70.n1,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .clip(SmoothRoundedCornerShape(32.dp))
+                                .background(
+                                    animateColorAsState(
+                                        targetValue = when (paymentState) {
+                                            PaymentState.Idle -> 90.a1 withNight 85.a1
+                                            PaymentState.Loading -> 70.a1 withNight 60.a1
+                                            is PaymentState.Error -> Color.Red
+                                            is PaymentState.Success -> 70.a1 withNight 60.a1
+                                        }
+                                    ).value
+                                )
+                                .animateContentSize(spring(stiffness = Spring.StiffnessLow))
+                        ) {
+                            when (val state = paymentState) {
+                                PaymentState.Idle -> {
+                                    CompositionLocalProvider(LocalIndication provides ripple(color = 0.n1)) {
+                                        Text(
+                                            text = "确认",
+                                            modifier = Modifier
+                                                .clickable(
+                                                    role = Role.Button,
+                                                    onClick = {
+                                                        if (amount.isNotEmpty()) {
+                                                            showConfirmDialog = true // 点击显示弹窗
+                                                        }
+                                                    }
+                                                )
+                                                .padding(24.dp, 16.dp),
+                                            color = 0.n1,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                    }
+                                }
+
+                                PaymentState.Loading -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(56.dp),
+                                            color = 100.n1,
+                                            strokeWidth = 6.dp
+                                        )
+                                        Text(
+                                            text = "支付中",
+                                            modifier = Modifier.padding(4.dp),
+                                            color = 100.n1,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.headlineSmall
+                                        )
+                                    }
+                                }
+
+                                is PaymentState.Error -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(56.dp),
+                                            tint = 100.n1
+                                        )
+                                        Text(
+                                            text = "支付失败！错误信息：${state.message}",
+                                            modifier = Modifier.padding(4.dp),
+                                            color = 100.n1,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.headlineSmall
+                                        )
+                                    }
+                                }
+
+                                is PaymentState.Success -> {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(56.dp),
+                                            tint = 100.n1
+                                        )
+                                        Text(
+                                            text = "支付成功！订单号：${state.orderId}",
+                                            modifier = Modifier
+                                                .padding(4.dp)
+                                                .clickable {
+                                                    viewModel.resetPaymentState()
+                                                },
+                                            color = 100.n1,
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.headlineSmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+        if (showConfirmDialog) {
+            AlertDialog(
+                containerColor = 100.n1 withNight 20.n1,
+                titleContentColor = 10.n1 withNight 90.n1,
+                onDismissRequest = { showConfirmDialog = false },
+                title = { Text("确认支付") },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "请选择支付方式。银行卡支付将从绑定的银行卡扣除￥$amount 元；支付宝支付会复制本地校园卡信息并跳转支付宝校园卡小程序。",
+                            color = 40.n1 withNight 60.n1
+                        )
+                        Text(
+                            text = "姓名：${campusCardUserName.ifBlank { "未获取到" }}\n学号：${campusCardStudentId.ifBlank { "未获取到" }}",
+                            color = 10.n1 withNight 90.n1,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = if (campusCardUserName.isBlank() || campusCardStudentId.isBlank()) {
+                                "本地姓名或学号缺失，跳转后请在支付宝中手动填写。"
+                            } else {
+                                "点击支付宝支付后将复制以上信息，跳转后可在支付宝中粘贴填写。"
+                            },
+                            color = 40.n1 withNight 60.n1,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                },
+                confirmButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "支付宝支付",
+                            modifier = Modifier
+                                .clickable {
+                                    behaviorReporter.organic(AppActionId.SUBMIT_CARD_RECHARGE)
+                                    val identityState = copyCampusCardIdentity(
+                                        context = context,
+                                        name = campusCardUserName,
+                                        studentId = campusCardStudentId
+                                    )
+                                    val message = when (identityState) {
+                                        CampusCardIdentityCopyState.Complete -> "已复制姓名和学号"
+                                        CampusCardIdentityCopyState.Partial -> "本地信息不完整，已复制可用信息"
+                                        CampusCardIdentityCopyState.Empty -> "本地未找到姓名和学号，请在支付宝中手动填写"
+                                    }
+                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    openAlipayCampusCard(context)
+                                    showConfirmDialog = false
+                                }
+                                .padding(8.dp),
+                            color = 10.n1 withNight 90.n1
+                        )
+                        Text(
+                            text = "银行卡支付",
+                            modifier = Modifier
+                                .clickable {
+                                    if (accountState is CardAccountState.Ready) {
+                                        behaviorReporter.organic(AppActionId.SUBMIT_CARD_RECHARGE)
+                                        viewModel.charge(amount)
+                                        showConfirmDialog = false
+                                    } else {
+                                        Toast.makeText(context, "校园卡账户仍在加载，请稍后重试", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                .padding(8.dp),
+                            color = 10.n1 withNight 90.n1
+                        )
+                    }
+                },
+                dismissButton = {
+                    Text(
+                        text = "取消",
+                        modifier = Modifier
+                            .clickable { showConfirmDialog = false }
+                            .padding(8.dp),
+                        color = 10.n1 withNight 90.n1
+                    )
+                }
+            )
+        }
+
+        if (showCmbPreferenceDialog) {
+            AlertDialog(
+                containerColor = 100.n1 withNight 20.n1,
+                titleContentColor = 10.n1 withNight 90.n1,
+                textContentColor = 40.n1 withNight 60.n1,
+                onDismissRequest = { showCmbPreferenceDialog = false },
+                title = { Text("使用招商银行充值") },
+                text = { Text("是否以后都默认使用招商银行充值？") },
+                confirmButton = {
+                    Text(
+                        text = "以后都用",
+                        modifier = Modifier
+                            .clickable {
+                                val oldPreference = AHUCache.isCmbCardRechargePreferred()
+                                AHUCache.setCmbCardRechargePreferred(true)
+                                if (!oldPreference && AHUCache.isCmbCardRechargePreferred()) {
+                                    behaviorReporter.cmbRechargePreferenceChanged(false, true)
+                                }
+                                showCmbPreferenceDialog = false
+                                navController.navigate("cmb_card_recharge")
+                            }
+                            .padding(8.dp),
+                        color = 10.n1 withNight 90.n1
+                    )
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "取消",
+                            modifier = Modifier
+                                .clickable { showCmbPreferenceDialog = false }
+                                .padding(8.dp),
+                            color = 10.n1 withNight 90.n1
+                        )
+                        Text(
+                            text = "仅本次",
+                            modifier = Modifier
+                                .clickable {
+                                    showCmbPreferenceDialog = false
+                                    navController.navigate("cmb_card_recharge")
+                                }
+                                .padding(8.dp),
+                            color = 10.n1 withNight 90.n1
+                        )
+                    }
+                }
+            )
+        }
+    } else {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -510,6 +883,7 @@ fun CardBalanceDeposit(
 
     }
 
+}
 }
 
 private enum class CampusCardIdentityCopyState {

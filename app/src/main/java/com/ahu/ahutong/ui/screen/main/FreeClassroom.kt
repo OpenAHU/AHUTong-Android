@@ -51,6 +51,8 @@ import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.state.FreeClassroomViewModel
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
@@ -100,21 +102,27 @@ fun FreeClassroom(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.Top
-    ) {
-        Text(
-            text = stringResource(id = R.string.free_classroom),
+    val body: @Composable () -> Unit = {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp, 32.dp),
-            style = MaterialTheme.typography.headlineMedium
-        )
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .systemBarsPadding()
+                .padding(bottom = 96.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+
+        if (isRadiantUi) {
+            Spacer(modifier = Modifier.height(72.dp))
+        } else {
+            Text(
+                text = stringResource(id = R.string.free_classroom),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp, 32.dp),
+                style = MaterialTheme.typography.headlineMedium
+            )
+        }
 
         presetCandidates.firstOrNull()?.let { candidate ->
             LaunchedEffect(candidate.opportunityId, candidate.presetId) {
@@ -392,6 +400,15 @@ fun FreeClassroom(
                 }
             }
         }
+        }
+    }
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = stringResource(id = R.string.free_classroom),
+            contentEdgeToEdge = true
+        ) { body() }
+    } else {
+        body()
     }
 }
 

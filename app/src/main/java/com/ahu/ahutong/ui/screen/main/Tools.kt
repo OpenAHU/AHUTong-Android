@@ -161,12 +161,6 @@ fun Tools(
                         onClick = { navController.navigate(widget.route) }
                     )
                 }
-            ToolItem(
-                title = "网费充值",
-                iconId = R.drawable.ic_network_recharge,
-                tint = Color(0xFF1E88E5),
-                onClick = { navController.navigate("network_recharge") }
-            )
         }
         Column(
             modifier = Modifier
@@ -208,7 +202,7 @@ fun Tools(
 }
 
 @Composable
-private fun ToolItem(
+internal fun ToolItem(
     title: String,
     iconId: Int,
     tint: Color,

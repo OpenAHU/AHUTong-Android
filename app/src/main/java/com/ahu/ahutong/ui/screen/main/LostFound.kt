@@ -12,6 +12,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
@@ -24,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -33,10 +36,13 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.state.LostFoundViewModel
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
@@ -242,7 +248,8 @@ fun LostFound(
             }
     }
 
-    Box(
+    val body: @Composable () -> Unit = {
+        Box(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
@@ -254,7 +261,7 @@ fun LostFound(
             verticalArrangement =
                 Arrangement.spacedBy(24.dp),
             contentPadding =
-                PaddingValues(bottom = 96.dp)
+                PaddingValues(top = if (isRadiantUi) 72.dp else 0.dp, bottom = 96.dp)
         ) {
 
             item {
@@ -323,6 +330,7 @@ fun LostFound(
                             modifier = Modifier.weight(1f),
                             contentAlignment = Alignment.CenterEnd
                         ) {
+                            if (!isRadiantUi) {
                             Row(
                                 modifier = Modifier
                                     .clip(ContinuousCapsule)
@@ -369,8 +377,9 @@ fun LostFound(
                                             else
                                                 Icons.Default.Search,
                                         contentDescription = null
-                                    )
+                                    ) 
                                 }
+                            }
                             }
                         }
                     }
@@ -822,6 +831,46 @@ fun LostFound(
             }
         }
     }
+    }
+    if (isRadiantUi) {
+        SecondaryPageScaffold(
+            title = stringResource(id = R.string.lost_found),
+            contentEdgeToEdge = true,
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LostFoundTitleButton(onClick = {
+                        lostFoundViewModel.refreshList()
+                        Toast.makeText(context, "刷新成功", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(painterResource(R.drawable.ic_refresh), contentDescription = "刷新", modifier = Modifier.size(18.dp))
+                    }
+                    LostFoundTitleButton(onClick = {
+                        searchExpanded = !searchExpanded
+                        if (!searchExpanded) searchQuery = ""
+                    }) {
+                        if (searchExpanded) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "搜索",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        } else {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_find),
+                                contentDescription = "搜索",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        ) { body() }
+    } else {
+        body()
+    }
 
     /**
      * 全屏图片查看器
@@ -1219,5 +1268,21 @@ fun LostFound(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun LostFoundTitleButton(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(onClick = onClick) { content() }
     }
 }

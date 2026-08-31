@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.PreferencesManager
 import com.ahu.ahutong.data.model.AppThemeMode
+import com.ahu.ahutong.data.model.UiStyle
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.bootstrap.BootstrapContributionStatus
 import com.ahu.ahutong.personalization.semantic.MutationId
@@ -44,6 +45,9 @@ class PreferencesViewModel @Inject constructor(
 
     private val _useLiquidGlass = MutableStateFlow(true)
     val useLiquidGlass: StateFlow<Boolean> = _useLiquidGlass.asStateFlow()
+
+    private val _uiStyle = MutableStateFlow(UiStyle.RADIANT_UI)
+    val uiStyle: StateFlow<UiStyle> = _uiStyle.asStateFlow()
 
     private val _themeColor = MutableStateFlow<String?>(null)
     val themeColor: StateFlow<String?> = _themeColor.asStateFlow()
@@ -89,6 +93,11 @@ class PreferencesViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesManager.useLiquidGlass.collect {
                 _useLiquidGlass.value = it
+            }
+        }
+        viewModelScope.launch {
+            preferencesManager.uiStyle.collect {
+                _uiStyle.value = it
             }
         }
         viewModelScope.launch {
@@ -172,6 +181,21 @@ class PreferencesViewModel @Inject constructor(
             val oldValue = _useLiquidGlass.value
             preferencesManager.setUseLiquidGlass(value)
             behaviorRuntime.recordCommittedMutation(MutationId.LIQUID_GLASS_CHANGED, oldValue, value)
+        }
+    }
+
+    fun setUiStyle(value: UiStyle) {
+        viewModelScope.launch {
+            val oldValue = _uiStyle.value
+            preferencesManager.setUiStyle(value)
+            if (oldValue != value) {
+                behaviorRuntime.recordCommittedMutation(
+                    MutationId.LIQUID_GLASS_CHANGED,
+                    oldValue.storageValue,
+                    value.storageValue,
+                    coarseValueBucket = value.storageValue
+                )
+            }
         }
     }
 

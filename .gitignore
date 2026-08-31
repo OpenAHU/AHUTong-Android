@@ -4,6 +4,10 @@
 /local.properties
 .DS_Store
 /build
+app/build/
+*.apk
+*.aab
+*.keystore
 /captures
 .externalNativeBuild
 .cxx

@@ -12,7 +12,17 @@ data class HomeWidgetSpec(
 )
 
 object HomeWidgetRegistry {
-    const val slotCount = 8
+    /** 经典版（Original/Liquid Glass）主页插槽数量：双列布局（校园卡旁 2 个 + 三行各 2 个）。 */
+    const val slotCountClassic = 8
+
+    /** 曜光版（RadiantUI）主页插槽数量：图标网格（4 + 3，末位为「更多」入口）。 */
+    const val slotCountRadiant = 7
+
+    /** RadiantUI 首次启动的默认插槽（7 个填满，按展示顺序）。 */
+    val defaultSlotsRadiant: List<String?> = listOf(
+        "electricity", "bathroom", "grade", "exam",
+        "weather", "network_recharge", "free_classroom"
+    )
 
     val widgets = listOf(
         HomeWidgetSpec(
@@ -98,8 +108,22 @@ object HomeWidgetRegistry {
             route = "xuexiaotong",
             iconId = R.drawable.ic_xuexiaotong,
             tint = Color(0xFF7C4DFF)
+        ),
+        HomeWidgetSpec(
+            id = "network_recharge",
+            title = "网费充值",
+            route = "network_recharge",
+            iconId = R.drawable.ic_network_recharge,
+            tint = Color(0xFF1E88E5)
         )
     )
 
     val widgetById = widgets.associateBy { it.id }
+
+    /**
+     * 当前风格下可展示的小工具列表。
+     * 曜光版下「学习通日历」已提级为底部 tab，从小工具列表 / 主页插槽中隐藏。
+     */
+    fun availableWidgets(radiant: Boolean): List<HomeWidgetSpec> =
+        if (radiant) widgets.filter { it.id != "xuexiaotong" } else widgets
 }

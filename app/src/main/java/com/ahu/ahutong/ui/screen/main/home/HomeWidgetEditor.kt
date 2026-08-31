@@ -12,7 +12,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -73,7 +75,13 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
+// 更多入口图标（复用 HomeWidgetRegistry 的着色，颜色取偏好设置里的应用主题色 MaterialTheme.colorScheme.primary）
+import com.ahu.ahutong.R
+import com.ahu.ahutong.ui.components.isRadiantUi
+import com.ahu.ahutong.ui.components.liquidGlassSurface
+import com.ahu.ahutong.ui.components.liquidGlassTint
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.kyant.backdrop.Backdrop
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -95,7 +103,155 @@ fun HomeWidgetSlotLayout(
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
     onHomeWidgetDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
     onHomeWidgetDragged: (Offset) -> Unit,
-    onHomeWidgetDragStopped: () -> Unit
+    onHomeWidgetDragStopped: () -> Unit,
+    backdrop: Backdrop
+) {
+    if (isRadiantUi) {
+        RadiantHomeWidgetSlotLayout(
+            balance = balance,
+            transitionBalance = transitionBalance,
+            onRefreshBalance = onRefreshBalance,
+            navController = navController,
+            slots = slots,
+            isEditing = isEditing,
+            highlightedSlot = highlightedSlot,
+            draggingWidgetId = draggingWidgetId,
+            onEnterEdit = onEnterEdit,
+            onHomeWidgetClick = onHomeWidgetClick,
+            onSlotPositioned = onSlotPositioned,
+            onHomeWidgetDragStarted = onHomeWidgetDragStarted,
+            onHomeWidgetDragged = onHomeWidgetDragged,
+            onHomeWidgetDragStopped = onHomeWidgetDragStopped,
+            backdrop = backdrop
+        )
+    } else {
+        ClassicHomeWidgetSlotLayout(
+            balance = balance,
+            transitionBalance = transitionBalance,
+            onRefreshBalance = onRefreshBalance,
+            navController = navController,
+            slots = slots,
+            isEditing = isEditing,
+            highlightedSlot = highlightedSlot,
+            draggingWidgetId = draggingWidgetId,
+            onEnterEdit = onEnterEdit,
+            onHomeWidgetClick = onHomeWidgetClick,
+            onSlotPositioned = onSlotPositioned,
+            onHomeWidgetDragStarted = onHomeWidgetDragStarted,
+            onHomeWidgetDragged = onHomeWidgetDragged,
+            onHomeWidgetDragStopped = onHomeWidgetDragStopped,
+            backdrop = backdrop
+        )
+    }
+}
+
+@Composable
+private fun RadiantHomeWidgetSlotLayout(
+    balance: Double,
+    transitionBalance: Double,
+    onRefreshBalance: () -> Unit,
+    navController: NavHostController,
+    slots: List<String?>,
+    isEditing: Boolean,
+    highlightedSlot: Int?,
+    draggingWidgetId: String?,
+    onEnterEdit: () -> Unit,
+    onHomeWidgetClick: (slotIndex: Int) -> Unit,
+    onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
+    onHomeWidgetDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
+    onHomeWidgetDragged: (Offset) -> Unit,
+    onHomeWidgetDragStopped: () -> Unit,
+    backdrop: Backdrop
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        CampusCard(
+            balance = balance,
+            transitionBalance = transitionBalance,
+            onRefreshBalance = onRefreshBalance,
+            navController = navController,
+            enabled = !isEditing,
+            backdrop = backdrop,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+        listOf(listOf(1, 2, 3, 4), listOf(5, 6, 7)).forEach { rowSlots ->
+            val isLastRow = rowSlots.last() == 7
+            val visibleSlots = if (isEditing) {
+                rowSlots
+            } else {
+                rowSlots.filter { slots.getOrNull(it - 1) != null }
+            }
+            val rowHasWidgets = visibleSlots.isNotEmpty()
+            if (isEditing || rowHasWidgets || isLastRow) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    visibleSlots.forEach { slotIndex ->
+                        val widgetId = slots.getOrNull(slotIndex - 1)
+                        HomeWidgetSlot(
+                            slotIndex = slotIndex,
+                            widgetId = widgetId,
+                            isEditing = isEditing,
+                            isHighlighted = highlightedSlot == slotIndex,
+                            isDragging = draggingWidgetId == widgetId,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp),
+                            onEnterEdit = onEnterEdit,
+                            onNavigate = { navController.navigate(it) },
+                            onClick = onHomeWidgetClick,
+                            onSlotPositioned = onSlotPositioned,
+                            onDragStarted = onHomeWidgetDragStarted,
+                            onDragged = onHomeWidgetDragged,
+                            onDragStopped = onHomeWidgetDragStopped,
+                            backdrop = backdrop
+                        )
+                    }
+                    if (isLastRow) {
+                        val moreModifier = if (rowHasWidgets) {
+                            Modifier.weight(1f)
+                        } else {
+                            Modifier.width(68.dp)
+                        }
+                        HomeWidgetMoreItem(
+                            onClick = { navController.navigate("widgets") },
+                            modifier = moreModifier.height(64.dp)
+                        )
+                    }
+                }
+            }
+        }
+        }
+    }
+}
+
+@Composable
+private fun ClassicHomeWidgetSlotLayout(
+    balance: Double,
+    transitionBalance: Double,
+    onRefreshBalance: () -> Unit,
+    navController: NavHostController,
+    slots: List<String?>,
+    isEditing: Boolean,
+    highlightedSlot: Int?,
+    draggingWidgetId: String?,
+    onEnterEdit: () -> Unit,
+    onHomeWidgetClick: (slotIndex: Int) -> Unit,
+    onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
+    onHomeWidgetDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
+    onHomeWidgetDragged: (Offset) -> Unit,
+    onHomeWidgetDragStopped: () -> Unit,
+    backdrop: Backdrop
 ) {
     Column(
         modifier = Modifier
@@ -114,7 +270,9 @@ fun HomeWidgetSlotLayout(
                 transitionBalance = transitionBalance,
                 onRefreshBalance = onRefreshBalance,
                 navController = navController,
-                enabled = !isEditing
+                enabled = !isEditing,
+                backdrop = backdrop,
+                modifier = Modifier.weight(1f)
             )
 
             val showTopColumn = isEditing || slots.getOrNull(0) != null || slots.getOrNull(1) != null
@@ -138,7 +296,8 @@ fun HomeWidgetSlotLayout(
                         onSlotPositioned = onSlotPositioned,
                         onDragStarted = onHomeWidgetDragStarted,
                         onDragged = onHomeWidgetDragged,
-                        onDragStopped = onHomeWidgetDragStopped
+                        onDragStopped = onHomeWidgetDragStopped,
+                        backdrop = backdrop
                     )
                     HomeWidgetSlot(
                         slotIndex = 2,
@@ -155,7 +314,8 @@ fun HomeWidgetSlotLayout(
                         onSlotPositioned = onSlotPositioned,
                         onDragStarted = onHomeWidgetDragStarted,
                         onDragged = onHomeWidgetDragged,
-                        onDragStopped = onHomeWidgetDragStopped
+                        onDragStopped = onHomeWidgetDragStopped,
+                        backdrop = backdrop
                     )
                 }
             }
@@ -183,7 +343,8 @@ fun HomeWidgetSlotLayout(
                         onSlotPositioned = onSlotPositioned,
                         onDragStarted = onHomeWidgetDragStarted,
                         onDragged = onHomeWidgetDragged,
-                        onDragStopped = onHomeWidgetDragStopped
+                        onDragStopped = onHomeWidgetDragStopped,
+                        backdrop = backdrop
                     )
                     HomeWidgetSlot(
                         slotIndex = rightSlot,
@@ -200,7 +361,8 @@ fun HomeWidgetSlotLayout(
                         onSlotPositioned = onSlotPositioned,
                         onDragStarted = onHomeWidgetDragStarted,
                         onDragged = onHomeWidgetDragged,
-                        onDragStopped = onHomeWidgetDragStopped
+                        onDragStopped = onHomeWidgetDragStopped,
+                        backdrop = backdrop
                     )
                 }
             }
@@ -223,7 +385,8 @@ private fun HomeWidgetSlot(
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
     onDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
     onDragged: (Offset) -> Unit,
-    onDragStopped: () -> Unit
+    onDragStopped: () -> Unit,
+    backdrop: Backdrop
 ) {
     val spec = widgetId?.let { HomeWidgetRegistry.widgetById[it] }
     var bounds by remember { mutableStateOf<Rect?>(null) }
@@ -289,21 +452,92 @@ private fun HomeWidgetSlot(
 
     TextHomeWidgetCard(
         title = spec.title,
+        iconId = spec.iconId,
+        tint = spec.tint,
         isEditing = isEditing,
         isHighlighted = isHighlighted,
         modifier = slotModifier
             .alpha(if (isDragging) 0.35f else 1f),
-        interactionModifier = dragModifier
+        interactionModifier = dragModifier,
     )
 }
 
 @Composable
 private fun TextHomeWidgetCard(
     title: String,
+    iconId: Int,
+    tint: Color,
     isEditing: Boolean,
     isHighlighted: Boolean,
     modifier: Modifier = Modifier,
-    interactionModifier: Modifier = Modifier
+    interactionModifier: Modifier = Modifier,
+) {
+    if (isRadiantUi) {
+        RadiantTextHomeWidgetCard(title, iconId, tint, isEditing, isHighlighted, modifier, interactionModifier)
+    } else {
+        ClassicTextHomeWidgetCard(title, isEditing, isHighlighted, modifier, interactionModifier)
+    }
+}
+
+@Composable
+private fun RadiantTextHomeWidgetCard(
+    title: String,
+    iconId: Int,
+    tint: Color,
+    isEditing: Boolean,
+    isHighlighted: Boolean,
+    modifier: Modifier = Modifier,
+    interactionModifier: Modifier = Modifier,
+) {
+    val shape = SmoothRoundedCornerShape(18.dp)
+    Box(
+        modifier = modifier
+            .editModeMotion(isEditing)
+            .then(
+                if (isEditing || isHighlighted) {
+                    Modifier.border(
+                        1.5.dp,
+                        if (isHighlighted) 75.a1 withNight 80.a1 else 60.n1 withNight 50.n1,
+                        shape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .then(interactionModifier)
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                painter = painterResource(id = iconId),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = tint
+            )
+            Spacer(modifier = Modifier.padding(top = 6.dp))
+            Text(
+                text = title,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun ClassicTextHomeWidgetCard(
+    title: String,
+    isEditing: Boolean,
+    isHighlighted: Boolean,
+    modifier: Modifier = Modifier,
+    interactionModifier: Modifier = Modifier,
 ) {
     val shape = SmoothRoundedCornerShape(24.dp)
     Box(
@@ -328,6 +562,40 @@ private fun TextHomeWidgetCard(
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.titleMedium
         )
+    }
+}
+
+@Composable
+private fun HomeWidgetMoreItem(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_more_all),
+                contentDescription = "更多",
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.padding(top = 6.dp))
+            Text(
+                text = "更多",
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
     }
 }
 
@@ -573,7 +841,8 @@ fun HomeWidgetDragOverlay(
     spec: HomeWidgetSpec,
     topLeft: Offset,
     size: IntSize,
-    rootTopLeft: Offset
+    rootTopLeft: Offset,
+    backdrop: Backdrop
 ) {
     val density = LocalDensity.current
     Box(
@@ -597,9 +866,11 @@ fun HomeWidgetDragOverlay(
     ) {
         TextHomeWidgetCard(
             title = spec.title,
+            iconId = spec.iconId,
+            tint = spec.tint,
             isEditing = false,
             isHighlighted = false,
-            modifier = Modifier.matchParentSize()
+            modifier = Modifier.matchParentSize(),
         )
     }
 }

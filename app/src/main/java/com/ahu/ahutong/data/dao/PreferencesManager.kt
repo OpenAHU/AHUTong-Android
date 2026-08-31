@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import com.ahu.ahutong.data.model.AppThemeMode
+import com.ahu.ahutong.data.model.UiStyle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -17,6 +18,7 @@ object PreferencesKeys {
     val SHOW_QR_CODE = booleanPreferencesKey("show_qr_code")
     val IS_SHOW_ALL_COURSE = booleanPreferencesKey("is_show_all_course")
     val USE_LIQUID_GLASS = booleanPreferencesKey("use_liquid_glass")
+    val UI_STYLE = stringPreferencesKey("ui_style")
     val COURSE_REMINDER_ENABLED = booleanPreferencesKey("course_reminder_enabled")
     val COURSE_REMINDER_LIVE_COUNTDOWN_ENABLED =
         booleanPreferencesKey("course_reminder_live_countdown_enabled")
@@ -245,6 +247,18 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
     suspend fun setUseLiquidGlass(value: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[PreferencesKeys.USE_LIQUID_GLASS] = value
+        }
+    }
+
+    val uiStyle: Flow<UiStyle> = context.dataStore.data.map { prefs ->
+        prefs[PreferencesKeys.UI_STYLE]?.let(UiStyle::fromStorage) ?: UiStyle.RADIANT_UI
+    }
+
+    suspend fun setUiStyle(value: UiStyle) {
+        context.dataStore.edit { prefs ->
+            prefs[PreferencesKeys.UI_STYLE] = value.storageValue
+            // 同步旧的液态玻璃开关，避免两套状态分叉（RADIANT_UI 与 LIQUID_GLASS 都用玻璃）
+            prefs[PreferencesKeys.USE_LIQUID_GLASS] = value != UiStyle.ORIGINAL
         }
     }
 

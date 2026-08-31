@@ -12,11 +12,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -35,6 +37,11 @@ import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.components.GlassCard
+import com.ahu.ahutong.ui.components.SecondaryPageScaffold
+import com.ahu.ahutong.ui.components.SecondarySearchState
+import com.ahu.ahutong.ui.components.TrailingAction
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.state.GradeViewModel
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.a1
@@ -123,13 +130,229 @@ fun Grade(
         }
         .orEmpty()
 
-    Box(
+    if (isRadiantUi) {
+        val allTerms = gradeViewModel.grade?.termGradeList
+            ?.sortedWith(
+                compareByDescending<Grade.TermGradeListBean> {
+                    it.schoolYear.substringBefore("-").toIntOrNull() ?: 0
+                }.thenByDescending {
+                    it.term.toIntOrNull() ?: 0
+                }
+            )
+            .orEmpty()
+        val selectedTermText =
+            "${gradeViewModel.schoolYear} 第${gradeViewModel.schoolTerm}学期"
+        SecondaryPageScaffold(
+            title = stringResource(id = R.string.grade),
+            subtitle = selectedTermText,
+            actions = emptyList(),
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    GradeTermMenuButton(
+                        allTerms = allTerms,
+                        selectedTermText = selectedTermText,
+                        expanded = termMenuExpanded,
+                        onExpandedChange = { termMenuExpanded = it },
+                        onSelect = { year, term ->
+                            gradeViewModel.selectTerm(year, term)
+                            termMenuExpanded = false
+                        }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        IconButton(
+                            onClick = {
+                                behaviorReporter.organic(AppActionId.MANUAL_REFRESH_GRADE)
+                                gradeViewModel.refreshGrade()
+                            }
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_refresh),
+                                contentDescription = "刷新成绩",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            content = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    if (!searchExpanded && gradeViewModel.studentProfiles.size > 1) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            gradeViewModel.studentProfiles.forEachIndexed { index, profile ->
+                                FilterChip(
+                                    selected = gradeViewModel.selectedProfileIndex == index,
+                                    onClick = { gradeViewModel.selectProfile(index) },
+                                    label = {
+                                        Text(
+                                            text = profile.displayName,
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = 80.a1 withNight 50.a1,
+                                        selectedLabelColor = 100.n1 withNight 0.n1,
+                                        containerColor = 90.n1 withNight 20.n1,
+                                        labelColor = 10.n1 withNight 90.n1
+                                    ),
+                                    shape = ContinuousCapsule
+                                )
+                            }
+                        }
+                    }
+
+                    if (!searchExpanded) {
+                        gradeViewModel.presetCandidates.firstOrNull()?.let { candidate ->
+                            LaunchedEffect(candidate.opportunityId, candidate.presetId) {
+                                gradeViewModel.onPresetCandidateVisible(candidate)
+                            }
+                            Text(
+                                text = "使用常用条件",
+                                modifier = Modifier
+                                    .clip(ContinuousCapsule)
+                                    .background(90.a1)
+                                    .clickable { gradeViewModel.applyPresetCandidate(candidate) }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                color = 0.n1,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+
+                    when {
+                        trimmedQuery.isNotBlank() -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                searchResultsByTerm.forEach { (term, items) ->
+                                    Text(
+                                        text = "${term.schoolYear} 第${term.term}学期",
+                                        color = 0.n1 withNight 100.n1,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items.forEach { item ->
+                                            GradeCard(
+                                                item = item,
+                                                onNavigateToEvaluation = onNavigateToEvaluation
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        gradeData != null && gradeData.gradeList.isNotEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(24.dp)
+                            ) {
+                                if (!searchExpanded) {
+                                    GlassCard(
+                                        containerColor = 100.n1 withNight 20.n1,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(20.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val rankMsg = gradeViewModel.rankEmptyMessage
+                                            if (gpaRankInfo == null && !rankMsg.isNullOrBlank()) {
+                                                Text(
+                                                    text = rankMsg,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    color = 50.n1 withNight 70.n1
+                                                )
+                                            }
+                                            val infoList = listOf(
+                                                "本学期平均绩点" to gradeViewModel.termGradePointAverage,
+                                                "全程平均绩点" to gradeViewModel.totalGradePointAverage,
+                                                "全程专业排名" to ((gpaRankInfo?.majorRank ?: "暂无").toString() + "/" + (gpaRankInfo?.majorHeadCount ?: "暂无")),
+                                                "该学期专业排名" to ((currentRank?.majorRank ?: "暂无").toString() + "/" + (gpaRankInfo?.majorHeadCount ?: "暂无")),
+                                                "最后更新时间" to (gpaRankInfo?.updatedDateTimeStr ?: "暂无")
+                                            )
+                                            infoList.forEach { (title, value) ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = title,
+                                                        color = 0.n1 withNight 100.n1,
+                                                        style = MaterialTheme.typography.titleMedium
+                                                    )
+                                                    Text(
+                                                        text = value,
+                                                        color = 0.n1 withNight 100.n1,
+                                                        style = MaterialTheme.typography.titleMedium
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    gradeData.gradeList.forEach { item ->
+                                        GradeCard(
+                                            item = item,
+                                            onNavigateToEvaluation = onNavigateToEvaluation
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        else -> {
+                            val emptyMsg = if (gradeViewModel.studentProfiles.size > 1) {
+                                val p = gradeViewModel.studentProfiles.getOrNull(gradeViewModel.selectedProfileIndex)
+                                if (p != null) "「${p.displayName}」暂无成绩" else "该学期目前没有任何成绩"
+                            } else {
+                                "该学期目前没有任何成绩"
+                            }
+                            Text(
+                                text = emptyMsg,
+                                modifier = Modifier.padding(24.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = 50.n1 withNight 70.n1
+                            )
+                        }
+                    }
+                }
+            }
+        )
+    } else {
+        Box(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
-    ) {
-        Column(
-            modifier = Modifier
+        ) {
+            Column(
+        modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
                 .padding(bottom = 96.dp),
@@ -427,6 +650,53 @@ fun Grade(
             }
         }
     }
+    }
+}
+
+@Composable
+private fun GradeTermMenuButton(
+    allTerms: List<Grade.TermGradeListBean>,
+    selectedTermText: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String, String) -> Unit
+) {
+    Box {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+            contentAlignment = Alignment.Center
+        ) {
+            IconButton(onClick = { onExpandedChange(!expanded) }) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_filter),
+                    contentDescription = "选择学期：$selectedTermText",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+            modifier = Modifier.background(99.n1 withNight 10.n1)
+        ) {
+            allTerms.forEach { term ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "${term.schoolYear} 第${term.term}学期",
+                            color = 10.n1 withNight 90.n1
+                        )
+                    },
+                    colors = MenuDefaults.itemColors(textColor = 10.n1 withNight 90.n1),
+                    onClick = { onSelect(term.schoolYear, term.term) }
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -439,12 +709,14 @@ private fun GradeCard(
     val gradeText = item.grade.stripHtml()
     val gradeDetail = item.gradeDetail.stripHtml()
 
+    val gradeCardShape = if (isRadiantUi) SmoothRoundedCornerShape(16.dp) else SmoothRoundedCornerShape(4.dp)
+    val gradeCardPadding = if (isRadiantUi) PaddingValues(20.dp, 16.dp) else PaddingValues(24.dp, 16.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(4.dp))
+            .clip(gradeCardShape)
             .background(100.n1 withNight 20.n1)
-            .padding(24.dp, 16.dp),
+            .padding(gradeCardPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(

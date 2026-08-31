@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.model.AppThemeMode
+import com.ahu.ahutong.data.model.UiStyle
 import com.ahu.ahutong.notification.CourseReminderCapability
 import com.ahu.ahutong.notification.CourseReminderNotifier
 import com.ahu.ahutong.notification.CourseReminderScheduler
@@ -57,6 +58,7 @@ import com.ahu.ahutong.ui.components.SettingsDialogSelectRow
 import com.ahu.ahutong.ui.components.SettingsConfirmationDialog
 import com.ahu.ahutong.ui.components.SettingsPageHeader
 import com.ahu.ahutong.ui.components.SettingsSection
+import com.ahu.ahutong.ui.components.SettingsSelectRow
 import com.ahu.ahutong.ui.components.SettingsToggleRow
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.PreferencesViewModel
@@ -79,11 +81,11 @@ fun Preferences(onBack: () -> Unit = {}) {
     val appThemeMode by viewModel.appThemeMode.collectAsState()
     val showQRCode by viewModel.showQRCode.collectAsState()
     val useCmbCardRecharge by viewModel.useCmbCardRecharge.collectAsState()
+    val uiStyle by viewModel.uiStyle.collectAsState()
     val personalizationEnabled by viewModel.personalizationEnabled.collectAsState()
     val predictivePrefetchEnabled by viewModel.predictivePrefetchEnabled.collectAsState()
     val wifiOnlyPrefetch by viewModel.wifiOnlyPrefetch.collectAsState()
     val behaviorRetentionDays by viewModel.behaviorRetentionDays.collectAsState()
-    val useLiquidGlass by viewModel.useLiquidGlass.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
     val courseReminderEnabled by viewModel.courseReminderEnabled.collectAsState()
     val courseReminderLiveCountdownEnabled by
@@ -321,13 +323,16 @@ fun Preferences(onBack: () -> Unit = {}) {
                     ),
                     onSelected = viewModel::setAppThemeMode
                 )
-                SettingsToggleRow(
-                    title = "液态玻璃",
-                    subtitle = "使用 Apple 风格的玻璃控件和浮动导航",
-                    selected = useLiquidGlass,
-                    onSelectedChange = viewModel::setUseLiquidGlass,
-                    backdrop = backdrop,
-                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                SettingsSelectRow(
+                    title = "UI 设置",
+                    subtitle = "改变整套界面的组件和交互风格",
+                    selected = uiStyle,
+                    choices = listOf(
+                        SettingsChoice(UiStyle.ORIGINAL, "Original"),
+                        SettingsChoice(UiStyle.LIQUID_GLASS, "Liquid Glass"),
+                        SettingsChoice(UiStyle.RADIANT_UI, "RadiantUI")
+                    ),
+                    onSelected = viewModel::setUiStyle
                 )
                 ThemeColorPicker(
                     selectedColor = themeColor,

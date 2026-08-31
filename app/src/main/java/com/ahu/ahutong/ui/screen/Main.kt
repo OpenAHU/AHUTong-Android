@@ -41,6 +41,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
 import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.CmbCardRecharge
@@ -51,6 +52,7 @@ import com.ahu.ahutong.ui.screen.main.FreeClassroom
 import com.ahu.ahutong.ui.screen.main.Grade
 import com.ahu.ahutong.ui.screen.main.Home
 import com.ahu.ahutong.ui.screen.main.LostFound
+import com.ahu.ahutong.ui.screen.main.MoreWidgetsScreen
 import com.ahu.ahutong.ui.screen.main.NetworkRecharge
 import com.ahu.ahutong.ui.screen.main.PhoneBook
 import com.ahu.ahutong.ui.screen.main.Repository
@@ -224,6 +226,16 @@ fun Main(
                     }
                 )
             }
+            animatedComposable("widgets") {
+                MoreWidgetsScreen(
+                    navController = navController,
+                    homeEditEnabled = homeEditGrayState.enabled,
+                    onEditHome = {
+                        behaviorRuntime.recordActionIntentAsync(AppActionId.EDIT_HOME, ActionSource.ORGANIC)
+                        shouldEnterHomeEdit = true
+                    }
+                )
+            }
             animatedComposable("school_calendar") {
                 SchoolCalendar(navController = navController)
             }
@@ -334,10 +346,7 @@ fun Main(
             animatedComposable("xuexiaotong") {
                 val context = LocalContext.current
                 val api = remember { com.ahu.ahutong.data.xuexiaotong.ChaoxingApi(context) }
-                XuexiaotongScreen(
-                    api = api,
-                    onBack = { navController.popBackStack() }
-                )
+                XuexiaotongScreen(api = api)
             }
 
             animatedComposable("debug") {
@@ -370,10 +379,11 @@ fun Main(
             backdrop = backdrop,
             blocked = productUiBlocked,
             hiddenForDiagnostics = diagnosticsRouteVisible,
-            bottomSpacing = if (currentRoute in setOf("home", "schedule", "tools", "settings")) {
-                88.dp
-            } else {
-                16.dp
+            bottomSpacing = when {
+                currentRoute in setOf("home", "schedule", "settings") -> 88.dp
+                isRadiantUi && currentRoute == "xuexiaotong" -> 88.dp
+                !isRadiantUi && currentRoute == "tools" -> 88.dp
+                else -> 16.dp
             },
             onSuggestionClick = { suggestion ->
                 scope.launch {

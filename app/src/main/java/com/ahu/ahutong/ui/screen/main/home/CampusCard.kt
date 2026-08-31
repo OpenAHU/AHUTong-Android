@@ -1,7 +1,13 @@
 package com.ahu.ahutong.ui.screen.main.home
 
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,7 +16,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,24 +63,31 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.PreferencesManager
+import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.isRadiantUi
+import com.ahu.ahutong.ui.components.liquidGlassSurface
+import com.ahu.ahutong.ui.components.liquidGlassTint
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.personalization.prefetch.PaymentQrCommandEntryPoint
 import com.ahu.ahutong.personalization.runtime.BehaviorRuntimeEntryPoint
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.action.ActionSource
+import com.kyant.backdrop.Backdrop
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.util.Locale
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun RowScope.CampusCard(
+fun CampusCard(
     balance: Double,
     transitionBalance: Double,
     onRefreshBalance: () -> Unit,
     navController: NavController,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    backdrop: Backdrop,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val preferencesManager = remember { PreferencesManager(context = context) }
@@ -119,31 +132,54 @@ fun RowScope.CampusCard(
     }
 
 
+    val campusShape = SmoothRoundedCornerShape(24.dp)
     Box(
-        modifier = Modifier
-            .weight(1f)
-    ) {
-        if (isQrcode) {
-            QRcodeView(
-                balance = balance,
-                onBack = {
-                    isQrcode = false
+        modifier = modifier
+            .then(
+                if (isRadiantUi) {
+                    // RadiantUI：保留液态玻璃与阴影
+                    Modifier.liquidGlassSurface(backdrop, campusShape, liquidGlassTint())
+                } else {
+                    // ORIGINAL / LIQUID_GLASS：纯色卡片，不带玻璃与阴影
+                    Modifier
+                        .clip(campusShape)
+                        .background(100.n1 withNight 20.n1)
                 }
             )
-        } else {
-            CardView(
-                balance = balance,
-                transitionBalance = transitionBalance,
-                onClick = {
-                    behaviorRuntime.recordActionIntentAsync(AppActionId.OPEN_PAYMENT_QR, ActionSource.ORGANIC)
-                    isQrcode = true
-                },
-                navController = navController,
-                enabled = enabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-            )
+    ) {
+        AnimatedContent(
+            targetState = isQrcode,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(durationMillis = 150)) togetherWith fadeOut(animationSpec = tween(durationMillis = 150)))
+                    .using(SizeTransform(clip = true))
+            },
+            contentAlignment = Alignment.TopStart,
+            label = "campus-card-qrcode"
+        ) { showQrcode ->
+            if (showQrcode) {
+                QRcodeView(
+                    balance = balance,
+                    onBack = {
+                        isQrcode = false
+                    },
+                    backdrop = backdrop
+                )
+            } else {
+                CardView(
+                    balance = balance,
+                    transitionBalance = transitionBalance,
+                    onClick = {
+                        behaviorRuntime.recordActionIntentAsync(AppActionId.OPEN_PAYMENT_QR, ActionSource.ORGANIC)
+                        isQrcode = true
+                    },
+                    navController = navController,
+                    enabled = enabled,
+                    backdrop = backdrop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (isRadiantUi) 78.dp else 140.dp)
+                )
+            }
         }
     }
 
@@ -158,14 +194,14 @@ private fun CardView(
     onClick: () -> Unit,
     navController: NavController,
     enabled: Boolean,
+    backdrop: Backdrop,
     modifier: Modifier = Modifier
 ) {
 
 
+    val shape = SmoothRoundedCornerShape(24.dp)
     Row(
-        modifier = modifier
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
 
@@ -215,23 +251,15 @@ private fun CardView(
             modifier = Modifier
                 .fillMaxHeight()
                 .then(
+                    if (isRadiantUi) {
+                        Modifier.width(76.dp)
+                    } else {
+                        Modifier.padding(16.dp)
+                    }
+                )
+                .then(
                     if (enabled) {
                         Modifier.clickable {
-//                    try {
-//                        context.startActivity(
-//                            Intent(
-//                                Intent.ACTION_VIEW,
-//                                Uri.parse(
-//                                    "alipays://platformapi/startapp?appId=2019090967125695&page=pages%2Findex%2Findex&enbsv=0.3.2106171038.6&chInfo=ch_share__chsub_CopyLink"
-//                                )
-//                            ).apply {
-//                                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-//                            }
-//                        )
-//                    } catch (e: Exception) {
-//                        Toast.makeText(context, "请安装支付宝", Toast.LENGTH_SHORT).show()
-//                    }
-
                             val route = if (AHUCache.isCmbCardRechargePreferred()) {
                                 "cmb_card_recharge"
                             } else {
@@ -242,14 +270,34 @@ private fun CardView(
                     } else {
                         Modifier
                     }
-                )
-                .padding(16.dp),
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "充\n值",
-                style = MaterialTheme.typography.titleMedium
-            )
+            if (isRadiantUi) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_income),
+                        contentDescription = "充值",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = "充值",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            } else {
+                Text(
+                    text = "充\n值",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
         }
     }
 
@@ -262,7 +310,7 @@ private fun formatCampusCardBalance(balance: Double): String {
 
 
 @Composable
-private fun QRcodeView(balance: Double, onBack: () -> Unit) {
+private fun QRcodeView(balance: Double, onBack: () -> Unit, backdrop: Backdrop) {
     val discoveryViewModel: DiscoveryViewModel = hiltViewModel()
     val qrcodeBitmap by discoveryViewModel.qrcode.collectAsState()
     val finished by discoveryViewModel.state.collectAsState()
@@ -281,12 +329,10 @@ private fun QRcodeView(balance: Double, onBack: () -> Unit) {
         ).behaviorPredictionRuntime()
     }
 
-    DisposableEffect(activity) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    DisposableEffect(Unit) {
         behaviorRuntime.setInlineSensitiveUiVisible(true)
         onDispose {
             behaviorRuntime.setInlineSensitiveUiVisible(false)
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
@@ -334,10 +380,10 @@ private fun QRcodeView(balance: Double, onBack: () -> Unit) {
         }
     }
 
+    val shape = SmoothRoundedCornerShape(24.dp)
     Column(
         modifier = Modifier
-            .clip(SmoothRoundedCornerShape(24.dp))
-            .background(100.n1 withNight 20.n1)
+            .fillMaxWidth()
             .padding(
                 start = 20.dp,
                 top = 12.dp,
@@ -417,6 +463,7 @@ private fun QRcodeView(balance: Double, onBack: () -> Unit) {
             text = "¥ ${formatCampusCardBalance(balance)}",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
+            color = if (LocalIsLiquidGlassEnabled.current) MaterialTheme.colorScheme.onSurface else Color.Unspecified,
             modifier = Modifier.padding(top = 12.dp)
         )
 
