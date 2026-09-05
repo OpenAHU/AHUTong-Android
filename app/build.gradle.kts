@@ -1,6 +1,7 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
@@ -9,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.ahu.ahutong"
-    compileSdk = 36
+    compileSdk = 37
 
     sourceSets {
         getByName("main") {
@@ -68,11 +69,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     kotlin {
         compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
             freeCompilerArgs.addAll(
                 "-Xlambdas=class",
             )
@@ -95,7 +94,7 @@ val generateThirdPartyAssets by tasks.registering(Sync::class) {
     into(generatedThirdPartyAssets)
 }
 
-android.sourceSets.getByName("main").assets.srcDir(generatedThirdPartyAssets)
+android.sourceSets.getByName("main").assets.srcDir(generatedThirdPartyAssets.get().asFile)
 android.sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
 
 ksp {
