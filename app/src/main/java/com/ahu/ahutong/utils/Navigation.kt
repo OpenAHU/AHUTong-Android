@@ -7,6 +7,8 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
@@ -96,7 +98,8 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
                 initialState.destination.route,
                 targetState.destination.route
             )
-            if (isPrimaryDestinationTransition(
+            if (uiTheme() != AppUiTheme.RADIANT &&
+                isPrimaryDestinationTransition(
                     initialState.destination.route,
                     targetState.destination.route
                 )
@@ -107,6 +110,12 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
                 )
             } else {
                 when (uiTheme()) {
+                    // 对称交叉淡化：新页淡入与旧页淡出时长一致且无延迟，
+                    // 任意时刻两者不透明度之和恒为 1，避免中段亮度塌陷
+                    // 视觉等效"渐入播两次"的闪断；旧页不缩放，防闪断处尺寸跳动
+                    AppUiTheme.RADIANT ->
+                        fadeIn(animationSpec = tween(180)) +
+                            scaleIn(initialScale = 0.96f, animationSpec = tween(180))
                     AppUiTheme.MATERIAL ->
                         fadeIn(animationSpec = tween(160)) +
                             slideInHorizontally(
@@ -119,7 +128,7 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
                                 initialOffsetX = { direction * it / 5 },
                                 animationSpec = tween(280)
                             )
-                    AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT ->
+                    AppUiTheme.LIQUID_GLASS ->
                         fadeIn(animationSpec = tween(160)) +
                             slideInHorizontally(
                                 initialOffsetX = { direction * it / 4 },
@@ -139,7 +148,8 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
                 initialState.destination.route,
                 targetState.destination.route
             )
-            if (isPrimaryDestinationTransition(
+            if (uiTheme() != AppUiTheme.RADIANT &&
+                isPrimaryDestinationTransition(
                     initialState.destination.route,
                     targetState.destination.route
                 )
@@ -150,7 +160,8 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
                 )
             } else {
                 when (uiTheme()) {
-                    AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT ->
+                    AppUiTheme.RADIANT -> fadeOut(animationSpec = tween(180))
+                    AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS ->
                         fadeOut(animationSpec = tween(140)) +
                             slideOutHorizontally(
                                 targetOffsetX = { -direction * it / 12 },
@@ -165,7 +176,8 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
             targetState.destination.route,
             initialState.destination.route
         )
-        if (isPrimaryDestinationTransition(
+        if (uiTheme() != AppUiTheme.RADIANT &&
+            isPrimaryDestinationTransition(
                 targetState.destination.route,
                 initialState.destination.route
             )
@@ -176,7 +188,10 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
             )
         } else {
             when (uiTheme()) {
-                AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT ->
+                AppUiTheme.RADIANT ->
+                    fadeIn(animationSpec = tween(180)) +
+                        scaleIn(initialScale = 0.96f, animationSpec = tween(180))
+                AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS ->
                     fadeIn(animationSpec = tween(180)) +
                         slideInHorizontally(
                             initialOffsetX = { -direction * it / 12 },
@@ -190,7 +205,8 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
             targetState.destination.route,
             initialState.destination.route
         )
-        if (isPrimaryDestinationTransition(
+        if (uiTheme() != AppUiTheme.RADIANT &&
+            isPrimaryDestinationTransition(
                 targetState.destination.route,
                 initialState.destination.route
             )
@@ -201,7 +217,8 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
             )
         } else {
             when (uiTheme()) {
-                AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT ->
+                AppUiTheme.RADIANT -> fadeOut(animationSpec = tween(180))
+                AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS ->
                     fadeOut(animationSpec = tween(160)) +
                         slideOutHorizontally(
                             targetOffsetX = { direction * it / 4 },

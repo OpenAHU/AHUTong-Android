@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
@@ -56,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -71,12 +74,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.GlassBackdropContainer
+import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
+import com.ahu.ahutong.ui.components.liquidGlassSurface
+import com.ahu.ahutong.ui.components.liquidGlassTint
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCard
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCardSpec
@@ -135,16 +144,22 @@ fun Schedule(
     var isPreviewNextSemester by rememberSaveable { mutableStateOf(false) }
     var isOverviewSchedule by rememberSaveable { mutableStateOf(false) }
     var isSettingsVisible by rememberSaveable { mutableStateOf(false) }
-    var renderCourseCards by remember { mutableStateOf(false) }
+    var renderCourseCards by remember { mutableStateOf(true) }
+    var hasRenderedCards by remember { mutableStateOf(false) }
     val activeScheduleResult = if (isPreviewNextSemester) nextScheduleResult else scheduleResult
     val schedule = activeScheduleResult?.getOrNull() ?: emptyList()
     val context = LocalContext.current
 
+    // 首次组合即渲染卡片，随页面转场正常淡入；
+    // 仅数据变更时才走"清空一帧再重渲染"防闪烁，避免转场中段卡片整体弹入
     LaunchedEffect(schedule, isOverviewSchedule) {
-        renderCourseCards = false
-        withFrameNanos { }
-        delay(48L)
+        if (hasRenderedCards) {
+            renderCourseCards = false
+            withFrameNanos { }
+            delay(48L)
+        }
         renderCourseCards = true
+        hasRenderedCards = true
     }
 
     LaunchedEffect(currentWeek) {
@@ -268,15 +283,9 @@ fun Schedule(
 
     var detailedCourse by rememberSaveable { mutableStateOf<Course?>(null) }
     val settingsCardColor = 100.n1 withNight 20.n1
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
-            .verticalScroll(rememberScrollState())
-            .systemBarsPadding()
-            .padding(bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+
+    @Composable
+    fun ScheduleHeaderRow() {
         Row(
             modifier = if (radiant) {
                 Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp)
@@ -444,6 +453,10 @@ fun Schedule(
                 }
             }
         }
+    }
+
+    @Composable
+    fun ScheduleGrid() {
         // schedule
         val cellWidth = (
                 LocalConfiguration.current.screenWidthDp.dp -
@@ -457,6 +470,21 @@ fun Schedule(
             modifier = Modifier.fillMaxWidth()
         ) { page ->
             val pageWeek = page + 1
+            val gridShape = SmoothRoundedCornerShape(32.dp)
+            val gridSurface = if (radiant) {
+                // 阴影由 liquidGlassSurface 内部的 Shadow(radius=14dp, alpha=0.12) 提供，
+                // 勿再叠 Modifier.shadow——双层叠加会产生又黑又重的重影
+                Modifier.liquidGlassSurface(
+                    backdrop = LocalLiquidGlassAmbientBackdrop.current,
+                    shape = gridShape,
+                    surfaceColor = liquidGlassTint()
+                )
+            } else {
+                Modifier.appLiquidGlassSurface(
+                    shape = gridShape,
+                    fallbackColor = 99.n1 withNight 20.n1
+                )
+            }
             Box(
                 modifier = with(CourseCardSpec) {
                     Modifier
@@ -465,10 +493,7 @@ fun Schedule(
                             if (radiant) Modifier.padding(horizontal = 6.dp) else Modifier
                         )
                         .height(mainRowHeight + (cellHeight + cellSpacing) * 13 + 24.dp)
-                        .appLiquidGlassSurface(
-                            shape = SmoothRoundedCornerShape(32.dp),
-                            fallbackColor = 99.n1 withNight 20.n1
-                        )
+                        .then(gridSurface)
                         .padding(top = 8.dp)
                         .padding(cellSpacing)
                 }
@@ -526,39 +551,102 @@ fun Schedule(
                 }
             }
         }
-        if (isSettingsVisible) {
-            ScheduleSettingsDialog(
-                isOverviewSchedule = isOverviewSchedule,
-                isPreviewNextSemester = isPreviewNextSemester,
-                backdropColor = settingsCardColor,
-                onOverviewChange = { enabled ->
-                    val oldValue = isOverviewSchedule
-                    isOverviewSchedule = enabled
-                    behaviorRuntime.recordCommittedMutationAsync(
-                        MutationId.SCHEDULE_OVERVIEW_CHANGED,
-                        oldValue,
-                        enabled
-                    )
-                },
-                onPreviewNextSemesterChange = { enabled ->
-                    val oldValue = isPreviewNextSemester
-                    isPreviewNextSemester = enabled
-                    behaviorRuntime.recordCommittedMutationAsync(
-                        MutationId.SCHEDULE_SEMESTER_PREVIEW_CHANGED,
-                        oldValue,
-                        enabled,
-                        coarseValueBucket = if (enabled) "NEXT_SEMESTER" else "CURRENT_SEMESTER"
-                    )
-                },
-                onDismiss = { isSettingsVisible = false }
-            )
-        }
-        // course dialog
-        detailedCourse?.let {
-            CourseDetailDialog(
-                course = it,
-                onDismiss = { detailedCourse = null }
-            )
+    }
+
+    if (isSettingsVisible) {
+        ScheduleSettingsDialog(
+            isOverviewSchedule = isOverviewSchedule,
+            isPreviewNextSemester = isPreviewNextSemester,
+            backdropColor = settingsCardColor,
+            onOverviewChange = { enabled ->
+                val oldValue = isOverviewSchedule
+                isOverviewSchedule = enabled
+                behaviorRuntime.recordCommittedMutationAsync(
+                    MutationId.SCHEDULE_OVERVIEW_CHANGED,
+                    oldValue,
+                    enabled
+                )
+            },
+            onPreviewNextSemesterChange = { enabled ->
+                val oldValue = isPreviewNextSemester
+                isPreviewNextSemester = enabled
+                behaviorRuntime.recordCommittedMutationAsync(
+                    MutationId.SCHEDULE_SEMESTER_PREVIEW_CHANGED,
+                    oldValue,
+                    enabled,
+                    coarseValueBucket = if (enabled) "NEXT_SEMESTER" else "CURRENT_SEMESTER"
+                )
+            },
+            onDismiss = { isSettingsVisible = false }
+        )
+    }
+    // course dialog
+    detailedCourse?.let {
+        CourseDetailDialog(
+            course = it,
+            onDismiss = { detailedCourse = null }
+        )
+    }
+
+    GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
+        CompositionLocalProvider(
+            LocalLiquidGlassAmbientBackdrop provides if (radiant) {
+                backdrop
+            } else {
+                LocalLiquidGlassAmbientBackdrop.current
+            }
+        ) {
+            if (radiant) {
+                val headerBg = if (LocalIsLiquidGlassEnabled.current) {
+                    MaterialTheme.colorScheme.surfaceContainerLowest
+                } else {
+                    96.n1 withNight 10.n1
+                }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // 固定标题栏（渐变遮罩层）：与内容区为兄弟叠加关系，zIndex 盖在可穿透内容之上
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0f to headerBg,
+                                        0.35f to headerBg,
+                                        0.68f to headerBg.copy(alpha = 0.85f),
+                                        1f to headerBg.copy(alpha = 0f)
+                                    )
+                                )
+                            )
+                            .statusBarsPadding()
+                            .zIndex(20f)
+                    ) {
+                        ScheduleHeaderRow()
+                    }
+                    // 可穿透滚动内容区——上穿渐变标题栏、下穿底部导航
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(bottom = 96.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(102.dp))
+                        ScheduleGrid()
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
+                        .verticalScroll(rememberScrollState())
+                        .systemBarsPadding()
+                        .padding(bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ScheduleHeaderRow()
+                    ScheduleGrid()
+                }
+            }
         }
     }
 }

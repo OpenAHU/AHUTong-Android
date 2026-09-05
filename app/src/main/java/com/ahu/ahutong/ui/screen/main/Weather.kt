@@ -28,9 +28,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
@@ -41,8 +38,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.weather.WeatherResponse
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
-import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.AppComponentTokens
+import com.ahu.ahutong.ui.components.GlassCard
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -56,7 +53,6 @@ import com.ahu.ahutong.ui.components.TrailingAction
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.state.WeatherHomeMode
 import com.ahu.ahutong.ui.state.WeatherViewModel
-import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.monet.n1
 import com.kyant.monet.a1
 import com.kyant.monet.withNight
@@ -130,6 +126,14 @@ fun Weather(
         } else if (weather != null) {
             WeatherCard(weather)
 
+            weather.aqi?.let {
+                Spacer(Modifier.height(16.dp))
+                AqiCard(weather)
+            }
+
+            Spacer(Modifier.height(16.dp))
+            UmbrellaCard(weather)
+
             weather.forecast?.let { forecast ->
                 Spacer(Modifier.height(16.dp))
                 Text(
@@ -142,14 +146,6 @@ fun Weather(
                     items(forecast) { day -> ForecastCard(day) }
                 }
             }
-
-            weather.aqi?.let {
-                Spacer(Modifier.height(16.dp))
-                AqiCard(weather)
-            }
-
-            Spacer(Modifier.height(16.dp))
-            UmbrellaCard(weather)
 
             weather.hourlyForecast?.let { hourly ->
                 if (hourly.isNotEmpty()) {
@@ -375,16 +371,10 @@ private fun WeatherModeChip(
 @Composable
 private fun WeatherCard(weather: WeatherResponse) {
     val shape = AppComponentTokens.CardShape
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .appLiquidGlassSurface(
-                shape = shape,
-                fallbackColor = 90.a1 withNight 30.a1,
-                level = LiquidGlassSurfaceLevel.Panel
-            ),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = 90.a1 withNight 30.a1,
+        shape = shape
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -436,16 +426,10 @@ private fun InfoItem(label: String, value: String) {
 @Composable
 private fun ForecastCard(day: com.ahu.ahutong.data.weather.ForecastDay) {
     val shape = AppComponentTokens.CardShape
-    Card(
-        modifier = Modifier
-            .width(100.dp)
-            .appLiquidGlassSurface(
-                shape = shape,
-                fallbackColor = MaterialTheme.colorScheme.surfaceContainer,
-                level = LiquidGlassSurfaceLevel.Panel
-            ),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    GlassCard(
+        modifier = Modifier.width(100.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        shape = shape
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -472,16 +456,10 @@ private fun AqiCard(weather: WeatherResponse) {
         else -> androidx.compose.ui.graphics.Color.Gray
     }
     val shape = AppComponentTokens.CardShape
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .appLiquidGlassSurface(
-                shape = shape,
-                fallbackColor = 100.n1 withNight 20.n1,
-                level = LiquidGlassSurfaceLevel.Panel
-            ),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = 100.n1 withNight 20.n1,
+        shape = shape
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -548,16 +526,11 @@ private fun UmbrellaCard(weather: WeatherResponse) {
         androidx.compose.ui.graphics.Color(0xFF4CAF50).copy(alpha = 0.15f)
 
     val shape = AppComponentTokens.CardShape
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .appLiquidGlassSurface(
-                shape = shape,
-                fallbackColor = bgColor,
-                level = LiquidGlassSurfaceLevel.Panel
-            ),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = bgColor,
+        overlayColor = bgColor,
+        shape = shape
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -581,17 +554,10 @@ private fun HourlyCard(h: com.ahu.ahutong.data.weather.HourlyForecast) {
     val datePart = timeStr.substringAfter("-").take(5) // "MM-DD"
     val hour = timeStr.substringAfter(sep).take(2)     // "HH"
     val label = if (datePart.length == 5 && hour.length == 2) "${datePart}日${hour}时" else timeStr
-    val shape = AppComponentTokens.CardShape
-    Card(
-        modifier = Modifier
-            .width(88.dp)
-            .appLiquidGlassSurface(
-                shape = shape,
-                fallbackColor = MaterialTheme.colorScheme.surfaceContainer,
-                level = LiquidGlassSurfaceLevel.Panel
-            ),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    GlassCard(
+        modifier = Modifier.width(88.dp),
+        containerColor = 100.n1 withNight 20.n1,
+        glassShadow = null
     ) {
         Column(
             modifier = Modifier.padding(8.dp),
@@ -608,12 +574,6 @@ private fun HourlyCard(h: com.ahu.ahutong.data.weather.HourlyForecast) {
 
 @Composable
 private fun LifeIndicesGrid(indices: com.ahu.ahutong.data.weather.LifeIndices) {
-    val scheme = MaterialTheme.colorScheme
-    val ratingColor = if (scheme.background.luminance() > 0.5f) {
-        lerp(scheme.primary, Color.Black, 0.18f)
-    } else {
-        scheme.primary
-    }
     val items = listOf(
         "穿衣" to indices.clothing,
         "紫外线" to indices.uv,
@@ -634,24 +594,16 @@ private fun LifeIndicesGrid(indices: com.ahu.ahutong.data.weather.LifeIndices) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 row.forEach { (label, item) ->
-                    val shape = AppComponentTokens.CardShape
-                    Card(
-                        modifier = Modifier
-                            .weight(1f)
-                            .appLiquidGlassSurface(
-                                shape = shape,
-                                fallbackColor = MaterialTheme.colorScheme.surfaceContainer,
-                                level = LiquidGlassSurfaceLevel.Panel
-                            ),
-                        shape = shape,
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                    GlassCard(
+                        modifier = Modifier.weight(1f),
+                        containerColor = 100.n1 withNight 20.n1,
+                        glassShadow = null
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(label, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text(
                                 item!!.level ?: "",
-                                color = ratingColor,
-                                fontWeight = FontWeight.Medium,
+                                color = 90.a1 withNight 85.a1,
                                 fontSize = 13.sp
                             )
                             if (!item.brief.isNullOrBlank()) {
