@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +29,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.model.ElectricityController
 import com.ahu.ahutong.personalization.action.AppActionId
@@ -75,11 +79,27 @@ fun ElectricityDeposit(
     val errorMessage by viewModel.errorMessage.collectAsState()
     val historyOptions by viewModel.historyOptions.collectAsState()
     val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var amount by rememberSaveable { mutableStateOf("") }
-    var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordError by rememberSaveable { mutableStateOf<String?>(null) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(lifecycleOwner) {
+        val clearPassword = {
+            password = ""
+            passwordError = null
+            showPasswordDialog = false
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) clearPassword()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            clearPassword()
+        }
+    }
     val controllerOptions = remember {
         ElectricityController.entries.map { AppSelectOption(it, it.displayName) }
     }
@@ -361,7 +381,11 @@ fun ElectricityDeposit(
                 )
             }
             AppButton(
-                onClick = { showPasswordDialog = true },
+                onClick = {
+                    password = ""
+                    passwordError = null
+                    showPasswordDialog = true
+                },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canPay
             ) {
@@ -409,6 +433,8 @@ fun ElectricityDeposit(
             onConfirm = { confirmedPassword ->
                 if (confirmedPassword.length == 6) {
                     showPasswordDialog = false
+                    password = ""
+                    passwordError = null
                     behaviorReporter.organic(AppActionId.CONFIRM_ELECTRICITY_PAYMENT)
                     viewModel.pay(amount, confirmedPassword)
                 } else {

@@ -5,6 +5,7 @@ import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.server.model.ApkUpdateInfo
 import com.ahu.ahutong.data.server.model.Captcha
 import com.ahu.ahutong.data.server.model.GrayFeatureDecision
+import okhttp3.Dispatcher
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
@@ -73,10 +74,7 @@ interface AhuTong {
             }
             .build()
 
-        private val apkDownloadOkHttpClient = okHttpClient.newBuilder()
-            .followRedirects(false)
-            .followSslRedirects(false)
-            .build()
+        private val apkDownloadOkHttpClient = createApkDownloadClient(okHttpClient)
 
         private val grayOkHttpClient = okHttpClient.newBuilder()
             .connectTimeout(2, TimeUnit.SECONDS)
@@ -100,3 +98,11 @@ interface AhuTong {
         }
     }
 }
+
+internal fun createApkDownloadClient(baseClient: OkHttpClient): OkHttpClient =
+    baseClient.newBuilder()
+        // Cancelling an APK or switching its mirror must not cancel ordinary API calls.
+        .dispatcher(Dispatcher())
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .build()

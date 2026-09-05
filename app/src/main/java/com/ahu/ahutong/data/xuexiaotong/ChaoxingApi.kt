@@ -333,40 +333,23 @@ class ChaoxingApi(private val context: Context) {
         val url = work.detailUrl
         val referer = "https://mooc1.chaoxing.com/mooc2/work/list?courseId=${work.courseId}"
         val html = getText(url, referer)
+        val referenceMillis = work.startTs?.takeIf { start ->
+            start > 0L && work.endTs?.let { it >= start } == true
+        } ?: System.currentTimeMillis()
 
         val timeRe = Regex("""作答时间:\s*<em>([\d-]+\s[\d:]+)</em>\s*至\s*<em>([\d-]+\s[\d:]+)</em>""")
         val m1 = timeRe.find(html)
         if (m1 != null) {
-            val start = parseMMDD(m1.groupValues[1])
-            val end = parseMMDD(m1.groupValues[2])
-            if (start != null && end != null) return@withContext Pair(start, end)
+            WorkDeadlineParser.parseRange(m1.groupValues[1], m1.groupValues[2], referenceMillis)
+                ?.let { return@withContext it }
         }
         val plainRe = Regex("""作答时间:\s*([\d-]+\s[\d:]+)\s*至\s*([\d-]+\s[\d:]+)""")
         val m2 = plainRe.find(html)
         if (m2 != null) {
-            val start = parseMMDD(m2.groupValues[1])
-            val end = parseMMDD(m2.groupValues[2])
-            if (start != null && end != null) return@withContext Pair(start, end)
+            WorkDeadlineParser.parseRange(m2.groupValues[1], m2.groupValues[2], referenceMillis)
+                ?.let { return@withContext it }
         }
         null
-    }
-
-    private fun parseMMDD(str: String): Long? {
-        val m = Regex("""^(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})$""").find(str) ?: return null
-        val month = m.groupValues[1].toInt()
-        val day = m.groupValues[2].toInt()
-        val hour = m.groupValues[3].toInt()
-        val minute = m.groupValues[4].toInt()
-        return try {
-            java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.MONTH, month - 1)
-                set(java.util.Calendar.DAY_OF_MONTH, day)
-                set(java.util.Calendar.HOUR_OF_DAY, hour)
-                set(java.util.Calendar.MINUTE, minute)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-            }.timeInMillis
-        } catch (e: Exception) { null }
     }
 
     interface ProgressListener {
@@ -404,7 +387,7 @@ class ChaoxingApi(private val context: Context) {
 
                         // 每次同步都重新抓取截止时间，确保延期后的时间更新
                         try {
-                            val dl = fetchWorkDeadline(work)
+                            val dl = fetchWorkDeadline(work.copy(startTs = startTs, endTs = endTs))
                             if (dl != null) {
                                 startTs = dl.first
                                 endTs = dl.second

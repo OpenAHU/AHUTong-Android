@@ -117,6 +117,7 @@ class XuexiaotongViewModel(val api: ChaoxingApi, private val appContext: Context
         ReminderScheduler.cancelAll(appContext)
         api.clearSession()
         Store.clearLoginData()
+        ReminderScheduler.scheduleAll(appContext)
         _works.value = emptyList()
         _courses.value = emptyList()
         _progress.value = emptyList()
@@ -232,6 +233,7 @@ class XuexiaotongViewModel(val api: ChaoxingApi, private val appContext: Context
         ReminderScheduler.cancelAll(appContext)
         api.clearSession()
         Store.clearLoginData()
+        ReminderScheduler.scheduleAll(appContext)
     }
 
     class Factory(private val api: ChaoxingApi, private val appContext: Context) : ViewModelProvider.Factory {

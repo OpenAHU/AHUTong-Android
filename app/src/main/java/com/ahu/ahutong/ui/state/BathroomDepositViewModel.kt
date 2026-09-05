@@ -13,6 +13,11 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.ext.launchSafe
 import com.google.gson.Gson
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -21,7 +26,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class BathroomDepositViewModel: ViewModel() {
+class BathroomDepositViewModel(
+    private val queryBathroomInfo: suspend (String, String) -> AHUResponse<BathroomTelInfo> =
+        { bathroom, tel -> AHURepository.getBathroomInfo(bathroom, tel) },
+    private val queryDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : ViewModel() {
 
     val TAG = "BathroomDepositViewModel"
 
@@ -32,7 +41,11 @@ class BathroomDepositViewModel: ViewModel() {
     private val _isQuerying = MutableStateFlow(false)
     val isQuerying: StateFlow<Boolean> = _isQuerying
 
+    private val _queryError = MutableStateFlow<String?>(null)
+    val queryError: StateFlow<String?> = _queryError
+
     private var queryJob: Job? = null
+    private var queryGeneration = 0L
 
     var _payState = MutableStateFlow<PayState>(PayState.Idle)
 
@@ -43,23 +56,52 @@ class BathroomDepositViewModel: ViewModel() {
     }
 
     fun clearBathroomInfo() {
+        queryGeneration++
         queryJob?.cancel()
+        queryJob = null
         _isQuerying.value = false
         _info.value = null
+        _queryError.value = null
     }
 
     fun getBathroomInfo(bathroom: String, tel: String) {
-        if (tel.length != 11) return
+        if (tel.length != 11) {
+            clearBathroomInfo()
+            return
+        }
+        val generation = ++queryGeneration
         queryJob?.cancel()
+        _isQuerying.value = true
+        _info.value = null
+        _queryError.value = null
         queryJob = viewModelScope.launch {
-            _isQuerying.value = true
-            _info.value = null
             try {
-                _info.value = withContext(Dispatchers.IO) {
-                    AHURepository.getBathroomInfo(bathroom = bathroom, tel = tel)
+                val response = withContext(queryDispatcher) {
+                    queryBathroomInfo(bathroom, tel)
+                }
+                if (generation == queryGeneration) {
+                    if (response.isSuccessful && response.data != null) {
+                        _info.value = response
+                    } else {
+                        _queryError.value = response.msg?.takeIf { it.isNotBlank() }
+                            ?: "未查询到浴室账户，请重试"
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (generation == queryGeneration) {
+                    _queryError.value = when (error) {
+                        is UnknownHostException -> "网络不可用，请检查网络连接"
+                        is SocketTimeoutException -> "请求超时，请重试"
+                        is IOException -> "网络连接失败，请重试"
+                        else -> "浴室账户查询失败，请重试"
+                    }
                 }
             } finally {
-                _isQuerying.value = false
+                if (generation == queryGeneration) {
+                    _isQuerying.value = false
+                }
             }
         }
     }
@@ -70,15 +112,16 @@ class BathroomDepositViewModel: ViewModel() {
     fun pay(bathroom:String,amount: String,password: String){
 
         _payState.value = PayState.InProgress
-        if (info.value?.data?.map?.data == null) {
+        val accountData = info.value?.data?.map?.data
+        if (accountData == null) {
             _payState.value = PayState.Failed("请先查询有效的浴室账户")
             return
         }
+        val paymentQueryGeneration = queryGeneration
 
         viewModelScope.launchSafe {
             withContext(Dispatchers.IO){
-                info.value!!.data.map!!.data?.let{ //????
-                    val data = it
+                accountData.let { data ->
                     data.myCustomInfo = "手机号：${data.telPhone}"
 
                     val thirdPartyJson = Gson().toJson(data)
@@ -104,14 +147,15 @@ class BathroomDepositViewModel: ViewModel() {
                         }
 
                         if(payResponse?.code == 200){
-                            AHUCache.savePhone(it.telPhone)
+                            AHUCache.savePhone(data.telPhone)
                             _payState.value = PayState.Succeeded(message = payResponse.data)
                             paymentSuccessEvent.postValue(Unit)
                             delay(1_000)
-                            _info.value = AHURepository.getBathroomInfo(
-                                bathroom = bathroom,
-                                tel = data.telPhone
-                            )
+                            withContext(Dispatchers.Main) {
+                                if (paymentQueryGeneration == queryGeneration) {
+                                    getBathroomInfo(bathroom, data.telPhone)
+                                }
+                            }
                         }else{
                             _payState.value = PayState.Failed(message = payResponse?.msg?:"未知错误")
                         }
