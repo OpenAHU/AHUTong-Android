@@ -137,6 +137,15 @@ fun Main(
     val effectiveRoute = if (currentRoute == "home") primaryRoute else currentRoute
 
     suspend fun selectPrimaryDestination(route: String) {
+        if (appUiTheme == AppUiTheme.RADIANT) {
+            val target = if (route == "tools") "widgets" else route
+            if (target == currentRoute) return
+            navController.navigate(target) {
+                popUpTo("home") { inclusive = false }
+                launchSingleTop = true
+            }
+            return
+        }
         val destinationIndex = primaryDestinationRoutes.indexOf(route)
         if (destinationIndex < 0 || destinationIndex == primaryPagerState.currentPage) return
         primaryPagerState.animateScrollToPage(
@@ -203,44 +212,61 @@ fun Main(
                 .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
         ) {
             animatedComposable(appUiThemeState, "home") {
-                HorizontalPager(
-                    state = primaryPagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = if (preloadPrimaryNeighbors) 1 else 0,
-                    userScrollEnabled = false,
-                    key = primaryDestinationRoutes::get
-                ) { page ->
-                    when (page) {
-                        0 -> Home(
-                            discoveryViewModel = discoveryViewModel,
-                            scheduleViewModel = scheduleViewModel,
-                            navController = navController,
-                            behaviorRuntime = behaviorRuntime,
-                            onOpenSchedule = {
-                                scope.launch { selectPrimaryDestination("schedule") }
-                            },
-                            homeEditEnabled = homeEditGrayState.enabled,
-                            enterEditModeRequest = shouldEnterHomeEdit,
-                            onEnterEditModeRequestConsumed = {
-                                shouldEnterHomeEdit = false
-                            }
-                        )
-                        1 -> Schedule(
-                            scheduleViewModel = scheduleViewModel,
-                            behaviorRuntime = behaviorRuntime
-                        )
-                        2 -> Tools(
-                            navController = navController,
-                            homeEditEnabled = homeEditGrayState.enabled,
-                            onEditHome = ::requestHomeEdit
-                        )
-                        3 -> Settings(
-                            navController = navController,
-                            mainViewModel = mainViewModel,
-                            aboutViewModel = aboutViewModel,
-                            scheduleViewModel = scheduleViewModel,
-                            behaviorRuntime = behaviorRuntime
-                        )
+                if (appUiTheme == AppUiTheme.RADIANT) {
+                    Home(
+                        discoveryViewModel = discoveryViewModel,
+                        scheduleViewModel = scheduleViewModel,
+                        navController = navController,
+                        behaviorRuntime = behaviorRuntime,
+                        onOpenSchedule = {
+                            scope.launch { selectPrimaryDestination("schedule") }
+                        },
+                        homeEditEnabled = homeEditGrayState.enabled,
+                        enterEditModeRequest = shouldEnterHomeEdit,
+                        onEnterEditModeRequestConsumed = {
+                            shouldEnterHomeEdit = false
+                        }
+                    )
+                } else {
+                    HorizontalPager(
+                        state = primaryPagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        beyondViewportPageCount = if (preloadPrimaryNeighbors) 1 else 0,
+                        userScrollEnabled = false,
+                        key = primaryDestinationRoutes::get
+                    ) { page ->
+                        when (page) {
+                            0 -> Home(
+                                discoveryViewModel = discoveryViewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                navController = navController,
+                                behaviorRuntime = behaviorRuntime,
+                                onOpenSchedule = {
+                                    scope.launch { selectPrimaryDestination("schedule") }
+                                },
+                                homeEditEnabled = homeEditGrayState.enabled,
+                                enterEditModeRequest = shouldEnterHomeEdit,
+                                onEnterEditModeRequestConsumed = {
+                                    shouldEnterHomeEdit = false
+                                }
+                            )
+                            1 -> Schedule(
+                                scheduleViewModel = scheduleViewModel,
+                                behaviorRuntime = behaviorRuntime
+                            )
+                            2 -> Tools(
+                                navController = navController,
+                                homeEditEnabled = homeEditGrayState.enabled,
+                                onEditHome = ::requestHomeEdit
+                            )
+                            3 -> Settings(
+                                navController = navController,
+                                mainViewModel = mainViewModel,
+                                aboutViewModel = aboutViewModel,
+                                scheduleViewModel = scheduleViewModel,
+                                behaviorRuntime = behaviorRuntime
+                            )
+                        }
                     }
                 }
             }
@@ -292,9 +318,11 @@ fun Main(
                 )
             }
             animatedComposable(appUiThemeState, "schedule") {
-                PrimaryDestinationRedirect(
-                    navController = navController,
-                    onRedirect = { primaryPagerState.scrollToPage(1) }
+                // 无条件渲染，理由同 settings 路由：redirect 的二次 pop 会与
+                // 返回转场竞态；非 RADIANT 主题下独立展示课表页可正常用系统返回
+                Schedule(
+                    scheduleViewModel = scheduleViewModel,
+                    behaviorRuntime = behaviorRuntime
                 )
             }
             animatedComposable(appUiThemeState, "tools") {
@@ -380,9 +408,14 @@ fun Main(
                 RepositorySettings(navController = navController)
             }
             animatedComposable(appUiThemeState, "settings") {
-                PrimaryDestinationRedirect(
+                // 无条件渲染：切换主题后 pop 回此路由时不能落入空白重定向页，
+                // 否则 pop 转场与 redirect 的二次 pop 竞态会导致白屏/卡死
+                Settings(
                     navController = navController,
-                    onRedirect = { primaryPagerState.scrollToPage(3) }
+                    mainViewModel = mainViewModel,
+                    aboutViewModel = aboutViewModel,
+                    scheduleViewModel = scheduleViewModel,
+                    behaviorRuntime = behaviorRuntime
                 )
             }
             animatedComposable(appUiThemeState, "settings__license") {
@@ -461,12 +494,14 @@ fun Main(
         BottomNavBar(
             backdrop = backdrop,
             selectedRoute = when {
+                appUiTheme == AppUiTheme.RADIANT -> currentRoute
                 currentRoute == "home" -> primaryRoute
-                appUiTheme == AppUiTheme.RADIANT && currentRoute == "xuexiaotong" -> currentRoute
                 else -> null
             },
             onDestinationSelected = { route ->
-                if (route == "xuexiaotong") {
+                if (appUiTheme == AppUiTheme.RADIANT) {
+                    scope.launch { selectPrimaryDestination(route) }
+                } else if (route == "xuexiaotong") {
                     navController.navigate(route) { launchSingleTop = true }
                 } else {
                     scope.launch {
@@ -512,8 +547,8 @@ fun Main(
                         navController.navigate("home") { launchSingleTop = true }
                     } else {
                         com.ahu.ahutong.personalization.action.AppActionCatalog.spec(action).route?.let { route ->
-                            if (appUiTheme == AppUiTheme.RADIANT && route == "tools") {
-                                navController.navigate("widgets") { launchSingleTop = true }
+                            if (appUiTheme == AppUiTheme.RADIANT) {
+                                scope.launch { selectPrimaryDestination(route) }
                             } else if (route in primaryDestinationRoutes) {
                                 if (currentRoute != "home") {
                                     navController.navigate("home") {

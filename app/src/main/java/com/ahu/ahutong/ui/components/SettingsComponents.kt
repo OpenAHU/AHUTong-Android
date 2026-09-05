@@ -46,7 +46,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -229,9 +228,6 @@ fun SettingsPageLayout(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val uiTheme = LocalAppUiTheme.current
-    LaunchedEffect(uiTheme) {
-        scrollState.scrollTo(0)
-    }
     if (uiTheme != AppUiTheme.MIUIX) {
         Column(
             modifier = modifier
@@ -873,13 +869,14 @@ fun <T> SettingsSelectRow(
                                     )
                                 }
                             },
-                            modifier = Modifier.background(
-                                if (isSelected) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                                } else {
-                                    Color.Transparent
-                                }
-                            ),
+                            modifier = Modifier
+                                .background(
+                                    if (isSelected) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                ),
                             onClick = {
                                 onSelected(choice.value)
                                 expanded = false

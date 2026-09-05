@@ -60,6 +60,8 @@ class DeveloperViewModel : ViewModel() {
             Developer("王学雷（22级）", "页面设计、交互设计、新技术探索", "257314409"),
             Developer("徐健灿（22级）", "爬虫、交互设计", "3148336396"),
             Developer("王    钰（22级）", "架构规划、爬虫", "605606366"),
+            Developer("MuxYang（25级）", "充值系统维护、MiuixUI 开发", "32142587"),
+            Developer("InChange-Jiang（25级）", "学习通日历开发、RadiantUI 开发", "2719904894"),
         )
     }
     val partners by lazy {

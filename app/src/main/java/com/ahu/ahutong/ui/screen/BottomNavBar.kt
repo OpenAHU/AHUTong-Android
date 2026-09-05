@@ -10,7 +10,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -222,6 +221,9 @@ private fun BoxScope.RadiantBottomNavBar(
             LaunchedEffect(Unit) {
                 delay(350)
                 guideVisible = true
+                // 6 秒后自动消失并记录已展示，避免气泡长期悬浮
+                delay(6000)
+                dismissGuide()
             }
             Box(
                 modifier = Modifier
@@ -237,8 +239,7 @@ private fun BoxScope.RadiantBottomNavBar(
                         anchorCenterX = { bounds.left + bounds.width * 0.625f - overlayOrigin.x },
                         anchorTopY = { bounds.top - overlayOrigin.y },
                         backdrop = backdrop,
-                        text = "再次点击可切换日程 / 课程页",
-                        onDismiss = ::dismissGuide
+                        text = "再次点击可切换日程 / 课程页"
                     )
                 }
             }
@@ -252,12 +253,11 @@ private fun AnchoredGuideBubble(
     anchorTopY: () -> Float,
     backdrop: Backdrop,
     text: String,
-    onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Layout(
         content = {
-            GuideBubbleCard(text = text, backdrop = backdrop, onDismiss = onDismiss)
+            GuideBubbleCard(text = text, backdrop = backdrop)
         },
         modifier = modifier
     ) { measurables, constraints ->
@@ -279,8 +279,7 @@ private fun AnchoredGuideBubble(
 @Composable
 private fun GuideBubbleCard(
     text: String,
-    backdrop: Backdrop,
-    onDismiss: () -> Unit
+    backdrop: Backdrop
 ) {
     val glassContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.64f)
     val infiniteTransition = rememberInfiniteTransition(label = "guideBubble")
@@ -297,6 +296,8 @@ private fun GuideBubbleCard(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // 纯展示气泡：不带任何 pointer 修饰符，触摸事件完全穿透到下层内容，
+        // 收起依赖 6s 超时或切换子页时触发
         modifier = Modifier
             .graphicsLayer { translationY = bubbleBob * 3.dp.toPx() }
             .drawBackdrop(
@@ -311,7 +312,6 @@ private fun GuideBubbleCard(
                 shadow = { Shadow() },
                 onDrawSurface = { drawRect(glassContainerColor) }
             )
-            .clickable(onClick = onDismiss)
             .padding(horizontal = 14.dp, vertical = 9.dp)
     ) {
         Icon(

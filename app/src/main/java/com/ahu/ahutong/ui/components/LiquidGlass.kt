@@ -89,8 +89,8 @@ fun GlassBackdropContainer(
                         Brush.verticalGradient(
                             listOf(
                                 background,
-                                primary.copy(alpha = 0.08f),
-                                secondary.copy(alpha = 0.05f),
+                                primary.copy(alpha = 0.04f),
+                                secondary.copy(alpha = 0.025f),
                                 background
                             )
                         )

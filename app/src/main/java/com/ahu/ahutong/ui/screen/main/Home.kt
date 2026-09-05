@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,7 +67,9 @@ import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.semantic.MutationId
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
+import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.screen.main.home.AtAGlance
 import com.ahu.ahutong.ui.screen.main.home.HomeDateRow
@@ -375,50 +378,58 @@ fun Home(
             )
         }
     }
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
-            .onGloballyPositioned { rootTopLeft = it.boundsInRoot().topLeft }
-            .pointerInput(isEditingHome, homeEditEnabled) {
-                if (isEditingHome) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(
-                            requireUnconsumed = false,
-                            pass = PointerEventPass.Final
-                        )
-                        val start = down.position
-                        var shouldExit = !down.isConsumed
-                        var waitingForUp = true
-                        while (waitingForUp) {
-                            val event = awaitPointerEvent(PointerEventPass.Final)
-                            val change = event.changes.firstOrNull { it.id == down.id }
-                            if (change == null) {
-                                waitingForUp = false
-                            } else {
-                                if (change.isConsumed ||
-                                    (change.position - start).getDistance() > viewConfiguration.touchSlop
-                                ) {
-                                    shouldExit = false
-                                }
-                                if (!change.pressed) {
+    GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
+        CompositionLocalProvider(
+            LocalLiquidGlassAmbientBackdrop provides if (radiant) {
+                backdrop
+            } else {
+                LocalLiquidGlassAmbientBackdrop.current
+            }
+        ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
+                .onGloballyPositioned { rootTopLeft = it.boundsInRoot().topLeft }
+                .pointerInput(isEditingHome, homeEditEnabled) {
+                    if (isEditingHome) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(
+                                requireUnconsumed = false,
+                                pass = PointerEventPass.Final
+                            )
+                            val start = down.position
+                            var shouldExit = !down.isConsumed
+                            var waitingForUp = true
+                            while (waitingForUp) {
+                                val event = awaitPointerEvent(PointerEventPass.Final)
+                                val change = event.changes.firstOrNull { it.id == down.id }
+                                if (change == null) {
                                     waitingForUp = false
+                                } else {
+                                    if (change.isConsumed ||
+                                        (change.position - start).getDistance() > viewConfiguration.touchSlop
+                                    ) {
+                                        shouldExit = false
+                                    }
+                                    if (!change.pressed) {
+                                        waitingForUp = false
+                                    }
                                 }
                             }
+                            if (shouldExit) {
+                                exitHomeEditMode()
+                            }
                         }
-                        if (shouldExit) {
-                            exitHomeEditMode()
-                        }
+                    } else {
+                        detectTapGestures(
+                            onLongPress = {
+                                enterHomeEditMode()
+                            }
+                        )
                     }
-                } else {
-                    detectTapGestures(
-                        onLongPress = {
-                            enterHomeEditMode()
-                        }
-                    )
                 }
-            }
-    ) {
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -572,6 +583,8 @@ fun Home(
                     rootTopLeft = rootTopLeft
                 )
             }
+        }
+        }
         }
     }
 }

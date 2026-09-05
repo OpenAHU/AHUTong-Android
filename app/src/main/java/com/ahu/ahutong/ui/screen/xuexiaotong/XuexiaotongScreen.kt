@@ -50,6 +50,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -80,6 +81,7 @@ import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.Work
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.liquidGlassSurface
 import com.ahu.ahutong.ui.components.liquidGlassTint
@@ -121,13 +123,33 @@ fun XuexiaotongScreen(
     var showLogin by remember { mutableStateOf(false) }
 
     if (showLogin) {
-        XuexiaotongLoginScreen(
-            api = api,
-            onLoginSuccess = {
-                viewModel.onLoginSuccess()
-                showLogin = false
+        // 系统返回回到日历/课程子页，而不是 pop 掉整个学习通路由
+        androidx.activity.compose.BackHandler { showLogin = false }
+        // 曜光模式：登录页与主页面同为"页面级容器"结构，避免容器不对称挂载/卸载
+        // 时采样层残留引用与新渲染树形成自引用环（RenderThread 递归爆栈闪退）
+        if (isRadiantUi) {
+            GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { loginBackdrop ->
+                CompositionLocalProvider(
+                    LocalLiquidGlassAmbientBackdrop provides loginBackdrop
+                ) {
+                    XuexiaotongLoginScreen(
+                        api = api,
+                        onLoginSuccess = {
+                            viewModel.onLoginSuccess()
+                            showLogin = false
+                        }
+                    )
+                }
             }
-        )
+        } else {
+            XuexiaotongLoginScreen(
+                api = api,
+                onLoginSuccess = {
+                    viewModel.onLoginSuccess()
+                    showLogin = false
+                }
+            )
+        }
         return
     }
 
