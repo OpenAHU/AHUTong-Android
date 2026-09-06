@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.ahu.ahutong.data.xuexiaotong.Store
-import java.util.Calendar
 
 object ReminderScheduler {
 
@@ -53,51 +52,25 @@ object ReminderScheduler {
     fun scheduleAll(context: Context) {
         ensureChannel(context)
         val setting = Store.getRemindSetting()
-        if (!setting.enabled || !Store.hasCookie()) {
+        if (!setting.enabled) {
             cancelAll(context)
             return
         }
 
-        val now = System.currentTimeMillis()
-        val works = Store.getWorks()
-        val events = Store.getCustomEvents()
         val reminded = Store.getRemindedMap().toMutableMap()
-
-        works.forEach { w ->
-            val endTs = w.endTs ?: return@forEach
-            if (endTs <= now) return@forEach
-            if (w.isDone && setting.onlyTodo) return@forEach
-
-            val remindAt = endTs - setting.leadMinutes * 60000L
-            if (remindAt <= now) return@forEach
-
-            val key = "${w.workId}|$endTs"
-            if (reminded.containsKey(key)) return@forEach
-
-            val timeStr = formatTime(endTs)
+        val plan = ReminderPlan.build(
+            setting = setting,
+            hasSession = Store.hasCookie(),
+            works = Store.getWorks(),
+            events = Store.getCustomEvents(),
+            nowMillis = System.currentTimeMillis()
+        )
+        plan.forEach { reminder ->
+            if (reminded.containsKey(reminder.key)) return@forEach
             val ok = scheduleNotification(
-                context, key, remindAt, w.courseName.ifEmpty { "作业提醒" },
-                "${w.title} 将于 $timeStr 截止"
+                context, reminder.key, reminder.triggerAtMillis, reminder.title, reminder.content
             )
-            if (ok) reminded[key] = 1
-        }
-
-        events.forEach { ev ->
-            if (ev.done) return@forEach
-            val startTs = ev.startTs
-            if (startTs <= 0 || startTs <= now) return@forEach
-
-            val remindAt = startTs - setting.leadMinutes * 60000L
-            if (remindAt <= now) return@forEach
-
-            val key = "event_${ev.id}|$startTs"
-            if (reminded.containsKey(key)) return@forEach
-
-            val ok = scheduleNotification(
-                context, key, remindAt, "日程提醒",
-                "${ev.title} 将于 ${ev.startDate.substring(5)} ${ev.startTime} 开始"
-            )
-            if (ok) reminded[key] = 1
+            if (ok) reminded[reminder.key] = 1
         }
 
         Store.saveRemindedMap(reminded)
@@ -138,15 +111,6 @@ object ReminderScheduler {
     fun rescheduleAll(context: Context) {
         cancelAll(context)
         scheduleAll(context)
-    }
-
-    private fun formatTime(ts: Long): String {
-        val c = Calendar.getInstance().apply { timeInMillis = ts }
-        val month = c.get(Calendar.MONTH) + 1
-        val day = c.get(Calendar.DAY_OF_MONTH)
-        val hh = c.get(Calendar.HOUR_OF_DAY).toString().padStart(2, '0')
-        val mm = c.get(Calendar.MINUTE).toString().padStart(2, '0')
-        return "$month-$day $hh:$mm"
     }
 
     private fun scheduleNotification(context: Context, key: String, fireTs: Long, title: String, content: String): Boolean {

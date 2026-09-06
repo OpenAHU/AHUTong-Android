@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen
 
 import com.ahu.ahutong.BuildConfig
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -87,6 +89,9 @@ import com.ahu.ahutong.ui.state.LoginViewModel
 import com.ahu.ahutong.ui.state.MainViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.utils.animatedComposable
+import com.ahu.ahutong.utils.NavigationObservationPolicy
+import com.ahu.ahutong.utils.NavigationSnapshot
+import com.ahu.ahutong.utils.resolveVisibleRoute
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import kotlinx.coroutines.launch
@@ -121,8 +126,8 @@ fun Main(
     var homeEditGrayState by remember {
         mutableStateOf(GrayReleaseManager.localState(GrayFeatures.HomeEdit, context))
     }
-    var firstDestination by remember { mutableStateOf(true) }
-    var lastRoute by remember { mutableStateOf<String?>(null) }
+    val navigationPolicy = remember { NavigationObservationPolicy() }
+    var navigationObservationRevision by remember { mutableIntStateOf(0) }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     val suggestionOverlayBlocked by behaviorRuntime.suggestionOverlayBlocked.collectAsState()
@@ -134,24 +139,54 @@ fun Main(
     val primaryPagerState = rememberPagerState(pageCount = { primaryDestinationRoutes.size })
     var preloadPrimaryNeighbors by remember { mutableStateOf(false) }
     val primaryRoute = primaryDestinationRoutes[primaryPagerState.currentPage]
-    val effectiveRoute = if (currentRoute == "home") primaryRoute else currentRoute
+    val effectiveRoute = resolveVisibleRoute(
+        currentRoute,
+        appUiTheme,
+        primaryDestinationRoutes[primaryPagerState.settledPage]
+    )
 
-    suspend fun selectPrimaryDestination(route: String) {
+    fun cancelSelection(token: Long) {
+        if (navigationPolicy.cancelSelection(token)) {
+            // Cancellation can leave the same already-settled snapshot on screen. Re-observe it
+            // now that the pending target no longer blocks it, even without another Pager change.
+            navigationObservationRevision++
+        }
+    }
+
+    suspend fun selectPrimaryDestination(
+        route: String,
+        source: ActionSource = ActionSource.ORGANIC
+    ) {
         if (appUiTheme == AppUiTheme.RADIANT) {
             val target = if (route == "tools") "widgets" else route
-            if (target == currentRoute) return
-            navController.navigate(target) {
-                popUpTo("home") { inclusive = false }
-                launchSingleTop = true
+            if (target == navController.currentBackStackEntry?.destination?.route) return
+            val selectionToken = navigationPolicy.expectSelection(target, source)
+            try {
+                navController.navigate(target) {
+                    popUpTo("home") { inclusive = false }
+                    launchSingleTop = true
+                }
+            } catch (error: Exception) {
+                cancelSelection(selectionToken)
+                throw error
             }
             return
         }
         val destinationIndex = primaryDestinationRoutes.indexOf(route)
-        if (destinationIndex < 0 || destinationIndex == primaryPagerState.currentPage) return
-        primaryPagerState.animateScrollToPage(
-            page = destinationIndex,
-            animationSpec = tween(durationMillis = 260)
-        )
+        if (destinationIndex < 0) return
+        if (destinationIndex == primaryPagerState.settledPage &&
+            !primaryPagerState.isScrollInProgress
+        ) return
+        val selectionToken = navigationPolicy.expectSelection(route, source)
+        try {
+            primaryPagerState.animateScrollToPage(
+                page = destinationIndex,
+                animationSpec = tween(durationMillis = 260)
+            )
+        } catch (error: Exception) {
+            cancelSelection(selectionToken)
+            throw error
+        }
     }
 
     fun requestHomeEdit() {
@@ -179,22 +214,27 @@ fun Main(
         }
     }
 
-    LaunchedEffect(effectiveRoute) {
-        val route = effectiveRoute ?: return@LaunchedEffect
-        val previousRoute = navController.previousBackStackEntry?.destination?.route
-        val isBackStackRestore = !firstDestination &&
-            lastRoute != null &&
-            previousRoute != lastRoute
+    val navigationSnapshot = NavigationSnapshot(
+        route = effectiveRoute,
+        entryId = currentBackStackEntry?.id,
+        previousEntryId = navController.previousBackStackEntry?.id,
+        uiTheme = appUiTheme,
+        settled = appUiTheme == AppUiTheme.RADIANT || currentRoute != "home" ||
+            !primaryPagerState.isScrollInProgress,
+        diagnostics = diagnosticsRouteVisible,
+        primaryPagerHost = appUiTheme != AppUiTheme.RADIANT && currentRoute == "home"
+    )
+    LaunchedEffect(navigationSnapshot, navigationObservationRevision) {
+        val observation = navigationPolicy.observe(navigationSnapshot) ?: return@LaunchedEffect
+        if (observation.synchronizeOnly) {
+            // A theme may change the visible page in the same entry. Keep prediction context
+            // accurate without inventing a navigation action for the theme preference itself.
+            behaviorRuntime.suppressNextRoute(observation.route)
+        }
         behaviorRuntime.onRouteChanged(
-            route,
-            when {
-                diagnosticsRouteVisible -> ActionSource.DEBUG
-                firstDestination || isBackStackRestore -> ActionSource.RESTORE
-                else -> ActionSource.ORGANIC
-            }
+            observation.route,
+            observation.source
         )
-        firstDestination = false
-        lastRoute = route
     }
 
     LaunchedEffect(Unit) {
@@ -228,6 +268,15 @@ fun Main(
                         }
                     )
                 } else {
+                    // Register before the pages so their own modal/edit BackHandlers take priority.
+                    BackHandler(
+                        enabled = currentRoute == "home" &&
+                            (primaryPagerState.settledPage != 0 ||
+                                primaryPagerState.currentPage != 0 ||
+                                primaryPagerState.targetPage != 0)
+                    ) {
+                        scope.launch { selectPrimaryDestination("home", ActionSource.RESTORE) }
+                    }
                     HorizontalPager(
                         state = primaryPagerState,
                         modifier = Modifier.fillMaxSize(),
@@ -548,7 +597,7 @@ fun Main(
                     } else {
                         com.ahu.ahutong.personalization.action.AppActionCatalog.spec(action).route?.let { route ->
                             if (appUiTheme == AppUiTheme.RADIANT) {
-                                scope.launch { selectPrimaryDestination(route) }
+                                selectPrimaryDestination(route, ActionSource.SUGGESTION)
                             } else if (route in primaryDestinationRoutes) {
                                 if (currentRoute != "home") {
                                     navController.navigate("home") {
@@ -556,7 +605,7 @@ fun Main(
                                         launchSingleTop = true
                                     }
                                 }
-                                selectPrimaryDestination(route)
+                                selectPrimaryDestination(route, ActionSource.SUGGESTION)
                             } else {
                                 navController.navigate(route) { launchSingleTop = true }
                             }

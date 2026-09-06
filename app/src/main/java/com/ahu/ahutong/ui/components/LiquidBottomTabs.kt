@@ -18,11 +18,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,8 +57,6 @@ import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
@@ -76,6 +72,8 @@ fun LiquidBottomTabs(
     content: @Composable RowScope.() -> Unit
 ) {
     val tokens = LocalLiquidGlassTokens.current
+    val currentOnTabSelected by rememberUpdatedState(onTabSelected)
+    val currentSelectedTabIndex by rememberUpdatedState(selectedTabIndex)
     val isLiquid = tokens.enabled
     val canBlur = tokens.quality.supportsBlur
     val canRefract = tokens.quality.supportsRefraction
@@ -118,10 +116,7 @@ fun LiquidBottomTabs(
 
         val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
         val animationScope = rememberCoroutineScope()
-        var currentIndex by remember {
-            mutableIntStateOf(selectedTabIndex())
-        }
-        val dampedDragAnimation = remember(animationScope, isLiquid) {
+        val dampedDragAnimation = remember(animationScope, isLiquid, tabsCount, tabWidth, isLtr) {
             DampedDragAnimation(
                 animationScope = animationScope,
                 initialValue = selectedTabIndex().toFloat(),
@@ -133,8 +128,10 @@ fun LiquidBottomTabs(
                 onDragStarted = {},
                 onDragStopped = {
                     val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
-                    currentIndex = targetIndex
                     animateToValue(targetIndex.toFloat())
+                    if (targetIndex != currentSelectedTabIndex()) {
+                        currentOnTabSelected(targetIndex)
+                    }
                     animationScope.launch {
                         offsetAnimation.animateTo(
                             0f,
@@ -154,18 +151,12 @@ fun LiquidBottomTabs(
             )
         }
         val requestedIndex = selectedTabIndex()
-        LaunchedEffect(requestedIndex) {
-            if (currentIndex != requestedIndex) {
-                currentIndex = requestedIndex
+        LaunchedEffect(dampedDragAnimation, requestedIndex) {
+            // Restoring or externally selecting a tab only moves the indicator. Reporting it as
+            // another user selection would replay navigation and interrupt Pager animations.
+            if (dampedDragAnimation.targetValue != requestedIndex.toFloat()) {
+                dampedDragAnimation.animateToValue(requestedIndex.toFloat())
             }
-        }
-        LaunchedEffect(dampedDragAnimation) {
-            snapshotFlow { currentIndex }
-                .drop(1)
-                .collectLatest { index ->
-                    dampedDragAnimation.animateToValue(index.toFloat())
-                    onTabSelected(index)
-                }
         }
 
         val interactiveHighlight = remember(animationScope, isLiquid) {

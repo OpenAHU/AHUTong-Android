@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,6 +65,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -91,6 +95,9 @@ import com.ahu.ahutong.ui.screen.main.schedule.CourseCard
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCardSpec
 import com.ahu.ahutong.ui.screen.main.schedule.CourseDetailDialog
 import com.ahu.ahutong.ui.screen.main.schedule.courseTonalPalettes
+import com.ahu.ahutong.ui.screen.main.schedule.courseScheduleDescription
+import com.ahu.ahutong.ui.screen.main.schedule.scheduleDayDescription
+import com.ahu.ahutong.ui.screen.main.schedule.schedulePeriodDescription
 import com.ahu.ahutong.ui.screen.main.schedule.shortScheduleLocation
 import com.ahu.ahutong.ui.screen.main.schedule.weekRangeText
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -316,9 +323,9 @@ fun Schedule(
                             }
                         )
                     ) {
-                        Text(
-                            text = week.toString(),
+                        Box(
                             modifier = Modifier
+                                .size(40.dp)
                                 .clip(ContinuousCapsule)
                                 .background(
                                     animateColorAsState(
@@ -341,21 +348,22 @@ fun Schedule(
                                     scope.launch {
                                         pagerState.animateScrollToPage(week - 1)
                                     }
-                                }
-                                .padding(
-                                    horizontal = 16.dp,
-                                    vertical = if (radiant) 8.dp else 12.dp
-                                ),
-                            color = animateColorAsState(
-                                targetValue = if (isSelected) {
-                                    100.n1 withNight 0.n1
-                                } else {
-                                    0.n1 withNight 100.n1
-                                }
-                            ).value,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = week.toString(),
+                                color = animateColorAsState(
+                                    targetValue = if (isSelected) {
+                                        100.n1 withNight 0.n1
+                                    } else {
+                                        0.n1 withNight 100.n1
+                                    }
+                                ).value,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
                     }
                 }
             }
@@ -541,6 +549,7 @@ fun Schedule(
                                 cellWidth = cellWidth,
                                 cellHeight = cellHeight,
                                 isCurrentWeek = true,
+                                date = weekDates.getOrNull(course.weekday - 1),
                                 onClick = {
                                     behaviorReporter.organic(AppActionId.OPEN_COURSE_DETAIL)
                                     detailedCourse = it
@@ -627,6 +636,7 @@ fun Schedule(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
+                            .navigationBarsPadding()
                             .padding(bottom = 96.dp)
                     ) {
                         Spacer(modifier = Modifier.height(102.dp))
@@ -760,6 +770,30 @@ private fun BoxScope.ScheduleGridLabels(
                 center = Offset(centerX, top + cellHeightPx * 0.70f)
             )
         }
+    }
+
+    // Keep Canvas drawing inexpensive while exposing individually discoverable labels at the
+    // same positions as the visual day headers and time-axis cells.
+    weekDates.forEachIndexed { index, date ->
+        Box(
+            modifier = Modifier
+                .offset(x = CourseCardSpec.mainColumnWidth + (cellWidth + cellSpacing) * index + cellSpacing)
+                .size(cellWidth, CourseCardSpec.mainRowHeight)
+                .semantics {
+                    contentDescription = scheduleDayDescription(index + 1, date)
+                    heading()
+                }
+        )
+    }
+    ScheduleViewModel.timetable.entries.forEachIndexed { index, (section, time) ->
+        Box(
+            modifier = Modifier
+                .offset(y = CourseCardSpec.mainRowHeight + (cellHeight + cellSpacing) * index + cellSpacing)
+                .size(CourseCardSpec.mainColumnWidth, cellHeight)
+                .semantics {
+                    contentDescription = schedulePeriodDescription(section, time)
+                }
+        )
     }
 }
 
@@ -921,6 +955,13 @@ private fun OverviewCourseGroupCard(
                             .fillMaxWidth()
                             .background(if (isCurrentWeek) color else color.copy(alpha = 0.45f))
                             .clickable { onClick(item) }
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = courseScheduleDescription(
+                                    item,
+                                    ScheduleViewModel.timetable,
+                                    includeWeeks = true
+                                )
+                            }
                             .padding(4.dp)
                     ) {
                         OverviewCourseContent(

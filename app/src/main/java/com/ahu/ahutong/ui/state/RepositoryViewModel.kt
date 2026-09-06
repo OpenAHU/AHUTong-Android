@@ -15,11 +15,14 @@ import com.ahu.ahutong.data.repository.GitHubContentItem
 import com.ahu.ahutong.data.repository.RepositoryDirectorySummary
 import com.ahu.ahutong.data.repository.RepositoryMarkdownDocument
 import com.ahu.ahutong.data.repository.RepositoryManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -60,6 +63,7 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
     private val pathRequestIds = mutableMapOf<String, Int>()
     private val scrollPositions = mutableMapOf<String, RepositoryScrollPosition>()
     private var hasStartedWarmUp = false
+    private val deletionMutex = Mutex()
 
     private val _directoryStates = MutableStateFlow<Map<String, RepositoryUiState>>(emptyMap())
     val directoryStates: StateFlow<Map<String, RepositoryUiState>> = _directoryStates.asStateFlow()
@@ -272,12 +276,35 @@ class RepositoryViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun deleteFile(path: String) {
+        deleteFiles(listOf(path))
+    }
+
+    internal fun deleteFiles(
+        paths: Collection<String>,
+        onComplete: (Result<RepositoryDeletionResult>) -> Unit = {}
+    ) {
         viewModelScope.launch {
-            val downloads = withContext(Dispatchers.IO) {
-                RepositoryManager.deleteFile(path, context)
-                refreshDownloadedSet()
+            deletionMutex.withLock {
+                val result = try {
+                    Result.success(withContext(Dispatchers.IO) {
+                        deleteDownloadedFiles(
+                            paths = paths,
+                            delete = { RepositoryManager.deleteFile(it, context) },
+                            listFiles = { RepositoryManager.getDownloadedFiles(context) }
+                        )
+                    })
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: Exception) {
+                    Result.failure(exception)
+                }
+                result.onSuccess { deletion ->
+                    _sharedState.value = _sharedState.value.copy(
+                        downloadedPaths = deletion.remainingFiles.mapTo(mutableSetOf()) { it.path }
+                    )
+                }
+                onComplete(result)
             }
-            _sharedState.value = _sharedState.value.copy(downloadedPaths = downloads)
         }
     }
 

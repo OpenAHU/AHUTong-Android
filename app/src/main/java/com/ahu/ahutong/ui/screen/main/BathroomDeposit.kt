@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +30,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.personalization.action.AppActionId
@@ -62,7 +66,9 @@ fun BathroomDeposit(
     val payState by viewmodel.payState.collectAsState()
     val info by viewmodel.info.collectAsState()
     val isQuerying by viewmodel.isQuerying.collectAsState()
+    val queryError by viewmodel.queryError.collectAsState()
     val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val bathrooms = remember { listOf("竹园/龙河", "桔园/蕙园") }
     val bathroomOptions = remember(bathrooms) {
@@ -73,9 +79,25 @@ fun BathroomDeposit(
     var phone by rememberSaveable { mutableStateOf("") }
     var phoneHasFocus by rememberSaveable { mutableStateOf(false) }
     var previousPhone by rememberSaveable { mutableStateOf<String?>(null) }
-    var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordError by rememberSaveable { mutableStateOf<String?>(null) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(lifecycleOwner) {
+        val clearPassword = {
+            password = ""
+            passwordError = null
+            showPasswordDialog = false
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) clearPassword()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            clearPassword()
+        }
+    }
 
     LaunchedEffect(Unit) {
         previousPhone = AHUCache.getPhone()?.takeIf(String::isNotBlank)
@@ -93,14 +115,14 @@ fun BathroomDeposit(
         }
     }
 
-    val accountSummary = info?.let { response ->
+    val accountSummary = queryError ?: info?.data?.let { data ->
+        val account = data.map
         when {
-            response.data.map == null -> response.data.message ?: "未查询到浴室账户"
-            response.data.map!!.showData != null -> response.data.map!!.showData!!.let { data ->
-                "${data.phone}  ·  现金 ${data.cashAmount} 元  ·  赠送 ${data.giftAmount} 元"
+            account == null -> data.message ?: "未查询到浴室账户"
+            account.showData != null -> account.showData.let { balance ->
+                "${balance.phone}  ·  现金 ${balance.cashAmount} 元  ·  赠送 ${balance.giftAmount} 元"
             }
-            response.data.map!!.data?.message != null -> response.data.map!!.data!!.message!!
-            else -> "未查询到浴室账户"
+            else -> account.data?.message ?: "未查询到浴室账户"
         }
     }
     val accountData = info?.data?.map?.data
@@ -207,7 +229,7 @@ fun BathroomDeposit(
             )
         }
 
-        AnimatedVisibility(visible = isQuerying || info != null) {
+        AnimatedVisibility(visible = isQuerying || info != null || queryError != null) {
             val accountContent: @Composable ColumnScope.() -> Unit = {
                 Text("浴室账户", style = MaterialTheme.typography.titleMedium)
                 if (isQuerying) {
@@ -339,7 +361,11 @@ fun BathroomDeposit(
             }
 
             AppButton(
-                onClick = { showPasswordDialog = true },
+                onClick = {
+                    password = ""
+                    passwordError = null
+                    showPasswordDialog = true
+                },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = canSubmit
             ) {
@@ -387,6 +413,8 @@ fun BathroomDeposit(
             onConfirm = { confirmedPassword ->
                 if (confirmedPassword.length == 6) {
                     showPasswordDialog = false
+                    password = ""
+                    passwordError = null
                     behaviorReporter.organic(AppActionId.CONFIRM_BATHROOM_PAYMENT)
                     viewmodel.pay(
                         bathroom = bathroom,

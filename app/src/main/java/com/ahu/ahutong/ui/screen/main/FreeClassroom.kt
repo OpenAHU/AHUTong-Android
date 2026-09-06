@@ -1,11 +1,16 @@
 package com.ahu.ahutong.ui.screen.main
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Refresh
@@ -52,6 +58,7 @@ import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
+import com.ahu.ahutong.ui.components.AppComponentTokens
 import com.ahu.ahutong.ui.components.AppFilterChip
 import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.AppLazyPageLayout
@@ -223,10 +230,49 @@ fun FreeClassroom(
                             enabled = !isSearching && !isLoadingBuildings && buildings.isNotEmpty()
                         )
 
-                        FilterGroup(label = "时段") {
+                        FilterGroup(
+                            label = "时段",
+                            trailing = {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(AppComponentTokens.ControlShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { freeClassroomViewModel.selectAllUnits() }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val allDaySelected = selectedUnits.isEmpty()
+                                    AnimatedVisibility(
+                                        visible = allDaySelected,
+                                        enter = expandHorizontally(tween(durationMillis = 150)) +
+                                            fadeIn(tween(durationMillis = 150)),
+                                        exit = shrinkHorizontally(tween(durationMillis = 150)) +
+                                            fadeOut(tween(durationMillis = 150))
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(Modifier.size(4.dp))
+                                        }
+                                    }
+                                    Text(
+                                        text = "全天",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        ) {
                             UnitGrid(
                                 selectedUnits = selectedUnits,
-                                onSelectAll = freeClassroomViewModel::selectAllUnits,
                                 onToggleUnit = freeClassroomViewModel::toggleUnit
                             )
                         }
@@ -368,9 +414,20 @@ fun FreeClassroom(
 }
 
 @Composable
-private fun FilterGroup(label: String, content: @Composable () -> Unit) {
+private fun FilterGroup(
+    label: String,
+    trailing: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            trailing?.invoke()
+        }
         content()
     }
 }
@@ -387,20 +444,19 @@ private fun ChipRow(content: androidx.compose.foundation.lazy.LazyListScope.() -
 @Composable
 private fun UnitGrid(
     selectedUnits: Set<Int>,
-    onSelectAll: () -> Unit,
     onToggleUnit: (Int) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        (0..13).chunked(5).forEach { rowChoices ->
+        (1..13).chunked(5).forEach { rowChoices ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 rowChoices.forEach { unit ->
                     SelectionChip(
-                        text = if (unit == 0) "全天" else unit.toString(),
-                        selected = if (unit == 0) selectedUnits.isEmpty() else unit in selectedUnits,
-                        onClick = if (unit == 0) onSelectAll else ({ onToggleUnit(unit) }),
+                        text = unit.toString(),
+                        selected = unit in selectedUnits,
+                        onClick = { onToggleUnit(unit) },
                         modifier = Modifier.weight(1f),
                         centered = true
                     )

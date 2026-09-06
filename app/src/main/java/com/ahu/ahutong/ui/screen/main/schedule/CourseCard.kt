@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
+import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.kyant.monet.LocalTonalPalettes
 import com.kyant.monet.PaletteStyle
 import com.kyant.monet.TonalPalettes.Companion.toTonalPalettes
@@ -61,6 +62,7 @@ fun CourseCard(
     cellWidth: Dp,
     cellHeight: Dp,
     isCurrentWeek: Boolean = true,
+    date: String? = null,
     onClick: (Course) -> Unit
 ) {
     val tonalPalettes = remember(color) { courseTonalPalettes(color) }
@@ -112,18 +114,7 @@ fun CourseCard(
                     .clip(SmoothRoundedCornerShape(8.dp))
                     .background(if (!isCurrentWeek) Color.Gray else color)
                     .semantics(mergeDescendants = true) {
-                        contentDescription = buildString {
-                            append(course.name)
-                            if (!course.location.isNullOrBlank()) {
-                                append("，")
-                                append(course.location)
-                            }
-                            append("，第")
-                            append(course.startTime)
-                            append("至")
-                            append(course.startTime + course.length - 1)
-                            append("节")
-                        }
+                        contentDescription = courseScheduleDescription(course, ScheduleViewModel.timetable, date)
                         onClick(label = "查看课程详情") {
                             onClick(course)
                             true

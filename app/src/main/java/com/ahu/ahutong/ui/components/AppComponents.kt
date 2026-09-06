@@ -499,9 +499,6 @@ fun AppScrollablePageLayout(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val uiTheme = LocalAppUiTheme.current
-    LaunchedEffect(uiTheme) {
-        scrollState.scrollTo(0)
-    }
     if (uiTheme != AppUiTheme.MIUIX) {
         Column(
             modifier = modifier
@@ -593,9 +590,6 @@ fun AppLazyPageLayout(
     content: LazyListScope.() -> Unit
 ) {
     val uiTheme = LocalAppUiTheme.current
-    LaunchedEffect(uiTheme) {
-        state.scrollToItem(0)
-    }
     if (uiTheme != AppUiTheme.MIUIX) {
         Column(
             modifier = modifier

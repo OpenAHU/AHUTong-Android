@@ -74,6 +74,8 @@ fun RepositoryDownloads(
     var batchDeleteTargets by remember { mutableStateOf<List<String>?>(null) }
     var isManaging by remember { mutableStateOf(false) }
     var selectedPaths by remember { mutableStateOf(setOf<String>()) }
+    var isDeleting by remember { mutableStateOf(false) }
+    var deletionError by remember { mutableStateOf<String?>(null) }
     val secondaryTextColor = if (isDark) {
         Color.White.copy(alpha = 0.72f)
     } else {
@@ -85,6 +87,24 @@ fun RepositoryDownloads(
     }
 
     LaunchedEffect(Unit) { refreshFiles() }
+
+    fun deleteFiles(paths: Collection<String>) {
+        if (isDeleting) return
+        isDeleting = true
+        deletionError = null
+        viewModel.deleteFiles(paths) { result ->
+            result.onSuccess { deletion ->
+                files = deletion.remainingFiles
+                selectedPaths = selectedPaths.intersect(files.mapTo(mutableSetOf()) { it.path })
+                deletionError = deletion.failedPaths.takeIf { it.isNotEmpty() }?.let {
+                    "${it.size} 个文件未能删除，请重试"
+                }
+            }.onFailure {
+                deletionError = "无法更新下载列表：${it.message ?: "请稍后重试"}"
+            }
+            isDeleting = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -106,6 +126,15 @@ fun RepositoryDownloads(
                 }
             }
         )
+
+        if (isDeleting || deletionError != null) {
+            Text(
+                text = deletionError ?: "正在删除…",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                color = if (deletionError != null) MaterialTheme.colorScheme.error else secondaryTextColor,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
 
         if (files.isEmpty()) {
             Box(
@@ -141,7 +170,7 @@ fun RepositoryDownloads(
                                 viewModel.openDownloadedFile(file)
                             }
                         },
-                        onDelete = { deleteConfirmPath = file.path }
+                        onDelete = { if (!isDeleting) deleteConfirmPath = file.path }
                     )
                 }
             }
@@ -173,7 +202,7 @@ fun RepositoryDownloads(
                                 batchDeleteTargets = selectedPaths.toList()
                             }
                         },
-                        enabled = selectedPaths.isNotEmpty()
+                        enabled = selectedPaths.isNotEmpty() && !isDeleting
                     ) {
                         Text(
                             "删除选中 (${selectedPaths.size})",
@@ -198,9 +227,7 @@ fun RepositoryDownloads(
             message = "确定要删除此文件吗？",
             onCancel = { deleteConfirmPath = null },
             onConfirm = {
-                viewModel.deleteFile(path)
-                refreshFiles()
-                selectedPaths = selectedPaths - path
+                deleteFiles(listOf(path))
                 deleteConfirmPath = null
             }
         )
@@ -213,9 +240,7 @@ fun RepositoryDownloads(
             message = "确定要删除选中的 ${targets.size} 个文件吗？",
             onCancel = { batchDeleteTargets = null },
             onConfirm = {
-                targets.forEach { viewModel.deleteFile(it) }
-                refreshFiles()
-                selectedPaths = emptySet()
+                deleteFiles(targets)
                 batchDeleteTargets = null
             }
         )
