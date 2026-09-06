@@ -323,9 +323,9 @@ fun Schedule(
                             }
                         )
                     ) {
-                        Text(
-                            text = week.toString(),
+                        Box(
                             modifier = Modifier
+                                .size(40.dp)
                                 .clip(ContinuousCapsule)
                                 .background(
                                     animateColorAsState(
@@ -348,21 +348,22 @@ fun Schedule(
                                     scope.launch {
                                         pagerState.animateScrollToPage(week - 1)
                                     }
-                                }
-                                .padding(
-                                    horizontal = 16.dp,
-                                    vertical = if (radiant) 8.dp else 12.dp
-                                ),
-                            color = animateColorAsState(
-                                targetValue = if (isSelected) {
-                                    100.n1 withNight 0.n1
-                                } else {
-                                    0.n1 withNight 100.n1
-                                }
-                            ).value,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = week.toString(),
+                                color = animateColorAsState(
+                                    targetValue = if (isSelected) {
+                                        100.n1 withNight 0.n1
+                                    } else {
+                                        0.n1 withNight 100.n1
+                                    }
+                                ).value,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
                     }
                 }
             }

@@ -224,7 +224,7 @@ fun ElectricityDeposit(
                 options = buildingOptions,
                 onSelected = viewModel::onBuildingSelected,
                 modifier = Modifier,
-                placeholder = if (selectedController.requiresCampus) "请先选择校区" else "请选择楼栋",
+                placeholder = if (selectedController.requiresCampus && selectedCampus == null) "请先选择校区" else "请选择楼栋",
                 enabled = (!selectedController.requiresCampus || selectedCampus != null) && !isLoading,
                 loading = loadingSelector == ElectricitySelectorLevel.Building
             )
@@ -234,7 +234,7 @@ fun ElectricityDeposit(
                 options = floorOptions,
                 onSelected = viewModel::onfloorSelected,
                 modifier = Modifier,
-                placeholder = "请先选择楼栋",
+                placeholder = if (selectedBuilding == null) "请先选择楼栋" else "请选择楼层",
                 enabled = selectedBuilding != null && !isLoading,
                 loading = loadingSelector == ElectricitySelectorLevel.Floor
             )
@@ -244,7 +244,7 @@ fun ElectricityDeposit(
                 options = roomOptions,
                 onSelected = viewModel::onRoomSelected,
                 modifier = Modifier,
-                placeholder = "请先选择楼层",
+                placeholder = if (selectedFloor == null) "请先选择楼层" else "请选择房间",
                 enabled = selectedFloor != null && !isLoading,
                 loading = loadingSelector == ElectricitySelectorLevel.Room
             )
