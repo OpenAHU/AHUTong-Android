@@ -22,6 +22,6 @@ enum class AppUiTheme(val storageValue: String, val displayName: String) {
                     "radiant_ui" -> RADIANT
                     else -> null
                 }
-                ?: if (legacyUseLiquidGlass == false) MATERIAL else LIQUID_GLASS
+                ?: if (legacyUseLiquidGlass == false) MATERIAL else RADIANT
     }
 }

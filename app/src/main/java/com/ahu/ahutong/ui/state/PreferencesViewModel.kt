@@ -44,7 +44,7 @@ class PreferencesViewModel @Inject constructor(
     val isShowAllCourse: StateFlow<Boolean> = _isShowAllCourse.asStateFlow()
 
     private val _appUiTheme = MutableStateFlow(
-        startupThemePreferences?.appUiTheme ?: AppUiTheme.LIQUID_GLASS
+        startupThemePreferences?.appUiTheme ?: AppUiTheme.RADIANT
     )
     val appUiTheme: StateFlow<AppUiTheme> = _appUiTheme.asStateFlow()
 
