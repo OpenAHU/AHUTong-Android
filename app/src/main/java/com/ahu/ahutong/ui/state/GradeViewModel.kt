@@ -12,6 +12,8 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
+import com.ahu.ahutong.data.debug.DebugClock
+import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.ext.getSchoolYears
 import com.ahu.ahutong.personalization.preset.PresetCandidate
 import com.ahu.ahutong.personalization.preset.PresetInteractionToken
@@ -95,6 +97,12 @@ class GradeViewModel @Inject constructor(
     }
 
     fun getGarde(isRefresh: Boolean = false) = viewModelScope.launch {
+        loadGrade(isRefresh = isRefresh, preserveSelectedTerm = true)
+    }
+
+    private suspend fun loadGrade(isRefresh: Boolean, preserveSelectedTerm: Boolean) {
+        if (isLoading) return
+        val previousTerm = selectedTerm()
         isLoading = true
         try {
             val result = AHURepository.getGrade(isRefresh)
@@ -107,11 +115,10 @@ class GradeViewModel @Inject constructor(
                 if (perProfileGrades.isNotEmpty()) {
                     switchToSelectedProfile()
                 } else {
-                    // 无 per-profile 数据：单学号学生直接用合并 grade，重置学期选择
-                    schoolYear = schoolYears.firstOrNull()
-                    schoolTerm = terms.keys.firstOrNull()
-                    refreshTermAndYearGPA()
+                    // 无 per-profile 数据：单学号学生直接使用合并成绩。
                 }
+                selectTermAfterLoad(previousTerm, preserveSelectedTerm)
+                refreshTermAndYearGPA()
                 errorMessage = null
                 val count = grade?.termGradeList.orEmpty().sumOf { it.gradeList.orEmpty().size }
                 behaviorRuntime.onContentStateChanged(
@@ -139,13 +146,11 @@ class GradeViewModel @Inject constructor(
         val profile = studentProfiles.getOrNull(selectedProfileIndex)
         val profileGrade = profile?.let { perProfileGrades[it.id] }
         grade = profileGrade
-        // 新专业的成绩可能为空或不同学期，重置学期选择和绩点到默认
+        // 新专业的成绩可能为空，先更新专业数据，再由统一的学期策略决定定位位置。
         if (profileGrade == null) {
             termGradePointAverage = "暂无"
             totalGradePointAverage = "暂无"
         }
-        schoolYear = schoolYears.firstOrNull()
-        schoolTerm = terms.keys.firstOrNull()
     }
 
     private suspend fun resolveRankProfiles(): List<GradeStudentProfile> {
@@ -175,11 +180,24 @@ class GradeViewModel @Inject constructor(
     var isRefreshing by mutableStateOf(false)
         private set
 
-    fun refreshGrade() {
+    fun loadOnEnter() {
+        if (isLoading || isRefreshing) return
         viewModelScope.launch {
             isRefreshing = true
             try {
-                getGarde(true).join()
+                loadGrade(isRefresh = true, preserveSelectedTerm = false)
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
+
+    fun refreshGrade() {
+        if (isLoading || isRefreshing) return
+        viewModelScope.launch {
+            isRefreshing = true
+            try {
+                loadGrade(isRefresh = true, preserveSelectedTerm = true)
             } finally {
                 isRefreshing = false
             }
@@ -191,7 +209,9 @@ class GradeViewModel @Inject constructor(
         selectedProfileIndex = index
         gpaRankInfo = null
         rankEmptyMessage = null
+        val previousTerm = selectedTerm()
         switchToSelectedProfile()
+        selectTermAfterLoad(previousTerm, preserveSelectedTerm = true)
         getGpaRank()
         commitCurrentPreset()
     }
@@ -332,6 +352,41 @@ class GradeViewModel @Inject constructor(
             ?.find { it.schoolYear == schoolYear && it.term == schoolTerm }
             ?.termGradePointAverage
             ?: "暂无"
+    }
+
+    private fun selectedTerm(): GradeTermKey? {
+        val year = schoolYear ?: return null
+        val term = schoolTerm ?: return null
+        return GradeTermKey(year, term)
+    }
+
+    private fun selectTermAfterLoad(
+        previousTerm: GradeTermKey?,
+        preserveSelectedTerm: Boolean
+    ) {
+        val calendarCurrent = GradeTermSelectionPolicy.currentForDate(DebugClock.nowLocalDate())
+        val cachedCurrent = CurrentWeekResolver.getCachedSemesterKey()?.let {
+            GradeTermKey(it.schoolYear, it.schoolTerm)
+        }
+        val available = grade?.termGradeList.orEmpty().mapNotNull { termGrade ->
+            val year = termGrade.schoolYear?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val term = termGrade.term?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            GradeTermKey(year, term)
+        }
+        val selected = GradeTermSelectionPolicy.choose(
+            current = calendarCurrent,
+            cached = cachedCurrent,
+            previous = previousTerm,
+            preservePrevious = preserveSelectedTerm,
+            available = available
+        )
+        schoolYear = selected.schoolYear
+        schoolTerm = selected.schoolTerm
+        Log.i(
+            tag,
+            "grade term selected=${selected.schoolYear}-${selected.schoolTerm} " +
+                "availableTerms=${available.size} preservePrevious=$preserveSelectedTerm"
+        )
     }
 
     override fun onCleared() {

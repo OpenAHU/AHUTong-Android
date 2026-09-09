@@ -10,6 +10,9 @@ import com.ahu.ahutong.data.crawler.model.jwxt.GradeResponse
 import com.ahu.ahutong.data.crawler.api.ycard.YcardApi
 import com.ahu.ahutong.data.crawler.model.adwnh.AllCampus
 import com.ahu.ahutong.data.crawler.model.adwnh.AllLostFoundType
+import com.ahu.ahutong.data.crawler.model.ycard.BathroomPaymentRequest
+import com.ahu.ahutong.data.crawler.model.ycard.BathroomCurrentTimeRequest
+import com.ahu.ahutong.data.crawler.model.ycard.BathroomPayInfoRequest
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
 import com.ahu.ahutong.data.crawler.model.ycard.RequestBody
 import com.ahu.ahutong.data.dao.AHUCache
@@ -546,16 +549,9 @@ class SdkDataSource : BaseDataSource {
 
         val response = AHUResponse<BathroomTelInfo>()
 
-        var feeitemid: String? = null
-
-        when (bathroom) {
-            "竹园/龙河" -> {
-                feeitemid = "409"
-            }
-
-            "桔园/蕙园" -> {
-                feeitemid = "430"
-            }
+        val (feeitemid, appId) = when (bathroom) {
+            "竹园/龙河" -> "409" to "55"
+            "桔园/蕙园" -> "430" to "56"
 
             else -> {
                 response.code = -1
@@ -564,6 +560,15 @@ class SdkDataSource : BaseDataSource {
                 return response
             }
         }
+
+        val initialization = YcardApi.initializeBathroomFeeItem(feeitemid, appId)
+        if (!initialization.isSuccessful) {
+            response.code = initialization.code()
+            response.msg = "浴室缴费会话初始化失败"
+            initialization.errorBody()?.close()
+            return response
+        }
+        initialization.body()?.close()
 
 
         val formBody = FormBody.Builder()
@@ -574,7 +579,9 @@ class SdkDataSource : BaseDataSource {
             .build()
 
 
-        val res = YcardApi.authorizedCall { getFeeItemThirdData(formBody) }
+        val res = YcardApi.authorizedCall(YcardApi.BATHROOM_API) {
+            getFeeItemThirdData(formBody)
+        }
 
         if (res.isSuccessful) {
             val responseBody = res.body()
@@ -624,7 +631,18 @@ class SdkDataSource : BaseDataSource {
 
     override suspend fun pay(request: RequestBody): AHUResponse<Response<ResponseBody>> {
         val response = AHUResponse<Response<ResponseBody>>()
-        response.data = YcardApi.authorizedCall { pay(request.toFormBody()) }
+        response.data = when (request) {
+            is BathroomPayInfoRequest -> YcardApi.authorizedCall(YcardApi.BATHROOM_API) {
+                getPayInfo(request.orderId)
+            }
+            is BathroomCurrentTimeRequest -> YcardApi.authorizedCall(YcardApi.BATHROOM_API) {
+                getCurrentTime()
+            }
+            is BathroomPaymentRequest -> YcardApi.authorizedCall(YcardApi.BATHROOM_API) {
+                pay(request.toFormBody())
+            }
+            else -> YcardApi.authorizedCall { pay(request.toFormBody()) }
+        }
         response.code = if (response.data?.isSuccessful == true) 0 else -1
         response.msg = response.data?.message().orEmpty()
         return response

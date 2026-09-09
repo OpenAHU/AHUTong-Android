@@ -1,10 +1,17 @@
 package com.ahu.ahutong.data.crawler.model.ycard
 
+import com.ahu.ahutong.data.crawler.utils.generateNonce
+import com.ahu.ahutong.data.crawler.utils.getTimestamp
+
+interface BathroomPaymentRequest
+
 class BathroomRequest(
     bathroom: String,
     amount: String,
-    thirdPartyJson: String
-) : RequestBody() {
+    thirdPartyJson: String,
+    timestamp: String = getTimestamp(),
+    nonce: String = generateNonce()
+) : RequestBody(), BathroomPaymentRequest {
 
     init {
         var feeitemid :String? = null
@@ -22,14 +29,19 @@ class BathroomRequest(
 
         feeitemid.let{
             addParams(
-                mapOf(
-                    "feeitemid" to it,
-                    "tranamt" to amount,
-                    "flag" to "choose",
-                    "source" to "app",
-                    "paystep" to "0",
-                    "abstracts" to "",
-                    "third_party" to thirdPartyJson
+                signedPaymentParams(
+                    params = mapOf(
+                        "feeitemid" to it,
+                        "tranamt" to amount,
+                        "flag" to "choose",
+                        "source" to "app",
+                        "paystep" to "0",
+                        "abstracts" to "",
+                        "redirect_url" to "https://ycard.ahu.edu.cn/plat",
+                        "third_party" to thirdPartyJson
+                    ),
+                    timestamp = timestamp,
+                    nonce = nonce
                 )
             )
         }

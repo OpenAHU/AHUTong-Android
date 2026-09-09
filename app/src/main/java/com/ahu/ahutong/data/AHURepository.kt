@@ -19,6 +19,8 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.User
+import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
+import com.ahu.ahutong.data.schedule.ScheduleSnapshotComparator
 import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
@@ -84,7 +86,11 @@ object AHURepository {
      */
     suspend fun getSchedule(isRefresh: Boolean = false): Result<List<Course>> = withContext(Dispatchers.IO) {
 
-        if (!isRefresh && !AHUCache.getMockData()) {
+        if (isRefresh) {
+            return@withContext refreshScheduleCache().map { it.schedule }
+        }
+
+        if (!AHUCache.getMockData()) {
             AHUCache.getSchoolTerm()?.let{
                 AHUCache.getSchedule(it)?.let{
                     Log.e(TAG, "getSchedule: 本地获取", )
@@ -103,6 +109,42 @@ object AHURepository {
             } else {
                 Result.failure(IllegalStateException(response.msg.ifBlank { "课表响应缺少数据" }))
             }
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    fun getCachedSchedule(): List<Course>? {
+        val semesterKey = AHUCache.getSchoolTerm() ?: return null
+        return AHUCache.getSchedule(semesterKey)
+    }
+
+    fun getScheduleFetchedAt(): Long? {
+        val semesterKey = AHUCache.getSchoolTerm() ?: return null
+        return AHUCache.getScheduleFetchedAt(semesterKey)
+    }
+
+    suspend fun refreshScheduleCache(
+        fetchedAt: Long = System.currentTimeMillis()
+    ): Result<ScheduleRefreshResult> = withContext(Dispatchers.IO) {
+        try {
+            val semesterKey = AHUCache.getSchoolTerm()
+            val cached = semesterKey?.let(AHUCache::getSchedule)
+            val response = dataSource.getSchedule()
+            val latest = response.data
+            if (!response.isSuccessful || latest == null) {
+                return@withContext Result.failure(
+                    IllegalStateException(response.msg.ifBlank { "课表响应缺少数据" })
+                )
+            }
+
+            val changed = ScheduleSnapshotComparator.hasChanged(cached, latest)
+            if (semesterKey != null) {
+                if (changed) AHUCache.saveSchedule(semesterKey, latest)
+                AHUCache.saveScheduleFetchedAt(semesterKey, fetchedAt)
+            }
+            Result.success(ScheduleRefreshResult(latest, changed, fetchedAt))
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             Result.failure(e)

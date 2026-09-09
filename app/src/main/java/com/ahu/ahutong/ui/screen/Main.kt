@@ -301,7 +301,8 @@ fun Main(
                             )
                             1 -> Schedule(
                                 scheduleViewModel = scheduleViewModel,
-                                behaviorRuntime = behaviorRuntime
+                                behaviorRuntime = behaviorRuntime,
+                                isActive = primaryPagerState.settledPage == 1
                             )
                             2 -> Tools(
                                 navController = navController,

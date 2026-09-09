@@ -286,6 +286,15 @@ object AHUCache {
         return data.fromJson(object : TypeToken<List<Course>>() {}.type)
     }
 
+    fun saveScheduleFetchedAt(schoolTerm: String, fetchedAt: Long) {
+        userPutString("$schoolTerm.scheduleFetchedAt", fetchedAt.toString())
+    }
+
+    fun getScheduleFetchedAt(schoolTerm: String): Long? {
+        val key = "$schoolTerm.scheduleFetchedAt"
+        return userGetStringOrMigrate(key) { kv.getString(key, null) }?.toLongOrNull()
+    }
+
     fun saveNextSchedule(schedule: List<Course>) {
         val data = Gson().toJson(schedule)
         userPutString("next.schedule", data)

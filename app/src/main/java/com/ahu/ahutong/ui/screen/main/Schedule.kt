@@ -116,6 +116,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 import android.widget.Toast
@@ -132,7 +133,8 @@ import com.ahu.ahutong.personalization.semantic.SemanticDomain
 @Composable
 fun Schedule(
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
-    behaviorRuntime: BehaviorPredictionRuntime
+    behaviorRuntime: BehaviorPredictionRuntime,
+    isActive: Boolean = true
 ) {
     val behaviorReporter = rememberBehaviorActionReporter()
     val scope = rememberCoroutineScope()
@@ -148,6 +150,9 @@ fun Schedule(
     )
     val scheduleResult = scheduleViewModel.schedule.observeAsState().value
     val nextScheduleResult = scheduleViewModel.nextSchedule.observeAsState().value
+    val scheduleFetchedAt by scheduleViewModel.scheduleFetchedAt.observeAsState()
+    val isScheduleRefreshing by scheduleViewModel.isScheduleRefreshing.observeAsState(false)
+    val scheduleRefreshError by scheduleViewModel.scheduleRefreshError.observeAsState()
     var isPreviewNextSemester by rememberSaveable { mutableStateOf(false) }
     var isOverviewSchedule by rememberSaveable { mutableStateOf(false) }
     var isSettingsVisible by rememberSaveable { mutableStateOf(false) }
@@ -156,6 +161,10 @@ fun Schedule(
     val activeScheduleResult = if (isPreviewNextSemester) nextScheduleResult else scheduleResult
     val schedule = activeScheduleResult?.getOrNull() ?: emptyList()
     val context = LocalContext.current
+
+    LaunchedEffect(isActive) {
+        if (isActive) scheduleViewModel.onScheduleEntered()
+    }
 
     // 首次组合即渲染卡片，随页面转场正常淡入；
     // 仅数据变更时才走"清空一帧再重渲染"防闪烁，避免转场中段卡片整体弹入
@@ -562,6 +571,31 @@ fun Schedule(
         }
     }
 
+    @Composable
+    fun ScheduleFreshnessLabel() {
+        if (isPreviewNextSemester) return
+        val fetchedText = remember(scheduleFetchedAt) {
+            scheduleFetchedAt?.let {
+                SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(it))
+            }
+        }
+        val text = when {
+            isScheduleRefreshing && fetchedText == null -> "正在获取最新课表…"
+            isScheduleRefreshing -> "正在检查更新 · 上次获取 $fetchedText"
+            scheduleRefreshError != null && fetchedText != null -> "更新失败 · 上次获取 $fetchedText"
+            scheduleRefreshError != null -> "最新课表获取失败"
+            fetchedText != null -> "课表获取于 $fetchedText"
+            else -> "尚未从教务系统获取课表"
+        }
+        Text(
+            text = text,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            color = 50.n1 withNight 70.n1,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center
+        )
+    }
+
     if (isSettingsVisible) {
         ScheduleSettingsDialog(
             isOverviewSchedule = isOverviewSchedule,
@@ -641,6 +675,7 @@ fun Schedule(
                     ) {
                         Spacer(modifier = Modifier.height(102.dp))
                         ScheduleGrid()
+                        ScheduleFreshnessLabel()
                     }
                 }
             } else {
@@ -655,6 +690,7 @@ fun Schedule(
                 ) {
                     ScheduleHeaderRow()
                     ScheduleGrid()
+                    ScheduleFreshnessLabel()
                 }
             }
         }

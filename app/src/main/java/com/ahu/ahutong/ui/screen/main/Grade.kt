@@ -93,9 +93,8 @@ fun Grade(
         searchQuery = ""
     }
 
-    LaunchedEffect(Unit) {
-        if (grade == null) gradeViewModel.getGarde()
-        if (gpaRankInfo == null) gradeViewModel.getGpaRank()
+    LaunchedEffect(gradeViewModel) {
+        gradeViewModel.loadOnEnter()
     }
 
     LaunchedEffect(mockRefreshRevision) {
@@ -310,6 +309,13 @@ fun Grade(
                             )
                         }
                     }
+                }
+            } else if (!searchExpanded && gradeViewModel.isLoading && gradeViewModel.grade == null) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
             } else if (!searchExpanded && gradeData != null && gradeData.gradeList.isNotEmpty()) {
                 Column(

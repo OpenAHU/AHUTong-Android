@@ -1,37 +1,67 @@
 package com.ahu.ahutong.data.crawler.model.ycard
 
-class BathroomPayRequest (
+import com.ahu.ahutong.data.crawler.utils.generateNonce
+import com.ahu.ahutong.data.crawler.utils.getTimestamp
+
+class BathroomPayPrepareRequest(
     orderId: String,
-    plaintext: String,
-) : RequestBody() {
-
-    val uuid = "da07e4442e4841cca1655cb29653a023"
-    val mapString = "1690457382"
-    val plainDigits = "0123456789"
-
-
-    val keymap = mapString.mapIndexed { index, c ->
-        c.toString() to plainDigits[index].toString()
-    }.toMap()
-
-    val cipherText = plaintext.map { ch ->
-        keymap[ch.toString()] ?: ch.toString()
-    }.joinToString("")
-
-
+    timestamp: String = getTimestamp(),
+    nonce: String = generateNonce()
+) : RequestBody(), BathroomPaymentRequest {
     init {
         addParams(
-            mapOf(
-                "orderid" to orderId,
-                "paystep" to "2",
-                "paytype" to "ACCOUNTTSM",
-                "paytypeid" to "64",
-                "userAgent" to "h5",
-                "ccctype" to "000",
-                "password" to cipherText,
-                "uuid" to uuid,
-                "isWX" to "0"
+            signedPaymentParams(
+                params = mapOf(
+                    "orderid" to orderId,
+                    "paystep" to "2",
+                    "paytype" to "ACCOUNTTSM",
+                    "paytypeid" to "64"
+                ),
+                timestamp = timestamp,
+                nonce = nonce
             )
         )
+    }
+}
+
+class BathroomPayRequest(
+    orderId: String,
+    plaintext: String,
+    uuid: String,
+    passwordMap: String,
+    timestamp: String = getTimestamp(),
+    nonce: String = generateNonce()
+) : RequestBody(), BathroomPaymentRequest {
+    init {
+        require(passwordMap.length == 10 && passwordMap.toSet() == DIGITS.toSet()) {
+            "Invalid bathroom payment password map"
+        }
+        val cipherText = plaintext.map { digit ->
+            val mappedDigit = passwordMap.indexOf(digit)
+            require(mappedDigit >= 0) { "Payment password must contain digits only" }
+            mappedDigit.digitToChar()
+        }.joinToString("")
+
+        addParams(
+            signedPaymentParams(
+                params = mapOf(
+                    "orderid" to orderId,
+                    "paystep" to "2",
+                    "paytype" to "ACCOUNTTSM",
+                    "paytypeid" to "64",
+                    "userAgent" to "wechat-mp",
+                    "ccctype" to "000",
+                    "password" to cipherText,
+                    "uuid" to uuid,
+                    "isWX" to "1"
+                ),
+                timestamp = timestamp,
+                nonce = nonce
+            )
+        )
+    }
+
+    private companion object {
+        const val DIGITS = "0123456789"
     }
 }

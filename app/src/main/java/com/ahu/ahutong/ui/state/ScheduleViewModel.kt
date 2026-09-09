@@ -17,6 +17,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 
 /**
@@ -38,6 +39,10 @@ class ScheduleViewModel () : ViewModel() {
         get() = CurrentWeekResolver.getCachedSemesterKey()?.schoolTerm ?: "1"
 
     val scheduleConfig = MutableLiveData<ScheduleConfigBean?>()
+    val scheduleFetchedAt = MutableLiveData<Long?>()
+    val isScheduleRefreshing = MutableLiveData(false)
+    val scheduleRefreshError = MutableLiveData<String?>(null)
+    private var backgroundRefreshJob: Job? = null
 
     // 更新周
     fun changeWeek(week: Int) {
@@ -51,6 +56,10 @@ class ScheduleViewModel () : ViewModel() {
      * 刷新课表
      */
     fun refreshSchedule(isRefresh:Boolean = false) {
+        if (isRefresh) {
+            refreshLatestSchedule()
+            return
+        }
         viewModelScope.launchSafe {
             if (!AHUCache.isLogin() && !AHUCache.getMockData()) {
                 schedule.value = Result.failure(Throwable("请先登录！"))
@@ -59,8 +68,49 @@ class ScheduleViewModel () : ViewModel() {
 
             val result = AHURepository.getSchedule(isRefresh = isRefresh)
             schedule.value = result
+            scheduleFetchedAt.value = AHURepository.getScheduleFetchedAt()
             if (result.isSuccess) {
                 CourseReminderScheduler.reschedule(AHUApplication.getApp())
+            }
+        }
+    }
+
+    fun onScheduleEntered() {
+        if (!AHUCache.isLogin() && !AHUCache.getMockData()) {
+            schedule.value = Result.failure(Throwable("请先登录！"))
+            return
+        }
+
+        AHURepository.getCachedSchedule()?.let { cached ->
+            if (schedule.value?.getOrNull() != cached) {
+                schedule.value = Result.success(cached)
+            }
+        }
+        scheduleFetchedAt.value = AHURepository.getScheduleFetchedAt()
+        refreshLatestSchedule()
+    }
+
+    private fun refreshLatestSchedule() {
+        if (backgroundRefreshJob?.isActive == true) return
+        backgroundRefreshJob = viewModelScope.launchSafe {
+            isScheduleRefreshing.value = true
+            scheduleRefreshError.value = null
+            try {
+                val refresh = AHURepository.refreshScheduleCache()
+                refresh.onSuccess { result ->
+                    scheduleFetchedAt.value = result.fetchedAt
+                    if (result.changed || schedule.value?.getOrNull() == null) {
+                        schedule.value = Result.success(result.schedule)
+                        CourseReminderScheduler.reschedule(AHUApplication.getApp())
+                    }
+                }.onFailure { error ->
+                    scheduleRefreshError.value = error.message ?: "获取最新课表失败"
+                    if (schedule.value?.getOrNull() == null) {
+                        schedule.value = Result.failure(error)
+                    }
+                }
+            } finally {
+                isScheduleRefreshing.value = false
             }
         }
     }
@@ -176,7 +226,11 @@ class ScheduleViewModel () : ViewModel() {
     }
 
     fun clear() {
+        backgroundRefreshJob?.cancel()
         schedule.value = Result.success(emptyList())
         scheduleConfig.value = null
+        scheduleFetchedAt.value = null
+        scheduleRefreshError.value = null
+        isScheduleRefreshing.value = false
     }
 }
