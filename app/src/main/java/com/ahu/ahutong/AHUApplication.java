@@ -9,6 +9,7 @@ import android.widget.Toast;
 import com.ahu.ahutong.sdk.LocalServiceClient;
 import com.ahu.ahutong.sdk.RustSDK;
 import com.tencent.bugly.crashreport.CrashReport;
+import io.sentry.android.core.SentryAndroid;
 import com.ahu.ahutong.data.AHURepository;
 import com.ahu.ahutong.data.dao.AHUCache;
 import com.ahu.ahutong.data.xuexiaotong.Store;
@@ -47,6 +48,14 @@ public class AHUApplication extends Application {
         super.onCreate();
 
         CrashReport.initCrashReport(this, "2c2ccadcad", BuildConfig.DEBUG);
+
+        SentryAndroid.init(this, options -> {
+            options.setDsn(BuildConfig.SENTRY_DSN);
+            options.setEnvironment(BuildConfig.DEBUG ? "debug" : "release");
+            // 线上按比例采样，避免性能数据占满额度；Debug 全量便于排查。
+            options.setTracesSampleRate(BuildConfig.DEBUG ? 1.0 : 0.1);
+            options.setDebug(BuildConfig.DEBUG);
+        });
 
         // 学习通日历初始化
         Store.INSTANCE.init(this);

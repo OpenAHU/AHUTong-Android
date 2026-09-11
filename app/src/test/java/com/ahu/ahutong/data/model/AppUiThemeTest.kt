@@ -13,7 +13,7 @@ class AppUiThemeTest {
     @Test
     fun `legacy preference migrates without changing appearance`() {
         assertEquals(AppUiTheme.MATERIAL, AppUiTheme.fromStorage(null, false))
-        assertEquals(AppUiTheme.LIQUID_GLASS, AppUiTheme.fromStorage(null, true))
-        assertEquals(AppUiTheme.LIQUID_GLASS, AppUiTheme.fromStorage(null, null))
+        assertEquals(AppUiTheme.RADIANT, AppUiTheme.fromStorage(null, true))
+        assertEquals(AppUiTheme.RADIANT, AppUiTheme.fromStorage(null, null))
     }
 }

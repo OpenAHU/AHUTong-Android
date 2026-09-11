@@ -7,6 +7,21 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+    id("io.sentry.jvm.gradle")
+}
+
+// DSN 是客户端公开标识，默认值随仓库提供；可用 -Psentry.dsn=... 或环境变量 SENTRY_DSN 覆盖。
+val sentryDsn = providers.gradleProperty("sentry.dsn").orNull
+    ?: providers.environmentVariable("SENTRY_DSN").orNull
+    ?: "https://c42e7dfe9dae88a5c6fbdb60805e9b83@o4512053994848256.ingest.us.sentry.io/4512054683435008"
+
+sentry {
+    org.set("openahu")
+    projectName.set("ahutong-android")
+    // 上传混淆映射需要认证令牌，只从环境变量读取，不写入仓库；缺失时插件会跳过上传任务。
+    authToken.set(providers.environmentVariable("SENTRY_AUTH_TOKEN").orNull)
+    // 关闭构建期遥测，避免构建信息被上报。
+    telemetry.set(false)
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -49,6 +64,7 @@ android {
         targetSdk = 36
         versionCode = 330
         versionName = "3.3.0"
+        buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -136,6 +152,7 @@ tasks.matching { it.name.contains("Lint", ignoreCase = true) }
     }
 
 dependencies {
+    implementation(libs.sentry.android)
     implementation(libs.crashreport)
     implementation(libs.ads.mobile.sdk)
 
