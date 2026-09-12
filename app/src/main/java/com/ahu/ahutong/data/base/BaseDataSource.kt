@@ -15,6 +15,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
 
@@ -95,5 +96,9 @@ interface BaseDataSource {
     suspend fun pay(request : RequestBody): AHUResponse<Response<ResponseBody>>
 
     suspend fun getSchoolCalendar(): AHUResponse<Response<ResponseBody>>
+
+    suspend fun getSchoolCalendarYears(): AHUResponse<SchoolCalendarYearsResponse>
+
+    suspend fun getSchoolCalendar(year: String): AHUResponse<Response<ResponseBody>>
 
 }

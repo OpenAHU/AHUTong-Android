@@ -17,6 +17,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
 
@@ -75,6 +76,10 @@ class MockDataSource : BaseDataSource {
     ): AHUResponse<Response<ResponseBody>> = unavailable()
 
     override suspend fun getSchoolCalendar(): AHUResponse<Response<ResponseBody>> = unavailable()
+
+    override suspend fun getSchoolCalendarYears(): AHUResponse<SchoolCalendarYearsResponse> = unavailable()
+
+    override suspend fun getSchoolCalendar(year: String): AHUResponse<Response<ResponseBody>> = unavailable()
 
     private fun <T> unavailable(): AHUResponse<T> =
         AHUResponse<T>().apply {

@@ -19,6 +19,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import okhttp3.MediaType.Companion.toMediaType
@@ -204,6 +205,17 @@ class MockDataSource : BaseDataSource {
                     .toResponseBody("image/jpeg".toMediaType())
             )
         }
+
+    override suspend fun getSchoolCalendarYears(): AHUResponse<SchoolCalendarYearsResponse> =
+        scenarioResponse {
+            SchoolCalendarYearsResponse(
+                years = listOf("2026-2027", "2025-2026", "2024-2025"),
+                latestYear = "2026-2027"
+            )
+        }
+
+    override suspend fun getSchoolCalendar(year: String): AHUResponse<Response<ResponseBody>> =
+        getSchoolCalendar()
 
     override suspend fun publishLostFound(
         request: LostFoundPublishRequest

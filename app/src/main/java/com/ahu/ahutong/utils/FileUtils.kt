@@ -2,6 +2,7 @@ package com.ahu.ahutong.utils
 
 import android.content.ContentValues
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -9,6 +10,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import okhttp3.ResponseBody
 
 object FileUtils {
@@ -52,6 +55,46 @@ object FileUtils {
         } catch (e: Exception) {
             null
         }
+    }
+
+    suspend fun saveResponseBodyToFileAtomically(
+        context: Context,
+        body: ResponseBody,
+        fileName: String,
+        onProgress: (Float) -> Unit = {}
+    ): File? {
+        val outFile = getImageFile(context, fileName)
+        val partFile = saveResponseBodyToFile(context, body, "$fileName.part", onProgress)
+            ?: return null
+
+        return try {
+            require(isValidImage(partFile)) { "Downloaded calendar is not a valid image" }
+            try {
+                Files.move(
+                    partFile.toPath(),
+                    outFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (_: Exception) {
+                Files.move(
+                    partFile.toPath(),
+                    outFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+            outFile
+        } catch (_: Exception) {
+            partFile.delete()
+            null
+        }
+    }
+
+    fun isValidImage(file: File): Boolean {
+        if (!file.isFile || file.length() <= 0L) return false
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        return options.outWidth > 0 && options.outHeight > 0
     }
 
     fun saveImageToGallery(context: Context, imageFile: File) {

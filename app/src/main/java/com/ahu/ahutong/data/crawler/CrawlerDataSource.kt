@@ -28,6 +28,7 @@ import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.data.server.AhuTong
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import okhttp3.FormBody
@@ -740,6 +741,21 @@ class CrawlerDataSource : BaseDataSource {
         response.data = AhuTong.API.downloadFile("xiaoli.jpg");
         response.code = 0;
         return response
+    }
+
+    override suspend fun getSchoolCalendarYears(): AHUResponse<SchoolCalendarYearsResponse> {
+        return AHUResponse<SchoolCalendarYearsResponse>().apply {
+            data = AhuTong.API.getSchoolCalendarYears()
+            code = 0
+        }
+    }
+
+    override suspend fun getSchoolCalendar(year: String): AHUResponse<Response<ResponseBody>> {
+        return AHUResponse<Response<ResponseBody>>().apply {
+            data = AhuTong.API.getSchoolCalendar(year)
+            code = if (data?.isSuccessful == true) 0 else -1
+            msg = data?.message().orEmpty()
+        }
     }
 
 

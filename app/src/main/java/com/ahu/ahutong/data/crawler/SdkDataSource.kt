@@ -38,6 +38,7 @@ import com.ahu.ahutong.data.crawler.model.adwnh.Balance
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundPublishRequest
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundResponse
 import com.ahu.ahutong.data.model.GpaRankInfo
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import java.io.File
 
 class SdkDataSource : BaseDataSource {
@@ -677,6 +678,12 @@ class SdkDataSource : BaseDataSource {
 
         return crawlerFallback.getSchoolCalendar()
     }
+
+    override suspend fun getSchoolCalendarYears(): AHUResponse<SchoolCalendarYearsResponse> =
+        crawlerFallback.getSchoolCalendarYears()
+
+    override suspend fun getSchoolCalendar(year: String): AHUResponse<Response<ResponseBody>> =
+        crawlerFallback.getSchoolCalendar(year)
 
 
     suspend fun getStudentId(): String {

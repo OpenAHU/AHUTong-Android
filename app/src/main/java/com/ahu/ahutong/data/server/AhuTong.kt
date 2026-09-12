@@ -5,6 +5,7 @@ import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.server.model.ApkUpdateInfo
 import com.ahu.ahutong.data.server.model.Captcha
 import com.ahu.ahutong.data.server.model.GrayFeatureDecision
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import okhttp3.Dispatcher
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -39,6 +40,15 @@ interface AhuTong {
         @Query("versionCode") versionCode: Int,
         @Query("versionName") versionName: String
     ): GrayFeatureDecision
+
+    @GET("/api/school_calendars")
+    suspend fun getSchoolCalendarYears(): SchoolCalendarYearsResponse
+
+    @Streaming
+    @GET("/api/school_calendars/{year}")
+    suspend fun getSchoolCalendar(
+        @Path("year") year: String
+    ): retrofit2.Response<ResponseBody>
 
     @GET("/download/{filename}")
     suspend fun downloadFile(@Path(value = "filename", encoded = true) filename: String): retrofit2.Response<ResponseBody>

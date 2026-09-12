@@ -26,6 +26,7 @@ import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.data.server.AhuTong
+import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import com.ahu.ahutong.sdk.LocalServiceClient
 import com.ahu.ahutong.sdk.RustSDK
 import com.ahu.ahutong.utils.DES
@@ -775,6 +776,16 @@ object AHURepository {
     suspend fun getSchoolCalendar(): AHUResponse<Response<ResponseBody>> =
         withContext(Dispatchers.IO) {
             dataSource.getSchoolCalendar()
+        }
+
+    suspend fun getSchoolCalendarYears(): AHUResponse<SchoolCalendarYearsResponse> =
+        withContext(Dispatchers.IO) {
+            dataSource.getSchoolCalendarYears()
+        }
+
+    suspend fun getSchoolCalendar(year: String): AHUResponse<Response<ResponseBody>> =
+        withContext(Dispatchers.IO) {
+            dataSource.getSchoolCalendar(year)
         }
 
     suspend fun getGpaRankInfo(studentId: String): AHUResponse<GpaRankInfo> =
