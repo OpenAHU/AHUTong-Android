@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,6 +105,9 @@ fun Modifier.captureLiquidGlassContent(): Modifier {
  * Applies the shared liquid-glass material and preserves the supplied opaque fallback when the
  * preference is disabled.
  */
+/** 自定义主页背景开启时，由主页注入 true：玻璃表面加模糊、加 tint 以保住文字可读性。 */
+val LocalGlassReadabilityBoost = compositionLocalOf { false }
+
 @Composable
 fun Modifier.appLiquidGlassSurface(
     shape: Shape,
@@ -114,6 +118,10 @@ fun Modifier.appLiquidGlassSurface(
     blurRadiusMultiplier: Float = 1f,
     tintAlphaMultiplier: Float = 1f
 ): Modifier {
+    // 可读性增强：自定义背景开启时全场景生效（blur ×1.8、tint ×1.5）
+    val boost = if (LocalGlassReadabilityBoost.current) 1.8f to 1.5f else 1f to 1f
+    val effectiveBlurMultiplier = blurRadiusMultiplier * boost.first
+    val effectiveTintMultiplier = tintAlphaMultiplier * boost.second
     if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
         val miuixShape = SmoothRoundedCornerShape(
             when (level) {
@@ -147,7 +155,7 @@ fun Modifier.appLiquidGlassSurface(
             clip(shape)
                 .background(
                     style.legacyTint.copy(
-                        alpha = (style.legacyTint.alpha * tintAlphaMultiplier).coerceIn(0f, 1f)
+                        alpha = (style.legacyTint.alpha * effectiveTintMultiplier).coerceIn(0f, 1f)
                     )
                 )
                 .border(0.75.dp, style.outline, shape)
@@ -166,7 +174,7 @@ fun Modifier.appLiquidGlassSurface(
                 shape = { shape },
                 effects = {
                     vibrancy()
-                    blur(style.blurRadius.toPx() * blurRadiusMultiplier.coerceAtLeast(0f))
+                    blur(style.blurRadius.toPx() * effectiveBlurMultiplier.coerceAtLeast(0f))
                     if (canRefract) {
                         lens(
                             refractionHeight = style.refractionHeight.toPx(),

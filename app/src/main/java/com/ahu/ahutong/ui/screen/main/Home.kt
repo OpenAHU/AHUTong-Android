@@ -69,6 +69,7 @@ import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.semantic.MutationId
+import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
@@ -376,9 +377,13 @@ fun Home(
             )
         }
     }
+    // revision 在 provider 作用域读取：背景开关/更换时 boost 与图片同步重组
+    val bgRevision by HomeBackgroundStore.revision.collectAsState()
     GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         CompositionLocalProvider(
-            LocalLiquidGlassAmbientBackdrop provides backdrop
+            LocalLiquidGlassAmbientBackdrop provides backdrop,
+            // 自定义背景开启时：全场景玻璃件加模糊加 tint 保可读性
+            LocalGlassReadabilityBoost provides (bgRevision >= 0 && HomeBackgroundStore.isEnabled)
         ) {
         Box(
             modifier = Modifier
@@ -424,8 +429,7 @@ fun Home(
                     }
                 }
         ) {
-        // 自定义主页背景：成品图已含模糊，玻璃组件 backdrop 采样自动透出背景
-        val bgRevision by HomeBackgroundStore.revision.collectAsState()
+        // 自定义主页背景：玻璃组件 backdrop 采样自动透出背景
         val bgBitmap = remember(bgRevision) {
             if (HomeBackgroundStore.isEnabled) {
                 val f = HomeBackgroundStore.blurredFile(AppEnvironmentHolder.context())
