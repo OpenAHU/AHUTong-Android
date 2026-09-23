@@ -27,6 +27,10 @@ class BillingStatsViewModel @Inject constructor() : ViewModel() {
     companion object {
         private const val PAGE_SIZE = 100
         private const val MAX_PAGES = 20
+
+        /** 进程内暂存上次统计结果：进入页面先秒显旧数据，后台静默重算后覆盖。 */
+        @Volatile
+        private var cachedReport: CardAnalyticsReport? = null
     }
 
     sealed interface StatsState {
@@ -35,7 +39,9 @@ class BillingStatsViewModel @Inject constructor() : ViewModel() {
         data class Error(val message: String) : StatsState
     }
 
-    private val _state = MutableStateFlow<StatsState>(StatsState.Loading)
+    private val _state = MutableStateFlow<StatsState>(
+        cachedReport?.let { StatsState.Ready(it) } ?: StatsState.Loading
+    )
     val state: StateFlow<StatsState> = _state.asStateFlow()
 
     init {
@@ -43,16 +49,23 @@ class BillingStatsViewModel @Inject constructor() : ViewModel() {
     }
 
     fun refresh() {
-        _state.value = StatsState.Loading
+        // 有缓存：保持展示旧数据静默重算；无缓存：才进加载态干等
+        if (cachedReport == null) {
+            _state.value = StatsState.Loading
+        }
         viewModelScope.launch {
             val records = fetchAllPages()
             if (records == null) {
-                _state.value = StatsState.Error("账单统计加载失败，请稍后重试")
+                // 有缓存时静默失败（旧数据继续展示）；无缓存才报错
+                if (cachedReport == null) {
+                    _state.value = StatsState.Error("账单统计加载失败，请稍后重试")
+                }
                 return@launch
             }
             val report = withContext(Dispatchers.Default) {
                 records.toAnalyticsReport()
             }
+            cachedReport = report
             _state.value = StatsState.Ready(report)
         }
     }

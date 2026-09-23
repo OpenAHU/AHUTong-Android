@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -141,38 +142,43 @@ private fun InlineRunsText(runs: List<InlineRun>, modifier: Modifier = Modifier)
 @Composable
 private fun MarkdownTable(table: MarkdownBlock.Table) {
     val columnCount = table.header.size.coerceAtLeast(1)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-    ) {
-        Row(modifier = Modifier.widthIn(min = 0.dp)) {
-            table.header.forEach { cell ->
-                Text(
-                    text = cell,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .widthIn(min = 72.dp)
-                        .weight(1f)
-                        .padding(vertical = 6.dp, horizontal = 4.dp)
-                )
+    // 列宽策略：每列至少 96dp 放得下 → weight 等宽铺满；放不下 → 固定 112dp 列宽 + 横滚。
+    // 注意：horizontalScroll 给无限宽度约束，内部 Row 绝不可用 weight。
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val fits = maxWidth / columnCount >= 96.dp
+        Column(
+            modifier = if (fits) {
+                Modifier.fillMaxWidth()
+            } else {
+                Modifier.horizontalScroll(rememberScrollState())
             }
-        }
-        androidx.compose.material3.HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant
-        )
-        table.rows.forEach { row ->
-            Row {
-                (0 until columnCount).forEach { c ->
+        ) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                table.header.forEach { cell ->
                     Text(
-                        text = row.getOrNull(c).orEmpty(),
+                        text = cell,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .widthIn(min = 88.dp)
-                            .padding(vertical = 4.dp, horizontal = 4.dp)
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = (if (fits) Modifier.weight(1f) else Modifier.width(112.dp))
+                            .padding(vertical = 6.dp, horizontal = 4.dp)
                     )
+                }
+            }
+            androidx.compose.material3.HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            table.rows.forEach { row ->
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    (0 until columnCount).forEach { c ->
+                        Text(
+                            text = row.getOrNull(c).orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = (if (fits) Modifier.weight(1f) else Modifier.width(112.dp))
+                                .padding(vertical = 4.dp, horizontal = 4.dp)
+                        )
+                    }
                 }
             }
         }

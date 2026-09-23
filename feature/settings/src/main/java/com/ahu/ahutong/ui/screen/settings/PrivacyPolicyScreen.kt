@@ -1,8 +1,10 @@
 package com.ahu.ahutong.ui.screen.settings
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.markdown.AppMarkdown
 
@@ -16,7 +18,12 @@ fun PrivacyPolicyScreen(markdown: String, onBack: () -> Unit) {
         onBack = onBack,
         modifier = Modifier.fillMaxSize(),
         freeContent = {
-            AppMarkdown(markdown = markdown, modifier = Modifier.fillMaxSize())
+            AppMarkdown(
+                markdown = markdown,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 24.dp)
+            )
         }
     )
 }
