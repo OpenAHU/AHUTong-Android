@@ -598,45 +598,66 @@ object AHUCache {
         userPutString(key, value)
     }
 
+    /** 法律同意是设备级决策（合规语义「本机已同意」），存全局箱——
+     *  用户分箱会导致登录前同意、登录后换箱读不到而重复弹窗。 */
     fun isAgreementAccepted(): Boolean{
-        userGetString("agreementAccepted")?.toBooleanStrictOrNull()?.let { return it }
+        initGetString("agreementAccepted")?.toBooleanStrictOrNull()?.let { return it }
+        // 迁移兜底：旧版本存在用户箱 / MMKV 里的记录
+        userGetString("agreementAccepted")?.toBooleanStrictOrNull()?.let {
+            initPutString("agreementAccepted", it.toString())
+            return it
+        }
         val value = kv.getBoolean("agreementAccepted",false)
-        if (kv.containsKey("agreementAccepted")) userPutString("agreementAccepted", value.toString())
+        if (kv.containsKey("agreementAccepted")) initPutString("agreementAccepted", value.toString())
         return value
     }
 
     fun setAgreementAccepted(){
-        userPutString("agreementAccepted", true.toString())
+        initPutString("agreementAccepted", true.toString())
     }
 
+    /** 法律同意是设备级决策（合规语义「本机已同意」），存全局箱——
+     *  用户分箱会导致登录前同意、登录后换箱读不到而重复弹窗。 */
     fun isPrivacyAccepted(): Boolean{
-        userGetString("privacyAccepted")?.toBooleanStrictOrNull()?.let { return it }
+        initGetString("privacyAccepted")?.toBooleanStrictOrNull()?.let { return it }
+        // 迁移兜底：旧版本存在用户箱 / MMKV 里的记录
+        userGetString("privacyAccepted")?.toBooleanStrictOrNull()?.let {
+            initPutString("privacyAccepted", it.toString())
+            return it
+        }
         val value = kv.getBoolean("privacyAccepted",false)
-        if (kv.containsKey("privacyAccepted")) userPutString("privacyAccepted", value.toString())
+        if (kv.containsKey("privacyAccepted")) initPutString("privacyAccepted", value.toString())
         return value
     }
 
     fun setPrivacyAccepted(){
-        userPutString("privacyAccepted", true.toString())
+        initPutString("privacyAccepted", true.toString())
     }
 
     /** 隐私政策版本：政策更新后递增 CURRENT_PRIVACY_POLICY_VERSION 触发重新征得同意。 */
     fun privacyPolicyVersion(): Int =
-        userGetString("privacyPolicyVersion")?.toIntOrNull() ?: 0
+        initGetString("privacyPolicyVersion")?.toIntOrNull() ?: 0
 
     fun savePrivacyPolicyVersion(version: Int) {
-        userPutString("privacyPolicyVersion", version.toString())
+        initPutString("privacyPolicyVersion", version.toString())
     }
 
+    /** 法律同意是设备级决策（合规语义「本机已同意」），存全局箱——
+     *  用户分箱会导致登录前同意、登录后换箱读不到而重复弹窗。 */
     fun isBusinessAccepted(): Boolean{
-        userGetString("businessAccepted")?.toBooleanStrictOrNull()?.let { return it }
+        initGetString("businessAccepted")?.toBooleanStrictOrNull()?.let { return it }
+        // 迁移兜底：旧版本存在用户箱 / MMKV 里的记录
+        userGetString("businessAccepted")?.toBooleanStrictOrNull()?.let {
+            initPutString("businessAccepted", it.toString())
+            return it
+        }
         val value = kv.getBoolean("businessAccepted",false)
-        if (kv.containsKey("businessAccepted")) userPutString("businessAccepted", value.toString())
+        if (kv.containsKey("businessAccepted")) initPutString("businessAccepted", value.toString())
         return value
     }
 
     fun setBusinessAccepted(){
-        userPutString("businessAccepted", true.toString())
+        initPutString("businessAccepted", true.toString())
     }
 
     fun getCardRechargeBank(): CardRechargeBank? {
