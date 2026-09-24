@@ -43,7 +43,8 @@ class LoginViewModel @Inject constructor(
             state = LoginState.InProgress
             // 切换账号前只经会话接缝清理旧 token/Cookie，再清旧账号的缓存与持久身份。
             session.signOut()
-            AHUCache.clearAll()
+            // 换号清理不碰设备级法律同意（否则每次登录后隐私政策重弹）
+            AHUCache.clearAll(preserveLegalConsent = true)
             val response = withContext(Dispatchers.IO) {
                 session.signIn(userID, password)
             }

@@ -106,7 +106,17 @@ object AHUCache {
     /**
      * 清除全部数据
      */
-    fun clearAll() {
+    /** 法律同意（设备级合规语义）：账号切换/常规清理必须保留，仅用户主动「全部重置」才清除。 */
+    private val legalConsentKeys = listOf(
+        "agreementAccepted", "privacyAccepted", "businessAccepted", "privacyPolicyVersion"
+    )
+
+    fun clearAll(preserveLegalConsent: Boolean = false) {
+        val consent = if (preserveLegalConsent) {
+            legalConsentKeys.mapNotNull { k -> initGetString(k)?.let { k to it } }
+        } else {
+            emptyList()
+        }
         val boxName = userBoxName()
         val currentKv = kv
         SecureStorage.clearPrefix("$INIT_BOX.")
@@ -116,6 +126,8 @@ object AHUCache {
         RustSDK.kvClearBoxSafe(boxName)
         RustSDK.kvClearBoxSafe("user_guest")
         kv_init.clearAll()
+        // 账号切换场景：法律同意记录不落账号，清完立即恢复
+        consent.forEach { (k, v) -> initPutString(k, v) }
         currentKv.clearAll()
         MMKV.mmkvWithID("ahu_guest").clearAll()
         SessionStore.clearPersistedCurrentUser()
