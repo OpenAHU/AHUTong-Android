@@ -194,7 +194,8 @@ class ChaoxingApi(private val context: Context) {
             val courseId = Regex("""class="courseId"[^>]*value="(\d+)"""").find(block)
                 ?.groupValues?.get(1) ?: ""
 
-            courses.add(Course(courseId, clazzId, cpi, name, href))
+            val endTs = SyncThrottle.parseCourseEndTs(block)
+            courses.add(Course(courseId, clazzId, cpi, name, href, endTs))
         }
 
         if (courses.isNotEmpty()) Store.saveCourses(courses)
@@ -373,6 +374,13 @@ class ChaoxingApi(private val context: Context) {
             val total = courses.size
 
             for (course in courses) {
+                if (course.isEnded()) {
+                    // 已结课：整课跳过，不发任何请求，保留本地缓存
+                    existingByCourse[course.courseId]?.values?.let { allWorks.addAll(it) }
+                    done++
+                    listener?.onProgress(done, total, "已结课跳过：${course.name}")
+                    continue
+                }
                 listener?.onProgress(done, total, "正在处理：${course.name}")
                 try {
                     val keys = fetchCourseKeys(course)
@@ -385,15 +393,17 @@ class ChaoxingApi(private val context: Context) {
                         var startTs = previous?.startTs
                         var endTs = previous?.endTs
 
-                        // 每次同步都重新抓取截止时间，确保延期后的时间更新
-                        try {
-                            val dl = fetchWorkDeadline(work.copy(startTs = startTs, endTs = endTs))
-                            if (dl != null) {
-                                startTs = dl.first
-                                endTs = dl.second
-                            }
-                            delay(800)
-                        } catch (_: Exception) { }
+                        // 节流：已完成 / 已上日历（本地已有起止时间）的作业不再请求详情页
+                        if (SyncThrottle.needsDeadlineFetch(work, previous)) {
+                            try {
+                                val dl = fetchWorkDeadline(work.copy(startTs = startTs, endTs = endTs))
+                                if (dl != null) {
+                                    startTs = dl.first
+                                    endTs = dl.second
+                                }
+                                delay(800)
+                            } catch (_: Exception) { }
+                        }
 
                         allWorks.add(work.copy(startTs = startTs, endTs = endTs,
                             rawStart = previous?.rawStart ?: "", rawEnd = previous?.rawEnd ?: ""))
