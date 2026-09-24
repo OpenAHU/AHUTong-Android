@@ -2,6 +2,8 @@ package com.ahu.ahutong.appwidget
 
 import android.content.Context
 import android.content.Intent
+import android.content.ComponentName
+import android.appwidget.AppWidgetManager
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.Composable
@@ -62,33 +64,19 @@ class ScheduleAppWidget : GlanceAppWidget() {
         // 只读缓存（P4 的验收标准）：本地优先解析会在本地未确认过时问一次远端并写缓存，
         // 那正是"小组件冷启动不该触发登录"要挡住的事，所以这里只读缓存配置。
         val scheduleConfig = scheduleReadModel().cachedConfig()
-        val currentWeek = scheduleConfig.week
-        val weekDay = scheduleConfig.weekDay
         val schedule = scheduleReadModel().currentSchoolTerm()
             ?.let { scheduleReadModel().cachedSchedule(it) }
             .orEmpty()
+        val fetchedAt = scheduleReadModel().cachedScheduleFetchedAt()
         val currentMinutes = DebugClock.currentMinutes()
-        val todayCourses = if (scheduleConfig.isInSemester) {
-            schedule
-                .filter { currentWeek in it.startWeek..it.endWeek }
-                .filter { it.weekday == weekDay }
-                .filter {
-                    if (currentWeek in it.weekIndexes) {
-                        true
-                    } else {
-                        currentWeek % 2 == it.startWeek % 2
-                    }
-                }
-                .sortedBy { it.startTime }
-        } else {
-            emptyList()
-        }
+        val todayCourses = todayWidgetCourses(schedule, scheduleConfig)
         val keyColor = resolveWidgetKeyColor(context)
         provideContent {
             ScheduleWidgetContent(
                 context = context,
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
+                fetchedAt = fetchedAt,
                 keyColor = keyColor
             )
         }
@@ -97,6 +85,24 @@ class ScheduleAppWidget : GlanceAppWidget() {
 
 class ScheduleAppWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ScheduleAppWidget()
+
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        if (appWidgetIds.isNotEmpty()) WidgetUpdateScheduler.requestScheduleRefresh(context)
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        WidgetUpdateScheduler.scheduleNext(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        val adaptiveIds = AppWidgetManager.getInstance(context).getAppWidgetIds(
+            ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
+        )
+        if (adaptiveIds.isEmpty()) WidgetUpdateScheduler.cancel(context)
+    }
 }
 
 class RefreshAction : ActionCallback {
@@ -107,6 +113,7 @@ class RefreshAction : ActionCallback {
     ) {
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
         ScheduleAppWidget().update(context, glanceId)
+        WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
 }
 
@@ -115,6 +122,7 @@ private fun ScheduleWidgetContent(
     context: Context,
     todayCourses: List<Course>,
     currentMinutes: Int,
+    fetchedAt: Long?,
     keyColor: Color
 ) {
     val openAppAction = actionStartActivity(
@@ -184,6 +192,11 @@ private fun ScheduleWidgetContent(
                         )
                     )
                 }
+                Text(
+                    text = widgetScheduleFetchedText(fetchedAt),
+                    style = TextStyle(color = secondaryTextColor, fontSize = 10.sp),
+                    modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp)
+                )
                 Spacer(modifier = GlanceModifier.height(10.dp))
                 if (remainingCourses.isEmpty()) {
                     Text(

@@ -14,6 +14,9 @@ interface ScheduleReadModel {
     /** 某学期的课表缓存；没有缓存返回 null。 */
     fun cachedSchedule(schoolTerm: String): List<Course>?
 
+    /** 当前学期课表上次成功从教务系统获取的时间；没有记录返回 null。 */
+    fun cachedScheduleFetchedAt(): Long?
+
     /** 学期开始时间的原始字符串（缓存里怎么存就怎么给）；没有则 null。 */
     fun schoolTermStartTime(schoolYear: String, schoolTerm: String): String?
 

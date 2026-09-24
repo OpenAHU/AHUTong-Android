@@ -24,44 +24,64 @@ import android.os.Looper
 class WidgetUpdateScheduler : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == ACTION_UPDATE_WIDGETS) {
-            Log.e(TAG, "onReceive: Triggering widget update (Test Mode)")
-            
-            // 1. Update Glance Widget
-            val pendingResult = goAsync()
-            receiverScope.launch {
-                try {
-                    ScheduleAppWidget().updateAll(context)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to update Glance widget", e)
-                } finally {
-                    pendingResult.finish()
-                }
-            }
+        if (intent.action != ACTION_UPDATE_WIDGETS && intent.action != ACTION_RENDER_WIDGETS) return
 
-            // 2. Update Adaptive Widget
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val ids = appWidgetManager.getAppWidgetIds(
-                ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
-            )
-            if (ids.isNotEmpty()) {
-                val updateIntent = Intent(context, ScheduleAdaptiveWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                }
-                context.sendBroadcast(updateIntent)
+        val shouldRefresh = intent.action == ACTION_UPDATE_WIDGETS
+        val appContext = context.applicationContext
+        val pendingResult = goAsync()
+        receiverScope.launch {
+            try {
+                renderWidgets(appContext)
+                if (shouldRefresh) requestScheduleRefresh(appContext)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to render widgets", e)
+            } finally {
+                if (shouldRefresh) scheduleNext(appContext)
+                pendingResult.finish()
             }
-
-            // 3. Schedule next update
-            scheduleNext(context)
         }
     }
 
     companion object {
         private const val TAG = "WidgetUpdateScheduler"
         const val ACTION_UPDATE_WIDGETS = "com.ahu.ahutong.appwidget.ACTION_UPDATE_WIDGETS"
+        const val ACTION_RENDER_WIDGETS = "com.ahu.ahutong.appwidget.ACTION_RENDER_WIDGETS"
+        const val ACTION_REFRESH_SCHEDULE = "com.ahu.ahutong.appwidget.ACTION_REFRESH_SCHEDULE_FROM_NETWORK"
         private const val REQUEST_CODE = 3001
         private val receiverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        fun renderCached(context: Context) {
+            context.sendBroadcast(Intent(context, WidgetUpdateScheduler::class.java).apply {
+                action = ACTION_RENDER_WIDGETS
+            })
+        }
+
+        fun requestScheduleRefresh(context: Context) {
+            context.sendBroadcast(
+                Intent(ACTION_REFRESH_SCHEDULE).setClassName(
+                    context.packageName,
+                    "com.ahu.ahutong.appwidget.WidgetScheduleRefreshReceiver"
+                )
+            )
+        }
+
+        private suspend fun renderWidgets(context: Context) {
+            try {
+                ScheduleAppWidget().updateAll(context)
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to render Glance widgets", error)
+            }
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val ids = appWidgetManager.getAppWidgetIds(
+                ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
+            )
+            if (ids.isNotEmpty()) {
+                context.sendBroadcast(Intent(context, ScheduleAdaptiveWidgetProvider::class.java).apply {
+                    action = ScheduleAdaptiveWidgetProvider.ACTION_RENDER_CACHED
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                })
+            }
+        }
 
         fun scheduleNext(context: Context) {
             val now = LocalDateTime.now()
