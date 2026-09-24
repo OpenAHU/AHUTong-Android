@@ -84,7 +84,7 @@ fun WorkDetailDialog(
                 onOpenInChaoxing?.let {
                     add(
                         AppDialogAction(
-                            label = "跳学习通",
+                            label = "跳转学习通",
                             onClick = it,
                             style = AppDialogActionStyle.Neutral
                         )
