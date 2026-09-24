@@ -385,6 +385,21 @@ fun Main(
             animatedComposable("lost_found") {
                 LostFound(onBack = { navController.popBackStack() })
             }
+            animatedComposable("identity_code") {
+                // 身份码：菜鸟驿站（淘宝内页）——点击即外跳并立即回退，不落页
+                val uri = "https://pages-fast.m.taobao.com/wow/z/uniapp/1011717/last-mile-fe/end-collect-platform/identity-code"
+                LaunchedEffect(Unit) {
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(uri)
+                            )
+                        )
+                    }
+                    navController.popBackStack()
+                }
+            }
             animatedComposable("weather") {
                 Weather(onBack = { navController.popBackStack() })
             }

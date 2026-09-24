@@ -97,6 +97,13 @@ object HomeWidgetRegistry {
             tint = Color(0xFFFFB300)
         ),
         HomeWidgetSpec(
+            id = "identity_code",
+            title = "身份码",
+            route = "identity_code",
+            iconId = R.drawable.ic_identity_code,
+            tint = Color(0xFFFF5000) // 淘宝橙
+        ),
+        HomeWidgetSpec(
             id = "repository",
             title = "学习资料",
             route = "repository",
