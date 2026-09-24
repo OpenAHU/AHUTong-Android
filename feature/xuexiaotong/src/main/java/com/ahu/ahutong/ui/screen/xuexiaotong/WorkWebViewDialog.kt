@@ -78,6 +78,16 @@ fun WorkWebViewDialog(
             settings.javaScriptEnabled = true // 页面渲染需要（UEditor 等），但不注入任何 JS 接口
             settings.domStorageEnabled = true
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW // 题图是 http 图床
+            // 移动端适配：页面按 PC 宽度排版，不开这两项手机只能看到局部平移
+            settings.useWideViewPort = true          // 按页面 viewport 元数据布局
+            settings.loadWithOverviewMode = true     // 初始即缩放到整页宽度可见
+            settings.setSupportZoom(true)            // 允许捏合缩放看细节
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false     // 不显示常驻 ± 按钮
+            // 强制移动版 UA：默认 WebView UA 在超星仍被当 PC 端喂桌面排版
+            settings.userAgentString =
+                "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/126.0.0.0 Mobile Safari/537.36"
             webViewClient = object : WebViewClient() {
                 /** 熔断检测：302 重定向不回调 shouldOverrideUrlLoading，必须在 Started/Finished 查最终 URL。 */
                 private fun circuitBreak(view: WebView, url: String) {
