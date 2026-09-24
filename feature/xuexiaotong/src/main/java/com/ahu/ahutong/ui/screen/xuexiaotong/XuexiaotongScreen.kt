@@ -1245,7 +1245,21 @@ private fun CourseTab(
             item(key = "__overview__") {
                 CourseOverviewCard(list = filtered, isRadiant = isRadiant, pageBackdrop = pageBackdrop)
             }
-            items(filtered, key = { "${it.courseId}:${it.clazzId}:${it.cpi}" }) { p ->
+            // 课程列表合并为一张卡片：行间细分隔线（设置页分组卡同款），不再每课一张分立卡
+            item(key = "__courses__") {
+                val rowsContent: @Composable () -> Unit = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        filtered.forEachIndexed { index, p ->
+                            CourseCardContent(p)
+                            if (index != filtered.lastIndex) {
+                                androidx.compose.material3.HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                                )
+                            }
+                        }
+                    }
+                }
                 if (isRadiant && pageBackdrop != null) {
                     Box(
                         modifier = Modifier
@@ -1257,20 +1271,20 @@ private fun CourseTab(
                                 surfaceColor = liquidGlassTint()
                             )
                     ) {
-                        CourseCardContent(p)
+                        rowsContent()
                     }
                 } else {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
-                    CourseCardContent(p)
-                }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        rowsContent()
+                    }
                 }
             }
         }
