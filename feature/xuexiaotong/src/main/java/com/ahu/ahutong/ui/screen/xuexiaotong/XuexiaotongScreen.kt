@@ -1253,7 +1253,7 @@ private fun CourseTab(
                             CourseCardContent(p)
                             if (index != filtered.lastIndex) {
                                 androidx.compose.material3.HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    modifier = Modifier.padding(horizontal = 20.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                                 )
                             }
@@ -1293,7 +1293,7 @@ private fun CourseTab(
 
 @Composable
 private fun CourseCardContent(p: CourseProgress) {
-    Column(Modifier.padding(12.dp)) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 p.name,
