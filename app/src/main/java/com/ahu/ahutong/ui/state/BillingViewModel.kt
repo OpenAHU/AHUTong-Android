@@ -3,6 +3,7 @@ package com.ahu.ahutong.ui.state
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.data.recharge.analytics.displayMerchantText
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverCount
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.core.common.AhuError
@@ -153,7 +154,13 @@ class BillingViewModel @Inject constructor() : ViewModel() {
             )) {
                 is AhuResult.Success -> {
                     val pageData = result.value
-                    val newRecords = pageData.records.orEmpty()
+                    // 认知版商户名：「北二区食堂一楼」→「榴园食堂一楼」（学生视角）
+                    val newRecords = pageData.records.orEmpty().map { record ->
+                        record.copy(
+                            resume = displayMerchantText(record.resume),
+                            toMerchant = displayMerchantText(record.toMerchant)
+                        )
+                    }
                     // total 为 null = 当月无数据（服务端边界行为）
                     totalPages = pageData.pages ?: 1
                     val existing = _records.value.map { it.orderId }.toHashSet()

@@ -32,6 +32,19 @@ private val CANTEEN_MAPPING = mapOf(
     "南三区" to "梧桐园"
 )
 
+/**
+ * 账单列表的认知版商户文本：只把生活区代号替换为学生叫法（「北二区食堂一楼」→「榴园食堂一楼」），
+ * 其余原文保留——与引擎统计用的激进归一不同，展示层要保真细节。映射与 CANTEEN_MAPPING 单点共享。
+ */
+fun displayMerchantText(raw: String?): String? {
+    if (raw.isNullOrEmpty()) return raw
+    var text: String = raw
+    CANTEEN_MAPPING.forEach { (zone, name) ->
+        if (text.contains(zone)) text = text.replace(zone, name)
+    }
+    return text
+}
+
 /** 教务学期日历最小子集（第一期传空列表 → 「按学期」自动隐藏）。 */
 data class AcademicSemester(
     val id: Int? = null,
