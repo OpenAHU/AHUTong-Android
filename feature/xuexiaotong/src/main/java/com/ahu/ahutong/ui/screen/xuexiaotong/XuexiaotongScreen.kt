@@ -1461,12 +1461,25 @@ private fun CourseOverviewStat(
  * 用户点此按钮的意图就是进 App 操作，浏览器 H5 提交能力残缺。
  */
 private fun openWorkInChaoxingApp(context: android.content.Context, work: Work) {
-    // 直跳作业详情页只会落到学习通的 WebView 提交页（非原生详情页，用户认作退步），
-    // 改为跳到该课程的作业列表页——学习通内用其登录态打开，由用户点进具体作业。
-    val listUrl = "https://mooc1.chaoxing.com/mooc2/work/list?courseId=${work.courseId}"
+    // 跳该课程的作业列表页（用户最后自己点具体作业）。
+    // 用票据跳转端点（getStuWorkAndExamSkipUrl）：普通课/镜像课通吃——
+    // 直连 task-list 在镜像课上无票据会被服务端判「无效的用户」（见跳转方案文档 §7）。
+    // classId 从本地课程缓存按 courseId 现查（Work 模型不存它，免动同步链路）。
+    val clazzId = com.ahu.ahutong.data.xuexiaotong.Store.getCourses()
+        .firstOrNull { it.courseId == work.courseId }?.clazzId
+    if (clazzId.isNullOrEmpty()) {
+        android.widget.Toast.makeText(
+            context, "缺少课程班级信息，请先在课程页同步一次", android.widget.Toast.LENGTH_SHORT
+        ).show()
+        return
+    }
+    val ticketUrl = "https://mobilelearn.chaoxing.com/task/getStuWorkAndExamSkipUrl" +
+        "?courseId=${work.courseId}&classId=$clazzId#INNER"
     val link = "chaoxingshareback://xuexitong.com/?sharebacktype=1" +
         "&title=" + java.net.URLEncoder.encode(work.courseName, "UTF-8") +
-        "&url=" + java.net.URLEncoder.encode(listUrl, "UTF-8")
+        "&url=" + java.net.URLEncoder.encode(ticketUrl, "UTF-8")
+    // 深链全文进 logcat（tag=ChaoxingJump），供核对
+    android.util.Log.i("ChaoxingJump", link)
     val intent = android.content.Intent(
         android.content.Intent.ACTION_VIEW,
         android.net.Uri.parse(link)
