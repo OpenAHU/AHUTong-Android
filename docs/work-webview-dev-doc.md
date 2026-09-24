@@ -56,11 +56,9 @@ WebView(context).apply {
 
 ### 3.3 Cookie 注入（登录态）
 
-App 的超星 cookie 存于 `Store.getCookie()`（[Store.kt](file:///C:/Users/InChange_Jiang/Documents/AHUTong-Android/data/chaoxing/src/main/java/com/ahu/ahutong/data/xuexiaotong/Store.kt) L48），格式为单字符串：
+App 的超星 cookie 存于 `Store.getCookie()`（[Store.kt](file:///C:/Users/InChange_Jiang/Documents/AHUTong-Android/data/chaoxing/src/main/java/com/ahu/ahutong/data/xuexiaotong/Store.kt) L48），**真实格式是纯 `name=value; name2=value2`**（所有 cookie 统一按 `.chaoxing.com` 域落盘，见 `PersistentCookieJar.cookieString()` / `restoreFromString()`）。
 
-```
-name|domain=value; name2|domain2=value2; ...
-```
+> ⚠️ 本文档初版误写为 `name|domain=value` 格式——已按代码实测修正（2026-09-24 实施时勘误）。
 
 注入步骤（在 `loadUrl` 之前完成）：
 
@@ -68,11 +66,9 @@ name|domain=value; name2|domain2=value2; ...
 val cm = android.webkit.CookieManager.getInstance()
 cm.setAcceptCookie(true)
 Store.getCookie().split("; ").forEach { entry ->
-    val name = entry.substringBefore("|")
-    val domain = entry.substringAfter("|").substringBefore("=")
-    val value = entry.substringAfter("=")
-    // domain 形如 chaoxing.com（全局）或 mooc1.chaoxing.com（主机级），统一 set 到 https://<domain>
-    cm.setCookie("https://$domain", "$name=$value")
+    if (entry.contains("=")) {
+        cm.setCookie("https://.chaoxing.com", entry)  // 整条 name=value 直接塞
+    }
 }
 cm.flush()
 ```
