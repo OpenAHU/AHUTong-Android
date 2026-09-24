@@ -125,32 +125,26 @@ fun XuexiaotongScreen() {
     if (showLogin) {
         // 系统返回回到日历/课程子页，而不是 pop 掉整个学习通路由
         androidx.activity.compose.BackHandler { showLogin = false }
-        if (com.ahu.ahutong.ui.components.LocalAppBackground.current != null) {
-            // 全局背景模式下 GlassBackdropContainer 退化为「共享根部 ambient 采样层」的透传壳，
-            // 页面换出/换入时共享层状态成环 → RenderThread prepareTree 无限递归（SIGSEGV，实测复现）。
-            // 登录页自身无玻璃元素，直接复用宿主已有的 ambient，不再套容器。
-            XuexiaotongLoginScreen(
-                login = viewModel::login,
-                onLoginSuccess = {
-                    viewModel.onLoginSuccess()
-                    showLogin = false
-                }
-            )
-        } else {
-            // 无背景：登录页与主页面同为"页面级容器"结构，避免容器不对称挂载/卸载
-            // 时采样层残留引用与新渲染树形成自引用环（RenderThread 递归爆栈闪退）
-            GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { loginBackdrop ->
-                CompositionLocalProvider(
-                    LocalLiquidGlassAmbientBackdrop provides loginBackdrop
-                ) {
-                    XuexiaotongLoginScreen(
-                        login = viewModel::login,
-                        onLoginSuccess = {
-                            viewModel.onLoginSuccess()
-                            showLogin = false
-                        }
-                    )
-                }
+        // 登录页全主题去玻璃（低频页面，不值得为它碰采样层）：
+        // 实测「背景+关玻璃开关」下任何 backdrop 容器/采样都会在换页时把渲染树弄成自引用环
+        // （RenderThread prepareTree 512 帧递归 SIGSEGV）。强制 Material 组件包 + 纯色面，彻底零玻璃。
+        CompositionLocalProvider(
+            com.ahu.ahutong.ui.theme.pack.LocalComponentPack provides
+                com.ahu.ahutong.ui.theme.pack.MaterialComponentPack,
+            LocalIsLiquidGlassEnabled provides false
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                XuexiaotongLoginScreen(
+                    login = viewModel::login,
+                    onLoginSuccess = {
+                        viewModel.onLoginSuccess()
+                        showLogin = false
+                    }
+                )
             }
         }
         return
