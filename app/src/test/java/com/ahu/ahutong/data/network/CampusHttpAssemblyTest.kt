@@ -2,6 +2,7 @@ package com.ahu.ahutong.data.network
 
 import com.ahu.ahutong.data.crawler.net.AutoLoginInterceptor
 import com.ahu.ahutong.data.crawler.net.SessionExpiryHook
+import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import com.ahu.ahutong.data.crawler.net.TokenAuthenticator
 import okhttp3.Cookie
 import okhttp3.CookieJar
@@ -35,7 +36,7 @@ class CampusHttpAssemblyTest {
 
         override suspend fun refresh(observedGeneration: Long): Boolean = false
 
-        override fun onExpired() {
+        override suspend fun onExpired(observedGeneration: Long) {
             expiredCount++
         }
     }
@@ -59,7 +60,7 @@ class CampusHttpAssemblyTest {
     fun `campus session refresh wires auto login and session authenticator`() {
         val hook = FakeSessionExpiryHook()
         val client = OkHttpClient.Builder()
-            .campusAutoLogin(hook)
+            .campusAutoLogin()
             .campusSessionRefresh(hook)
             .build()
 
@@ -84,7 +85,8 @@ class CampusHttpAssemblyTest {
             )
             val client = OkHttpClient.Builder()
                 .campusCookies(fakeCookieJar)
-                .campusAutoLogin(hook)
+                .campusAutoLogin()
+                .campusSessionRefresh(hook)
                 .build()
 
             client.newCall(
@@ -95,6 +97,83 @@ class CampusHttpAssemblyTest {
                 assertEquals("1", response.header("X-AHUTong-Session-Expired"))
             }
             assertEquals(1, hook.expiredCount)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `a successful automatic refresh does not report session expiry`() {
+        val hook = object : SessionExpiryHook {
+            var refreshCount = 0
+            var expiredCount = 0
+
+            override suspend fun refresh(observedGeneration: Long): Boolean {
+                refreshCount++
+                return true
+            }
+
+            override suspend fun onExpired(observedGeneration: Long) {
+                expiredCount++
+            }
+        }
+        val server = MockWebServer()
+        server.start()
+        try {
+            server.enqueue(MockResponse().setResponseCode(302)
+                .setHeader("Location", "https://one.ahu.edu.cn/cas/login?service=x"))
+            server.enqueue(MockResponse().setResponseCode(200).setBody("ok"))
+            val client = OkHttpClient.Builder()
+                .campusCookies(fakeCookieJar)
+                .campusAutoLogin()
+                .campusSessionRefresh(hook)
+                .campusSessionRefresh(hook)
+                .build()
+
+            client.newCall(Request.Builder().url(server.url("/student/data")).build())
+                .execute().use { response -> assertEquals(200, response.code) }
+
+            assertEquals(1, hook.refreshCount)
+            assertEquals(0, hook.expiredCount)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun `a second login redirect reports expiry after the refresh attempt`() {
+        val hook = object : SessionExpiryHook {
+            var refreshCount = 0
+            var expiredGeneration: Long? = null
+
+            override suspend fun refresh(observedGeneration: Long): Boolean {
+                refreshCount++
+                SessionRefreshCoordinator.onAuthenticated()
+                return true
+            }
+
+            override suspend fun onExpired(observedGeneration: Long) {
+                expiredGeneration = observedGeneration
+            }
+        }
+        val server = MockWebServer()
+        server.start()
+        try {
+            repeat(2) {
+                server.enqueue(MockResponse().setResponseCode(302)
+                    .setHeader("Location", "https://one.ahu.edu.cn/cas/login?service=x"))
+            }
+            val client = OkHttpClient.Builder()
+                .campusCookies(fakeCookieJar)
+                .campusAutoLogin()
+                .campusSessionRefresh(hook)
+                .build()
+
+            client.newCall(Request.Builder().url(server.url("/student/data")).build())
+                .execute().use { response -> assertEquals(401, response.code) }
+
+            assertEquals(1, hook.refreshCount)
+            assertEquals(SessionRefreshCoordinator.currentGeneration(), hook.expiredGeneration)
         } finally {
             server.shutdown()
         }

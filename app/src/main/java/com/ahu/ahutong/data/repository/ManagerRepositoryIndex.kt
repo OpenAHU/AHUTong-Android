@@ -29,8 +29,9 @@ class ManagerRepositoryIndex @Inject constructor() : RepositoryIndex {
 
     override suspend fun warmUpAllContentCaches(
         forceRefresh: Boolean,
-        onProgress: ((Int) -> Unit)?
-    ): Long = RepositoryManager.warmUpAllContentCaches(forceRefresh, onProgress)
+        onProgress: ((Int) -> Unit)?,
+        onDownloadProgress: ((Long, Long) -> Unit)?
+    ): Long = RepositoryManager.warmUpAllContentCaches(forceRefresh, onProgress, onDownloadProgress)
 
     override fun getDirectorySummaries(
         items: List<GitHubContentItem>

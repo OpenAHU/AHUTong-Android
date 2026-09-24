@@ -15,10 +15,6 @@ interface SessionExpiryHook {
      */
     suspend fun refresh(observedGeneration: Long): Boolean
 
-    /**
-     * 网络层观察到会话已失效（被重定向回校内登录页）。
-     *
-     * 只通知、不决定状态机怎么走：登录态属于会话层，网络层不认识 AhuSessionState。
-     */
-    fun onExpired()
+    /** 自动续期失败或重试仍被拒绝时，只有当前会话代号可以提交过期状态。 */
+    suspend fun onExpired(observedGeneration: Long)
 }

@@ -79,6 +79,7 @@ import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.Work
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
+import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
@@ -161,7 +162,7 @@ fun XuexiaotongScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(96.n1 withNight 10.n1)
+                    .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
             ) {
                 // 固定标题栏（渐变遮罩层）
                 val headerBg = if (LocalIsLiquidGlassEnabled.current) {
@@ -1200,8 +1201,9 @@ private fun CourseTab(
     isRadiant: Boolean = false,
     pageBackdrop: Backdrop? = null
 ) {
-    val filtered = if (showEmptyCourses) progress
-    else progress.filter { it.totalCount > 0 }
+    val filtered = (if (showEmptyCourses) progress
+    else progress.filter { it.totalCount > 0 })
+        .distinctBy { Triple(it.courseId, it.clazzId, it.cpi) }
 
     if (filtered.isEmpty()) {
         Box(
@@ -1228,7 +1230,7 @@ private fun CourseTab(
             item(key = "__overview__") {
                 CourseOverviewCard(list = filtered, isRadiant = isRadiant, pageBackdrop = pageBackdrop)
             }
-            items(filtered, key = { it.courseId }) { p ->
+            items(filtered, key = { "${it.courseId}:${it.clazzId}:${it.cpi}" }) { p ->
                 if (isRadiant && pageBackdrop != null) {
                     Box(
                         modifier = Modifier

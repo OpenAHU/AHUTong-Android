@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.session
 
 import com.ahu.ahutong.data.crawler.net.SessionExpiryHook
+import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 
 /**
  * 把网络层的 [SessionExpiryHook] 接到 [AhuSession]：
@@ -15,7 +16,12 @@ class RepositorySessionExpiryHook(
     override suspend fun refresh(observedGeneration: Long): Boolean =
         session.ensureFresh(observedGeneration)
 
-    /** 网络层看到"被踢回登录页"：登录态的写入留给这一层。 */
-    override fun onExpired() = AhuSessionState.markExpired()
+    override suspend fun onExpired(observedGeneration: Long) {
+        SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
+            if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
+                AhuSessionState.markExpired()
+            }
+        }
+    }
 }
 

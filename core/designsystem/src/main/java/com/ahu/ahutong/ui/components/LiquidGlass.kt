@@ -68,6 +68,14 @@ fun GlassBackdropContainer(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.(Backdrop) -> Unit
 ) {
+    val appBackground = LocalAppBackground.current
+    if (appBackground != null) {
+        Box(modifier = modifier) {
+            content(LocalLiquidGlassAmbientBackdrop.current)
+        }
+        return
+    }
+
     val backdrop = rememberLayerBackdrop()
     val liquid = LocalIsLiquidGlassEnabled.current
     val background = if (liquid) {

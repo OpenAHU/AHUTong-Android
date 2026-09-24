@@ -107,7 +107,7 @@ interface AdwmhApi {
                     .build()
                 chain.proceed(request)
             }
-            .campusAutoLogin(RepositorySessionExpiryHook())
+            .campusAutoLogin()
             .campusSessionRefresh(RepositorySessionExpiryHook())
             .campusCookies(CookieManager.cookieJar)
             .apply {

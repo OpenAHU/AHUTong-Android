@@ -2,6 +2,7 @@ package com.ahu.ahutong.data.security
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
@@ -34,18 +35,30 @@ object SecureStorage {
             remove(key)
             return
         }
+        val encoded = try {
+            encrypt(value)
+        } catch (error: Exception) {
+            if (!error.hasInvalidatedKeyCause()) throw error
+            // The old ciphertext cannot be decrypted after Android invalidates its Keystore key.
+            Log.w(TAG, "Keystore key invalidated; resetting encrypted values", error)
+            resetInvalidatedKey()
+            encrypt(value)
+        }
+        check(preferences.edit().putString(key, encoded).commit()) {
+            "Failed to persist encrypted value"
+        }
+    }
+
+    private fun encrypt(value: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         }
         val ciphertext = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
-        val encoded = listOf(
+        return listOf(
             VERSION,
             Base64.encodeToString(cipher.iv, Base64.NO_WRAP),
             Base64.encodeToString(ciphertext, Base64.NO_WRAP)
         ).joinToString(":")
-        check(preferences.edit().putString(key, encoded).commit()) {
-            "Failed to persist encrypted value"
-        }
     }
 
     @Synchronized
@@ -67,7 +80,8 @@ object SecureStorage {
         } catch (e: Exception) {
             // A replaced/invalidated key must never make us fall back to treating ciphertext as data.
             Log.w(TAG, "Unable to decrypt stored value; removing it", e)
-            preferences.edit().remove(key).commit()
+            if (e.hasInvalidatedKeyCause()) resetInvalidatedKey()
+            else preferences.edit().remove(key).commit()
             null
         }
     }
@@ -90,6 +104,25 @@ object SecureStorage {
         val editor = preferences.edit()
         preferences.all.keys.filter { it.startsWith(prefix) }.forEach(editor::remove)
         editor.commit()
+    }
+
+    private fun Throwable.hasInvalidatedKeyCause(): Boolean {
+        var current: Throwable? = this
+        while (current != null) {
+            if (current is KeyPermanentlyInvalidatedException) return true
+            current = current.cause
+        }
+        return false
+    }
+
+    private fun resetInvalidatedKey() {
+        KeyStore.getInstance("AndroidKeyStore").apply {
+            load(null)
+            deleteEntry(KEY_ALIAS)
+        }
+        check(preferences.edit().clear().commit()) {
+            "Failed to clear values encrypted with invalidated key"
+        }
     }
 
     private fun getOrCreateKey(): SecretKey {

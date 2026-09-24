@@ -76,13 +76,11 @@ fun Preferences(onBack: () -> Unit = {}, onOpenThemeLab: () -> Unit = {}) {
         isToggleHorizontalDragActive = active
     }
 
-    val appThemeMode by viewModel.appThemeMode.collectAsState()
     val showQRCode by viewModel.showQRCode.collectAsState()
     val personalizationEnabled by viewModel.personalizationEnabled.collectAsState()
     val predictivePrefetchEnabled by viewModel.predictivePrefetchEnabled.collectAsState()
     val wifiOnlyPrefetch by viewModel.wifiOnlyPrefetch.collectAsState()
     val behaviorRetentionDays by viewModel.behaviorRetentionDays.collectAsState()
-    val appUiTheme by viewModel.appUiTheme.collectAsState()
     val useBuiltInSecurePasswordKeyboard by
         viewModel.useBuiltInSecurePasswordKeyboard.collectAsState()
     val courseReminderEnabled by viewModel.courseReminderEnabled.collectAsState()
@@ -292,6 +290,11 @@ fun Preferences(onBack: () -> Unit = {}, onOpenThemeLab: () -> Unit = {}) {
             )
         }
 
+            ThemeSettingsSection(
+                viewModel = viewModel,
+                backdrop = backdrop,
+                onOpenDetails = onOpenThemeLab
+            )
         }
     }
 

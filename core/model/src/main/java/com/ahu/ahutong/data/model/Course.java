@@ -188,7 +188,7 @@ public class Course implements Serializable {
             return false;
         if (courseId != null ? !courseId.equals(course.courseId) : course.courseId != null)
             return false;
-        return weekIndexes != null ? weekIndexes.equals(course.weekIndexes) : course.weekIndexes != null;
+        return weekIndexes != null ? weekIndexes.equals(course.weekIndexes) : course.weekIndexes == null;
     }
 
     @Override

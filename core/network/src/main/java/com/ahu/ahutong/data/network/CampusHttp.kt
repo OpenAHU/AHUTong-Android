@@ -30,11 +30,9 @@ fun OkHttpClient.Builder.campusCookies(
     followSslRedirects(followSslRedirects)
 }
 
-/** 识别"被踢回登录页"的重定向并通知会话层失效（网络拦截器，先于日志）。 */
-fun OkHttpClient.Builder.campusAutoLogin(
-    sessionExpiryHook: SessionExpiryHook
-): OkHttpClient.Builder = apply {
-    addNetworkInterceptor(AutoLoginInterceptor(sessionExpiryHook))
+/** 将登录页重定向标记为需续期的 401，由认证器决定最终登录态。 */
+fun OkHttpClient.Builder.campusAutoLogin(): OkHttpClient.Builder = apply {
+    addNetworkInterceptor(AutoLoginInterceptor())
 }
 
 /** 会话失效时用存储凭据续期；实现由调用方注入（生产实现见 data/session/RepositorySessionExpiryHook）。 */

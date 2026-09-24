@@ -2,6 +2,8 @@ package com.ahu.ahutong.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.shape.CornerBasedShape
@@ -14,8 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.ui.theme.LiquidGlassQuality
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
@@ -28,6 +33,7 @@ import com.kyant.backdrop.backdrops.emptyBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
@@ -38,6 +44,28 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 val LocalLiquidGlassAmbientBackdrop = staticCompositionLocalOf<Backdrop> { emptyBackdrop() }
 
 val LocalLiquidGlassContentBackdrop = staticCompositionLocalOf<Backdrop> { emptyBackdrop() }
+
+data class AppBackground(val image: ImageBitmap, val maskAlpha: Float)
+
+val LocalAppBackground = compositionLocalOf<AppBackground?> { null }
+
+@Composable
+fun BoxScope.AppBackgroundLayer(background: AppBackground) {
+    Image(
+        bitmap = background.image,
+        contentDescription = null,
+        modifier = Modifier.matchParentSize(),
+        contentScale = ContentScale.Crop
+    )
+    if (background.maskAlpha > 0f) {
+        Box(
+            modifier = Modifier.matchParentSize().background(
+                (if (isSystemInDarkTheme()) Color.Black else Color.White)
+                    .copy(alpha = background.maskAlpha)
+            )
+        )
+    }
+}
 
 private val LocalLiquidGlassContentLayer = staticCompositionLocalOf<LayerBackdrop?> { null }
 
@@ -56,10 +84,12 @@ fun LiquidGlassAppHost(
     val tokens = LocalLiquidGlassTokens.current
     val ambientLayer = rememberLayerBackdrop()
     val contentLayer = rememberLayerBackdrop()
-    val capturesBackdrop = tokens.quality.supportsBackdrop
-    val ambientBackdrop: Backdrop = if (capturesBackdrop) ambientLayer else emptyBackdrop()
-    val contentBackdrop: Backdrop = if (capturesBackdrop) contentLayer else emptyBackdrop()
     val appTheme = LocalAppUiTheme.current
+    val appBackground = LocalAppBackground.current
+    val capturesAmbientBackdrop = tokens.quality.supportsBackdrop || appBackground != null
+    val capturesContentBackdrop = tokens.quality.supportsBackdrop
+    val ambientBackdrop: Backdrop = if (capturesAmbientBackdrop) ambientLayer else emptyBackdrop()
+    val contentBackdrop: Backdrop = if (capturesContentBackdrop) contentLayer else emptyBackdrop()
     val background = when (appTheme) {
         AppUiTheme.MIUIX -> MiuixTheme.colorScheme.surface
         AppUiTheme.MATERIAL -> MaterialTheme.colorScheme.background
@@ -67,27 +97,31 @@ fun LiquidGlassAppHost(
     }
 
     Box(modifier = modifier.background(background)) {
-        if (tokens.enabled) {
+        if (tokens.enabled || appBackground != null) {
             val primary = tokens.ambientPrimary.compositeOver(background)
             val secondary = tokens.ambientSecondary.compositeOver(background)
             Box(
                 modifier = Modifier
                     .matchParentSize()
                     .then(
-                        if (capturesBackdrop) Modifier.layerBackdrop(ambientLayer) else Modifier
+                        if (capturesAmbientBackdrop) Modifier.layerBackdrop(ambientLayer) else Modifier
                     )
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(background, primary, secondary, background)
-                        )
+                    .then(
+                        if (appBackground == null) Modifier.background(
+                            Brush.verticalGradient(
+                                listOf(background, primary, secondary, background)
+                            )
+                        ) else Modifier
                     )
-            )
+            ) {
+                appBackground?.let { AppBackgroundLayer(it) }
+            }
         }
 
         CompositionLocalProvider(
             LocalLiquidGlassAmbientBackdrop provides ambientBackdrop,
             LocalLiquidGlassContentBackdrop provides contentBackdrop,
-            LocalLiquidGlassContentLayer provides contentLayer.takeIf { capturesBackdrop }
+            LocalLiquidGlassContentLayer provides contentLayer.takeIf { capturesContentBackdrop }
         ) {
             content()
         }
@@ -105,8 +139,25 @@ fun Modifier.captureLiquidGlassContent(): Modifier {
  * Applies the shared liquid-glass material and preserves the supplied opaque fallback when the
  * preference is disabled.
  */
-/** 自定义主页背景开启时，由主页注入 true：玻璃表面加模糊、加 tint 以保住文字可读性。 */
+/** 自定义全局背景开启时，玻璃表面加模糊与着色以保住文字可读性。 */
 val LocalGlassReadabilityBoost = compositionLocalOf { false }
+
+/** MIUIX / Material 在自定义背景上使用的轻量毛玻璃表面。 */
+@Composable
+fun Modifier.appWallpaperFrostedSurface(
+    shape: Shape,
+    tint: Color,
+    blurRadius: Dp = 18.dp
+): Modifier {
+    if (LocalAppBackground.current == null) return this
+    val backdrop = LocalLiquidGlassAmbientBackdrop.current
+    return drawPlainBackdrop(
+        backdrop = backdrop,
+        shape = { shape },
+        effects = { blur(blurRadius.toPx()) },
+        onDrawSurface = { drawRect(tint) }
+    )
+}
 
 @Composable
 fun Modifier.appLiquidGlassSurface(
@@ -135,7 +186,11 @@ fun Modifier.appLiquidGlassSurface(
             LiquidGlassSurfaceLevel.Panel -> MiuixTheme.colorScheme.surfaceContainer
             LiquidGlassSurfaceLevel.Floating -> MiuixTheme.colorScheme.surfaceContainerHighest
         }
-        return clip(miuixShape).background(miuixColor)
+        return if (LocalAppBackground.current != null) {
+            appWallpaperFrostedSurface(miuixShape, miuixColor.copy(alpha = 0.66f))
+        } else {
+            clip(miuixShape).background(miuixColor)
+        }
     }
     val tokens = LocalLiquidGlassTokens.current
     val style = tokens.surface(level)
@@ -149,7 +204,11 @@ fun Modifier.appLiquidGlassSurface(
 
     return when (renderingQuality) {
         LiquidGlassQuality.Disabled ->
-            clip(shape).background(fallbackColor)
+            if (LocalAppBackground.current != null && LocalAppUiTheme.current == AppUiTheme.MATERIAL) {
+                appWallpaperFrostedSurface(shape, fallbackColor.copy(alpha = 0.66f))
+            } else {
+                clip(shape).background(fallbackColor)
+            }
 
         LiquidGlassQuality.Tinted ->
             clip(shape)
@@ -207,7 +266,7 @@ fun Modifier.appLiquidGlassSurface(
 @Composable
 fun Modifier.appLiquidGlassSceneBackground(fallbackColor: Color): Modifier {
     return background(
-        when (LocalAppUiTheme.current) {
+        if (LocalAppBackground.current != null) Color.Transparent else when (LocalAppUiTheme.current) {
             AppUiTheme.MIUIX -> MiuixTheme.colorScheme.surface
             AppUiTheme.MATERIAL -> fallbackColor
             AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT -> if (LocalLiquidGlassTokens.current.enabled) {

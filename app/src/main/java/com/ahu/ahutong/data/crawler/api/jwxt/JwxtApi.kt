@@ -143,7 +143,7 @@ interface JwxtApi {
                         .build()
                 )
             }
-            .campusAutoLogin(RepositorySessionExpiryHook())
+            .campusAutoLogin()
             .campusSessionRefresh(RepositorySessionExpiryHook())
             .campusCookies(CookieManager.cookieJar)
             .apply {

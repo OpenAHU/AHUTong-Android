@@ -48,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
@@ -61,7 +63,9 @@ import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.components.LiquidBottomTab
 import com.ahu.ahutong.ui.components.LiquidBottomTabs
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
+import com.ahu.ahutong.ui.components.LocalAppBackground
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.appWallpaperFrostedSurface
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongSubTab
@@ -77,6 +81,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
 import top.yukonga.miuix.kmp.basic.NavigationItem as MiuixNavigationItem
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private data class BottomDestination(
     val route: String,
@@ -337,6 +342,7 @@ private fun BoxScope.ClassicBottomNavBar(
     selectedRoute: String?,
     onDestinationSelected: (String) -> Unit
 ) {
+    val wallpaperEnabled = LocalAppBackground.current != null
     // 与曜光一致：第三 Tab 标签随子页态切换（日程/课程），再次点击轮换子页
     val showingSchedule = XuexiaotongDockState.tab == XuexiaotongSubTab.SCHEDULE
     val destinations = classicDestinations.map { destination ->
@@ -410,16 +416,25 @@ private fun BoxScope.ClassicBottomNavBar(
             },
             selected = selectedIndex,
             onClick = { select(destinations[it].route) },
+            color = if (wallpaperEnabled) Color.Transparent else MiuixTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
+                .then(if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
+                    RectangleShape,
+                    MiuixTheme.colorScheme.surface.copy(alpha = 0.66f)
+                ) else Modifier)
         )
     } else {
         MaterialNavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter),
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                .align(Alignment.BottomCenter)
+                .then(if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
+                    RectangleShape,
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+                ) else Modifier),
+            containerColor = if (wallpaperEnabled) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 0.dp
         ) {
             destinations.forEach { destination ->
@@ -449,7 +464,9 @@ private fun BoxScope.ClassicBottomNavBar(
 private fun appNavigationBarItemColors() = NavigationBarItemDefaults.colors(
     selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
     selectedTextColor = MaterialTheme.colorScheme.onSurface,
-    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+    indicatorColor = MaterialTheme.colorScheme.secondaryContainer.copy(
+        alpha = if (LocalAppBackground.current != null) 0.72f else 1f
+    ),
     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 )

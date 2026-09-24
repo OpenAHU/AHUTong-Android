@@ -7,10 +7,12 @@ import com.ahu.ahutong.data.repository.RepositoryAccelerationSource
 import com.ahu.ahutong.data.repository.RepositoryDirectorySummary
 import com.ahu.ahutong.data.repository.RepositoryIndex
 import com.ahu.ahutong.data.repository.RepositoryMarkdownDocument
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import java.io.File
@@ -81,7 +83,7 @@ class RepositoryViewModelTest {
     @Test
     fun `a failed fetch falls back to the cache instead of showing an error`() = runTest(dispatcher) {
         repository.cached["repo"] = CachedRepositoryContents(listOf(file("cached.md")), updateTime = 7L)
-        repository.failNextGetContents = true
+        repository.failNextWarmUp = true
         val vm = viewModel()
 
         vm.loadContents("repo", forceRefresh = true)
@@ -102,6 +104,61 @@ class RepositoryViewModelTest {
 
         val state = vm.directoryStates.value.getValue("repo")
         assertTrue(state.error!!.startsWith("加载失败"))
+    }
+
+    @Test
+    fun `a child directory waits for the shared index download`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        repository.warmUpGate = gate
+        repository.downloadProgress = 512L to 1_024L
+        val vm = viewModel()
+
+        vm.warmUpAllContentCaches()
+        vm.loadContents("repo")
+        runCurrent()
+        assertEquals(0, repository.getContentsCalls)
+        assertEquals(512L, vm.sharedState.value.indexDownloadBytes)
+        assertEquals(1_024L, vm.sharedState.value.indexDownloadTotalBytes)
+
+        repository.cached["repo"] = CachedRepositoryContents(listOf(file("ready.md")), 9L)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("ready.md"), vm.directoryStates.value.getValue("repo").items.map { it.name })
+        assertEquals(0, repository.getContentsCalls)
+    }
+
+    @Test
+    fun `manual refresh of a child directory reports the same index download`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        repository.warmUpGate = gate
+        repository.downloadProgress = 256L to 1_024L
+        val vm = viewModel()
+
+        vm.loadContents("repo", forceRefresh = true)
+        runCurrent()
+        assertEquals(256L, vm.sharedState.value.indexDownloadBytes)
+        assertEquals(0, repository.getContentsCalls)
+
+        repository.cached["repo"] = CachedRepositoryContents(listOf(file("new.md")), 11L)
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.md"), vm.directoryStates.value.getValue("repo").items.map { it.name })
+        assertEquals(0, repository.getContentsCalls)
+    }
+
+    @Test
+    fun `an unchanged server index keeps the displayed cache time`() = runTest(dispatcher) {
+        repository.cached["repo"] = CachedRepositoryContents(listOf(file("a.md")), 7L)
+        val vm = viewModel()
+        vm.loadContents("repo")
+        advanceUntilIdle()
+
+        vm.warmUpAllContentCaches(forceRefresh = true)
+        advanceUntilIdle()
+
+        assertEquals(7L, vm.directoryStates.value.getValue("repo").cacheUpdatedAt)
     }
 
     @Test
@@ -155,7 +212,10 @@ class RepositoryViewModelTest {
         val downloaded = mutableListOf<DownloadedFile>()
         var getContentsCalls = 0
         var failNextGetContents = false
+        var failNextWarmUp = false
         var downloadResult: DownloadedFile? = null
+        var warmUpGate: CompletableDeferred<Unit>? = null
+        var downloadProgress: Pair<Long, Long>? = null
 
         override val accelerationSources: List<RepositoryAccelerationSource> = emptyList()
 
@@ -172,8 +232,19 @@ class RepositoryViewModelTest {
 
         override suspend fun warmUpAllContentCaches(
             forceRefresh: Boolean,
-            onProgress: ((Int) -> Unit)?
-        ): Long = 0L
+            onProgress: ((Int) -> Unit)?,
+            onDownloadProgress: ((Long, Long) -> Unit)?
+        ): Long {
+            if (failNextWarmUp) {
+                failNextWarmUp = false
+                throw IllegalStateException("boom")
+            }
+            downloadProgress?.let { (downloaded, total) ->
+                onDownloadProgress?.invoke(downloaded, total)
+            }
+            warmUpGate?.await()
+            return 0L
+        }
 
         override fun getDirectorySummaries(
             items: List<GitHubContentItem>

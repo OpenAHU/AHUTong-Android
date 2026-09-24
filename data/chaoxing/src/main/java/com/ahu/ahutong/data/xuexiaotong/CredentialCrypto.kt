@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.xuexiaotong
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import java.security.KeyStore
@@ -32,12 +33,33 @@ object CredentialCrypto {
         return gen.generateKey()
     }
 
-    fun encrypt(plain: String): String {
+    @Synchronized
+    fun encrypt(plain: String): String = try {
+        encryptWithCurrentKey(plain)
+    } catch (error: Exception) {
+        if (!error.hasInvalidatedKeyCause()) throw error
+        KeyStore.getInstance(KEYSTORE).apply {
+            load(null)
+            deleteEntry(ALIAS)
+        }
+        encryptWithCurrentKey(plain)
+    }
+
+    private fun encryptWithCurrentKey(plain: String): String {
         val key = getOrCreateKey()
         val cipher = Cipher.getInstance(TRANSFORM)
         cipher.init(Cipher.ENCRYPT_MODE, key)
         val ct = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
         return Base64.encodeToString(cipher.iv + ct, Base64.NO_WRAP)
+    }
+
+    private fun Throwable.hasInvalidatedKeyCause(): Boolean {
+        var current: Throwable? = this
+        while (current != null) {
+            if (current is KeyPermanentlyInvalidatedException) return true
+            current = current.cause
+        }
+        return false
     }
 
     fun decrypt(data: String): String? {

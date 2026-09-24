@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -184,7 +185,7 @@ internal fun RadiantPageScaffoldImpl(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(96.n1 withNight 10.n1)
+            .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
     ) {
         if (search?.visible == true) {
             RadiantSearchHeader(search, Modifier.align(Alignment.TopCenter).zIndex(20f))
@@ -268,6 +269,7 @@ internal fun MiuixPageScaffoldImpl(
             MiuixTopAppBar(
                 title = title,
                 largeTitle = title,
+                color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     onBack?.let { callback ->
@@ -415,6 +417,8 @@ private fun ClassicPageScaffoldHeader(
 /** 内联搜索行（返回 + 输入框 + 清空/提交），Classic 与 Miuix 壳共用。 */
 @Composable
 private fun ClassicPageScaffoldSearchRow(search: SecondarySearchState) {
+    val borderlessWallpaper = LocalAppBackground.current != null &&
+        LocalAppUiTheme.current == com.ahu.ahutong.data.model.AppUiTheme.MATERIAL
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -427,12 +431,42 @@ private fun ClassicPageScaffoldSearchRow(search: SecondarySearchState) {
                 contentDescription = "关闭搜索"
             )
         }
-        OutlinedTextField(
+        if (LocalAppUiTheme.current == com.ahu.ahutong.data.model.AppUiTheme.MIUIX) {
+            AppTextField(
+                value = search.query,
+                onValueChange = search.onQueryChange,
+                label = search.placeholder,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { search.onSubmit() })
+            )
+            MiuixIconButton(onClick = if (search.query.isNotEmpty()) {
+                { search.onQueryChange("") }
+            } else search.onSubmit) {
+                MiuixIcon(
+                    imageVector = if (search.query.isNotEmpty()) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (search.query.isNotEmpty()) "清空" else "搜索"
+                )
+            }
+        } else OutlinedTextField(
             value = search.query,
             onValueChange = search.onQueryChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).then(
+                if (borderlessWallpaper) Modifier.appWallpaperFrostedSurface(
+                    AppComponentTokens.ControlShape,
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+                ) else Modifier
+            ),
             singleLine = true,
             placeholder = { Text(search.placeholder) },
+            shape = if (borderlessWallpaper) AppComponentTokens.ControlShape
+                else OutlinedTextFieldDefaults.shape,
+            colors = if (borderlessWallpaper) OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
+                errorBorderColor = Color.Transparent
+            ) else OutlinedTextFieldDefaults.colors(),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { search.onSubmit() }),
             trailingIcon = {

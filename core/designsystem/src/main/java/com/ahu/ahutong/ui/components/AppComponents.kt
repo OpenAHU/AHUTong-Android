@@ -128,6 +128,7 @@ import com.ahu.ahutong.ui.theme.pack.LocalComponentPack
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.ButtonColors as MiuixButtonColors
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
+import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator as MiuixCircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
@@ -144,6 +145,7 @@ import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet as MiuixSuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.icons.useful.Back
+import top.yukonga.miuix.kmp.icon.icons.useful.Search
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -239,6 +241,17 @@ internal fun MiuixCardImpl(
     onClick: (() -> Unit)?,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val wallpaperEnabled = LocalAppBackground.current != null &&
+        LocalAppUiTheme.current == AppUiTheme.MIUIX
+    val cardModifier = if (wallpaperEnabled) {
+        modifier.appWallpaperFrostedSurface(
+            SmoothRoundedCornerShape(16.dp),
+            MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+        )
+    } else modifier
+    val cardColors = MiuixCardDefaults.defaultColors().let { colors ->
+        if (wallpaperEnabled) colors.copy(color = Color.Transparent) else colors
+    }
     val haptic = LocalHapticFeedback.current
     val action = onClick?.let { click ->
         {
@@ -248,16 +261,18 @@ internal fun MiuixCardImpl(
     }
     if (action == null || !enabled) {
         MiuixCard(
-            modifier = modifier,
+            modifier = cardModifier,
             cornerRadius = 16.dp,
             insideMargin = contentPadding,
+            colors = cardColors,
             content = content
         )
     } else {
         MiuixCard(
-            modifier = modifier,
+            modifier = cardModifier,
             cornerRadius = 16.dp,
             insideMargin = contentPadding,
+            colors = cardColors,
             pressFeedbackType = PressFeedbackType.Sink,
             onClick = action,
             content = content
@@ -274,12 +289,21 @@ internal fun MaterialCardImpl(
     onClick: (() -> Unit)?,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val wallpaperEnabled = LocalAppBackground.current != null &&
+        LocalAppUiTheme.current == AppUiTheme.MATERIAL
+    val cardModifier = if (wallpaperEnabled) {
+        modifier.appWallpaperFrostedSurface(
+            shape,
+            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+        )
+    } else modifier
+    val containerColor = if (wallpaperEnabled) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer
     if (onClick == null) {
         MaterialCard(
-            modifier = modifier,
+            modifier = cardModifier,
             shape = shape,
             colors = MaterialCardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                containerColor = containerColor
             )
         ) {
             Column(modifier = Modifier.padding(contentPadding), content = content)
@@ -287,11 +311,11 @@ internal fun MaterialCardImpl(
     } else {
         MaterialCard(
             onClick = onClick,
-            modifier = modifier,
+            modifier = cardModifier,
             enabled = enabled,
             shape = shape,
             colors = MaterialCardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                containerColor = containerColor
             )
         ) {
             Column(modifier = Modifier.padding(contentPadding), content = content)
@@ -365,10 +389,16 @@ internal fun MiuixHeaderIconButtonImpl(
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onClick()
         },
-        modifier = modifier.size(AppComponentTokens.TouchTarget),
+        modifier = modifier.size(AppComponentTokens.TouchTarget).let { iconModifier ->
+            if (LocalAppBackground.current != null) iconModifier.appWallpaperFrostedSurface(
+                AppComponentTokens.ControlShape,
+                MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+            ) else iconModifier
+        },
         minWidth = AppComponentTokens.TouchTarget,
         minHeight = AppComponentTokens.TouchTarget,
-        backgroundColor = MiuixTheme.colorScheme.surfaceContainer
+        backgroundColor = if (LocalAppBackground.current != null) Color.Transparent
+            else MiuixTheme.colorScheme.surfaceContainer
     ) {
         MiuixIcon(
             imageVector = imageVector,
@@ -499,6 +529,7 @@ internal fun MiuixPageHeaderImpl(
         title = title,
         largeTitle = title,
         modifier = modifier,
+        color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
             onBack?.let { callback ->
                 MiuixIconButton(
@@ -808,6 +839,31 @@ internal fun MiuixSearchFieldImpl(
     modifier: Modifier,
     onSearch: (String) -> Unit
 ) {
+    if (LocalAppBackground.current != null) {
+        MiuixTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = placeholder,
+            useLabelAsPlaceholder = true,
+            modifier = modifier.appWallpaperFrostedSurface(
+                SmoothRoundedCornerShape(16.dp),
+                MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.66f)
+            ),
+            backgroundColor = Color.Transparent,
+            borderColor = Color.Transparent,
+            leadingIcon = {
+                MiuixIcon(
+                    imageVector = MiuixIcons.Useful.Search,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onSurface
+                )
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch(value) })
+        )
+        return
+    }
     MiuixSearchInputField(
         query = value,
         onQueryChange = onValueChange,
@@ -828,16 +884,27 @@ internal fun OutlinedSearchFieldImpl(
     onSearch: (String) -> Unit,
     liquid: Boolean
 ) {
+    val wallpaperEnabled = !liquid && LocalAppBackground.current != null
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier,
+        modifier = if (wallpaperEnabled) modifier.appWallpaperFrostedSurface(
+            AppComponentTokens.ControlShape,
+            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+        ) else modifier,
         singleLine = true,
         placeholder = { Text(placeholder) },
         shape = AppComponentTokens.ControlShape,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch(value) }),
-        colors = if (liquid) {
+        colors = if (wallpaperEnabled) {
+            OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
+                errorBorderColor = Color.Transparent
+            )
+        } else if (liquid) {
             OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
@@ -883,7 +950,14 @@ internal fun MiuixTextFieldImpl(
     MiuixTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier,
+        modifier = if (LocalAppBackground.current != null) modifier.appWallpaperFrostedSurface(
+            SmoothRoundedCornerShape(12.dp),
+            MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.66f)
+        ) else modifier,
+        backgroundColor = if (LocalAppBackground.current != null) Color.Transparent
+            else MiuixTheme.colorScheme.secondaryContainer,
+        borderColor = if (LocalAppBackground.current != null) Color.Transparent
+            else MiuixTheme.colorScheme.primary,
         label = label,
         useLabelAsPlaceholder = true,
         enabled = enabled,
@@ -907,10 +981,14 @@ internal fun OutlinedTextFieldImpl(
     visualTransformation: VisualTransformation,
     liquid: Boolean
 ) {
+    val wallpaperEnabled = !liquid && LocalAppBackground.current != null
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier,
+        modifier = if (wallpaperEnabled) modifier.appWallpaperFrostedSurface(
+            AppComponentTokens.ControlShape,
+            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+        ) else modifier,
         enabled = enabled,
         singleLine = singleLine,
         label = { Text(label) },
@@ -918,7 +996,14 @@ internal fun OutlinedTextFieldImpl(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
-        colors = if (liquid) {
+        colors = if (wallpaperEnabled) {
+            OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
+                errorBorderColor = Color.Transparent
+            )
+        } else if (liquid) {
             OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.28f),
@@ -1264,10 +1349,17 @@ internal fun <T> MiuixSelectField(
         )
     }
     if (standalone) {
+        val wallpaperEnabled = LocalAppBackground.current != null &&
+            LocalAppUiTheme.current == AppUiTheme.MIUIX
         MiuixSurface(
-            modifier = modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth().then(
+                if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
+                    SmoothRoundedCornerShape(16.dp),
+                    MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+                ) else Modifier
+            ),
             shape = SmoothRoundedCornerShape(16.dp),
-            color = MiuixTheme.colorScheme.surfaceContainer
+            color = if (wallpaperEnabled) Color.Transparent else MiuixTheme.colorScheme.surfaceContainer
         ) {
             dropdown(Modifier)
         }
@@ -1289,6 +1381,8 @@ internal fun <T> MaterialSelectField(
     valueTextAlign: TextAlign
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val wallpaperEnabled = LocalAppBackground.current != null &&
+        LocalAppUiTheme.current == AppUiTheme.MATERIAL
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { if (enabled) expanded = !expanded },
@@ -1311,6 +1405,16 @@ internal fun <T> MaterialSelectField(
                     enabled = enabled
                 )
                 .fillMaxWidth()
+                .then(if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
+                    AppComponentTokens.ControlShape,
+                    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+                ) else Modifier),
+            colors = if (wallpaperEnabled) OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
+                errorBorderColor = Color.Transparent
+            ) else OutlinedTextFieldDefaults.colors()
         )
         ExposedDropdownMenu(
             expanded = expanded,

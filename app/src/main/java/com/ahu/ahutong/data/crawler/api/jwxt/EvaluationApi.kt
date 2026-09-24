@@ -102,7 +102,7 @@ interface EvaluationApi {
                 followRedirects = false,
                 followSslRedirects = false
             )
-            .campusAutoLogin(RepositorySessionExpiryHook())
+            .campusAutoLogin()
             .addNetworkInterceptor { chain ->
                 val response = chain.proceed(chain.request())
                 if (response.code == 401 && response.request.url.encodedPath

@@ -71,9 +71,8 @@ import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.backdrop.Backdrop
-import top.yukonga.miuix.kmp.basic.BasicComponent as MiuixBasicComponent
-import top.yukonga.miuix.kmp.basic.BasicComponentDefaults as MiuixBasicComponentDefaults
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
+import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -82,7 +81,6 @@ import top.yukonga.miuix.kmp.basic.SmallTitle as MiuixSmallTitle
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.extra.SuperDropdown
-import top.yukonga.miuix.kmp.extra.SuperArrow
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.icons.useful.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -238,6 +236,7 @@ fun SettingsPageLayout(
             MiuixTopAppBar(
                 title = title,
                 largeTitle = title,
+                color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     onBackWithFeedback?.let { callback ->
@@ -301,14 +300,25 @@ fun SettingsHeroCard(
     val uiTheme = LocalAppUiTheme.current
     val isRadiant = uiTheme == AppUiTheme.RADIANT
     if (uiTheme == AppUiTheme.MIUIX) {
+        val wallpaperEnabled = LocalAppBackground.current != null
+        val cardColors = MiuixCardDefaults.defaultColors().let { colors ->
+            if (wallpaperEnabled) colors.copy(color = Color.Transparent) else colors
+        }
         MiuixCard(
-            modifier = modifier.fillMaxWidth(),
+            modifier = modifier.fillMaxWidth().then(
+                if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
+                    SmoothRoundedCornerShape(16.dp),
+                    MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+                ) else Modifier
+            ),
             cornerRadius = 16.dp,
             insideMargin = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+            colors = cardColors,
             pressFeedbackType = PressFeedbackType.Sink,
             onClick = onClickWithFeedback
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 content = content
@@ -354,12 +364,22 @@ fun SettingsSection(
     val uiTheme = LocalAppUiTheme.current
     val isRadiant = uiTheme == AppUiTheme.RADIANT
     if (uiTheme == AppUiTheme.MIUIX) {
+        val wallpaperEnabled = LocalAppBackground.current != null
+        val cardColors = MiuixCardDefaults.defaultColors().let { colors ->
+            if (wallpaperEnabled) colors.copy(color = Color.Transparent) else colors
+        }
         Column(modifier = modifier.fillMaxWidth()) {
             MiuixSmallTitle(text = title)
             MiuixCard(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().then(
+                    if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
+                        SmoothRoundedCornerShape(16.dp),
+                        MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
+                    ) else Modifier
+                ),
                 cornerRadius = 16.dp,
-                insideMargin = PaddingValues(0.dp)
+                insideMargin = PaddingValues(0.dp),
+                colors = cardColors
             ) {
                 content()
             }
@@ -427,42 +447,39 @@ fun SettingsActionRow(
     val onClickWithFeedback = rememberThemeHapticAction(onClick)
     if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
         Column(modifier = modifier.fillMaxWidth()) {
-            SuperArrow(
-                title = title,
-                insideMargin = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                titleColor = MiuixBasicComponentDefaults.titleColor(
-                    color = if (destructive) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MiuixTheme.colorScheme.onBackground
-                    }
-                ),
-                summary = subtitle,
-                leftAction = leadingIcon?.let { icon ->
-                    {
-                        MiuixIcon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                            tint = if (destructive) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MiuixTheme.colorScheme.primary
-                            }
-                        )
-                    }
-                },
-                rightActions = {
-                    value?.let {
-                        MiuixText(
-                            text = it,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onClickWithFeedback
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable(onClick = onClickWithFeedback)
+                    .heightIn(min = 68.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                leadingIcon?.let { icon ->
+                    MiuixIcon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = if (destructive) MaterialTheme.colorScheme.error else MiuixTheme.colorScheme.primary
+                    )
+                }
+                leadingPainter?.let { painter ->
+                    Icon(painter = painter, contentDescription = null, modifier = Modifier.size(24.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    MiuixText(title, color = if (destructive) MaterialTheme.colorScheme.error else MiuixTheme.colorScheme.onBackground)
+                    subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+                }
+                value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+                if (showChevron) {
+                    MiuixIcon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
+            }
             SettingsDivider(visible = showDivider)
         }
         return
@@ -546,19 +563,19 @@ fun SettingsInfoRow(
 ) {
     if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
         Column(modifier = modifier.fillMaxWidth()) {
-            MiuixBasicComponent(
-                title = title,
-                summary = subtitle,
-                modifier = Modifier.fillMaxWidth(),
-                rightActions = {
-                    value?.let {
-                        MiuixText(
-                            text = it,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .heightIn(min = 68.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    MiuixText(title, color = MiuixTheme.colorScheme.onBackground)
+                    subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
                 }
-            )
+                value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+            }
             SettingsDivider(visible = showDivider)
         }
         return

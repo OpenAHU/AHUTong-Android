@@ -234,6 +234,7 @@ class BootstrapTrainingDataManager @Inject constructor(
             val consent = dao.bootstrapTrainingConsent(profileKey)?.takeIf { it.state == "ACTIVE" }
                 ?: return@withLock
             val capability = secretStore.decrypt(consent.secretAlias, consent.encryptedRevocationCapability)
+                ?: return@withLock
             val opportunityGroupId = hmacSha256(capability, values.first().rawOpportunityId)
             val now = System.currentTimeMillis()
             val entities = values.sortedBy(BootstrapPresetCapture::candidateOrdinal).mapIndexed { index, value ->
@@ -336,7 +337,7 @@ class BootstrapTrainingDataManager @Inject constructor(
                 val capability = secretStore.decrypt(
                     consent.secretAlias,
                     consent.encryptedRevocationCapability
-                )
+                ) ?: return@withLock
                 hmacSha256(capability, rawOpportunityId)
             } else {
                 opportunityGroupId
@@ -446,6 +447,7 @@ class BootstrapTrainingDataManager @Inject constructor(
                 .forEach { group -> if (group.size <= PRESET_LIMIT - size) addAll(group) }
         }.groupBy(PresetTrainingSampleEntity::opportunityId)
         val capability = secretStore.decrypt(state.secretAlias, state.encryptedRevocationCapability)
+            ?: return state
         presetRows.values.forEach { group ->
             state = insertHistoricalPresetGroup(state, group, capability)
         }

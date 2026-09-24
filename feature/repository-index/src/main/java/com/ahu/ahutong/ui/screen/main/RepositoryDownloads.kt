@@ -157,7 +157,7 @@ fun RepositoryDownloads(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(files, key = { it.path }) { file ->
+                items(files.distinctBy { it.path }, key = { it.path }) { file ->
                     val isSelected = file.path in selectedPaths
                     DownloadedFileRow(
                         file = file,

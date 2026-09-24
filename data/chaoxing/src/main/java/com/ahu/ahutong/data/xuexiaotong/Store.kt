@@ -50,8 +50,12 @@ object Store : ChaoxingReminderStore {
     fun clearCookie() = remove("cx_cookie")
 
     fun saveCredential(phone: String, pwd: String) {
-        putString("cx_cred_phone", CredentialCrypto.encrypt(phone))
-        putString("cx_cred_pwd", CredentialCrypto.encrypt(pwd))
+        val encryptedPhone = CredentialCrypto.encrypt(phone)
+        val encryptedPassword = CredentialCrypto.encrypt(pwd)
+        sp.edit()
+            .putString("cx_cred_phone", encryptedPhone)
+            .putString("cx_cred_pwd", encryptedPassword)
+            .apply()
     }
     fun getCredential(): Pair<String, String>? {
         val p = getString("cx_cred_phone")

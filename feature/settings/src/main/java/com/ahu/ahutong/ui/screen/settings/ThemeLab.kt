@@ -54,6 +54,7 @@ import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.SettingsChoice
+import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsDialogSelectRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
@@ -72,11 +73,8 @@ fun ThemeLab(
     onBack: () -> Unit = {},
     viewModel: PreferencesViewModel = hiltViewModel()
 ) {
-    val appThemeMode by viewModel.appThemeMode.collectAsState()
     val appUiTheme by viewModel.appUiTheme.collectAsState()
     val slotOverrides by viewModel.componentSlotOverrides.collectAsState()
-    val themeColor by viewModel.themeColor.collectAsState()
-    var showCustomColorDialog by remember { mutableStateOf(false) }
     var dialogPreviewShown by remember { mutableStateOf(false) }
     var sheetPreviewShown by remember { mutableStateOf(false) }
     var previewToggle by remember { mutableStateOf(true) }
@@ -86,57 +84,9 @@ fun ThemeLab(
 
     com.ahu.ahutong.ui.components.SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
     SettingsPageLayout(
-        title = "外观",
+        title = "详细设定",
         onBack = onBack
     ) {
-        SettingsSection(
-            title = "主题色",
-            modifier = Modifier.padding(horizontal = 16.dp),
-            backdrop = backdrop
-        ) {
-            ThemeColorPicker(
-                selectedColor = themeColor,
-                showMiuixDefault = appUiTheme == AppUiTheme.MIUIX,
-                onColorSelected = viewModel::setThemeColor,
-                onCustomColorClick = { showCustomColorDialog = true }
-            )
-        }
-
-        SettingsSection(
-            title = "深色模式",
-            modifier = Modifier.padding(horizontal = 16.dp),
-            backdrop = backdrop
-        ) {
-            SettingsSelectRow(
-                title = "深色模式",
-                selected = appThemeMode,
-                choices = listOf(
-                    SettingsChoice(AppThemeMode.FOLLOW_SYSTEM, "跟随系统"),
-                    SettingsChoice(AppThemeMode.DARK, "深色"),
-                    SettingsChoice(AppThemeMode.LIGHT, "浅色")
-                ),
-                onSelected = viewModel::setAppThemeMode,
-                showDivider = false
-            )
-        }
-
-        HomeBackgroundSection(viewModel = viewModel, backdrop = backdrop)
-
-        SettingsSection(
-            title = "界面风格套装",
-            modifier = Modifier.padding(horizontal = 16.dp),
-            backdrop = backdrop
-        ) {
-            SettingsSelectRow(
-                title = "界面风格",
-                subtitle = "整套组件与交互风格的基线；下方槽位可在此基础上逐件混搭",
-                selected = appUiTheme,
-                choices = AppUiTheme.entries.filter { it != AppUiTheme.LIQUID_GLASS }.map { SettingsChoice(it, it.displayName) },
-                onSelected = viewModel::setAppUiTheme,
-                showDivider = false
-            )
-        }
-
         SettingsSection(
             title = "实时预览（当前混搭效果）",
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -264,10 +214,55 @@ fun ThemeLab(
             Text(
                 text = "这是当前混搭下的底部抽屉样式。",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 24.dp)
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
             )
         }
     }
+    }
+
+}
+
+@Composable
+fun ThemeSettingsSection(
+    viewModel: PreferencesViewModel,
+    backdrop: com.kyant.backdrop.Backdrop,
+    onOpenDetails: () -> Unit
+) {
+    val appThemeMode by viewModel.appThemeMode.collectAsState()
+    val appUiTheme by viewModel.appUiTheme.collectAsState()
+    val themeColor by viewModel.themeColor.collectAsState()
+    var showCustomColorDialog by remember { mutableStateOf(false) }
+
+    SettingsSection(
+        title = "主题",
+        modifier = Modifier.padding(horizontal = 16.dp),
+        backdrop = backdrop
+    ) {
+        ThemeColorPicker(
+            selectedColor = themeColor,
+            showMiuixDefault = appUiTheme == AppUiTheme.MIUIX,
+            onColorSelected = viewModel::setThemeColor,
+            onCustomColorClick = { showCustomColorDialog = true }
+        )
+        SettingsSelectRow(
+            title = "深色模式",
+            selected = appThemeMode,
+            choices = listOf(
+                SettingsChoice(AppThemeMode.FOLLOW_SYSTEM, "跟随系统"),
+                SettingsChoice(AppThemeMode.DARK, "深色"),
+                SettingsChoice(AppThemeMode.LIGHT, "浅色")
+            ),
+            onSelected = viewModel::setAppThemeMode
+        )
+        BackgroundControls(viewModel)
+        SettingsSelectRow(
+            title = "主题套装",
+            selected = appUiTheme,
+            choices = AppUiTheme.entries.filter { it != AppUiTheme.LIQUID_GLASS }
+                .map { SettingsChoice(it, it.displayName) },
+            onSelected = viewModel::setAppUiTheme
+        )
+        SettingsActionRow(title = "详细设定", onClick = onOpenDetails, showDivider = false)
     }
 
     if (showCustomColorDialog) {
@@ -445,12 +440,9 @@ private fun CustomThemeColorDialog(
     )
 }
 
-/** 主页背景：选图（裁屏比落盘）+ 高斯模糊滑杆 + 取主色调 + 清除。 */
+/** 全局背景：沿用原主页背景的存储与遮罩设置。 */
 @Composable
-private fun HomeBackgroundSection(
-    viewModel: PreferencesViewModel,
-    backdrop: com.kyant.backdrop.Backdrop? = null
-) {
+private fun BackgroundControls(viewModel: PreferencesViewModel) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val revision by com.ahu.ahutong.core.storage.HomeBackgroundStore.revision.collectAsState()
@@ -469,11 +461,11 @@ private fun HomeBackgroundSection(
         }
     }
 
-    SettingsSection(
-        title = "主页背景",
-        modifier = Modifier.padding(horizontal = 16.dp),
-        backdrop = backdrop
-    ) {
+    Text(
+        text = "背景",
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(start = 20.dp, top = 14.dp, end = 20.dp)
+    )
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -541,5 +533,4 @@ private fun HomeBackgroundSection(
                 ) { Text("从背景图取主题色") }
             }
         }
-    }
 }

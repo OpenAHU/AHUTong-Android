@@ -182,8 +182,17 @@
 -keep class com.ahu.ahutong.data.weather.** { *; }
 -keep interface com.ahu.ahutong.data.weather.WeatherApi { *; }
 
-# Repository / GitHub models
--keepclassmembers,allowoptimization class com.ahu.ahutong.data.repository.** { <fields>; }
+# Repository index and local download records are read by Gson reflection. Keep their concrete
+# classes and fields so R8 cannot merge the index entries or discard fields used only by Gson.
+-keep class com.ahu.ahutong.data.repository.StorageUpdateResponse { *; }
+-keep class com.ahu.ahutong.data.repository.StorageIndexResponse { *; }
+-keep class com.ahu.ahutong.data.repository.StorageRepository { *; }
+-keep class com.ahu.ahutong.data.repository.StorageFileEntry { *; }
+-keep class com.ahu.ahutong.data.repository.StorageDirEntry { *; }
+-keep class com.ahu.ahutong.data.repository.StorageLinkResponse { *; }
+-keep class com.ahu.ahutong.data.repository.GitHubContentItem { *; }
+-keep class com.ahu.ahutong.data.repository.DownloadedFile { *; }
+-keep class com.ahu.ahutong.data.repository.RepositoryManager$DownloadRecord { *; }
 
 # Evaluation
 -keep interface com.ahu.ahutong.data.crawler.api.jwxt.EvaluationApi { *; }

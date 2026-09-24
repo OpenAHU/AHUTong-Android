@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.state
 
 import android.content.Context
+import android.content.Intent
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.core.common.CourseReminderControl
 import com.ahu.ahutong.notification.CourseReminderCapability
@@ -38,7 +39,9 @@ class AndroidCourseReminderControl @Inject constructor() : CourseReminderControl
      */
     override fun openSystemSettings() {
         val promotionIntent = CourseReminderCapability.createPromotionSettingsIntent(context)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val fallbackIntent = CourseReminderCapability.createNotificationSettingsIntent(context)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(promotionIntent) }
             .getOrElse { context.startActivity(fallbackIntent) }
     }

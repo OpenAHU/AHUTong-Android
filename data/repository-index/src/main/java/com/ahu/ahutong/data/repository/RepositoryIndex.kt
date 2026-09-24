@@ -22,7 +22,8 @@ interface RepositoryIndex {
 
     suspend fun warmUpAllContentCaches(
         forceRefresh: Boolean = false,
-        onProgress: ((Int) -> Unit)? = null
+        onProgress: ((Int) -> Unit)? = null,
+        onDownloadProgress: ((Long, Long) -> Unit)? = null
     ): Long
 
     fun getDirectorySummaries(items: List<GitHubContentItem>): Map<String, RepositoryDirectorySummary>

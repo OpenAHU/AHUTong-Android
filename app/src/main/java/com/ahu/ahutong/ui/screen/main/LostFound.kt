@@ -186,7 +186,7 @@ fun LostFound(
     /**
      * 搜索 + 筛选
      */
-    val filteredList = lostFoundList.filter { item ->
+    val filteredList = lostFoundList.distinctBy(LostFoundItem::id).filter { item ->
         val campusMatch =
             lostFoundViewModel.selectedCampus == null ||
                     item.campusid == lostFoundViewModel.selectedCampus
@@ -270,23 +270,13 @@ fun LostFound(
 
     val pageContent: LazyListScope.() -> Unit = {
 
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 8.dp),
-                    verticalArrangement =
-                        Arrangement.spacedBy(16.dp)
-                ) {
-                    if (searchExpanded) {
-                        AppSearchField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = "搜索全部信息"
-                        )
-                    }
-                }
+            if (searchExpanded) item {
+                AppSearchField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    placeholder = "搜索全部信息"
+                )
             }
 
             if (!searchExpanded) {
@@ -533,7 +523,7 @@ fun LostFound(
                 )
             },
             bottomPadding = 96.dp,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             lazyContent = pageContent
         )
         AppFloatingActionButton(

@@ -42,6 +42,7 @@ import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.AppTitleIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -116,11 +117,11 @@ fun Repository(
         initialFirstVisibleItemIndex = initialScrollPosition.index,
         initialFirstVisibleItemScrollOffset = initialScrollPosition.offset
     )
-    val shouldShowInitialProgress = path.isBlank() && state.items.isEmpty() && sharedState.isCacheWarming
+    val shouldShowInitialProgress = state.items.isEmpty() && sharedState.isCacheWarming
 
     LaunchedEffect(path) {
-        viewModel.ensureLoaded(path)
         viewModel.warmUpAllContentCaches()
+        viewModel.ensureLoaded(path)
     }
 
     LaunchedEffect(state.isLoading, state.isRefreshing, state.error, state.items.size, state.isShowingCachedContents) {
@@ -158,6 +159,31 @@ fun Repository(
                 )
             }
         )
+
+        val indexBytes = sharedState.indexDownloadBytes
+        val indexTotal = sharedState.indexDownloadTotalBytes
+        if (state.items.isNotEmpty() && indexBytes != null) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = if (indexTotal != null) {
+                        "正在更新索引 ${(indexBytes * 100 / indexTotal).coerceAtMost(100)}%"
+                    } else {
+                        "正在更新索引，已下载 ${indexBytes / 1024} KB"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (indexTotal != null) {
+                    LinearProgressIndicator(
+                        progress = { (indexBytes.toFloat() / indexTotal).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
 
         state.error?.let { error ->
             Row(
@@ -198,14 +224,35 @@ fun Repository(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        AppCircularProgressIndicator(size = 28.dp)
+                        val downloaded = sharedState.indexDownloadBytes
+                        val total = sharedState.indexDownloadTotalBytes
+                        if (downloaded != null && total != null) {
+                            LinearProgressIndicator(
+                                progress = { (downloaded.toFloat() / total).coerceIn(0f, 1f) },
+                                modifier = Modifier.width(220.dp)
+                            )
+                        } else {
+                            AppCircularProgressIndicator(size = 28.dp)
+                        }
                         Text(
-                            text = "已获取 ${sharedState.cacheWarmUpCount} 个文件",
+                            text = when {
+                                downloaded != null && total != null ->
+                                    "正在下载索引 ${(downloaded * 100 / total).coerceAtMost(100)}%"
+                                downloaded != null -> "正在下载索引"
+                                sharedState.cacheWarmUpCount > 0 ->
+                                    "已整理 ${sharedState.cacheWarmUpCount} 个文件"
+                                else -> "正在检查索引版本"
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "正在整理学习资料目录",
+                            text = when {
+                                downloaded != null && total != null ->
+                                    "已下载 ${downloaded / 1024} / ${total / 1024} KB"
+                                downloaded != null -> "已下载 ${downloaded / 1024} KB"
+                                else -> "正在整理学习资料目录"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -218,7 +265,7 @@ fun Repository(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    items(state.items, key = { it.path }) { item ->
+                    items(state.items.distinctBy { it.path }, key = { it.path }) { item ->
                         RepositoryItemRow(
                             item = item,
                             isDownloaded = item.path in sharedState.downloadedPaths,

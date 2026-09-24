@@ -15,10 +15,10 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * 主页自定义背景存储（v2）：
+ * 全局自定义背景存储（沿用原主页背景的偏好与文件名）：
  * 选图 → 按屏幕比例 centerCrop → 清晰落盘；
  * 观感调节改用「亮暗遮罩不透明度」（白色/黑色罩层），保住图片清晰度。
- * revision 递增驱动主页重组。
+ * revision 递增驱动所有页面重组。
  */
 object HomeBackgroundStore {
     private const val SRC_FILE = "home_bg_src.jpg"

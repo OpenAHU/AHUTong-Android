@@ -95,13 +95,22 @@ class ScheduleViewModel @Inject constructor(
             return
         }
 
+        showCachedSchedule()
+        refreshLatestSchedule()
+    }
+
+    fun onHomeEntered() {
+        if (!session.isLoggedIn() && !scheduleSource.usesMockData()) return
+        showCachedSchedule()
+    }
+
+    private fun showCachedSchedule() {
         scheduleSource.cached()?.let { cached ->
             if (schedule.value?.valueOrNull() != cached) {
                 schedule.value = AhuResult.Success(cached)
             }
         }
         scheduleFetchedAt.value = scheduleSource.fetchedAt()
-        refreshLatestSchedule()
     }
 
     private fun refreshLatestSchedule() {
@@ -113,8 +122,11 @@ class ScheduleViewModel @Inject constructor(
                 val refresh = scheduleSource.refreshCache()
                 refresh.onSuccess { result ->
                     scheduleFetchedAt.value = result.fetchedAt
-                    if (result.changed || schedule.value?.valueOrNull() == null) {
+                    val displayedSchedule = schedule.value?.valueOrNull()
+                    if (displayedSchedule != result.schedule) {
                         schedule.value = AhuResult.Success(result.schedule)
+                    }
+                    if (result.changed || displayedSchedule == null) {
                         reminders.reschedule()
                     }
                 }.onFailure { error ->

@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen
 
+import android.graphics.BitmapFactory
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.BuildConfig
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -16,6 +17,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
@@ -30,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -81,6 +84,9 @@ import com.ahu.ahutong.ui.screen.settings.ThemeLab
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Login
 import com.ahu.ahutong.ui.components.LiquidGlassAppHost
+import com.ahu.ahutong.ui.components.AppBackground
+import com.ahu.ahutong.ui.components.LocalAppBackground
+import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
 import com.ahu.ahutong.ui.components.AppButton
@@ -108,6 +114,7 @@ import com.ahu.ahutong.personalization.recorder.BehaviorRecorder
 import com.ahu.ahutong.ui.suggestion.SmartSuggestionHost
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.core.storage.HomeBackgroundStore
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import dagger.hilt.EntryPoint
 import dagger.hilt.android.EntryPointAccessors
@@ -242,6 +249,18 @@ fun Main(
         homeEditGrayState = GrayReleaseManager.state(GrayFeatures.HomeEdit, context)
     }
 
+    val backgroundRevision by HomeBackgroundStore.revision.collectAsState()
+    val appBackground = remember(backgroundRevision) {
+        if (HomeBackgroundStore.isEnabled) {
+            HomeBackgroundStore.blurredFile(context).takeIf { it.exists() }
+                ?.let { BitmapFactory.decodeFile(it.absolutePath)?.asImageBitmap() }
+                ?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
+        } else null
+    }
+    CompositionLocalProvider(
+        LocalAppBackground provides appBackground,
+        LocalGlassReadabilityBoost provides (appBackground != null)
+    ) {
     LiquidGlassAppHost(modifier = Modifier.fillMaxSize()) {
         val backdrop = LocalLiquidGlassContentBackdrop.current
         NavHost(
@@ -589,5 +608,6 @@ fun Main(
                 }
             }
         }
+    }
     }
 }

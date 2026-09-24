@@ -33,6 +33,14 @@ class RepositoryIndexRefreshPolicyTest {
     }
 
     @Test
+    fun `an unchanged server timestamp reuses a complete local index`() {
+        assertTrue(RepositoryIndexRefreshPolicy.canReuseServerIndex(123L, 123L, true))
+        assertFalse(RepositoryIndexRefreshPolicy.canReuseServerIndex(124L, 123L, true))
+        assertFalse(RepositoryIndexRefreshPolicy.canReuseServerIndex(123L, 123L, false))
+        assertFalse(RepositoryIndexRefreshPolicy.canReuseServerIndex(0L, 0L, true))
+    }
+
+    @Test
     fun `index construction does not eagerly fetch every LFS candidate`() {
         val source = File(
             repositoryRoot(),
@@ -40,7 +48,7 @@ class RepositoryIndexRefreshPolicyTest {
         ).readText()
 
         assertFalse(source.contains("resolveGitLfsDisplaySizes"))
-        assertTrue(source.contains("size = child.size"))
+        assertTrue(source.contains("size = entry.size"))
     }
 
     @Test

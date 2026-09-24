@@ -10,6 +10,7 @@ import com.ahu.ahutong.data.repository.RepositoryMarkdownDocument
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,7 +44,9 @@ data class RepositorySharedUiState(
     val downloadProgress: Map<String, Float> = emptyMap(),
     val downloadingPath: String? = null,
     val isCacheWarming: Boolean = false,
-    val cacheWarmUpCount: Int = 0
+    val cacheWarmUpCount: Int = 0,
+    val indexDownloadBytes: Long? = null,
+    val indexDownloadTotalBytes: Long? = null
 )
 
 data class RepositoryScrollPosition(
@@ -68,6 +71,8 @@ class RepositoryViewModel @Inject constructor(
     private val pathRequestIds = mutableMapOf<String, Int>()
     private val scrollPositions = mutableMapOf<String, RepositoryScrollPosition>()
     private var hasStartedWarmUp = false
+    private var warmUpJob: Job? = null
+    private var warmUpFailure: Exception? = null
     private val deletionMutex = Mutex()
 
     private val _directoryStates = MutableStateFlow<Map<String, RepositoryUiState>>(emptyMap())
@@ -118,6 +123,7 @@ class RepositoryViewModel @Inject constructor(
     }
 
     fun loadContents(path: String = "", forceRefresh: Boolean = false) {
+        if (forceRefresh) warmUpAllContentCaches(forceRefresh = true)
         val requestId = ++loadRequestId
         pathRequestIds[path] = requestId
         val startState = _directoryStates.value[path]
@@ -136,10 +142,17 @@ class RepositoryViewModel @Inject constructor(
             try {
                 val resolvedState = withContext(ioDispatcher) {
                     val cached = if (forceRefresh) null else repository.getCachedContents(path)
-                    if (cached != null) {
-                        directoryStateFromCache(path, cached.items, cached.updateTime)
+                    val readyCache = if (forceRefresh || cached == null && path.isNotBlank()) {
+                        warmUpJob?.join()
+                        warmUpFailure?.let { throw it }
+                        repository.getCachedContents(path)
                     } else {
-                        val items = repository.getContents(path, forceRefresh = forceRefresh)
+                        cached
+                    }
+                    if (readyCache != null) {
+                        directoryStateFromCache(path, readyCache.items, readyCache.updateTime)
+                    } else {
+                        val items = repository.getContents(path, forceRefresh = false)
                         val sortedItems = sortDisplayItems(path, items)
                         RepositoryUiState(
                             isLoading = false,
@@ -181,20 +194,32 @@ class RepositoryViewModel @Inject constructor(
     }
 
     fun warmUpAllContentCaches(forceRefresh: Boolean = false) {
+        if (warmUpJob?.isActive == true) return
         if (hasStartedWarmUp && !forceRefresh) return
         hasStartedWarmUp = true
+        warmUpFailure = null
         _sharedState.value = _sharedState.value.copy(
             isCacheWarming = true,
-            cacheWarmUpCount = 0
+            cacheWarmUpCount = 0,
+            indexDownloadBytes = null,
+            indexDownloadTotalBytes = null
         )
-        viewModelScope.launch {
+        warmUpJob = viewModelScope.launch {
             try {
-                val updateTime = repository.warmUpAllContentCaches(
+                repository.warmUpAllContentCaches(
                     forceRefresh = forceRefresh,
                     onProgress = { fetchedCount ->
                         _sharedState.value = _sharedState.value.copy(
                             isCacheWarming = true,
-                            cacheWarmUpCount = fetchedCount
+                            cacheWarmUpCount = fetchedCount,
+                            indexDownloadBytes = null,
+                            indexDownloadTotalBytes = null
+                        )
+                    },
+                    onDownloadProgress = { downloaded, total ->
+                        _sharedState.value = _sharedState.value.copy(
+                            indexDownloadBytes = downloaded,
+                            indexDownloadTotalBytes = total.takeIf { it > 0L }
                         )
                     }
                 )
@@ -205,7 +230,7 @@ class RepositoryViewModel @Inject constructor(
                                 currentStates[path] = directoryStateFromCache(
                                     path,
                                     cached.items,
-                                    updateTime
+                                    cached.updateTime
                                 )
                             }
                         }
@@ -214,12 +239,18 @@ class RepositoryViewModel @Inject constructor(
                 _directoryStates.value = states
                 _sharedState.value = _sharedState.value.copy(
                     isCacheWarming = false,
-                    cacheWarmUpCount = 0
+                    cacheWarmUpCount = 0,
+                    indexDownloadBytes = null,
+                    indexDownloadTotalBytes = null
                 )
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                warmUpFailure = error
+                hasStartedWarmUp = false
                 _sharedState.value = _sharedState.value.copy(
                     isCacheWarming = false,
-                    cacheWarmUpCount = 0
+                    cacheWarmUpCount = 0,
+                    indexDownloadBytes = null,
+                    indexDownloadTotalBytes = null
                 )
             }
         }

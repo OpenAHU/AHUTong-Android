@@ -60,7 +60,6 @@ import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.HomeWidgetLayoutFamily
-import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import androidx.navigation.NavHostController
@@ -69,7 +68,6 @@ import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.semantic.MutationId
-import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
@@ -82,13 +80,6 @@ import com.ahu.ahutong.ui.screen.main.home.HomeWidgetLibrarySheet
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetSlotLayout
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
-import com.ahu.ahutong.core.storage.HomeBackgroundStore
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.Image
-import android.graphics.BitmapFactory
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.state.WeatherHomeConfig
@@ -142,25 +133,22 @@ fun Home(
     val effectiveScheduleConfig = scheduleConfig ?: localScheduleConfig
     val isInSemester = effectiveScheduleConfig?.isInSemester != false
     val currentWeek = effectiveScheduleConfig?.week ?: 1
+    val currentWeekday = effectiveScheduleConfig?.weekDay ?: 1
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
-    val todayCourses = remember(schedule, effectiveScheduleConfig, isInSemester, currentWeek) {
+    val todayCourses = remember(schedule, isInSemester, currentWeek, currentWeekday) {
         if (isInSemester) {
             schedule
                 .asSequence()
-                .filter { effectiveScheduleConfig?.week in it.startWeek..it.endWeek }
-                .filter { it.weekday == (effectiveScheduleConfig?.weekDay ?: 1) }
-                .filter {
-                    if (currentWeek in it.weekIndexes) {
-                        true
-                    } else {
-                        currentWeek % 2 == it.startWeek % 2
-                    }
-                }
+                .filter { currentWeek in it.weekIndexes }
+                .filter { it.weekday == currentWeekday }
                 .sortedBy { it.startTime }
                 .toList()
         } else {
             emptyList()
         }
+    }
+    LaunchedEffect(isActive) {
+        if (isActive) scheduleViewModel.onHomeEntered()
     }
     // 主页排版全主题统一为 Radiant 方案（曜光居中 Hero 布局），主题只换材质皮肤
     val layoutFamily = HomeWidgetLayoutFamily.RADIANT
@@ -377,13 +365,9 @@ fun Home(
             )
         }
     }
-    // revision 在 provider 作用域读取：背景开关/更换时 boost 与图片同步重组
-    val bgRevision by HomeBackgroundStore.revision.collectAsState()
     GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         CompositionLocalProvider(
-            LocalLiquidGlassAmbientBackdrop provides backdrop,
-            // 自定义背景开启时：全场景玻璃件加模糊加 tint 保可读性
-            LocalGlassReadabilityBoost provides (bgRevision >= 0 && HomeBackgroundStore.isEnabled)
+            LocalLiquidGlassAmbientBackdrop provides backdrop
         ) {
         Box(
             modifier = Modifier
@@ -429,35 +413,6 @@ fun Home(
                     }
                 }
         ) {
-        // 自定义主页背景：玻璃组件 backdrop 采样自动透出背景
-        val bgBitmap = remember(bgRevision) {
-            if (HomeBackgroundStore.isEnabled) {
-                val f = HomeBackgroundStore.blurredFile(AppEnvironmentHolder.context())
-                if (f.exists()) BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() else null
-            } else {
-                null
-            }
-        }
-        bgBitmap?.let { bitmap ->
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            // 亮暗遮罩：亮色模式白罩、暗色模式黑罩，不透明度可调
-            val maskAlpha = HomeBackgroundStore.maskPercent / 100f
-            if (maskAlpha > 0f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            (if (isSystemInDarkTheme()) Color.Black else Color.White)
-                                .copy(alpha = maskAlpha)
-                        )
-                )
-            }
-        }
         Column(
             modifier = Modifier
                 .fillMaxSize()

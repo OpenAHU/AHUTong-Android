@@ -31,7 +31,8 @@ class FakeRepositoryIndex(
 
     override suspend fun warmUpAllContentCaches(
         forceRefresh: Boolean,
-        onProgress: ((Int) -> Unit)?
+        onProgress: ((Int) -> Unit)?,
+        onDownloadProgress: ((Long, Long) -> Unit)?
     ): Long = 0L
 
     override fun getDirectorySummaries(

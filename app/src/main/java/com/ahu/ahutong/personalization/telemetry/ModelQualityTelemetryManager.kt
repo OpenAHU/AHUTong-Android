@@ -126,6 +126,7 @@ class ModelQualityTelemetryManager @Inject constructor(
         val learning = dao.learningState(profileKey)
         val reportId = UUID.randomUUID().toString()
         val capability = secretStore.decrypt(state.revocationKeyAlias, state.encryptedRevocationCapability)
+            ?: return
         val pairwise = PairwiseAggregate(window.tinyWins, window.statWins, window.ties, window.pairedSampleCount)
         val report = ModelQualityEvaluationReport(
             reportId = reportId,
@@ -234,6 +235,7 @@ class ModelQualityTelemetryManager @Inject constructor(
         window ?: return
         val validAggregate = aggregate ?: return
         val capability = secretStore.decrypt(state.revocationKeyAlias, state.encryptedRevocationCapability)
+            ?: return
         val reportId = UUID.randomUUID().toString()
         val report = ModelQualityV3TaskReport(
             reportId = reportId,

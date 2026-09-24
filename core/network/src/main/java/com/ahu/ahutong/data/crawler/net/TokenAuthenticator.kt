@@ -8,7 +8,6 @@ import okhttp3.Route
 
 class TokenAuthenticator(private val sessionExpiryHook: SessionExpiryHook) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
-        if (responseCount(response) >= MAX_ATTEMPTS) return null
         if (!SessionRefreshPolicy.isMarkedExpired(
                 response.header(SessionRefreshPolicy.EXPIRED_RESPONSE_HEADER)
             )
@@ -16,11 +15,22 @@ class TokenAuthenticator(private val sessionExpiryHook: SessionExpiryHook) : Aut
 
         val observedGeneration = SessionRefreshCoordinator.observedGeneration(response.request)
         return runBlocking {
+            if (responseCount(response) >= MAX_ATTEMPTS) {
+                sessionExpiryHook.onExpired(observedGeneration)
+                return@runBlocking null
+            }
             val refreshed = sessionExpiryHook.refresh(observedGeneration)
-            if (!refreshed) return@runBlocking null
+            if (!refreshed) {
+                sessionExpiryHook.onExpired(observedGeneration)
+                return@runBlocking null
+            }
 
             response.request.newBuilder()
                 .removeHeader("Cookie")
+                .tag(
+                    SessionRequestGeneration::class.java,
+                    SessionRequestGeneration(SessionRefreshCoordinator.currentGeneration())
+                )
                 .build()
         }
     }

@@ -15,10 +15,12 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import com.tencent.mmkv.MMKV
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -26,6 +28,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody
+import okhttp3.OkHttpClient
 import com.ahu.ahutong.data.network.AhuHttp
 
 internal object RepositoryIndexRefreshPolicy {
@@ -45,6 +49,103 @@ internal object RepositoryIndexRefreshPolicy {
             cachedVersion == expectedVersion &&
             hasRootContents
     }
+
+    fun canReuseServerIndex(
+        serverUpdatedAt: Long,
+        cachedServerUpdatedAt: Long,
+        hasRootContents: Boolean
+    ): Boolean = serverUpdatedAt > 0L &&
+        serverUpdatedAt == cachedServerUpdatedAt &&
+        hasRootContents
+}
+
+internal data class StorageServer(val id: String, val baseUrl: String)
+
+internal sealed interface StorageIndexResolution {
+    val server: StorageServer
+
+    data class Reused(
+        override val server: StorageServer,
+        val updatedAt: Long
+    ) : StorageIndexResolution
+
+    data class Fetched(
+        override val server: StorageServer,
+        val index: StorageIndexResponse
+    ) : StorageIndexResolution
+}
+
+internal suspend fun resolveStorageIndex(
+    servers: List<StorageServer>,
+    cachedServerId: String?,
+    cachedTimestamp: (String) -> Long,
+    hasRootContents: Boolean,
+    fetchUpdatedAt: suspend (StorageServer) -> Long,
+    fetchIndex: suspend (StorageServer) -> StorageIndexResponse
+): StorageIndexResolution {
+    var lastError: Exception? = null
+    for (server in servers) {
+        try {
+            val updatedAt = fetchUpdatedAt(server)
+            require(updatedAt > 0L) { "${server.id} 索引更新时间无效" }
+            if (server.id == cachedServerId && RepositoryIndexRefreshPolicy.canReuseServerIndex(
+                    updatedAt, cachedTimestamp(server.id), hasRootContents
+                )
+            ) {
+                return StorageIndexResolution.Reused(server, updatedAt)
+            }
+            val index = fetchIndex(server)
+            require(index.updatedAt > 0L) { "${server.id} 索引时间戳无效" }
+            return StorageIndexResolution.Fetched(server, index)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            lastError = error
+        }
+    }
+    throw IllegalStateException("索引服务器均不可用", lastError)
+}
+
+internal fun <T> readStorageDownload(
+    client: OkHttpClient,
+    servers: List<StorageServer>,
+    fileId: String,
+    read: (Response) -> T?
+): T? {
+    for (server in servers) {
+        try {
+            client.newCall(Request.Builder().url("${server.baseUrl}/api/download?id=$fileId").build())
+                .execute().use { response ->
+                    if (response.isSuccessful) read(response)?.let { return it }
+                }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // 当前节点请求或读取失败，继续尝试另一节点。
+        }
+    }
+    return null
+}
+
+internal fun readStorageIndex(
+    body: ResponseBody,
+    gson: Gson,
+    onDownloadProgress: ((Long, Long) -> Unit)? = null
+): StorageIndexResponse {
+    val totalBytes = body.contentLength()
+    val bytes = ByteArrayOutputStream()
+    onDownloadProgress?.invoke(0L, totalBytes)
+    body.byteStream().use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            bytes.write(buffer, 0, count)
+            onDownloadProgress?.invoke(bytes.size().toLong(), totalBytes)
+        }
+    }
+    return gson.fromJson(bytes.toString(Charsets.UTF_8.name()), StorageIndexResponse::class.java)
+        ?: throw IllegalStateException("资料索引解析失败")
 }
 
 object RepositoryManager {
@@ -56,14 +157,17 @@ object RepositoryManager {
     private const val CONTENT_TREE_CACHE_TIME_KEY = "content_tree_cache_time"
     private const val CONTENT_TREE_CACHE_VERSION_KEY = "content_tree_cache_version"
     private const val CONTENT_UNSUPPORTED_PATHS_KEY = "content_unsupported_paths"
-    private const val CONTENT_CACHE_VERSION = 8
+    private const val CONTENT_CACHE_VERSION = 9
     private const val DOWNLOAD_RECORDS_KEY = "downloaded_files"
     private const val DOWNLOAD_RELATIVE_ROOT = "ahutong"
-    private const val CONTENT_INDEX_SERVER_TS_KEY = "content_index_server_ts"
+    private const val CONTENT_INDEX_SERVER_ID_KEY = "content_index_server_id"
+    private const val CONTENT_INDEX_SERVER_TS_PREFIX = "content_index_server_ts_"
 
-    // ahutong-storage 服务：索引与下载都经由它；非 LFS 文件的最终下载地址仍是
-    // GitHub 直链，由客户端按当前加速源拼接。LFS 文件由服务端直接回源传输。
-    private const val STORAGE_BASE_URL = "https://ahutong-storage.muxyang.com"
+    // de 为主要节点，hk 为备用节点；非 LFS 文件的最终下载地址仍是 GitHub 直链。
+    private val storageServers = listOf(
+        StorageServer("de", "https://de-ahutong-storage.muxyang.com"),
+        StorageServer("hk", "https://hk-ahutong-storage.muxyang.com")
+    )
     private const val HEADER_DOWNLOAD_TYPE = "X-Download-Type"
     private const val HEADER_FILE_SIZE = "X-File-Size"
     private const val DOWNLOAD_TYPE_LINK = "link"
@@ -153,6 +257,11 @@ object RepositoryManager {
         connectTimeoutSeconds = 10,
         readTimeoutSeconds = 60
     ).build()
+    private val indexClient = AhuHttp.plain(
+        connectTimeoutSeconds = 15,
+        readTimeoutSeconds = 120,
+        callTimeoutSeconds = 180
+    ).build()
 
     // === GitHub API ===
 
@@ -189,13 +298,15 @@ object RepositoryManager {
 
     suspend fun warmUpAllContentCaches(
         forceRefresh: Boolean = false,
-        onProgress: ((Int) -> Unit)? = null
+        onProgress: ((Int) -> Unit)? = null,
+        onDownloadProgress: ((Long, Long) -> Unit)? = null
     ): Long {
         return withContext(Dispatchers.IO) {
             warmUpMutex.withLock {
                 val cachedUpdateTime = kv.decodeLong(CONTENT_TREE_CACHE_TIME_KEY, 0L)
                 val cachedVersion = kv.decodeInt(CONTENT_TREE_CACHE_VERSION_KEY, 0)
-                val hasUsableFreshCache = RepositoryIndexRefreshPolicy.canReuse(
+                val cachedServerId = kv.decodeString(CONTENT_INDEX_SERVER_ID_KEY)
+                val hasUsableFreshCache = storageServers.any { it.id == cachedServerId } && RepositoryIndexRefreshPolicy.canReuse(
                     cachedAtMillis = cachedUpdateTime,
                     cachedVersion = cachedVersion,
                     expectedVersion = CONTENT_CACHE_VERSION,
@@ -209,18 +320,23 @@ object RepositoryManager {
 
                 // 先问服务端索引时间戳：与本地记录一致说明索引没变，直接复用目录缓存，
                 // 不必整包重新拉取 /api/list。
-                val serverUpdatedAt = fetchStorageUpdatedAt()
-                if (!forceRefresh &&
-                    serverUpdatedAt > 0L &&
-                    serverUpdatedAt == kv.decodeLong(CONTENT_INDEX_SERVER_TS_KEY, 0L) &&
-                    getCachedContents("") != null
-                ) {
+                val resolution = resolveStorageIndex(
+                    servers = storageServers,
+                    cachedServerId = cachedServerId,
+                    cachedTimestamp = { serverId ->
+                        kv.decodeLong("$CONTENT_INDEX_SERVER_TS_PREFIX$serverId", 0L)
+                    },
+                    hasRootContents = getCachedContents("") != null,
+                    fetchUpdatedAt = ::fetchStorageUpdatedAt,
+                    fetchIndex = { server -> fetchStorageIndex(server, onDownloadProgress) }
+                )
+                if (resolution is StorageIndexResolution.Reused) {
                     kv.encode(CONTENT_TREE_CACHE_TIME_KEY, System.currentTimeMillis())
-                    kv.encode(CONTENT_TREE_CACHE_VERSION_KEY, CONTENT_CACHE_VERSION)
-                    return@withLock serverUpdatedAt
+                    return@withLock resolution.updatedAt
                 }
 
-                val index = fetchStorageIndex()
+                val fetched = resolution as StorageIndexResolution.Fetched
+                val index = fetched.index
                 val grouped = buildAllDirectoryCaches(index, onProgress)
                 val updateTime = System.currentTimeMillis()
                 grouped.forEach { (path, items) ->
@@ -228,7 +344,8 @@ object RepositoryManager {
                 }
                 kv.encode(CONTENT_TREE_CACHE_TIME_KEY, updateTime)
                 kv.encode(CONTENT_TREE_CACHE_VERSION_KEY, CONTENT_CACHE_VERSION)
-                kv.encode(CONTENT_INDEX_SERVER_TS_KEY, index.updatedAt)
+                kv.encode("$CONTENT_INDEX_SERVER_TS_PREFIX${fetched.server.id}", index.updatedAt)
+                kv.encode(CONTENT_INDEX_SERVER_ID_KEY, fetched.server.id)
                 updateTime
             }
         }
@@ -327,11 +444,8 @@ object RepositoryManager {
             val fileId = resolveStorageFileId(path)
                 ?: throw IllegalStateException("索引中不存在该文件")
 
-            downloadClient.newCall(buildStorageDownloadRequest(fileId)).execute().use { apiResponse ->
-                if (!apiResponse.isSuccessful) {
-                    throw IllegalStateException("HTTP ${apiResponse.code}")
-                }
-                val content = when (apiResponse.header(HEADER_DOWNLOAD_TYPE)) {
+            val content = withStorageDownloadResponse(fileId) { apiResponse ->
+                when (apiResponse.header(HEADER_DOWNLOAD_TYPE)) {
                     DOWNLOAD_TYPE_LINK -> {
                         val rawUrl = parseStorageLink(apiResponse)
                             ?: resolved.source.rawUrl(resolved.repositoryPath)
@@ -341,13 +455,13 @@ object RepositoryManager {
                     }
                     // file：服务端已回源 LFS 并直接传输内容
                     else -> apiResponse.body?.string()
-                } ?: throw IllegalStateException("无法读取 Markdown")
-                RepositoryMarkdownDocument(
-                    title = File(resolved.repositoryPath).name.ifBlank { "Markdown" },
-                    path = path,
-                    content = content
-                )
-            }
+                }
+            } ?: throw IllegalStateException("无法读取 Markdown")
+            RepositoryMarkdownDocument(
+                title = File(resolved.repositoryPath).name.ifBlank { "Markdown" },
+                path = path,
+                content = content
+            )
         }
     }
 
@@ -407,11 +521,7 @@ object RepositoryManager {
         val target = createDownloadTarget(path, appContext)
 
         try {
-            downloadClient.newCall(buildStorageDownloadRequest(fileId)).execute().use { apiResponse ->
-                if (!apiResponse.isSuccessful) {
-                    target.delete()
-                    return@withContext null
-                }
+            val downloaded = withStorageDownloadResponse(fileId) { apiResponse ->
                 when (apiResponse.header(HEADER_DOWNLOAD_TYPE)) {
                     DOWNLOAD_TYPE_LINK -> {
                         // link：服务端返回 GitHub 直链，客户端按当前加速源拼接后下载
@@ -432,48 +542,42 @@ object RepositoryManager {
                                     }
                             }.getOrNull()
                             if (downloaded != null) {
-                                return@withContext completeDownload(
-                                    path = path,
-                                    target = target,
-                                    previousRecord = previousRecord,
-                                    context = appContext,
-                                    downloadedBytes = downloaded
-                                )
+                                return@withStorageDownloadResponse downloaded
                             }
                         }
-                        target.delete()
-                        return@withContext null
+                        null
                     }
                     else -> {
                         // file：LFS 文件由服务端直接传输，X-File-Size 给出总大小
                         val totalBytes = apiResponse.header(HEADER_FILE_SIZE)?.toLongOrNull()
                             ?: apiResponse.body?.contentLength() ?: -1L
-                        val downloaded = streamResponseToTarget(apiResponse, target, totalBytes, onProgress)
-                        if (downloaded == null) {
-                            target.delete()
-                            return@withContext null
-                        }
-                        return@withContext completeDownload(
-                            path = path,
-                            target = target,
-                            previousRecord = previousRecord,
-                            context = appContext,
-                            downloadedBytes = downloaded
-                        )
+                        streamResponseToTarget(apiResponse, target, totalBytes, onProgress)
                     }
                 }
             }
+            if (downloaded == null) {
+                target.delete()
+                return@withContext null
+            }
+            completeDownload(path, target, previousRecord, appContext, downloaded)
+        } catch (e: CancellationException) {
+            target.delete()
+            throw e
         } catch (e: Exception) {
             target.delete()
             return@withContext null
         }
     }
 
-    private fun buildStorageDownloadRequest(fileId: String): Request {
-        return Request.Builder()
-            .url("$STORAGE_BASE_URL/api/download?id=$fileId")
-            .build()
-    }
+    private fun <T> withStorageDownloadResponse(
+        fileId: String,
+        read: (Response) -> T?
+    ): T? = readStorageDownload(
+        downloadClient,
+        storageServers,
+        fileId,
+        read
+    )
 
     private fun parseStorageLink(response: Response): String? {
         val link = runCatching {
@@ -482,12 +586,12 @@ object RepositoryManager {
         return link?.url?.takeIf { it.isNotBlank() }
     }
 
-    private suspend fun fetchStorageUpdatedAt(): Long = withContext(Dispatchers.IO) {
+    private suspend fun fetchStorageUpdatedAt(server: StorageServer): Long = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$STORAGE_BASE_URL/api/update")
+            .url("${server.baseUrl}/api/update")
             .header("Cache-Control", "no-cache")
             .build()
-        downloadClient.newCall(request).execute().use { response ->
+        indexClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IllegalStateException("无法获取索引版本: HTTP ${response.code}")
             }
@@ -496,17 +600,26 @@ object RepositoryManager {
         }
     }
 
-    private suspend fun fetchStorageIndex(): StorageIndexResponse = withContext(Dispatchers.IO) {
+    private suspend fun fetchStorageIndex(
+        server: StorageServer,
+        onDownloadProgress: ((Long, Long) -> Unit)? = null
+    ): StorageIndexResponse = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$STORAGE_BASE_URL/api/list")
+            .url("${server.baseUrl}/api/list")
             .header("Cache-Control", "no-cache")
             .build()
-        downloadClient.newCall(request).execute().use { response ->
+        indexClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IllegalStateException("无法获取资料索引: HTTP ${response.code}")
             }
-            gson.fromJson(response.body?.string().orEmpty(), StorageIndexResponse::class.java)
-                ?: throw IllegalStateException("资料索引解析失败")
+            val body = response.body ?: throw IllegalStateException("资料索引响应为空")
+            val index = readStorageIndex(body, gson, onDownloadProgress)
+            val indexedRepositories = index.repositories.mapTo(mutableSetOf()) { it.id }
+            val missingRepositories = repositorySources.filterNot { it.id in indexedRepositories }
+            require(missingRepositories.isEmpty()) {
+                "${server.id} 索引缺少仓库: ${missingRepositories.joinToString { it.title }}"
+            }
+            index
         }
     }
 
@@ -558,7 +671,7 @@ object RepositoryManager {
                 output.flush()
             }
         }
-        return downloadedBytes
+        return downloadedBytes.takeIf { totalBytes <= 0L || it == totalBytes }
     }
 
     private fun completeDownload(
@@ -967,7 +1080,7 @@ object RepositoryManager {
             displayPath: String
         ) : DownloadTarget(relativePath, displayPath, uri) {
             override fun openOutputStream(): OutputStream {
-                return context.contentResolver.openOutputStream(uri!!)
+                return context.contentResolver.openOutputStream(uri!!, "rwt")
                     ?: throw IllegalStateException("无法写入下载文件")
             }
 

@@ -83,7 +83,6 @@ import top.yukonga.miuix.kmp.icon.icons.useful.Update
 fun Settings(
     onNavigateToLogin: () -> Unit,
     onNavigateToPreferences: () -> Unit,
-    onNavigateToThemeLab: () -> Unit = {},
     onNavigateToDebug: () -> Unit,
     onNavigateToLicense: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit = {},
@@ -217,20 +216,6 @@ fun Settings(
                     null
                 },
                 onClick = onNavigateToPreferences
-            )
-            SettingsActionRow(
-                title = "外观设置",
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Settings
-                    isRadiant -> null
-                    else -> Icons.Outlined.Tune
-                },
-                leadingPainter = if (isRadiant) {
-                    painterResource(R.drawable.ic_settings_palette)
-                } else {
-                    null
-                },
-                onClick = onNavigateToThemeLab
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.check_update),

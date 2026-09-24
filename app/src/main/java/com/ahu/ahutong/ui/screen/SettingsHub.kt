@@ -26,7 +26,6 @@ fun SettingsHub(
     Settings(
         onNavigateToLogin = { navController.navigate("login") },
         onNavigateToPreferences = { navController.navigate("preferences") },
-        onNavigateToThemeLab = { navController.navigate("settings__theme_lab") },
         onNavigateToDebug = { navController.navigate("debug") },
         onNavigateToLicense = { navController.navigate("settings__license") },
         onNavigateToPrivacyPolicy = { navController.navigate("settings__privacy_policy") },

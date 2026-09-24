@@ -113,15 +113,12 @@ fun Weather(
             WeatherCard(weather)
 
             weather.aqi?.let {
-                Spacer(Modifier.height(16.dp))
                 AqiCard(weather)
             }
 
-            Spacer(Modifier.height(16.dp))
             UmbrellaCard(weather)
 
             weather.forecast?.let { forecast ->
-                Spacer(Modifier.height(16.dp))
                 Text(
                     "未来预报",
                     style = MaterialTheme.typography.titleMedium,
@@ -135,7 +132,6 @@ fun Weather(
 
             weather.hourlyForecast?.let { hourly ->
                 if (hourly.isNotEmpty()) {
-                    Spacer(Modifier.height(16.dp))
                     Text(
                         "逐小时预报",
                         style = MaterialTheme.typography.titleMedium,
@@ -149,7 +145,6 @@ fun Weather(
             }
 
             weather.lifeIndices?.let { indices ->
-                Spacer(Modifier.height(16.dp))
                 Text(
                     "生活指数",
                     style = MaterialTheme.typography.titleMedium,
@@ -159,7 +154,6 @@ fun Weather(
                 LifeIndicesGrid(indices)
             }
 
-            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -187,6 +181,7 @@ fun Weather(
             onSubmit = { submitCitySearch() }
         ),
         bottomPadding = 48.dp,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         content = { weatherContent() }
     )
 

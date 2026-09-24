@@ -5,11 +5,11 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 /**
- * 识别"被重定向回校内登录页"，把它翻译成一个明确的 401，并通知会话层。
+ * 识别"被重定向回校内登录页"，把它翻译成一个明确的 401。
  *
- * 网络层不自己改登录态：续期与状态写入都经 [SessionExpiryHook] 交给会话层。
+ * 只有自动续期最终失败，认证器才通过 [SessionExpiryHook] 通知会话层过期。
  */
-class AutoLoginInterceptor(private val sessionExpiryHook: SessionExpiryHook) : Interceptor {
+class AutoLoginInterceptor : Interceptor {
 
     val TAG = "AutoLoginInterceptor"
 
@@ -24,7 +24,6 @@ class AutoLoginInterceptor(private val sessionExpiryHook: SessionExpiryHook) : I
             SessionRefreshPolicy.isFirstPartyLoginRedirect(originalRequest.url, location)
         ) {
             Log.i(TAG, "First-party session redirect detected")
-            sessionExpiryHook.onExpired()
             return response.newBuilder()
                 .code(401)
                 .header(SessionRefreshPolicy.EXPIRED_RESPONSE_HEADER, "1")

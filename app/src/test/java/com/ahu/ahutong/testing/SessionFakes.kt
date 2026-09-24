@@ -90,7 +90,7 @@ class FakeSessionExpiryHook : SessionExpiryHook {
         return refreshResult
     }
 
-    override fun onExpired() {
+    override suspend fun onExpired(observedGeneration: Long) {
         expiredCount++
     }
 }

@@ -34,6 +34,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.model.ElectricityController
+import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.ui.component.SecurePaymentPasswordDialog
 import com.ahu.ahutong.ui.components.AppSectionCard
@@ -46,6 +47,7 @@ import com.ahu.ahutong.ui.components.AppStateCard
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppTextField
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
 import com.kyant.monet.n1
@@ -207,7 +209,11 @@ fun ElectricityDeposit(
                 loading = loadingSelector == ElectricitySelectorLevel.Room
             )
         }
-        AppSectionCard(content = selectorContent)
+        if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = selectorContent)
+        } else {
+            AppSectionCard(content = selectorContent)
+        }
 
         roomInfo?.takeIf(String::isNotBlank)?.let { info ->
             val roomContent: @Composable ColumnScope.() -> Unit = {

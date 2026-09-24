@@ -122,6 +122,7 @@ class AhuSessionContractTest {
             credentials = FakeCredentialVault(null),
             account = FakeSessionAccount(user)
         )
+        AhuSessionState.markAuthenticated()
 
         val refreshed = subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
 
@@ -249,11 +250,24 @@ class SessionExpiryHookContractTest {
     }
 
     @Test
-    fun `a network-reported expiry moves the session state to expired`() {
+    fun `a network-reported expiry moves the current session state to expired`() = runBlocking {
         val hook = RepositorySessionExpiryHook(FakeAhuSession())
+        AhuSessionState.markAuthenticated()
 
-        hook.onExpired()
+        hook.onExpired(SessionRefreshCoordinator.currentGeneration())
 
         assertEquals(AhuSessionState.Status.Expired, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `an old response cannot expire a newly authenticated session`() = runBlocking {
+        val hook = RepositorySessionExpiryHook(FakeAhuSession())
+        AhuSessionState.markAuthenticated()
+        val oldGeneration = SessionRefreshCoordinator.currentGeneration()
+        SessionRefreshCoordinator.onAuthenticated()
+
+        hook.onExpired(oldGeneration)
+
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
     }
 }
