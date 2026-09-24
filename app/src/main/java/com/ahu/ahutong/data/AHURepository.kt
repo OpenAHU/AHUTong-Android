@@ -42,6 +42,8 @@ import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.ResponseBody
 import org.jsoup.Jsoup
@@ -73,6 +75,7 @@ object AHURepository {
 
     @Volatile
     private var dataSource: BaseDataSource = SdkDataSource()
+    private val scheduleRefreshMutex = Mutex()
     fun initializeDataSource(useMock: Boolean = AHUCache.getMockData()) {
         dataSource = if (useMock) MockDataSource() else SdkDataSource()
     }
@@ -136,24 +139,28 @@ object AHURepository {
 
     suspend fun refreshScheduleCache(
         fetchedAt: Long = System.currentTimeMillis()
-    ): AhuResult<ScheduleRefreshResult> = withContext(Dispatchers.IO) {
-        try {
-            val semesterKey = AHUCache.getSchoolTerm()
-            val cached = semesterKey?.let(AHUCache::getSchedule)
-            val latest = when (val scheduleResult = dataSource.getSchedule()) {
-                is AhuResult.Failure -> return@withContext scheduleResult
-                is AhuResult.Success -> scheduleResult.value
-            }
+    ): AhuResult<ScheduleRefreshResult> = scheduleRefreshMutex.withLock {
+        withContext(Dispatchers.IO) {
+            try {
+                val previousSemesterKey = AHUCache.getSchoolTerm()
+                val latest = when (val scheduleResult = dataSource.getSchedule()) {
+                    is AhuResult.Failure -> return@withContext scheduleResult
+                    is AhuResult.Success -> scheduleResult.value
+                }
 
-            val changed = ScheduleSnapshotComparator.hasChanged(cached, latest)
-            if (semesterKey != null) {
-                if (changed) AHUCache.saveSchedule(semesterKey, latest)
-                AHUCache.saveScheduleFetchedAt(semesterKey, fetchedAt)
+                // 教务请求可能同时更新当前学期；按请求完成后的学期键保存这份课表。
+                val semesterKey = AHUCache.getSchoolTerm() ?: previousSemesterKey
+                val cached = semesterKey?.let(AHUCache::getSchedule)
+                val changed = ScheduleSnapshotComparator.hasChanged(cached, latest)
+                if (semesterKey != null) {
+                    if (changed) AHUCache.saveSchedule(semesterKey, latest)
+                    AHUCache.saveScheduleFetchedAt(semesterKey, fetchedAt)
+                }
+                AhuResult.Success(ScheduleRefreshResult(latest, changed, fetchedAt))
+            } catch (e: Throwable) {
+                if (e is CancellationException) throw e
+                AhuResult.Failure(e.toAhuError())
             }
-            AhuResult.Success(ScheduleRefreshResult(latest, changed, fetchedAt))
-        } catch (e: Throwable) {
-            if (e is CancellationException) throw e
-            AhuResult.Failure(e.toAhuError())
         }
     }
 

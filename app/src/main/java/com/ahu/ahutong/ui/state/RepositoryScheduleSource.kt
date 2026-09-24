@@ -1,6 +1,9 @@
 package com.ahu.ahutong.ui.state
 
 import com.ahu.ahutong.core.common.AhuResult
+import com.ahu.ahutong.core.common.AppEnvironmentHolder
+import com.ahu.ahutong.core.common.onSuccess
+import com.ahu.ahutong.appwidget.WidgetUpdateScheduler
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.Course
@@ -25,10 +28,14 @@ class RepositoryScheduleSource @Inject constructor() : ScheduleSource {
     override fun fetchedAt(): Long? = AHURepository.getScheduleFetchedAt()
 
     override suspend fun fetch(isRefresh: Boolean): AhuResult<List<Course>> =
-        AHURepository.getSchedule(isRefresh = isRefresh)
+        AHURepository.getSchedule(isRefresh = isRefresh).onSuccess {
+            WidgetUpdateScheduler.renderCached(AppEnvironmentHolder.context())
+        }
 
     override suspend fun refreshCache(): AhuResult<ScheduleRefreshResult> =
-        AHURepository.refreshScheduleCache()
+        AHURepository.refreshScheduleCache().onSuccess {
+            WidgetUpdateScheduler.renderCached(AppEnvironmentHolder.context())
+        }
 
     override suspend fun next(isRefresh: Boolean): AhuResult<List<Course>> =
         AHURepository.getNextSchedule(isRefresh = isRefresh)

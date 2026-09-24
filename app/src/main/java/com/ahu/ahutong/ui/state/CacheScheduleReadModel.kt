@@ -21,6 +21,9 @@ class CacheScheduleReadModel @Inject constructor() : ScheduleReadModel {
     override fun cachedSchedule(schoolTerm: String): List<Course>? =
         AHUCache.getSchedule(schoolTerm)
 
+    override fun cachedScheduleFetchedAt(): Long? =
+        AHUCache.getSchoolTerm()?.let(AHUCache::getScheduleFetchedAt)
+
     override fun schoolTermStartTime(schoolYear: String, schoolTerm: String): String? =
         AHUCache.getSchoolTermStartTime(schoolYear, schoolTerm)
 

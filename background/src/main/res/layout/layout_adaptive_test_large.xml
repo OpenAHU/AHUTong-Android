@@ -31,6 +31,15 @@
             android:textSize="10sp"/>
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/widget_last_fetched_at"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:paddingEnd="8dp"
+        android:gravity="end"
+        android:textSize="10sp" />
+
     <LinearLayout
         android:id="@+id/adaptive_test_items_large"
         android:layout_width="match_parent"

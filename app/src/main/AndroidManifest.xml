@@ -132,6 +132,15 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/adaptive_test_widget_info" />
+            <meta-data
+                android:name="miuiWidget"
+                android:value="true" />
+            <meta-data
+                android:name="miuiWidgetRefresh"
+                android:value="exposure" />
+            <meta-data
+                android:name="miuiWidgetRefreshMinInterval"
+                android:value="20000" />
         </receiver>
 
         <receiver
@@ -141,6 +150,10 @@
                 <action android:name="com.ahu.ahutong.appwidget.ACTION_UPDATE_WIDGETS" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".appwidget.WidgetScheduleRefreshReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".notification.CourseReminderReceiver"

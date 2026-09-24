@@ -26,6 +26,15 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
     val TAG = this.javaClass.simpleName
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_RENDER_CACHED) {
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val ids = intent.getIntArrayExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS)
+                ?: appWidgetManager.getAppWidgetIds(
+                    ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
+                )
+            ids.forEach { updateAppWidget(context, appWidgetManager, it) }
+            return
+        }
         super.onReceive(context, intent)
         if (intent.action == ACTION_REFRESH) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -39,8 +48,9 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
                 val ids = appWidgetManager.getAppWidgetIds(
                     ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
                 )
-                onUpdate(context, appWidgetManager, ids)
+                ids.forEach { updateAppWidget(context, appWidgetManager, it) }
             }
+            WidgetUpdateScheduler.requestScheduleRefresh(context)
         }
     }
 
@@ -73,6 +83,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         appWidgetIds.forEach { appWidgetId ->
             updateAppWidget(context, appWidgetManager, appWidgetId)
         }
+        if (appWidgetIds.isNotEmpty()) WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -82,6 +93,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         newOptions: android.os.Bundle
     ) {
         updateAppWidget(context, appWidgetManager, appWidgetId)
+        WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
 
     private fun updateAppWidget(
@@ -116,27 +128,12 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         // AppWidgetProvider callbacks run on the broadcast thread. Keep this path cache-only;
         // remote semester synchronization is handled by the app and the suspend Glance widget.
         val scheduleConfig = scheduleReadModel().cachedConfig()
-        val currentWeek = scheduleConfig.week
-        val weekDay = scheduleConfig.weekDay
         val schedule = scheduleReadModel().currentSchoolTerm()
             ?.let { scheduleReadModel().cachedSchedule(it) }
             .orEmpty()
+        val fetchedAt = scheduleReadModel().cachedScheduleFetchedAt()
         val currentMinutes = DebugClock.currentMinutes()
-        val todayCourses = if (scheduleConfig.isInSemester) {
-            schedule
-                .filter { currentWeek in it.startWeek..it.endWeek }
-                .filter { it.weekday == weekDay }
-                .filter {
-                    if (currentWeek in it.weekIndexes) {
-                        true
-                    } else {
-                        currentWeek % 2 == it.startWeek % 2
-                    }
-                }
-                .sortedBy { it.startTime }
-        } else {
-            emptyList()
-        }
+        val todayCourses = todayWidgetCourses(schedule, scheduleConfig)
         val remainingCourses = todayCourses.filter {
             currentMinutes <= ScheduleSectionTimes.getCourseTimeRangeInMinutes(it).last
         }
@@ -159,8 +156,10 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         )
         remoteViews.setTextViewText(titleId, titleText)
         remoteViews.setTextViewText(subtitleId, subtitleText)
+        remoteViews.setTextViewText(R.id.widget_last_fetched_at, widgetScheduleFetchedText(fetchedAt))
         remoteViews.setTextColor(titleId, widgetColors.primaryText.toArgb())
         remoteViews.setTextColor(subtitleId, widgetColors.secondaryText.toArgb())
+        remoteViews.setTextColor(R.id.widget_last_fetched_at, widgetColors.secondaryText.toArgb())
         remoteViews.removeAllViews(itemsContainerId)
         setRemoteViewBackgroundColor(
             remoteViews,
@@ -250,6 +249,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+        const val ACTION_RENDER_CACHED = "com.ahu.ahutong.appwidget.ACTION_RENDER_CACHED"
         private const val ACTION_REFRESH = "com.ahu.ahutong.appwidget.ACTION_REFRESH_SCHEDULE"
     }
 }
