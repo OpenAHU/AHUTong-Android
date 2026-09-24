@@ -147,6 +147,7 @@ fun XuexiaotongScreen() {
 
     var sideMenuOpen by remember { mutableStateOf(false) }
     var selectedWork by remember { mutableStateOf<Work?>(null) }
+    var webViewWork by remember { mutableStateOf<Work?>(null) }
     var showAddEvent by remember { mutableStateOf(false) }
     var pendingDeleteEvent by remember { mutableStateOf<Work?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
@@ -531,7 +532,21 @@ fun XuexiaotongScreen() {
                     pendingDeleteEvent = work
                     selectedWork = null
                 }
+            } else null,
+            onViewQuestions = if (!work.workId.startsWith("event_") && work.detailUrl.isNotEmpty()) {
+                {
+                    webViewWork = work
+                    selectedWork = null
+                }
             } else null
+        )
+    }
+
+    // 作业题目查看（WebView 只读弹窗）
+    webViewWork?.let { work ->
+        WorkWebViewDialog(
+            work = work,
+            onDismiss = { webViewWork = null }
         )
     }
 

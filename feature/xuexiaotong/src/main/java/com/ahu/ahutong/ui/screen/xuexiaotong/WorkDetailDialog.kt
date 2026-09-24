@@ -43,7 +43,8 @@ fun WorkDetailDialog(
     work: Work,
     onDismiss: () -> Unit,
     onToggleDone: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    onViewQuestions: (() -> Unit)? = null
 ) {
     val isCustom = work.workId.startsWith("event_")
 
@@ -77,7 +78,18 @@ fun WorkDetailDialog(
                 }
             }
         } else {
-            emptyList()
+            buildList {
+                // 非自定义日程且有详情页链接：提供「查看题目」（WebView 只读）
+                onViewQuestions?.let {
+                    add(
+                        AppDialogAction(
+                            label = "查看题目",
+                            onClick = it,
+                            style = AppDialogActionStyle.Primary
+                        )
+                    )
+                }
+            }
         }
     ) {
         // 状态
