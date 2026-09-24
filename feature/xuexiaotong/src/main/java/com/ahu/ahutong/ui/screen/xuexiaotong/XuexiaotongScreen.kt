@@ -85,6 +85,7 @@ import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.isRadiantUi
+import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.liquidGlassSurface
 import com.ahu.ahutong.ui.components.liquidGlassTint
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -837,14 +838,23 @@ private fun ScheduleTab(
         }
         if (isRadiant && pageBackdrop != null) {
             // Radiant：玻璃日历卡（课表网格卡同款材质与 32dp 圆角），卡片自身左右各缩 6dp
+            // 性能开关开启时降级为纯色表面（不再实时采样模糊）
+            val calendarShape = SmoothRoundedCornerShape(32.dp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp)
-                    .liquidGlassSurface(
-                        backdrop = pageBackdrop,
-                        shape = SmoothRoundedCornerShape(32.dp),
-                        surfaceColor = liquidGlassTint()
+                    .then(
+                        if (LocalGlassEffectsReduced.current) {
+                            Modifier.clip(calendarShape)
+                                .background(MaterialTheme.colorScheme.surface)
+                        } else {
+                            Modifier.liquidGlassSurface(
+                                backdrop = pageBackdrop,
+                                shape = calendarShape,
+                                surfaceColor = liquidGlassTint()
+                            )
+                        }
                     )
                     .padding(16.dp)
             ) {

@@ -142,6 +142,9 @@ fun Modifier.captureLiquidGlassContent(): Modifier {
 /** 自定义全局背景开启时，玻璃表面加模糊与着色以保住文字可读性。 */
 val LocalGlassReadabilityBoost = compositionLocalOf { false }
 
+/** 低端机性能开关：为 true 时，性能大户页面（课表大卡/日程大卡）放弃实时模糊，用纯色表面。 */
+val LocalGlassEffectsReduced = compositionLocalOf { false }
+
 /** MIUIX / Material 在自定义背景上使用的轻量毛玻璃表面。 */
 @Composable
 fun Modifier.appWallpaperFrostedSurface(

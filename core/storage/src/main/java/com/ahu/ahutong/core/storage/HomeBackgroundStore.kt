@@ -36,6 +36,14 @@ object HomeBackgroundStore {
     /** 遮罩不透明度百分比 0-100（全虚到全实；亮色模式白罩 / 暗色模式黑罩）。 */
     val maskPercent: Int get() = prefs.getInt("mask", 50)
 
+    /** 关闭部分玻璃效果（低端机性能开关）：课表大卡、日程大卡降级为纯色表面。 */
+    val reduceGlassEffects: Boolean get() = prefs.getBoolean("reduce_glass", false)
+
+    fun setReduceGlassEffects(value: Boolean) {
+        prefs.edit().putBoolean("reduce_glass", value).apply()
+        _revision.value++
+    }
+
     fun blurredFile(context: Context): File = File(context.filesDir, BLUR_FILE)
 
     /** 选图落盘（crop 到屏幕比例）并生成当前模糊度的成品图。 */

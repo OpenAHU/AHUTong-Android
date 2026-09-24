@@ -91,6 +91,7 @@ import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.liquidGlassSurface
 import com.ahu.ahutong.ui.components.liquidGlassTint
@@ -471,11 +472,16 @@ fun Schedule(
             val gridSurface = if (radiant) {
                 // 阴影由 liquidGlassSurface 内部的 Shadow(radius=14dp, alpha=0.12) 提供，
                 // 勿再叠 Modifier.shadow——双层叠加会产生又黑又重的重影
-                Modifier.liquidGlassSurface(
-                    backdrop = LocalLiquidGlassAmbientBackdrop.current,
-                    shape = gridShape,
-                    surfaceColor = liquidGlassTint()
-                )
+                if (LocalGlassEffectsReduced.current) {
+                    // 性能开关：课表大卡降级为纯色表面（不再实时采样模糊）
+                    Modifier.clip(gridShape).background(99.n1 withNight 20.n1)
+                } else {
+                    Modifier.liquidGlassSurface(
+                        backdrop = LocalLiquidGlassAmbientBackdrop.current,
+                        shape = gridShape,
+                        surfaceColor = liquidGlassTint()
+                    )
+                }
             } else {
                 Modifier.appLiquidGlassSurface(
                     shape = gridShape,

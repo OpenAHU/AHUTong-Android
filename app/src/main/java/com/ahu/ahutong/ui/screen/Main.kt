@@ -86,6 +86,7 @@ import com.ahu.ahutong.ui.screen.setup.Login
 import com.ahu.ahutong.ui.components.LiquidGlassAppHost
 import com.ahu.ahutong.ui.components.AppBackground
 import com.ahu.ahutong.ui.components.LocalAppBackground
+import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
@@ -259,7 +260,9 @@ fun Main(
     }
     CompositionLocalProvider(
         LocalAppBackground provides appBackground,
-        LocalGlassReadabilityBoost provides (appBackground != null)
+        LocalGlassReadabilityBoost provides (appBackground != null),
+        // 低端机性能开关：revision 变化（含开关切换）时同步重组
+        LocalGlassEffectsReduced provides HomeBackgroundStore.reduceGlassEffects
     ) {
     LiquidGlassAppHost(modifier = Modifier.fillMaxSize()) {
         val backdrop = LocalLiquidGlassContentBackdrop.current
