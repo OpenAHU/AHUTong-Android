@@ -523,6 +523,30 @@ private fun BackgroundControls(viewModel: PreferencesViewModel) {
                         modifier = Modifier.width(28.dp)
                     )
                 }
+                // 低端机性能开关（红色警示项，与遮罩同级）：关闭课表大卡、日程大卡的实时玻璃模糊
+                val reduceGlass = com.ahu.ahutong.core.storage.HomeBackgroundStore.reduceGlassEffects
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClick = {
+                                com.ahu.ahutong.core.storage.HomeBackgroundStore
+                                    .setReduceGlassEffects(!reduceGlass)
+                            }
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "关闭部分玻璃效果",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.ui.graphics.Color(0xFFE53935),
+                        modifier = Modifier.weight(1f)
+                    )
+                    com.ahu.ahutong.ui.components.AppToggle(
+                        checked = reduceGlass,
+                        onCheckedChange = { }
+                    )
+                }
                 AppButton(
                     onClick = {
                         com.ahu.ahutong.core.storage.HomeBackgroundStore
@@ -531,30 +555,6 @@ private fun BackgroundControls(viewModel: PreferencesViewModel) {
                     variant = AppButtonVariant.Secondary,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("从背景图取主题色") }
-            }
-            // 低端机性能开关（红色警示项）：关闭课表大卡、日程大卡的实时玻璃模糊
-            val reduceGlass = com.ahu.ahutong.core.storage.HomeBackgroundStore.reduceGlassEffects
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        onClick = {
-                            com.ahu.ahutong.core.storage.HomeBackgroundStore
-                                .setReduceGlassEffects(!reduceGlass)
-                        }
-                    ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "关闭部分玻璃效果",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = androidx.compose.ui.graphics.Color(0xFFE53935),
-                    modifier = Modifier.weight(1f)
-                )
-                com.ahu.ahutong.ui.components.AppToggle(
-                    checked = reduceGlass,
-                    onCheckedChange = { }
-                )
             }
         }
 }
