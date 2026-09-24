@@ -386,16 +386,30 @@ fun Main(
                 LostFound(onBack = { navController.popBackStack() })
             }
             animatedComposable("identity_code") {
-                // 身份码：菜鸟驿站（淘宝内页）——点击即外跳并立即回退，不落页
-                val uri = "https://pages-fast.m.taobao.com/wow/z/uniapp/1011717/last-mile-fe/end-collect-platform/identity-code"
+                // 身份码：菜鸟驿站（淘宝内页）。tbopen scheme 优先拉起淘宝 App
+                // （参考 IdentityCodeTool 工程验证），未装淘宝再回退浏览器；即发即退不落页。
+                val h5Url = "https://pages-fast.m.taobao.com/wow/z/uniapp/1011717/last-mile-fe/end-collect-platform/identity-code"
                 LaunchedEffect(Unit) {
-                    runCatching {
+                    val tbScheme = "tbopen://m.taobao.com/tbopen/index.html" +
+                        "?action=ali.open.nav&module=h5&bootImage=0&h5Url=" +
+                        java.net.URLEncoder.encode(h5Url, "UTF-8")
+                    val opened = runCatching {
                         context.startActivity(
                             android.content.Intent(
                                 android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(uri)
+                                android.net.Uri.parse(tbScheme)
                             )
                         )
+                    }.isSuccess
+                    if (!opened) {
+                        runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(h5Url)
+                                )
+                            )
+                        }
                     }
                     navController.popBackStack()
                 }
