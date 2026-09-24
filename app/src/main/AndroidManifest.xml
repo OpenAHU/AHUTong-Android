@@ -26,6 +26,8 @@
         <package android:name="com.tencent.tim" />
         <package android:name="com.tencent.mobileqq" />
         <package android:name="com.eg.android.AlipayGphone" />
+        <!-- 学习通：跳作业详情页的包可见性（Android 11+ 必需） -->
+        <package android:name="com.chaoxing.mobile" />
         <!-- 允许查询能打开文档的 App（Android 11+ 必需） -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

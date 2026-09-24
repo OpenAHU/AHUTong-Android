@@ -148,6 +148,7 @@ fun XuexiaotongScreen() {
     val tab = XuexiaotongDockState.tab
 
     var sideMenuOpen by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     var selectedWork by remember { mutableStateOf<Work?>(null) }
     var webViewWork by remember { mutableStateOf<Work?>(null) }
     var showAddEvent by remember { mutableStateOf(false) }
@@ -538,6 +539,12 @@ fun XuexiaotongScreen() {
             onViewQuestions = if (!work.workId.startsWith("event_") && work.detailUrl.isNotEmpty()) {
                 {
                     webViewWork = work
+                    selectedWork = null
+                }
+            } else null,
+            onOpenInChaoxing = if (!work.workId.startsWith("event_") && work.detailUrl.isNotEmpty()) {
+                {
+                    openWorkInChaoxingApp(context, work)
                     selectedWork = null
                 }
             } else null
@@ -1438,5 +1445,30 @@ private fun CourseOverviewStat(
             fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+/**
+ * 跳学习通 App 打开作业详情页：走学习通官方分享回流 deep link（JumpActivity，exported+BROWSABLE），
+ * 页面在学习通内打开、使用学习通自己的登录态（可作答）。未安装学习通只提示、不降级浏览器——
+ * 用户点此按钮的意图就是进 App 操作，浏览器 H5 提交能力残缺。
+ */
+private fun openWorkInChaoxingApp(context: android.content.Context, work: Work) {
+    val link = "chaoxingshareback://xuexitong.com/?sharebacktype=1" +
+        "&title=" + java.net.URLEncoder.encode(work.title, "UTF-8") +
+        "&url=" + java.net.URLEncoder.encode(work.detailUrl, "UTF-8")
+    val intent = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse(link)
+    ).apply {
+        setPackage("com.chaoxing.mobile") // 钉死学习通：scheme 无 host 白名单，防抢注与选择器
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    if (intent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(intent)
+    } else {
+        android.widget.Toast.makeText(
+            context, "未安装学习通 App", android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 }

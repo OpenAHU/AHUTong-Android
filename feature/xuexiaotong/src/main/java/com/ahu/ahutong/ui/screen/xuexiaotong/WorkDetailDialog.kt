@@ -44,7 +44,8 @@ fun WorkDetailDialog(
     onDismiss: () -> Unit,
     onToggleDone: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
-    onViewQuestions: (() -> Unit)? = null
+    onViewQuestions: (() -> Unit)? = null,
+    onOpenInChaoxing: (() -> Unit)? = null
 ) {
     val isCustom = work.workId.startsWith("event_")
 
@@ -79,6 +80,16 @@ fun WorkDetailDialog(
             }
         } else {
             buildList {
+                // 跳学习通 App 打开同一作业页（用学习通自己的登录态，可作答）——置于「查看题目」左侧
+                onOpenInChaoxing?.let {
+                    add(
+                        AppDialogAction(
+                            label = "跳学习通",
+                            onClick = it,
+                            style = AppDialogActionStyle.Neutral
+                        )
+                    )
+                }
                 // 非自定义日程且有详情页链接：提供「查看题目」（WebView 只读）
                 onViewQuestions?.let {
                     add(
