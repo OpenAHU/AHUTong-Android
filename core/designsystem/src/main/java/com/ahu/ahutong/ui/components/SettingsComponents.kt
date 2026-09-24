@@ -648,7 +648,9 @@ fun SettingsToggleRow(
             )
             AppToggle(
                 checked = selected,
-                onCheckedChange = onCheckedWithFeedback,
+                // 点击由行 toggleable 统一接管：RUI 玻璃开关的手势引擎不消费 tap，
+                // 这里再接真回调会与行双触发、互相抵消
+                onCheckedChange = { },
                 enabled = enabled
             )
         }

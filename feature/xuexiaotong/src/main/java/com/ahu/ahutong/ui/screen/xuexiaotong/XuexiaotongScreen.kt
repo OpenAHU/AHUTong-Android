@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -784,17 +785,23 @@ fun XuexiaotongScreen() {
 
 @Composable
 private fun BottomSheetSwitchItem(label: String, checked: Boolean, onToggle: () -> Unit) {
+    // 行统一接管点击（含无障碍 role=Switch）；RUI 玻璃开关的手势引擎不消费 tap，
+    // 若开关也接真回调会与行点击双触发、互相抵消（表现为「开关失效」）。
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
+            .toggleable(
+                value = checked,
+                role = androidx.compose.ui.semantics.Role.Switch,
+                onValueChange = { onToggle() }
+            )
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, modifier = Modifier.weight(1f), fontSize = 14.sp)
         AppToggle(
             checked = checked,
-            onCheckedChange = { onToggle() },
+            onCheckedChange = { },
             contentDescription = label
         )
     }
