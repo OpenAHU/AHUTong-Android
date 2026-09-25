@@ -62,9 +62,12 @@ internal class AcademicPortalLogin(
     private fun unavailable(status: Int) =
         PortalLoginResult(PortalLoginStatus.UNAVAILABLE, "教务服务返回 HTTP $status")
 
-    private fun isSuccess(page: PortalPage, graduate: Boolean, user: User): Boolean {
+    private suspend fun isSuccess(page: PortalPage, graduate: Boolean, user: User): Boolean {
         val url = page.url.toHttpUrlOrNull() ?: return false
-        val succeeded = if (graduate) GmisSessionVerifier.isStudentSession(page, user.xh, user.name)
+        val studentHome = if (graduate) GmisSessionVerifier.studentHomeUrl(page)?.let {
+            request(it, null)
+        } else null
+        val succeeded = if (graduate) GmisSessionVerifier.isStudentSession(page, user.xh, user.name, studentHome)
         else page.status in 200..299 && url.scheme == "https" &&
             url.host == "jw.ahu.edu.cn" && url.encodedPath.trimEnd('/') == "/student/home"
         val stage = when {
@@ -74,6 +77,7 @@ internal class AcademicPortalLogin(
             else -> "portal-page"
         }
         diagnostic("portal=${if (graduate) "GMIS" else "JWXT"} http=${page.status} stage=$stage verified=$succeeded")
+        if (graduate && !succeeded) diagnostic(GmisSessionVerifier.diagnostics(page, user.xh, user.name))
         return succeeded
     }
 
@@ -84,11 +88,71 @@ internal class AcademicPortalLogin(
 }
 
 internal object GmisSessionVerifier {
-    fun isStudentSession(page: PortalPage, studentId: String?, displayName: String?): Boolean {
+    private fun normalizedPath(url: String): String =
+        url.toHttpUrlOrNull()?.encodedPath.orEmpty().lowercase()
+            .replace(Regex("/\\(s\\([^)]*\\)\\)"), "").trimEnd('/')
+
+    private fun isGmisPage(page: PortalPage): Boolean {
+        val url = page.url.toHttpUrlOrNull() ?: return false
+        return page.status in 200..299 && url.scheme == "https" && url.host == "gmis.ahu.edu.cn"
+    }
+
+    fun studentHomeUrl(page: PortalPage): String? {
+        if (!isGmisPage(page) || normalizedPath(page.url) != "/gmis5/student/default/index") return null
+        val doc = Jsoup.parse(page.html)
+        if (doc.title().trim() != "学生端" || doc.select("input[type=password]").isNotEmpty()) return null
+        val base = page.url.toHttpUrlOrNull() ?: return null
+        return doc.select("iframe[src], frame[src]").mapNotNull { base.resolve(it.attr("src")) }
+            .firstOrNull {
+                it.scheme == "https" && it.host == base.host &&
+                    normalizedPath(it.toString()) == "/gmis5/student/default/home" &&
+                    it.encodedPath.substringBefore("/student/", "") ==
+                    base.encodedPath.substringBefore("/student/", "")
+            }?.toString()
+    }
+
+    fun diagnostics(page: PortalPage, studentId: String?, displayName: String?): String {
+        val doc = Jsoup.parse(page.html)
+        val text = doc.text()
+        fun path(address: String): String =
+            address.toHttpUrlOrNull()?.encodedPath.orEmpty()
+                .replace(Regex("(?i)/\\(s\\([^)]*\\)\\)"), "/[session]")
+                .replace(Regex("[0-9]{5,}"), "[id]").take(100)
+        val base = page.url.toHttpUrlOrNull()
+        val frames = doc.select("iframe[src], frame[src]").mapNotNull {
+            base?.resolve(it.attr("src"))?.toString()?.let(::path)
+        }.take(5)
+        val title = doc.title().replace(studentId.orEmpty().ifBlank { "[no-id]" }, "[id]")
+            .replace(displayName.orEmpty().ifBlank { "[no-name]" }, "[name]").take(80)
+        return "GMIS evidence path=${path(page.url)} title=$title " +
+            "idPresent=${!studentId.isNullOrBlank() && text.contains(studentId)} " +
+            "namePresent=${!displayName.isNullOrBlank() && text.contains(displayName)} " +
+            "logoutText=${text.contains("退出") || text.contains("注销")} " +
+            "studentText=${text.contains("学生") || text.contains("培养") || text.contains("选课")} " +
+            "passwordInputs=${doc.select("input[type=password]").size} frames=$frames"
+    }
+
+    fun isStudentSession(
+        page: PortalPage,
+        studentId: String?,
+        displayName: String?,
+        studentHome: PortalPage? = null
+    ): Boolean {
+        // Observed live GMIS shell. Both index and its home frame redirect anonymous
+        // requests to /home/stulogin, so verify the protected frame as well as the shell.
+        if (studentHomeUrl(page) != null) {
+            if (studentHome == null || !isGmisPage(studentHome) ||
+                normalizedPath(studentHome.url) != "/gmis5/student/default/home" ||
+                studentHome.html.isBlank()
+            ) return false
+            val home = Jsoup.parse(studentHome.html)
+            return home.select("input[type=password], form#loginForm, #errorInfo").isEmpty() &&
+                !home.title().contains("错误")
+        }
         val url = page.url.toHttpUrlOrNull() ?: return false
         if (page.status !in 200..299 || url.scheme != "https" || url.host != "gmis.ahu.edu.cn") return false
         val path = url.encodedPath.lowercase().replace(Regex("/\\(s\\([^)]*\\)\\)"), "")
-        if (!path.startsWith("/gmis5/") || listOf("login", "error", "forgotpwd").any { it in path }) return false
+        if (!path.startsWith("/gmis5/student/") || listOf("login", "error", "forgotpwd").any { it in path }) return false
         val doc = Jsoup.parse(page.html)
         if (doc.select("input[type=password], form#loginForm, #errorInfo").isNotEmpty()) return false
         val text = doc.text()

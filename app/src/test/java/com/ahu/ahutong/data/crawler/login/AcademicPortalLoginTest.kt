@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
 class AcademicPortalLoginTest {
     private val student = User("Test Student", "G20260001")
     private val graduateHome = PortalPage(
-        "https://gmis.ahu.edu.cn/gmis5/(S(session))/home/index", 200,
+        "https://gmis.ahu.edu.cn/gmis5/(S(session))/student/default/home", 200,
         """<h1>研究生教育管理信息系统</h1><span>G20260001</span><a href="logout">退出</a><a>个人培养计划</a>"""
     )
 
@@ -98,5 +98,54 @@ class AcademicPortalLoginTest {
         assertEquals("ST-test", url.queryParameter("ticket"))
         assertFailsWith<IOException> { AcademicPortalHttp.securePortalUrl("https://evil.test/") }
         assertFailsWith<IOException> { AcademicPortalHttp.securePortalUrl("http://one.ahu.edu.cn/cas/login") }
+    }
+
+    private val studentShell = PortalPage(
+        "https://gmis.ahu.edu.cn/gmis5/(S(session))/student/default/index", 200,
+        """<html><title>学生端</title><iframe src="home"></iframe></html>"""
+    )
+
+    @Test fun liveStudentShellIsConfirmedUsingItsProtectedHomeFrame() = runTest {
+        val visited = mutableListOf<String>()
+        val login = AcademicPortalLogin { url, fields ->
+            assertNull(fields)
+            visited += url
+            if (visited.size == 1) studentShell
+            else PortalPage(url, 200, "<html><title>学生首页</title><div>通知公告</div></html>")
+        }
+        assertEquals(PortalLoginStatus.SUCCESS, login.login(
+            AcademicPortalLogin.GMIS_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals("https://gmis.ahu.edu.cn/gmis5/(S(session))/student/default/home", visited.last())
+    }
+
+    @Test fun studentShellDoesNotProveLoginIfProtectedFrameRedirectsToLogin() = runTest {
+        var visited = 0
+        val login = AcademicPortalLogin { _, _ ->
+            if (++visited == 1) studentShell
+            else PortalPage("https://gmis.ahu.edu.cn/gmis5/(S(session))/home/stulogin", 200,
+                "<title>研究生教育管理信息系统登录</title><input type=password>")
+        }
+        assertEquals(PortalLoginStatus.REJECTED, login.login(
+            AcademicPortalLogin.GMIS_ENTRY, student.xh, "secret", student
+        ).status)
+    }
+
+    @Test fun studentShellRejectsFramesOnAnotherHostOrSession() {
+        assertNull(GmisSessionVerifier.studentHomeUrl(studentShell.copy(
+            html = """<title>学生端</title><iframe src="https://evil.test/student/default/home"></iframe>"""
+        )))
+        assertNull(GmisSessionVerifier.studentHomeUrl(studentShell.copy(
+            html = """<title>学生端</title><iframe src="/gmis5/(S(other))/student/default/home"></iframe>"""
+        )))
+    }
+
+    @Test fun expiredFrameCannotFallBackToIdentityTextInStudentShell() {
+        val shell = studentShell.copy(html = studentShell.html + graduateHome.html)
+        assertFalse(GmisSessionVerifier.isStudentSession(shell, student.xh, student.name,
+            PortalPage("https://gmis.ahu.edu.cn/gmis5/home/stulogin", 200, "<input type=password>")))
+        assertFalse(GmisSessionVerifier.isStudentSession(
+            graduateHome.copy(url = "https://gmis.ahu.edu.cn/gmis5/home/index"), student.xh, student.name
+        ))
     }
 }

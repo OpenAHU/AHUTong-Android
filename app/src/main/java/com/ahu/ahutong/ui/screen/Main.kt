@@ -118,7 +118,9 @@ fun Main(
     isReLoginShown: Boolean,
     onReLoginDismiss: () -> Unit
 ) {
-    val undergraduateEnabled = com.ahu.ahutong.data.dao.AHUCache.canUseUndergraduateAcademics()
+    val academicType by com.ahu.ahutong.data.dao.AHUCache.academicTypeUpdates().collectAsState()
+    val undergraduateEnabled = academicType != com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE ||
+        com.ahu.ahutong.data.dao.AHUCache.getMockData()
     val primaryDestinationRoutes = listOf("home", "schedule", "tools", "settings")
         .filter { undergraduateEnabled || it != "schedule" }
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }

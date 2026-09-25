@@ -48,6 +48,15 @@ object AHUCache {
     @Volatile
     private var currentUserCache: User? = null
 
+    private val academicTypeFlow = kotlinx.coroutines.flow.MutableStateFlow<
+        com.ahu.ahutong.data.model.AcademicAccountType?
+    >(null)
+
+    fun academicTypeUpdates(): kotlinx.coroutines.flow.StateFlow<com.ahu.ahutong.data.model.AcademicAccountType?> {
+        getCurrentUser()
+        return academicTypeFlow
+    }
+
     @Volatile
     private var mockDataCache: Boolean? = null
     @Volatile
@@ -154,6 +163,7 @@ object AHUCache {
             currentUserCache = null
             currentUserCacheInitialized = true
         }
+        academicTypeFlow.value = null
         mockDataCache = null
         mockCurrentTimeCache = null
         mockCurrentTimeCacheInitialized = false
@@ -171,6 +181,7 @@ object AHUCache {
             currentUserCache = user
             currentUserCacheInitialized = true
         }
+        academicTypeFlow.value = user.academicAccountType
         homeWidgetSlotsCache = null
     }
 
@@ -183,6 +194,7 @@ object AHUCache {
             currentUserCache = null
             currentUserCacheInitialized = true
         }
+        academicTypeFlow.value = null
         homeWidgetSlotsCache = null
     }
 
@@ -202,6 +214,7 @@ object AHUCache {
                 data.fromJson(User::class.java).also { user ->
                     currentUserCache = user
                     currentUserCacheInitialized = true
+                    academicTypeFlow.value = user?.academicAccountType
                 }
             }
         }
