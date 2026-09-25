@@ -6,7 +6,7 @@ import org.junit.Test
 
 class AcademicFeatureAccessTest {
     @Test fun graduateCannotOpenAnyUndergraduateAcademicRoute() {
-        for (route in listOf("schedule", "grade", "exam", "evaluation", "free_classroom", "info")) {
+        for (route in listOf("grade", "exam", "evaluation", "free_classroom", "info")) {
             assertFalse(route, AcademicFeatureAccess.allowsRoute(AcademicAccountType.POSTGRADUATE, route))
             assertFalse(route, AcademicFeatureAccess.allowsRoute(AcademicAccountType.POSTGRADUATE, "$route?source=deeplink"))
             assertTrue(route, AcademicFeatureAccess.allowsRoute(AcademicAccountType.UNDERGRADUATE, route))
@@ -14,7 +14,7 @@ class AcademicFeatureAccessTest {
     }
 
     @Test fun sharedCampusServicesRemainAvailable() {
-        for (route in listOf("home", "tools", "settings", "bathroom_deposit", "electricity_pay",
+        for (route in listOf("home", "schedule", "tools", "settings", "bathroom_deposit", "electricity_pay",
             "card_balance_deposit", "network_recharge", "lost_found", "phone_book", "weather",
             "school_calendar", "repository", "xuexiaotong")) {
             assertTrue(route, AcademicFeatureAccess.allowsRoute(AcademicAccountType.POSTGRADUATE, route))

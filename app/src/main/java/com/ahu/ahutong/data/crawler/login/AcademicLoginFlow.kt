@@ -6,7 +6,11 @@ import com.ahu.ahutong.data.model.User
 import kotlinx.coroutines.CancellationException
 
 internal enum class PortalLoginStatus { SUCCESS, REJECTED, VERIFICATION_REQUIRED, UNAVAILABLE }
-internal data class PortalLoginResult(val status: PortalLoginStatus, val message: String = "")
+internal data class PortalLoginResult(
+    val status: PortalLoginStatus,
+    val message: String = "",
+    val sessionPageUrl: String? = null
+)
 
 internal class AcademicLoginFlow(
     private val wisdom: suspend (String, String) -> AHUResponse<User>,

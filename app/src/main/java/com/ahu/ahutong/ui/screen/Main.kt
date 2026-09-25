@@ -122,7 +122,6 @@ fun Main(
     val undergraduateEnabled = academicType != com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE ||
         com.ahu.ahutong.data.dao.AHUCache.getMockData()
     val primaryDestinationRoutes = listOf("home", "schedule", "tools", "settings")
-        .filter { undergraduateEnabled || it != "schedule" }
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

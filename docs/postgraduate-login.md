@@ -26,7 +26,7 @@ navigation while keeping shared services. Account-type updates are observable so
 silent session refresh also updates navigation without a restart.
 Diagnostic logs use the AcademicLogin tag and omit identifiers, tickets and HTML.
 
-Postgraduate accounts hide undergraduate timetable, grades/GPA, exams, evaluation,
+Postgraduate accounts hide undergraduate timetable data, grades/GPA, exams, evaluation,
 free classrooms, semester settings, home course cards and course reminder controls.
 Home widget libraries and both bottom-navigation variants use the same account policy.
 Direct routes and academic requests are also gated; cached timetable widgets show
@@ -41,3 +41,41 @@ entries. No app data was cleared for validation.
 Manual checks: undergraduate sign-in preserves academic features; a real postgraduate
 sign-in shows “研究生账号” in Settings and hides undergraduate features; restart and
 switch accounts to confirm persistence and restore undergraduate features.
+
+## GMIS timetable
+
+The existing Schedule page, seven-column weekly grid, CourseCard, overview mode and
+course detail dialog are shared with undergraduate accounts. GMIS responses are
+adapted into the existing Course model; there is no separate graduate timetable page.
+The graduate term selector is in the existing timetable settings dialog.
+
+The client derives a fresh session prefix from the GMIS student index and reads
+student/pygl/xskbcx, student/default/bindterm and student/pygl/py_kbcx_ew.
+The last endpoint is a read-only form POST with kblx=xs and the selected termcode.
+Term codes and selection come from bindterm, never a hardcoded semester.
+Requests include the timetable Referer and XMLHttpRequest header. The transport
+whitelists these query routes and form keys; enrollment and withdrawal are not used.
+
+AJAX bodies are decoded using the public https://gmis.ahu.edu.cn/gmis5/Scripts/rajax.js
+AES/ECB/PKCS7 protocol (Java AES/ECB/PKCS5Padding is equivalent for AES blocks).
+Plain JSON is also accepted. Login HTML triggers at most one session renewal;
+malformed data raises an error instead of being treated as an empty timetable.
+
+Courses repeated across adjacent periods are merged per weekday, week set and
+morning/afternoon/evening group. Multiple courses in a cell remain independent.
+The server supplies times including period 14. Untimed/unknown-week entries remain
+available under 未排定课程 rather than receiving invented grid positions.
+The root week field is a weekday name, not the teaching week. On first opening the
+current graduate term, a required dialog asks the user to enter the current teaching
+week (1–60). The first-week Monday is derived from that input and stored in the
+existing encrypted per-account settings under a separate GMIS term key. The week
+then advances on Mondays and drives the original date labels and current-week jump.
+A graduate-only edit button at the top right permits changes at any time. Historical
+terms do not force a new current-week prompt; their calendar can be configured with
+the same edit button. Undergraduate week calculation and controls remain unchanged.
+Course reminders and home current-course cards remain disabled; only the shared
+timetable page has been connected to GMIS in this change.
+
+WebVPN was used only for read-only investigation. Its locally supplied cookies
+were kept in memory and sent only to wvpn.ahu.edu.cn, never to the native app or
+another host. Tests use fictional courses and an independently generated AES vector.

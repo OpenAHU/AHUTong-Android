@@ -17,7 +17,8 @@ internal fun scheduleDayDescription(weekday: Int, date: String? = null): String 
 }
 
 internal fun schedulePeriodDescription(section: Int, time: String): String =
-    "第${section}节，${time.substringBefore('-')}至${time.substringAfter('-')}"
+    if (time.isBlank()) "第${section}节，时间待确认"
+    else "第${section}节，${time.substringBefore('-')}至${time.substringAfter('-')}"
 
 internal fun courseScheduleDescription(
     course: Course,

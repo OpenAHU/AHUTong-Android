@@ -15,7 +15,7 @@ internal class AcademicPortalLogin(
     suspend fun login(entry: String, username: String, password: String, user: User): PortalLoginResult {
         var page = request(entry, null)
         val graduate = entry == GMIS_ENTRY
-        if (isSuccess(page, graduate, user)) return PortalLoginResult(PortalLoginStatus.SUCCESS)
+        if (isSuccess(page, graduate, user)) return PortalLoginResult(PortalLoginStatus.SUCCESS, sessionPageUrl = page.url)
         if (page.status == 412) return PortalLoginResult(PortalLoginStatus.VERIFICATION_REQUIRED)
         if (page.status !in 200..299) return unavailable(page.status)
 
@@ -48,7 +48,7 @@ internal class AcademicPortalLogin(
         return when {
             page.status == 412 -> PortalLoginResult(PortalLoginStatus.VERIFICATION_REQUIRED)
             page.status !in 200..299 -> unavailable(page.status)
-            isSuccess(page, graduate, user) -> PortalLoginResult(PortalLoginStatus.SUCCESS)
+            isSuccess(page, graduate, user) -> PortalLoginResult(PortalLoginStatus.SUCCESS, sessionPageUrl = page.url)
             else -> rejected(graduate)
         }
     }

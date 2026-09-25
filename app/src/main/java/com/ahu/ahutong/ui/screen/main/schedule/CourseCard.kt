@@ -63,6 +63,7 @@ fun CourseCard(
     cellHeight: Dp,
     isCurrentWeek: Boolean = true,
     date: String? = null,
+    timetable: Map<Int, String> = ScheduleViewModel.timetable,
     onClick: (Course) -> Unit
 ) {
     val tonalPalettes = remember(color) { courseTonalPalettes(color) }
@@ -114,7 +115,7 @@ fun CourseCard(
                     .clip(SmoothRoundedCornerShape(8.dp))
                     .background(if (!isCurrentWeek) Color.Gray else color)
                     .semantics(mergeDescendants = true) {
-                        contentDescription = courseScheduleDescription(course, ScheduleViewModel.timetable, date)
+                        contentDescription = courseScheduleDescription(course, timetable, date)
                         onClick(label = "查看课程详情") {
                             onClick(course)
                             true

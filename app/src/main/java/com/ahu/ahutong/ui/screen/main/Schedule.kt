@@ -33,6 +33,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Edit
+import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
+import com.ahu.ahutong.data.model.ScheduleConfigBean
+import com.ahu.ahutong.ui.screen.main.schedule.PostgraduateWeekDialog
+import java.time.ZoneId
+import java.util.Date
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -128,32 +134,90 @@ import com.ahu.ahutong.personalization.semantic.ErrorTypeBucket
 import com.ahu.ahutong.personalization.semantic.MutationId
 import com.ahu.ahutong.personalization.semantic.ResultCountBucket
 import com.ahu.ahutong.personalization.semantic.SemanticDomain
+import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.crawler.gmis.GmisTimetableAdapter
+import com.ahu.ahutong.ui.state.PostgraduateScheduleViewModel
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
 
 @Composable
 fun Schedule(
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     behaviorRuntime: BehaviorPredictionRuntime
 ) {
+    val isGraduate = !AHUCache.canUseUndergraduateAcademics()
+    val graduateViewModel: PostgraduateScheduleViewModel? = if (isGraduate) viewModel() else null
+    val graduateState = graduateViewModel?.state?.collectAsState()?.value
+    val accountId = AHUCache.getCurrentUser()?.xh
+    LaunchedEffect(accountId, isGraduate) { graduateViewModel?.open(accountId) }
+    LaunchedEffect(graduateViewModel) {
+        if (graduateViewModel != null) {
+            while (true) {
+                graduateViewModel.refreshCalendar()
+                delay(60_000L)
+            }
+        }
+    }
+    var showGraduateWeekEditor by rememberSaveable(accountId) { mutableStateOf(false) }
+    val graduateCurrentTerm = graduateState?.selectedTerm?.let { term ->
+        term.selected || graduateState.terms.none { it.selected }
+    } == true
+    val requiresGraduateWeek = isGraduate && graduateCurrentTerm && graduateState?.firstWeekMonday == null
+    val graduateConfig = remember(
+        graduateState?.firstWeekMonday, graduateState?.today, graduateCurrentTerm
+    ) {
+        graduateState?.firstWeekMonday?.let { monday ->
+            val today = graduateState.today
+            val actualWeek = PostgraduateTeachingWeek.weekOn(monday, today)
+            ScheduleConfigBean().apply {
+                startTime = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant())
+                week = actualWeek.coerceIn(1, PostgraduateTeachingWeek.MAX_WEEK)
+                weekDay = today.dayOfWeek.value
+                isInSemester = graduateCurrentTerm && actualWeek in 1..PostgraduateTeachingWeek.MAX_WEEK
+                isShowAll = false
+            }
+        }
+    }
+    val graduateGrid = remember(graduateState?.timetable) {
+        graduateState?.timetable?.let(GmisTimetableAdapter::adapt)
+    }
+    val sectionTimetable = if (isGraduate) graduateGrid?.timetable.orEmpty() else ScheduleViewModel.timetable
+    val sectionCount = if (isGraduate) sectionTimetable.keys.maxOrNull() ?: 14 else 13
+    val weekCount = if (isGraduate) maxOf(graduateGrid?.weekCount ?: 20, graduateConfig?.week ?: 1) else 20
+    var showUnplacedCourses by remember { mutableStateOf(false) }
     val behaviorReporter = rememberBehaviorActionReporter()
     val scope = rememberCoroutineScope()
-    val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
+    val undergraduateConfig by scheduleViewModel.scheduleConfig.observeAsState()
+    val scheduleConfig = if (isGraduate) graduateConfig else undergraduateConfig
     val currentWeekday = scheduleConfig?.weekDay ?: 1
     var currentWeek by rememberSaveable { mutableStateOf(scheduleConfig?.week ?: 1) }
     val pagerState = rememberPagerState(
         initialPage = (currentWeek - 1).coerceAtLeast(0),
-        pageCount = { 20 }
+        pageCount = { weekCount }
     )
     val state = rememberLazyListState(
         initialFirstVisibleItemIndex = (currentWeek - 3).coerceAtLeast(0)
     )
-    val scheduleResult = scheduleViewModel.schedule.observeAsState().value
-    val nextScheduleResult = scheduleViewModel.nextSchedule.observeAsState().value
-    var isPreviewNextSemester by rememberSaveable { mutableStateOf(false) }
-    var isOverviewSchedule by rememberSaveable { mutableStateOf(false) }
+    val undergraduateResult = scheduleViewModel.schedule.observeAsState().value
+    val graduateResult = remember(graduateGrid, graduateState?.error) {
+        when {
+            graduateState?.error != null -> Result.failure<List<Course>>(IllegalStateException(graduateState.error))
+            graduateGrid != null -> Result.success(graduateGrid.courses)
+            else -> null
+        }
+    }
+    val scheduleResult = if (isGraduate) graduateResult else undergraduateResult
+    val undergraduateNextResult = scheduleViewModel.nextSchedule.observeAsState().value
+    val nextScheduleResult = if (isGraduate) null else undergraduateNextResult
+    var isPreviewNextSemester by rememberSaveable(accountId, isGraduate) { mutableStateOf(false) }
+    var isOverviewSchedule by rememberSaveable(accountId, isGraduate) { mutableStateOf(false) }
     var isSettingsVisible by rememberSaveable { mutableStateOf(false) }
     var renderCourseCards by remember { mutableStateOf(true) }
     var hasRenderedCards by remember { mutableStateOf(false) }
-    val activeScheduleResult = if (isPreviewNextSemester) nextScheduleResult else scheduleResult
+    val activeScheduleResult = if (!isGraduate && isPreviewNextSemester) nextScheduleResult else scheduleResult
     val schedule = activeScheduleResult?.getOrNull() ?: emptyList()
     val context = LocalContext.current
 
@@ -175,11 +239,11 @@ fun Schedule(
         )
     }
 
-    LaunchedEffect(scheduleConfig?.week, isPreviewNextSemester) {
+    LaunchedEffect(scheduleConfig?.week, isPreviewNextSemester, graduateState?.selectedTerm?.code) {
         if (!isPreviewNextSemester) {
-            scheduleConfig?.week?.let { resolvedWeek ->
+            (scheduleConfig?.week ?: if (isGraduate) 1 else null)?.let { resolvedWeek ->
                 currentWeek = resolvedWeek
-                val targetPage = (resolvedWeek - 1).coerceIn(0, 19)
+                val targetPage = (resolvedWeek - 1).coerceIn(0, weekCount - 1)
                 if (pagerState.currentPage != targetPage) {
                     pagerState.scrollToPage(targetPage)
                 }
@@ -223,7 +287,7 @@ fun Schedule(
     }
 
     LaunchedEffect(isPreviewNextSemester) {
-        if (isPreviewNextSemester && nextScheduleResult == null) {
+        if (!isGraduate && isPreviewNextSemester && nextScheduleResult == null) {
             scheduleViewModel.refreshNextSchedule()
         }
         val targetWeek = if (isPreviewNextSemester) 1 else scheduleConfig?.week ?: 1
@@ -260,8 +324,8 @@ fun Schedule(
             }.toMap()
         }
     }
-    val coursesByWeek = remember(schedule) {
-        List(20) { pageIndex ->
+    val coursesByWeek = remember(schedule, weekCount) {
+        List(weekCount) { pageIndex ->
             val week = pageIndex + 1
             schedule.filter { week in it.weekIndexes }
         }
@@ -272,13 +336,16 @@ fun Schedule(
             .values
             .toList()
     }
-    val weekDateLabels = remember(scheduleConfig?.startTime) {
+    val weekDateLabels = remember(scheduleConfig?.startTime, isGraduate, weekCount) {
+        if (isGraduate && scheduleConfig?.startTime == null) {
+            return@remember List(weekCount) { List(7) { "" } }
+        }
         val fallbackStart = requireNotNull(
             SimpleDateFormat("MM-dd", Locale.CHINA).parse("09-01")
         )
         val startTime = scheduleConfig?.startTime ?: fallbackStart
         val formatter = SimpleDateFormat("MM-dd", Locale.CHINA)
-        List(20) { pageIndex ->
+        List(weekCount) { pageIndex ->
             List(7) { dayIndex ->
                 Calendar.getInstance().apply {
                     time = startTime
@@ -311,7 +378,7 @@ fun Schedule(
                 },
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(20) {
+                items(weekCount) {
                     val week = it + 1
                     val isSelected = week == currentWeek
                     CompositionLocalProvider(
@@ -384,6 +451,7 @@ fun Schedule(
 
                 IconButton(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
+                    enabled = !isGraduate || scheduleConfig?.isInSemester == true,
                     onClick = {
                         if (isPreviewNextSemester) {
                             behaviorRuntime.recordCommittedMutationAsync(
@@ -416,6 +484,19 @@ fun Schedule(
                         )
                     }
                 }
+                if (isGraduate) {
+                    IconButton(
+                        modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
+                        enabled = graduateState?.selectedTerm != null,
+                        onClick = { showGraduateWeekEditor = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "修改研究生当前周",
+                            modifier = Modifier.size(if (radiant) 17.dp else 20.dp)
+                        )
+                    }
+                }
                 IconButton(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
                     onClick = { isSettingsVisible = true }
@@ -437,7 +518,9 @@ fun Schedule(
                 IconButton(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
                     onClick = {
-                        if (isPreviewNextSemester) {
+                        if (isGraduate) {
+                            graduateViewModel?.refresh()
+                        } else if (isPreviewNextSemester) {
                             scheduleViewModel.refreshNextSchedule(true)
                         } else {
                             behaviorReporter.organic(AppActionId.MANUAL_REFRESH_SCHEDULE)
@@ -500,7 +583,7 @@ fun Schedule(
                         .then(
                             if (radiant) Modifier.padding(horizontal = 6.dp) else Modifier
                         )
-                        .height(mainRowHeight + (cellHeight + cellSpacing) * 13 + 24.dp)
+                        .height(mainRowHeight + (cellHeight + cellSpacing) * sectionCount + 24.dp)
                         .then(gridSurface)
                         .padding(top = 8.dp)
                         .padding(cellSpacing)
@@ -519,7 +602,8 @@ fun Schedule(
                     currentWeek = scheduleConfig?.week,
                     currentWeekday = currentWeekday,
                     isInSemester = scheduleConfig?.isInSemester == true,
-                    isPreviewNextSemester = isPreviewNextSemester
+                    isPreviewNextSemester = isPreviewNextSemester,
+                    timetable = sectionTimetable
                 )
                 // courses
                 if (!renderCourseCards) {
@@ -533,6 +617,7 @@ fun Schedule(
                                 cellWidth = cellWidth,
                                 cellHeight = cellHeight,
                                 currentWeek = pageWeek,
+                                timetable = sectionTimetable,
                                 onClick = {
                                     behaviorReporter.organic(AppActionId.OPEN_COURSE_DETAIL)
                                     detailedCourse = it
@@ -550,6 +635,7 @@ fun Schedule(
                                 cellHeight = cellHeight,
                                 isCurrentWeek = true,
                                 date = weekDates.getOrNull(course.weekday - 1),
+                                timetable = sectionTimetable,
                                 onClick = {
                                     behaviorReporter.organic(AppActionId.OPEN_COURSE_DETAIL)
                                     detailedCourse = it
@@ -562,11 +648,51 @@ fun Schedule(
         }
     }
 
+    if (isGraduate && (requiresGraduateWeek || showGraduateWeekEditor)) {
+        graduateState?.selectedTerm?.let { term ->
+            PostgraduateWeekDialog(
+                termCode = term.code,
+                termName = term.name,
+                currentWeek = graduateConfig?.week,
+                required = requiresGraduateWeek,
+                onSave = { week ->
+                    if (graduateViewModel?.saveCurrentWeek(week) == true) {
+                        showGraduateWeekEditor = false
+                        isOverviewSchedule = false
+                    }
+                },
+                onDismiss = { showGraduateWeekEditor = false }
+            )
+        }
+    }
     if (isSettingsVisible) {
         ScheduleSettingsDialog(
             isOverviewSchedule = isOverviewSchedule,
             isPreviewNextSemester = isPreviewNextSemester,
             backdropColor = settingsCardColor,
+            showNextSemester = !isGraduate,
+            extraSettings = {
+                if (isGraduate) {
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { expanded = true }) {
+                            Text(graduateState?.selectedTerm?.name ?: "正在读取学期")
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            graduateState?.terms.orEmpty().forEach { term ->
+                                DropdownMenuItem(text = { Text(term.name) }, onClick = {
+                                    expanded = false
+                                    graduateViewModel?.selectTerm(term)
+                                })
+                            }
+                        }
+                    }
+                    Text(
+                        "当前教学周可通过课表右上角的编辑按钮修改；学期设置独立保存。",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
             onOverviewChange = { enabled ->
                 val oldValue = isOverviewSchedule
                 isOverviewSchedule = enabled
@@ -588,6 +714,33 @@ fun Schedule(
             },
             onDismiss = { isSettingsVisible = false }
         )
+    }
+    if (showUnplacedCourses) {
+        AlertDialog(
+            onDismissRequest = { showUnplacedCourses = false },
+            title = { Text("未排定课程") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    graduateGrid?.unplaced.orEmpty().forEach { course ->
+                        Text(listOf(course.name, scheduleDayDescription(course.weekday), course.teacher, course.weekLabel,
+                            course.location.ifBlank { "地点待定" },
+                            course.details.ifBlank { "节次或周次尚未明确" }).filter(String::isNotBlank).joinToString("\n"))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showUnplacedCourses = false }) { Text("关闭") } }
+        )
+    }
+    @Composable
+    fun GraduateScheduleStatus() {
+        if (isGraduate) {
+            if (graduateState?.loading == true) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (graduateGrid?.unplaced?.isNotEmpty() == true) {
+                TextButton(onClick = { showUnplacedCourses = true }) {
+                    Text("未排定课程（${graduateGrid.unplaced.size}）")
+                }
+            }
+        }
     }
     // course dialog
     detailedCourse?.let {
@@ -640,6 +793,7 @@ fun Schedule(
                             .padding(bottom = 96.dp)
                     ) {
                         Spacer(modifier = Modifier.height(102.dp))
+                        GraduateScheduleStatus()
                         ScheduleGrid()
                     }
                 }
@@ -654,6 +808,7 @@ fun Schedule(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ScheduleHeaderRow()
+                    GraduateScheduleStatus()
                     ScheduleGrid()
                 }
             }
@@ -670,7 +825,8 @@ private fun BoxScope.ScheduleGridLabels(
     currentWeek: Int?,
     currentWeekday: Int,
     isInSemester: Boolean,
-    isPreviewNextSemester: Boolean
+    isPreviewNextSemester: Boolean,
+    timetable: Map<Int, String>
 ) {
     val radiant = isRadiantUi
     val textMeasurer = rememberTextMeasurer()
@@ -687,8 +843,8 @@ private fun BoxScope.ScheduleGridLabels(
             listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
         }
     }
-    val timeLabels = remember {
-        ScheduleViewModel.timetable.map { (index, time) ->
+    val timeLabels = remember(timetable) {
+        timetable.map { (index, time) ->
             index.toString() to time.substringBefore("-")
         }
     }
@@ -712,7 +868,7 @@ private fun BoxScope.ScheduleGridLabels(
         val spacingPx = CourseCardSpec.cellSpacing.toPx()
         val cornerRadius = CornerRadius(8.dp.toPx())
 
-        if (radiant && weekDates.isNotEmpty()) {
+        if (radiant && weekDates.firstOrNull()?.isNotBlank() == true) {
             val month = weekDates.first().substringBefore("-").trimStart('0')
             drawCentered(
                 text = month,
@@ -785,7 +941,7 @@ private fun BoxScope.ScheduleGridLabels(
                 }
         )
     }
-    ScheduleViewModel.timetable.entries.forEachIndexed { index, (section, time) ->
+    timetable.entries.forEachIndexed { index, (section, time) ->
         Box(
             modifier = Modifier
                 .offset(y = CourseCardSpec.mainRowHeight + (cellHeight + cellSpacing) * index + cellSpacing)
@@ -811,7 +967,9 @@ private fun ScheduleSettingsDialog(
         backdropColor: Color,
         onOverviewChange: (Boolean) -> Unit,
         onPreviewNextSemesterChange: (Boolean) -> Unit,
-        onDismiss: () -> Unit
+        onDismiss: () -> Unit,
+        showNextSemester: Boolean = true,
+        extraSettings: @Composable () -> Unit = {}
     ) {
         val dialogShape = SmoothRoundedCornerShape(28.dp)
         AlertDialog(
@@ -835,13 +993,14 @@ private fun ScheduleSettingsDialog(
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    extraSettings()
                     ScheduleSettingRow(
                         title = "总览课表",
                         description = "显示全部周次的课程，重叠课程会平分同一块时间区域",
                         selected = isOverviewSchedule,
                         onSelect = onOverviewChange
                     )
-                    ScheduleSettingRow(
+                    if (showNextSemester) ScheduleSettingRow(
                         title = "预览下学期课表",
                         description = "切换到教务系统中的下学期课表",
                         selected = isPreviewNextSemester,
@@ -909,6 +1068,7 @@ private fun OverviewCourseGroupCard(
     cellWidth: Dp,
     cellHeight: Dp,
     currentWeek: Int,
+    timetable: Map<Int, String>,
     onClick: (Course) -> Unit
 ) {
     val course = courses.firstOrNull() ?: return
@@ -958,7 +1118,7 @@ private fun OverviewCourseGroupCard(
                             .semantics(mergeDescendants = true) {
                                 contentDescription = courseScheduleDescription(
                                     item,
-                                    ScheduleViewModel.timetable,
+                                    timetable,
                                     includeWeeks = true
                                 )
                             }

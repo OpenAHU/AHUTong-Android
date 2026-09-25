@@ -237,6 +237,17 @@ object AHUCache {
             getCurrentUser()?.academicAccountType, route
         )
 
+    fun getPostgraduateWeekStart(termCode: String): String? =
+        userGetString(com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.storageKey(termCode))
+
+    fun savePostgraduateWeekStart(termCode: String, firstMonday: String) {
+        require(com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.parseStored(firstMonday) != null)
+        userPutString(
+            com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.storageKey(termCode),
+            firstMonday
+        )
+    }
+
     /**
      * 保存智慧安大密码
      * @param password String
