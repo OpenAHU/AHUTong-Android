@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.AHUApplication
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
+import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
+import com.ahu.ahutong.data.model.AcademicAccountType
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
@@ -79,7 +82,22 @@ class ScheduleViewModel () : ViewModel() {
     fun loadConfig() {
         viewModelScope.launchSafe {
             if (!AHUCache.canUseUndergraduateAcademics()) {
-                scheduleConfig.value = null
+                val user = AHUCache.getCurrentUser()
+                val cached = user?.xh?.let(PostgraduateScheduleRepository.instance::cachedCurrent)
+                val anchor = cached?.selectedTerm?.let {
+                    PostgraduateTeachingWeek.parseStored(AHUCache.getPostgraduateWeekStart(it.code))
+                }
+                val today = DebugClock.nowLocalDate()
+                scheduleConfig.value = if (anchor == null || cached == null) null else
+                    ScheduleConfigBean().apply {
+                        val actualWeek = PostgraduateTeachingWeek.weekOn(anchor, today)
+                        week = actualWeek.coerceIn(1, PostgraduateTeachingWeek.MAX_WEEK)
+                        weekDay = today.dayOfWeek.value
+                        startTime = java.util.Date.from(
+                            anchor.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()
+                        )
+                        isInSemester = actualWeek in 1..PostgraduateTeachingWeek.MAX_WEEK
+                    }
                 return@launchSafe
             }
             val initialConfig = withContext(Dispatchers.IO) {
@@ -165,6 +183,10 @@ class ScheduleViewModel () : ViewModel() {
             }
         }
 
+        private val graduateLastPeriod by lazy {
+            parseClockMinutes("21:30")..parseClockMinutes("22:15")
+        }
+
         private fun parseClockMinutes(clock: String): Int {
             val separator = clock.indexOf(':')
             require(separator > 0 && separator < clock.lastIndex) { "Invalid clock: $clock" }
@@ -173,8 +195,16 @@ class ScheduleViewModel () : ViewModel() {
         }
 
         fun getCourseTimeRangeInMinutes(course: Course): IntRange {
-            val firstSection = timetableMinuteRanges.getValue(course.startTime)
-            val lastSection = timetableMinuteRanges.getValue(course.startTime + course.length - 1)
+            course.clockRange?.split('-')?.takeIf { it.size == 2 }?.let { parts ->
+                runCatching {
+                    return parseClockMinutes(parts[0])..parseClockMinutes(parts[1])
+                }
+            }
+            fun period(section: Int): IntRange =
+                timetableMinuteRanges[section] ?: if (section == 14) graduateLastPeriod else
+                    throw IllegalArgumentException("Unknown course period: $section")
+            val firstSection = period(course.startTime)
+            val lastSection = period(course.startTime + course.length - 1)
             return firstSection.first..lastSection.last
         }
     }

@@ -35,6 +35,7 @@ fun AtAGlance(
     currentDateText: String,
     onOpenSchedule: () -> Unit,
     isInSemester: Boolean = true,
+    emptyCourseText: String = "已全部上完",
     enabled: Boolean = true,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
@@ -113,7 +114,7 @@ fun AtAGlance(
                     !isInSemester -> "假期中"
                     currentCourse != null -> currentCourse.name
                     hasRemainingCourses -> todayCourses[currentCourseIndex].name
-                    else -> "已全部上完"
+                    else -> emptyCourseText
                 },
                 modifier = if (isInSemester && (currentCourse != null || hasRemainingCourses)) {
                     Modifier

@@ -2,10 +2,9 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ahu.ahutong.data.crawler.gmis.GmisScheduleClient
+import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
 import com.ahu.ahutong.data.crawler.gmis.GmisTerm
 import com.ahu.ahutong.data.crawler.gmis.GmisTimetable
-import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleSource
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
@@ -33,38 +32,41 @@ class PostgraduateScheduleViewModel : ViewModel() {
     private val mutableState = MutableStateFlow(PostgraduateScheduleState())
     val state = mutableState.asStateFlow()
     private var accountId: String? = null
-    private var client: GmisScheduleClient? = null
+    private val repository = PostgraduateScheduleRepository.instance
     private var job: Job? = null
 
     fun open(account: String?) {
-        if (accountId == account && client != null) return
+        if (accountId == account && (mutableState.value.timetable != null || mutableState.value.loading)) return
         job?.cancel()
         accountId = account
-        client = account?.let(PostgraduateScheduleSource::forAccount)
-        mutableState.value = PostgraduateScheduleState()
-        refresh()
+        val cached = account?.let(repository::cachedCurrent)
+        mutableState.value = if (cached == null) PostgraduateScheduleState() else
+            PostgraduateScheduleState(
+                cached.terms, cached.selectedTerm, cached.timetable,
+                firstWeekMonday = storedFirstMonday(cached.selectedTerm),
+                today = DebugClock.nowLocalDate()
+            )
+        if (account != null && cached == null) load(force = false)
     }
 
-    fun refresh() {
-        val source = client ?: return
+    fun refresh() = load(force = true)
+
+    private fun load(force: Boolean) {
         val account = accountId ?: return
         job?.cancel()
         val previousCode = mutableState.value.selectedTerm?.code
-        mutableState.value = mutableState.value.copy(loading = true, error = null, timetable = null)
+        mutableState.value = mutableState.value.copy(loading = true, error = null)
         job = viewModelScope.launch {
             try {
-                val terms = withContext(Dispatchers.IO) { source.terms() }
+                val snapshot = withContext(Dispatchers.IO) {
+                    if (force) repository.refresh(account, previousCode) else repository.current(account)
+                }
                 if (AHUCache.getCurrentUser()?.xh != account) return@launch
-                val selected = terms.firstOrNull { it.code == previousCode }
-                    ?: terms.firstOrNull { it.selected } ?: terms.first()
                 mutableState.value = PostgraduateScheduleState(
-                    terms, selected, loading = true,
-                    firstWeekMonday = storedFirstMonday(selected),
+                    snapshot.terms, snapshot.selectedTerm, snapshot.timetable,
+                    firstWeekMonday = storedFirstMonday(snapshot.selectedTerm),
                     today = DebugClock.nowLocalDate()
                 )
-                val timetable = withContext(Dispatchers.IO) { source.timetable(selected) }
-                if (AHUCache.getCurrentUser()?.xh != account) return@launch
-                mutableState.value = mutableState.value.copy(timetable = timetable, loading = false)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -77,16 +79,17 @@ class PostgraduateScheduleViewModel : ViewModel() {
 
     fun selectTerm(term: GmisTerm) {
         if (mutableState.value.selectedTerm?.code == term.code && mutableState.value.timetable != null) return
-        val source = client ?: return
         val account = accountId ?: return
         job?.cancel()
+        val cached = repository.cachedForTerm(account, term.code)
         mutableState.value = mutableState.value.copy(
-            selectedTerm = term, timetable = null, loading = true, error = null,
+            selectedTerm = term, timetable = cached, loading = cached == null, error = null,
             firstWeekMonday = storedFirstMonday(term), today = DebugClock.nowLocalDate()
         )
+        if (cached != null) return
         job = viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) { source.timetable(term) }
+                val result = withContext(Dispatchers.IO) { repository.forTerm(account, term) }
                 if (AHUCache.getCurrentUser()?.xh != account) return@launch
                 mutableState.value = mutableState.value.copy(timetable = result, loading = false)
             } catch (e: CancellationException) {

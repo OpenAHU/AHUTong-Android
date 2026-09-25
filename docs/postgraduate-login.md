@@ -27,14 +27,13 @@ silent session refresh also updates navigation without a restart.
 Diagnostic logs use the AcademicLogin tag and omit identifiers, tickets and HTML.
 
 Postgraduate accounts hide undergraduate timetable data, grades/GPA, exams, evaluation,
-free classrooms, semester settings, home course cards and course reminder controls.
+free classrooms, undergraduate semester settings and course reminder controls.
 Home widget libraries and both bottom-navigation variants use the same account policy.
 Direct routes and academic requests are also gated; cached timetable widgets show
 an unavailable message. Campus-card/Wisdom services, payments, lost-and-found,
 school calendar, resources, weather and separately authenticated Chaoxing remain.
 
-Validation: :app:testDebugUnitTest passed 260 tests (zero failures/errors/skips)
-and :app:assembleDebug passed. The final Debug APK was installed in-place on MEIZU 21.
+The login stage previously passed 260 unit tests and built a Debug APK.
 After a cold restart, Settings still showed 研究生账号 and no undergraduate login
 was attempted. The complete tools page exposed shared services and zero undergraduate
 entries. No app data was cleared for validation.
@@ -72,16 +71,24 @@ existing encrypted per-account settings under a separate GMIS term key. The week
 then advances on Mondays and drives the original date labels and current-week jump.
 A graduate-only current-week field inside the existing top-right timetable settings
 permits changes at any time. No additional toolbar button is used. Historical
-terms do not force a new current-week prompt; their calendar can be configured with
-the same edit button. Undergraduate week calculation and controls remain unchanged.
-Course reminders and home current-course cards remain disabled; only the shared
-timetable page has been connected to GMIS in this change.
+terms do not force a new current-week prompt; their calendar can be configured in
+the same timetable settings dialog. Undergraduate week calculation and controls
+remain unchanged. Course reminders remain disabled.
 
 GMIS room labels omit the repeated （江淮） campus tag. The observed building names
 教学主楼、教学主楼北阶、教学主楼二楼阶梯 display as 主楼、主楼北阶、主楼二阶,
 with room numbers unchanged. Unknown buildings keep their full names. This
 normalization is applied only to GMIS course data; undergraduate locations keep
 their existing formatter.
+
+GMIS term lists and timetables use versioned encrypted storage scoped to the account
+and term, following the undergraduate cache behavior. Opening the timetable or home
+reads that cache without contacting GMIS when the current term is present. Explicit
+refresh replaces the cached selection. Choosing an uncached term fetches that term
+only. A failed refresh keeps the previous timetable visible with an error message.
+Home uses the selected current term, the user-provided teaching-week anchor and
+exact week memberships to show today's courses. Courses without a verified time
+or section remain outside the timed home cards.
 
 WebVPN was used only for read-only investigation. Its locally supplied cookies
 were kept in memory and sent only to wvpn.ahu.edu.cn, never to the native app or

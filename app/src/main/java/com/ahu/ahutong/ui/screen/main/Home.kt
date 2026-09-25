@@ -58,6 +58,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.crawler.gmis.GmisTimetableAdapter
+import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
+import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
+import com.ahu.ahutong.data.schedule.GraduateTodayCoursePolicy
+import java.time.ZoneId
+import java.util.Date
+import kotlinx.coroutines.CancellationException
 import com.ahu.ahutong.data.dao.HomeWidgetLayoutFamily
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import androidx.navigation.NavHostController
@@ -118,8 +125,51 @@ fun Home(
     onEnterEditModeRequestConsumed: () -> Unit = {}
 ) {
     val undergraduateEnabled = AHUCache.canUseUndergraduateAcademics()
+    val graduateAccountId = if (undergraduateEnabled) null else AHUCache.getCurrentUser()?.xh
+    val graduateRepository = remember { PostgraduateScheduleRepository.instance }
+    val graduateCacheRevision by graduateRepository.revision.collectAsState()
+    val graduateWeekRevision by AHUCache.postgraduateWeekUpdates().collectAsState()
+    val graduateSnapshot = remember(graduateAccountId, graduateCacheRevision) {
+        graduateAccountId?.let(graduateRepository::cachedCurrent)
+    }
+    LaunchedEffect(graduateAccountId, graduateSnapshot == null) {
+        val account = graduateAccountId ?: return@LaunchedEffect
+        if (graduateSnapshot == null) {
+            try {
+                withContext(Dispatchers.IO) { graduateRepository.current(account) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("PostgraduateHome", "Graduate timetable unavailable (${e.javaClass.simpleName})")
+            }
+        }
+    }
+    val graduateGrid = remember(graduateSnapshot?.timetable) {
+        graduateSnapshot?.timetable?.let(GmisTimetableAdapter::adapt)
+    }
+    var graduateToday by remember { mutableStateOf(DebugClock.nowLocalDate()) }
+    val graduateTerm = graduateSnapshot?.selectedTerm
+    val graduateAnchor = remember(graduateAccountId, graduateTerm?.code, graduateWeekRevision) {
+        graduateTerm?.let {
+            PostgraduateTeachingWeek.parseStored(AHUCache.getPostgraduateWeekStart(it.code))
+        }
+    }
+    val graduateConfig = remember(graduateAnchor, graduateToday, graduateTerm?.code) {
+        graduateAnchor?.let { monday ->
+            ScheduleConfigBean().apply {
+                val actualWeek = PostgraduateTeachingWeek.weekOn(monday, graduateToday)
+                week = actualWeek.coerceIn(1, PostgraduateTeachingWeek.MAX_WEEK)
+                weekDay = graduateToday.dayOfWeek.value
+                startTime = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant())
+                isInSemester = actualWeek in 1..PostgraduateTeachingWeek.MAX_WEEK &&
+                    (graduateTerm?.selected == true || graduateSnapshot?.terms?.none { it.selected } == true)
+            }
+        }
+    }
+    val homeAcademicReady = undergraduateEnabled || (graduateSnapshot != null && graduateConfig != null)
     val density = LocalDensity.current
-    val schedule = scheduleViewModel.schedule.observeAsState().value?.getOrNull() ?: emptyList()
+    val undergraduateSchedule = scheduleViewModel.schedule.observeAsState().value?.getOrNull() ?: emptyList()
+    val schedule = if (undergraduateEnabled) undergraduateSchedule else graduateGrid?.courses.orEmpty()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
     val localScheduleConfig by produceState<ScheduleConfigBean?>(
         initialValue = null,
@@ -130,13 +180,21 @@ fun Home(
             CurrentWeekResolver.resolveLocalConfig()?.config
         }
     }
-    val effectiveScheduleConfig = scheduleConfig ?: localScheduleConfig
+    val effectiveScheduleConfig = if (undergraduateEnabled) scheduleConfig ?: localScheduleConfig else graduateConfig
     val isInSemester = effectiveScheduleConfig?.isInSemester != false
     val currentWeek = effectiveScheduleConfig?.week ?: 1
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
     val todayCourses = remember(schedule, effectiveScheduleConfig, isInSemester, currentWeek) {
         if (isInSemester) {
-            schedule
+            if (!undergraduateEnabled && effectiveScheduleConfig != null) {
+                GraduateTodayCoursePolicy.filter(
+                    schedule,
+                    currentWeek,
+                    effectiveScheduleConfig.weekDay
+                )
+            } else if (!undergraduateEnabled) {
+                emptyList()
+            } else schedule
                 .asSequence()
                 .filter { effectiveScheduleConfig?.week in it.startWeek..it.endWeek }
                 .filter { it.weekday == (effectiveScheduleConfig?.weekDay ?: 1) }
@@ -354,6 +412,7 @@ fun Home(
                 SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(now)
             }
             currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+            graduateToday = DebugClock.nowLocalDate()
             delay(HOME_REFRESH_INTERVAL_MS)
             discoveryViewModel.refreshCardBalance()
         }
@@ -447,17 +506,18 @@ fun Home(
                 Arrangement.spacedBy(24.dp)
             }
         ) {
-            if (undergraduateEnabled) AtAGlance(
+            if (homeAcademicReady) AtAGlance(
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
                 currentDateText = currentDateText,
                 onOpenSchedule = onOpenSchedule,
                 isInSemester = isInSemester,
+                emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
                 enabled = !isEditingHome,
                 trailingContent = trailingContent
             ) else if (!radiant) HomeDateRow(trailingContent = trailingContent)
             if (radiant) Spacer(modifier = Modifier.height(12.dp))
-            if (undergraduateEnabled && todayCourses.isNotEmpty()) {
+            if (homeAcademicReady && todayCourses.isNotEmpty()) {
                 if (radiant) Spacer(modifier = Modifier.height(16.dp))
                 TodayCourseList(
                     todayCourses = todayCourses,

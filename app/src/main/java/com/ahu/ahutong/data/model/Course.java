@@ -44,6 +44,16 @@ public class Course implements Serializable {
     private String length;
     @SerializedName("startTime")
     private String startTime;
+    @SerializedName("clockRange")
+    private String clockRange;
+
+    public String getClockRange() {
+        return clockRange;
+    }
+
+    public void setClockRange(String clockRange) {
+        this.clockRange = clockRange;
+    }
 
 
     @SerializedName("singleDouble")
@@ -174,6 +184,8 @@ public class Course implements Serializable {
         if (length != null ? !length.equals(course.length) : course.length != null) return false;
         if (startTime != null ? !startTime.equals(course.startTime) : course.startTime != null)
             return false;
+        if (clockRange != null ? !clockRange.equals(course.clockRange) : course.clockRange != null)
+            return false;
         if (singleDouble != null ? !singleDouble.equals(course.singleDouble) : course.singleDouble != null)
             return false;
         if (courseId != null ? !courseId.equals(course.courseId) : course.courseId != null)
@@ -192,6 +204,7 @@ public class Course implements Serializable {
         result = 31 * result + (teacher != null ? teacher.hashCode() : 0);
         result = 31 * result + (length != null ? length.hashCode() : 0);
         result = 31 * result + (startTime != null ? startTime.hashCode() : 0);
+        result = 31 * result + (clockRange != null ? clockRange.hashCode() : 0);
         result = 31 * result + (singleDouble != null ? singleDouble.hashCode() : 0);
         result = 31 * result + (courseId != null ? courseId.hashCode() : 0);
         result = 31 * result + (weekIndexes != null ? weekIndexes.hashCode() : 0);

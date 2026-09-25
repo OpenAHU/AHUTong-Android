@@ -79,6 +79,13 @@
 # minified builds. Keep the complete contracts so Review/Release authentication behaves like Debug.
 -keep class com.ahu.ahutong.data.crawler.model.** { *; }
 
+# Gson records for encrypted, per-account GMIS timetable and term caches.
+-keep class com.ahu.ahutong.data.crawler.gmis.GmisTerm { *; }
+-keep class com.ahu.ahutong.data.crawler.gmis.GmisCourse { *; }
+-keep class com.ahu.ahutong.data.crawler.gmis.GmisSection { *; }
+-keep class com.ahu.ahutong.data.crawler.gmis.GmisTimetable { *; }
+-keep class com.ahu.ahutong.data.crawler.gmis.GmisCacheCodec$* { *; }
+
 # Payment view models contain a small number of file-local wire DTOs. Keep only the DTO naming
 # families rather than the ViewModels themselves, so R8 can still optimize the screen logic while
 # Gson retains concrete constructors and field contracts in Review/Release builds.

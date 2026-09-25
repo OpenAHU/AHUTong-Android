@@ -205,8 +205,8 @@ fun Schedule(
     val undergraduateResult = scheduleViewModel.schedule.observeAsState().value
     val graduateResult = remember(graduateGrid, graduateState?.error) {
         when {
-            graduateState?.error != null -> Result.failure<List<Course>>(IllegalStateException(graduateState.error))
             graduateGrid != null -> Result.success(graduateGrid.courses)
+            graduateState?.error != null -> Result.failure<List<Course>>(IllegalStateException(graduateState.error))
             else -> null
         }
     }
@@ -646,6 +646,7 @@ fun Schedule(
                 onSave = { week ->
                     if (graduateViewModel?.saveCurrentWeek(week) == true) {
                         isOverviewSchedule = false
+                        scheduleViewModel.loadConfig()
                     }
                 },
                 onDismiss = {}
@@ -695,6 +696,7 @@ fun Schedule(
                             enteredWeek?.let { week ->
                                 if (graduateViewModel?.saveCurrentWeek(week) == true) {
                                     isOverviewSchedule = false
+                                    scheduleViewModel.loadConfig()
                                 }
                             }
                         }
@@ -747,6 +749,13 @@ fun Schedule(
     fun GraduateScheduleStatus() {
         if (isGraduate) {
             if (graduateState?.loading == true) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (graduateGrid != null && graduateState?.error != null) {
+                Text(
+                    "刷新失败，正在显示本地课表：${graduateState.error}",
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2
+                )
+            }
             if (graduateGrid?.unplaced?.isNotEmpty() == true) {
                 TextButton(onClick = { showUnplacedCourses = true }) {
                     Text("未排定课程（${graduateGrid.unplaced.size}）")

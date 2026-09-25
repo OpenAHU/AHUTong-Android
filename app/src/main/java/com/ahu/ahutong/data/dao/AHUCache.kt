@@ -52,6 +52,9 @@ object AHUCache {
         com.ahu.ahutong.data.model.AcademicAccountType?
     >(null)
 
+    private val postgraduateWeekRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    fun postgraduateWeekUpdates(): kotlinx.coroutines.flow.StateFlow<Long> = postgraduateWeekRevision
+
     fun academicTypeUpdates(): kotlinx.coroutines.flow.StateFlow<com.ahu.ahutong.data.model.AcademicAccountType?> {
         getCurrentUser()
         return academicTypeFlow
@@ -246,6 +249,20 @@ object AHUCache {
             com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.storageKey(termCode),
             firstMonday
         )
+        postgraduateWeekRevision.value += 1
+    }
+
+    fun getGmisScheduleCache(accountId: String, part: String): String? =
+        synchronized(currentUserCacheLock) {
+            if (getCurrentUser()?.xh != accountId) return@synchronized null
+            userGetString("gmis.schedule.v1.$part")
+        }
+
+    fun saveGmisScheduleCache(accountId: String, part: String, value: String) {
+        synchronized(currentUserCacheLock) {
+            check(getCurrentUser()?.xh == accountId) { "Graduate timetable account changed" }
+            userPutString("gmis.schedule.v1.$part", value)
+        }
     }
 
     /**

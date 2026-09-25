@@ -13,7 +13,8 @@ data class GmisScheduleGridData(
 object GmisTimetableAdapter {
     fun adapt(source: GmisTimetable): GmisScheduleGridData {
         val (placed, unplaced) = source.courses.partition {
-            it.startSection != null && it.endSection != null && !it.weeks.isNullOrEmpty()
+            it.startSection != null && it.endSection != null &&
+                !it.weeks.isNullOrEmpty() && it.clock != null
         }
         val periods = source.sections.associate { it.number to it.clock.orEmpty() }
         val lastPeriod = maxOf(14, periods.keys.maxOrNull() ?: 14)
@@ -24,6 +25,7 @@ object GmisTimetableAdapter {
                 teacher = original.teacher
                 location = original.location
                 extra = original.details
+                clockRange = original.clock
                 setWeekday(original.weekday.toString())
                 setStartTime(original.startSection.toString())
                 setLength((original.endSection!! - original.startSection!! + 1).toString())
