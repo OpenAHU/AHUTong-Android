@@ -26,7 +26,7 @@ object RadiantComponentPack : AppComponentPack() {
     @Composable
     override fun Toggle(
         checked: Boolean,
-        onCheckedChange: (Boolean) -> Unit,
+        onCheckedChange: ((Boolean) -> Unit)?,
         modifier: Modifier,
         enabled: Boolean,
         contentDescription: String?

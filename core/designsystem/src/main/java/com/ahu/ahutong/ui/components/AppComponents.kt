@@ -1146,7 +1146,7 @@ internal fun RadiantButtonImpl(
 @Composable
 fun AppToggle(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     contentDescription: String? = null
@@ -1157,7 +1157,7 @@ fun AppToggle(
 @Composable
 internal fun MiuixToggleImpl(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier,
     enabled: Boolean,
     contentDescription: String? = null
@@ -1173,7 +1173,7 @@ internal fun MiuixToggleImpl(
 @Composable
 internal fun MaterialToggleImpl(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier,
     enabled: Boolean,
     contentDescription: String? = null
@@ -1189,17 +1189,18 @@ internal fun MaterialToggleImpl(
 @Composable
 internal fun RadiantToggleImpl(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier,
     enabled: Boolean,
     contentDescription: String? = null
 ) {
     LiquidToggle(
         selected = { checked },
-        onSelect = onCheckedChange,
+        onSelect = onCheckedChange ?: {},
         backdrop = LocalLiquidGlassAmbientBackdrop.current,
         modifier = modifier,
-        userInputEnabled = enabled,
+        userInputEnabled = enabled && onCheckedChange != null,
+        toggleOnTap = onCheckedChange != null,
         contentDescription = contentDescription
     )
 }

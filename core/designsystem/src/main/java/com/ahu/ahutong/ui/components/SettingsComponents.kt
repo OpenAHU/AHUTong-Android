@@ -619,7 +619,7 @@ fun SettingsToggleRow(
     onHorizontalDragActiveChange: (Boolean) -> Unit = {}
 ) {
     // 行布局 = 设置族通用；开关控件走契约槽位（AppToggle → 主题实验室可逐槽混搭）。
-    // 旋钮拖拽手势随 LiquidToggle 直用一并移除（行点击切换保留）。
+    // 开关本体只展示状态，点击由整行处理，避免嵌套开关吞掉点击或双触发。
     val haptic = LocalHapticFeedback.current
     val onCheckedWithFeedback: (Boolean) -> Unit = { checked ->
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -648,9 +648,7 @@ fun SettingsToggleRow(
             )
             AppToggle(
                 checked = selected,
-                // 点击由行 toggleable 统一接管：RUI 玻璃开关的手势引擎不消费 tap，
-                // 这里再接真回调会与行双触发、互相抵消
-                onCheckedChange = { },
+                onCheckedChange = null,
                 enabled = enabled
             )
         }
