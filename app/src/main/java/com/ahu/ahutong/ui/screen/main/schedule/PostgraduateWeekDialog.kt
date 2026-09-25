@@ -36,7 +36,7 @@ internal fun PostgraduateWeekDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(termName)
-                Text("请输入本周是第几教学周。保存后将按日期自动更新，也可随时在课表右上角修改。")
+                Text("请输入本周是第几教学周。保存后将按日期自动更新，也可随时在课表设置中修改。")
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it.take(8) },

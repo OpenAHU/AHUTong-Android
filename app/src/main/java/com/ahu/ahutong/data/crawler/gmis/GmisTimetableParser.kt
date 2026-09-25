@@ -156,7 +156,8 @@ internal object GmisTimetableParser {
         val weeks: Set<Int>?, val weekLabel: String, val details: String
     ) {
         fun course(day: Int, start: Int?, end: Int?, time: String?) =
-            GmisCourse(name, teacher, location, day, start, end, weeks, weekLabel, time, details)
+            GmisCourse(name, teacher, GmisLocationFormatter.display(location),
+                day, start, end, weeks, weekLabel, time, details)
     }
     private data class Occurrence(val day: Int, val section: Int?, val group: String, val cell: Cell)
 }

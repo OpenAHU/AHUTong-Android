@@ -70,11 +70,18 @@ current graduate term, a required dialog asks the user to enter the current teac
 week (1–60). The first-week Monday is derived from that input and stored in the
 existing encrypted per-account settings under a separate GMIS term key. The week
 then advances on Mondays and drives the original date labels and current-week jump.
-A graduate-only edit button at the top right permits changes at any time. Historical
+A graduate-only current-week field inside the existing top-right timetable settings
+permits changes at any time. No additional toolbar button is used. Historical
 terms do not force a new current-week prompt; their calendar can be configured with
 the same edit button. Undergraduate week calculation and controls remain unchanged.
 Course reminders and home current-course cards remain disabled; only the shared
 timetable page has been connected to GMIS in this change.
+
+GMIS room labels omit the repeated （江淮） campus tag. The observed building names
+教学主楼、教学主楼北阶、教学主楼二楼阶梯 display as 主楼、主楼北阶、主楼二阶,
+with room numbers unchanged. Unknown buildings keep their full names. This
+normalization is applied only to GMIS course data; undergraduate locations keep
+their existing formatter.
 
 WebVPN was used only for read-only investigation. Its locally supplied cookies
 were kept in memory and sent only to wvpn.ahu.edu.cn, never to the native app or

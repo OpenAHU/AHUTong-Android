@@ -33,7 +33,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.ui.screen.main.schedule.PostgraduateWeekDialog
@@ -161,7 +163,6 @@ fun Schedule(
             }
         }
     }
-    var showGraduateWeekEditor by rememberSaveable(accountId) { mutableStateOf(false) }
     val graduateCurrentTerm = graduateState?.selectedTerm?.let { term ->
         term.selected || graduateState.terms.none { it.selected }
     } == true
@@ -484,19 +485,6 @@ fun Schedule(
                         )
                     }
                 }
-                if (isGraduate) {
-                    IconButton(
-                        modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
-                        enabled = graduateState?.selectedTerm != null,
-                        onClick = { showGraduateWeekEditor = true }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "修改研究生当前周",
-                            modifier = Modifier.size(if (radiant) 17.dp else 20.dp)
-                        )
-                    }
-                }
                 IconButton(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
                     onClick = { isSettingsVisible = true }
@@ -648,7 +636,7 @@ fun Schedule(
         }
     }
 
-    if (isGraduate && (requiresGraduateWeek || showGraduateWeekEditor)) {
+    if (requiresGraduateWeek) {
         graduateState?.selectedTerm?.let { term ->
             PostgraduateWeekDialog(
                 termCode = term.code,
@@ -657,11 +645,10 @@ fun Schedule(
                 required = requiresGraduateWeek,
                 onSave = { week ->
                     if (graduateViewModel?.saveCurrentWeek(week) == true) {
-                        showGraduateWeekEditor = false
                         isOverviewSchedule = false
                     }
                 },
-                onDismiss = { showGraduateWeekEditor = false }
+                onDismiss = {}
             )
         }
     }
@@ -674,6 +661,12 @@ fun Schedule(
             extraSettings = {
                 if (isGraduate) {
                     var expanded by remember { mutableStateOf(false) }
+                    val savedWeek = graduateConfig?.week
+                    var weekInput by rememberSaveable(graduateState?.selectedTerm?.code, savedWeek) {
+                        mutableStateOf(savedWeek?.toString().orEmpty())
+                    }
+                    val enteredWeek = weekInput.trim().toIntOrNull()
+                    val weekIsValid = enteredWeek != null && enteredWeek in 1..PostgraduateTeachingWeek.MAX_WEEK
                     Box {
                         TextButton(onClick = { expanded = true }) {
                             Text(graduateState?.selectedTerm?.name ?: "正在读取学期")
@@ -687,8 +680,27 @@ fun Schedule(
                             }
                         }
                     }
+                    OutlinedTextField(
+                        value = weekInput,
+                        onValueChange = { weekInput = it.take(8) },
+                        label = { Text("当前教学周") },
+                        supportingText = { Text("请输入 1–${PostgraduateTeachingWeek.MAX_WEEK} 的整数") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        isError = weekInput.isNotBlank() && !weekIsValid
+                    )
+                    TextButton(
+                        enabled = weekIsValid && enteredWeek != savedWeek,
+                        onClick = {
+                            enteredWeek?.let { week ->
+                                if (graduateViewModel?.saveCurrentWeek(week) == true) {
+                                    isOverviewSchedule = false
+                                }
+                            }
+                        }
+                    ) { Text("保存当前周") }
                     Text(
-                        "当前教学周可通过课表右上角的编辑按钮修改；学期设置独立保存。",
+                        "当前周按日期自动更新；每个学期单独保存。",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

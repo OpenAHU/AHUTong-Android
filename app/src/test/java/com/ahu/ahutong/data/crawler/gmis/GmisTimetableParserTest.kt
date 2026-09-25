@@ -102,4 +102,9 @@ class GmisTimetableParserTest {
         assertEquals(1, data.courses.size)
         assertEquals("示例&课程", data.courses.single().name)
     }
+
+    @Test fun graduateLocationIsCompactInTheCourseDataUsedByCardsAndDetails() {
+        val data = parse(row(2, text = "<br/>示例课程[2-10周] 示例教师 [（江淮）教学主楼北阶208]"))
+        assertEquals("主楼北阶208", data.courses.single().location)
+    }
 }
