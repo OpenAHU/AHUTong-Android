@@ -28,6 +28,7 @@ class MainViewModel @Inject constructor(
         // 下载器说的话翻译成界面状态：这里只做映射，规则（校验、镜像、重定向）都在 :data:update 里。
         viewModelScope.launch {
             downloader.events.collect { event ->
+                if (selectedUpdate == null) return@collect
                 when (event) {
                     ApkDownloadEvent.Started -> {
                         apkDownloading.value = true
@@ -182,6 +183,36 @@ class MainViewModel @Inject constructor(
             showDialogWhenApkDownloadCompletes = true
         }
         showApkUpdateDialog.value = false
+    }
+
+    /** Stop the current download and silence automatic prompts for this exact versionCode. */
+    fun skipCurrentApkVersion() {
+        val update = selectedUpdate ?: return
+        if (update.info.force) return
+
+        downloader.cancel()
+        installAfterApkDownload = false
+        showDialogWhenApkDownloadCompletes = false
+        apkDownloading.value = false
+        apkProgress.value = null
+        showApkMirrorPrompt.value = false
+        downloadedApkFile.value = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val saved = updateChecker.skipVersion(update.info.versionCode)
+            withContext(Dispatchers.Main) {
+                if (!saved) {
+                    apkErrorText.value = "保存跳过设置失败，请重试"
+                } else if (selectedUpdate?.info?.versionCode == update.info.versionCode) {
+                    selectedUpdate = null
+                    apkUpdateInfo.value = null
+                    apkLocalReady.value = false
+                    apkDownloadElapsedText.value = null
+                    apkErrorText.value = null
+                    showApkUpdateDialog.value = false
+                }
+            }
+        }
     }
 
     fun checkApkUpdateManually(

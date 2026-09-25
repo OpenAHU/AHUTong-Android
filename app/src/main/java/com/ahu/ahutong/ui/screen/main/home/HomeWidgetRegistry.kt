@@ -139,6 +139,6 @@ object HomeWidgetRegistry {
         undergraduateEnabled: Boolean = AHUCache.canUseUndergraduateAcademics()
     ): List<HomeWidgetSpec> = widgets.filter {
         (!radiant || it.id != "xuexiaotong") &&
-            (undergraduateEnabled || it.route !in AcademicFeatureAccess.undergraduateRoutes)
+            (undergraduateEnabled || it.route !in AcademicFeatureAccess.postgraduateHiddenRoutes)
     }
 }

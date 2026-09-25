@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,7 @@ fun ApkUpdateDialog(
     onConfirm: () -> Unit,
     onInstallLocal: () -> Unit = {},
     onRedownload: () -> Unit = {},
+    onSkipVersion: () -> Unit,
     onDismiss: () -> Unit,
     onCancel: () -> Unit = {},
 ) {
@@ -105,6 +107,16 @@ fun ApkUpdateDialog(
                 style = MaterialTheme.typography.bodyMedium,
                 color = contentColor
             )
+            if (!info.force) {
+                Text(
+                    text = "跳过后不再自动提醒这个版本，可在设置中手动检查更新。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryContentColor
+                )
+                TextButton(onClick = onSkipVersion, modifier = Modifier.fillMaxWidth()) {
+                    Text("跳过此版本更新")
+                }
+            }
             if (!downloadElapsedText.isNullOrBlank()) {
                 Text(
                     text = "本次下载耗时：$downloadElapsedText",

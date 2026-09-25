@@ -18,6 +18,7 @@ import kotlin.test.assertTrue
 class ApkUpdateCheckerTest {
 
     private val dir: File = Files.createTempDirectory("apk-check").toFile()
+    private val skipStore = MemorySkipStore()
 
     @AfterTest
     fun tearDown() {
@@ -26,7 +27,8 @@ class ApkUpdateCheckerTest {
 
     private fun checker(info: ApkUpdateInfo) = DefaultApkUpdateChecker(
         source = { info },
-        directory = { dir }
+        directory = { dir },
+        skipStore = skipStore
     )
 
     @Test
@@ -93,7 +95,8 @@ class ApkUpdateCheckerTest {
     fun `a request failure is reported without claiming the metadata was invalid`() {
         val failing = DefaultApkUpdateChecker(
             source = { throw IllegalStateException("host not found") },
-            directory = { dir }
+            directory = { dir },
+            skipStore = skipStore
         )
 
         val result = kotlinx.coroutines.runBlocking {
@@ -123,6 +126,52 @@ class ApkUpdateCheckerTest {
             (startup as UpdateCheck.Failed).invalidMetadata,
             (manual as UpdateCheck.Failed).invalidMetadata
         )
+    }
+
+    @Test
+    fun `skipped version is silent on startup but remains available manually and a newer code prompts again`() {
+        val current = checker(validInfo(versionCode = 101))
+        assertTrue(current.skipVersion(101))
+
+        val startup = kotlinx.coroutines.runBlocking {
+            current.check(currentVersionCode = 100, entry = UpdateCheckEntry.STARTUP)
+        }
+        val manual = kotlinx.coroutines.runBlocking {
+            current.check(currentVersionCode = 100, entry = UpdateCheckEntry.MANUAL)
+        }
+        val newer = kotlinx.coroutines.runBlocking {
+            checker(validInfo(versionCode = 102))
+                .check(currentVersionCode = 100, entry = UpdateCheckEntry.STARTUP)
+        }
+
+        assertEquals(UpdateCheck.UpToDate, startup)
+        assertTrue(manual is UpdateCheck.Available)
+        assertTrue(newer is UpdateCheck.Available)
+    }
+
+    @Test
+    fun `forced update still prompts even when its version code was skipped`() {
+        val info = validInfo(versionCode = 101).copy(force = true)
+        val checker = checker(info)
+        assertTrue(checker.skipVersion(101))
+
+        val result = kotlinx.coroutines.runBlocking {
+            checker.check(currentVersionCode = 100, entry = UpdateCheckEntry.STARTUP)
+        }
+
+        assertTrue(result is UpdateCheck.Available)
+    }
+
+    private class MemorySkipStore : ApkUpdateSkipStore {
+        var skipped: Int? = null
+        override fun skippedVersionCode(): Int? = skipped
+        override fun saveSkippedVersionCode(versionCode: Int): Boolean {
+            skipped = versionCode
+            return true
+        }
+        override suspend fun clear() {
+            skipped = null
+        }
     }
 
     private fun validInfo(versionCode: Int, sha256: String = VALID_SHA256) = ApkUpdateInfo(

@@ -6,6 +6,7 @@ import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.session.AhuSession
+import com.ahu.ahutong.data.update.ApkUpdateSkipStore
 import com.ahu.ahutong.notification.CourseReminderScheduler
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.sdk.RustSDK
@@ -24,7 +25,8 @@ import javax.inject.Singleton
 class DeviceDataReset @Inject constructor(
     private val behavior: BehaviorPredictionRuntime,
     private val settings: SettingsStore,
-    private val session: AhuSession
+    private val session: AhuSession,
+    private val updateSkipStore: ApkUpdateSkipStore
 ) : AppDataReset {
 
     private val context: Context get() = AppEnvironmentHolder.context()
@@ -32,6 +34,7 @@ class DeviceDataReset @Inject constructor(
     override suspend fun clearAll() {
         CourseReminderScheduler.cancel(context)
         settings.clearAll()
+        updateSkipStore.clear()
         behavior.logoutAndClear()
         session.signOut()
         AHUCache.logout()

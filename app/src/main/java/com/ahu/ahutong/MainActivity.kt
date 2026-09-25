@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
                         onRedownload = {
                             mainViewModel.startApkDownload(forceRedownload = true)
                         },
+                        onSkipVersion = mainViewModel::skipCurrentApkVersion,
                         onDismiss = {
                             mainViewModel.showApkUpdateDialog.value = false
                         },

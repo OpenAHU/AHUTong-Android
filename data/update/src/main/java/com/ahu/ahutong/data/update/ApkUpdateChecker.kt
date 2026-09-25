@@ -18,6 +18,13 @@ fun interface ApkUpdateInfoSource {
     suspend fun latest(): ApkUpdateInfo
 }
 
+/** Device-wide preference: the user declined automatic prompts for this exact versionCode. */
+interface ApkUpdateSkipStore {
+    fun skippedVersionCode(): Int?
+    fun saveSkippedVersionCode(versionCode: Int): Boolean
+    suspend fun clear()
+}
+
 /** 一次更新检查的结果（域名层；"要不要弹窗、怎么措辞"留给展示侧）。 */
 sealed interface UpdateCheck {
 
@@ -29,7 +36,7 @@ sealed interface UpdateCheck {
         val localApk: File?
     ) : UpdateCheck
 
-    /** 没有更新：云端说没有，或远端版本不高于本机。 */
+    /** 没有自动提醒：云端无更新、版本不高于本机，或用户跳过了该版本。 */
     data object UpToDate : UpdateCheck
 
     /**
@@ -68,12 +75,23 @@ enum class UpdateCheckEntry(
  */
 interface ApkUpdateChecker {
     suspend fun check(currentVersionCode: Int, entry: UpdateCheckEntry): UpdateCheck
+
+    /** Persist a user's explicit decision before dismissing the update dialog. */
+    fun skipVersion(versionCode: Int): Boolean
 }
 
 class DefaultApkUpdateChecker @Inject constructor(
     private val source: ApkUpdateInfoSource,
-    private val directory: ApkDirectory
+    private val directory: ApkDirectory,
+    private val skipStore: ApkUpdateSkipStore
 ) : ApkUpdateChecker {
+
+    override fun skipVersion(versionCode: Int): Boolean {
+        if (versionCode <= 0) return false
+        return runCatching { skipStore.saveSkippedVersionCode(versionCode) }
+            .onFailure { Log.w(TAG, "Unable to save skipped APK version", it) }
+            .getOrDefault(false)
+    }
 
     override suspend fun check(
         currentVersionCode: Int,
@@ -93,6 +111,13 @@ class DefaultApkUpdateChecker @Inject constructor(
                 Log.w(TAG, "ignore invalid APK update metadata: ${error.message}")
                 UpdateCheck.Failed(error.message, invalidMetadata = true)
             }
+        }
+
+        if (entry == UpdateCheckEntry.STARTUP && !validated.info.force) {
+            val skippedVersion = runCatching { skipStore.skippedVersionCode() }
+                .onFailure { Log.w(TAG, "Unable to read skipped APK version", it) }
+                .getOrNull()
+            if (skippedVersion == validated.info.versionCode) return@withContext UpdateCheck.UpToDate
         }
 
         val localApk = ApkIntegrity.apkFile(dir, validated.info.versionCode)
