@@ -118,6 +118,7 @@ object CurrentWeekResolver {
     }
 
     suspend fun syncRemoteConfig(now: LocalDate = DebugClock.nowLocalDate()): ResolvedConfig? {
+        if (!AHUCache.canUseUndergraduateAcademics()) return null
         if (DebugClock.isMocked()) {
             return null
         }

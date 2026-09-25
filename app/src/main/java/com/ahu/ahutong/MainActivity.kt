@@ -231,8 +231,10 @@ class MainActivity : ComponentActivity() {
 //                val pwd = AHUCache.getWisdomPassword()
 
                 discoveryViewModel.loadActivityBean()
-                scheduleViewModel.loadConfig()
-                scheduleViewModel.refreshSchedule()
+                if (AHUCache.canUseUndergraduateAcademics()) {
+                    scheduleViewModel.loadConfig()
+                    scheduleViewModel.refreshSchedule()
+                }
             }
 
             if (!BuildConfig.DEBUG) {
@@ -265,7 +267,9 @@ class MainActivity : ComponentActivity() {
         }
         if (today == lastKnownDate) return
         lastKnownDate = today
-        if (SessionStore.isLoggedIn() || AHUCache.getMockData()) {
+        if ((SessionStore.isLoggedIn() || AHUCache.getMockData()) &&
+            AHUCache.canUseUndergraduateAcademics()
+        ) {
             scheduleViewModel.loadConfig()
         }
     }

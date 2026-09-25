@@ -34,6 +34,8 @@ class FakeChaoxingSession(
 
     override fun hasSession(): Boolean = hasSession
 
+    override fun cookieHeader(): String = ""
+
     override suspend fun loginByPassword(account: String, password: String) {
         loginCalls += account to password
         loginFailure?.let { throw it }

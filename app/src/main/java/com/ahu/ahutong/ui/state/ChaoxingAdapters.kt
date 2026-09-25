@@ -29,6 +29,8 @@ class AppChaoxingSession @Inject constructor() : ChaoxingSession {
 
     override fun hasSession(): Boolean = api.hasSession()
 
+    override fun cookieHeader(): String = Store.getCookie()
+
     override suspend fun loginByPassword(account: String, password: String) {
         // 登录成功后把凭据记在本机：静默重登要用它（原先由登录界面自己调 Store.saveCredential）。
         api.loginByPassword(account, password)

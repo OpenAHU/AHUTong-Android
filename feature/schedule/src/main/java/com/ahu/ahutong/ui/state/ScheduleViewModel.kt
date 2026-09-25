@@ -123,7 +123,9 @@ class ScheduleViewModel @Inject constructor(
                 refresh.onSuccess { result ->
                     scheduleFetchedAt.value = result.fetchedAt
                     val displayedSchedule = schedule.value?.valueOrNull()
-                    if (displayedSchedule != result.schedule) {
+                    if (displayedSchedule == null ||
+                        (result.changed && displayedSchedule != result.schedule)
+                    ) {
                         schedule.value = AhuResult.Success(result.schedule)
                     }
                     if (result.changed || displayedSchedule == null) {

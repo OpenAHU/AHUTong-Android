@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import com.ahu.ahutong.data.crawler.api.jwxt.EvaluationApi
 import com.ahu.ahutong.data.crawler.manager.CookieManager
+import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.model.EvalApiResponse
 import com.ahu.ahutong.data.model.EvalCheckParam
@@ -151,6 +152,7 @@ object EvaluationRepository {
     }
 
     private suspend fun ensureToken(forceRefresh: Boolean): String {
+        check(AHUCache.canUseUndergraduateAcademics()) { "研究生账号不支持本科评教" }
         if (!forceRefresh && token.isNotBlank()) return token
 
         if (!forceRefresh) {

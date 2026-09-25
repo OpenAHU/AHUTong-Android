@@ -90,6 +90,7 @@ import top.yukonga.miuix.kmp.icon.icons.useful.Edit
 
 @Composable
 internal fun DesktopScheduleWidgetCard() {
+    if (!AHUCache.canUseUndergraduateAcademics()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     Column(

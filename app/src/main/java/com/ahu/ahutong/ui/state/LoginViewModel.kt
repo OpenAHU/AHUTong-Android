@@ -13,10 +13,11 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.ext.launchSafe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import com.ahu.ahutong.data.model.LoginOutcome
 import com.ahu.ahutong.core.common.toUserMessage
-import kotlinx.coroutines.CancellationException
+import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -61,6 +62,7 @@ class LoginViewModel @Inject constructor(
                 }
             }
         } catch (e: Throwable) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Login failed unexpectedly", e)
             pendingWebLoginUser = null
             state = LoginState.Failed
@@ -114,6 +116,11 @@ class LoginViewModel @Inject constructor(
             AHUCache.setBusinessAccepted()
             AHUCache.setPrivacyAccepted()
             afterPersist()
+            if (!AHUCache.canUseUndergraduateAcademics()) {
+                com.ahu.ahutong.notification.CourseReminderScheduler.cancel(
+                    AppEnvironmentHolder.context()
+                )
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {

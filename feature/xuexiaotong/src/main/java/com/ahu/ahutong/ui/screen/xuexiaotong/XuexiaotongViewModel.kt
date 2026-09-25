@@ -37,6 +37,8 @@ class XuexiaotongViewModel @Inject constructor(
     @XuexiaotongDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
+    fun cookieHeader(): String = session.cookieHeader()
+
     private val _loggedIn = MutableStateFlow(session.hasSession())
     val loggedIn: StateFlow<Boolean> = _loggedIn.asStateFlow()
 

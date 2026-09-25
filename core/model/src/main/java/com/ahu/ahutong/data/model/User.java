@@ -10,6 +10,17 @@ public class User {
     private String name;
     @SerializedName("xh")
     private String xh;
+    @SerializedName("academic_account_type")
+    private AcademicAccountType academicAccountType;
+
+    public AcademicAccountType getAcademicAccountType() {
+        // Existing accounts were admitted only after successful undergraduate authentication.
+        return academicAccountType == null ? AcademicAccountType.UNDERGRADUATE : academicAccountType;
+    }
+
+    public void setAcademicAccountType(AcademicAccountType type) {
+        academicAccountType = type;
+    }
 
     public User() {
 

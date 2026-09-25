@@ -128,14 +128,17 @@ interface JwxtApi {
 
         val loggingInterceptor = NetworkLogging.debugInterceptor()
 
-        private val cookieJar = CookieManager.cookieJar
+        private val cookieJar by lazy { CookieManager.cookieJar }
 
-        val okHttpClient = AhuHttp.plain(
+        val okHttpClient by lazy { AhuHttp.plain(
             connectTimeoutSeconds = 15,
             readTimeoutSeconds = 30,
             writeTimeoutSeconds = 15
         )
             .addInterceptor { chain ->
+                if (chain.request().url.host == "jw.ahu.edu.cn" &&
+                    !com.ahu.ahutong.data.dao.AHUCache.canUseUndergraduateAcademics()
+                ) throw java.io.IOException("研究生账号不支持本科教务功能")
                 chain.proceed(
                     chain.request()
                         .newBuilder()
@@ -149,15 +152,15 @@ interface JwxtApi {
             .apply {
                 loggingInterceptor?.let { addNetworkInterceptor(it) }
             }
-            .build()
+            .build() }
 
-        private val loginOkHttpClient = okHttpClient.newBuilder()
+        private val loginOkHttpClient by lazy { okHttpClient.newBuilder()
             .withoutCampusSessionRefresh()
-            .build()
+            .build() }
 
 
-        val API = createJwxtApi(okHttpClient, BASE_URL)
+        val API by lazy { createJwxtApi(okHttpClient, BASE_URL) }
 
-        val LOGIN_API = createJwxtApi(loginOkHttpClient, BASE_URL)
+        val LOGIN_API by lazy { createJwxtApi(loginOkHttpClient, BASE_URL) }
     }
 }

@@ -17,7 +17,8 @@ fun scheduleDayDescription(weekday: Int, date: String? = null): String {
 }
 
 fun schedulePeriodDescription(section: Int, time: String): String =
-    "第${section}节，${time.substringBefore('-')}至${time.substringAfter('-')}"
+    if (time.isBlank() || '-' !in time) "第${section}节，时间待确认"
+    else "第${section}节，${time.substringBefore('-')}至${time.substringAfter('-')}"
 
 fun courseScheduleDescription(
     course: Course,
@@ -31,8 +32,10 @@ fun courseScheduleDescription(
     val firstSection = course.startTime
     val lastSection = firstSection + course.length - 1
     add(if (firstSection == lastSection) "第${firstSection}节" else "第${firstSection}至${lastSection}节")
-    val start = timetable[firstSection]?.substringBefore('-')
-    val end = timetable[lastSection]?.substringAfter('-')
-    if (start != null && end != null) add("${start}至${end}")
+    val start = timetable[firstSection]?.substringBefore('-')?.takeIf(String::isNotBlank)
+    val end = timetable[lastSection]?.substringAfter('-')?.takeIf(String::isNotBlank)
+    val clock = course.clockRange?.takeIf(String::isNotBlank)?.replace('-', '至')
+        ?: if (start != null && end != null) "${start}至${end}" else null
+    clock?.let(::add)
     course.location?.takeIf { it.isNotBlank() }?.let(::add)
 }.joinToString("，")
