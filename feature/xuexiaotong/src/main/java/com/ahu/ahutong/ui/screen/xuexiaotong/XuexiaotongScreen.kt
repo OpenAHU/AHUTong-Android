@@ -786,8 +786,7 @@ fun XuexiaotongScreen() {
 
 @Composable
 private fun BottomSheetSwitchItem(label: String, checked: Boolean, onToggle: () -> Unit) {
-    // 行统一接管点击（含无障碍 role=Switch）；RUI 玻璃开关的手势引擎不消费 tap，
-    // 若开关也接真回调会与行点击双触发、互相抵消（表现为「开关失效」）。
+    // 行统一接管点击（含无障碍 role=Switch），开关本体只展示状态。
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -802,7 +801,7 @@ private fun BottomSheetSwitchItem(label: String, checked: Boolean, onToggle: () 
         Text(label, modifier = Modifier.weight(1f), fontSize = 14.sp)
         AppToggle(
             checked = checked,
-            onCheckedChange = { },
+            onCheckedChange = null,
             contentDescription = label
         )
     }
