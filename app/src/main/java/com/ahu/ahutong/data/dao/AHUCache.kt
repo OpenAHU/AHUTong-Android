@@ -47,6 +47,34 @@ object AHUCache {
     private val kv_init: MMKV = MMKV.mmkvWithID("ahu")
 
 
+    private val academicTypeFlow = kotlinx.coroutines.flow.MutableStateFlow<
+        com.ahu.ahutong.data.model.AcademicAccountType?
+    >(null)
+    private val gmisCacheLock = Any()
+
+    private val postgraduateWeekRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    fun postgraduateWeekUpdates(): kotlinx.coroutines.flow.StateFlow<Long> = postgraduateWeekRevision
+
+    fun academicTypeUpdates(): kotlinx.coroutines.flow.StateFlow<com.ahu.ahutong.data.model.AcademicAccountType?> {
+        getCurrentUser()
+        return academicTypeFlow
+    }
+
+    fun getCurrentUser(): User? = SessionStore.currentUser().also {
+        academicTypeFlow.value = it?.academicAccountType
+    }
+
+    fun isLogin(): Boolean = getCurrentUser() != null
+
+    fun canUseUndergraduateAcademics(): Boolean =
+        getMockData() || getCurrentUser()?.academicAccountType !=
+            com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE
+
+    fun canOpenRoute(route: String?): Boolean =
+        getMockData() || com.ahu.ahutong.data.model.AcademicFeatureAccess.allowsRoute(
+            getCurrentUser()?.academicAccountType, route
+        )
+
     @Volatile
     private var mockDataCache: Boolean? = null
     @Volatile
@@ -119,6 +147,7 @@ object AHUCache {
         currentKv.clearAll()
         MMKV.mmkvWithID("ahu_guest").clearAll()
         SessionStore.clearPersistedCurrentUser()
+        academicTypeFlow.value = null
         mockDataCache = null
         mockCurrentTimeCache = null
         mockCurrentTimeCacheInitialized = false
@@ -131,6 +160,7 @@ object AHUCache {
      */
     fun saveCurrentUser(user: User) {
         SessionStore.persistCurrentUser(user)
+        academicTypeFlow.value = user.academicAccountType
         homeWidgetSlotsCache = null
     }
 
@@ -139,7 +169,31 @@ object AHUCache {
      */
     fun clearCurrentUser() {
         SessionStore.clearPersistedCurrentUser()
+        academicTypeFlow.value = null
         homeWidgetSlotsCache = null
+    }
+
+    fun getPostgraduateWeekStart(termCode: String): String? =
+        userGetString(com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.storageKey(termCode))
+
+    fun savePostgraduateWeekStart(termCode: String, firstMonday: String) {
+        require(com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.parseStored(firstMonday) != null)
+        userPutString(
+            com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek.storageKey(termCode),
+            firstMonday
+        )
+        postgraduateWeekRevision.value += 1
+    }
+
+    fun getGmisScheduleCache(accountId: String, part: String): String? = synchronized(gmisCacheLock) {
+        if (getCurrentUser()?.xh != accountId) null else userGetString("gmis.schedule.v1.$part")
+    }
+
+    fun saveGmisScheduleCache(accountId: String, part: String, value: String) {
+        synchronized(gmisCacheLock) {
+            check(getCurrentUser()?.xh == accountId) { "Graduate timetable account changed" }
+            userPutString("gmis.schedule.v1.$part", value)
+        }
     }
 
     fun saveEvalPreset(preset: EvalPreset) {

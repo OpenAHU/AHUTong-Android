@@ -34,6 +34,7 @@ fun AtAGlance(
     currentDateText: String,
     onOpenSchedule: () -> Unit,
     isInSemester: Boolean = true,
+    emptyCourseText: String = "已全部上完",
     enabled: Boolean = true,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {

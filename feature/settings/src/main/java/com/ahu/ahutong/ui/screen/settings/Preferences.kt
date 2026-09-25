@@ -63,7 +63,11 @@ import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.PreferencesViewModel
 
 @Composable
-fun Preferences(onBack: () -> Unit = {}, onOpenThemeLab: () -> Unit = {}) {
+fun Preferences(
+    onBack: () -> Unit = {},
+    onOpenThemeLab: () -> Unit = {},
+    undergraduateEnabled: Boolean = true
+) {
     val viewModel: PreferencesViewModel = hiltViewModel()
     val context = LocalContext.current
     var isRequestingPermission by remember { mutableStateOf(false) }
@@ -237,7 +241,7 @@ fun Preferences(onBack: () -> Unit = {}, onOpenThemeLab: () -> Unit = {}) {
             )
         }
 
-            SettingsSection(
+            if (undergraduateEnabled) SettingsSection(
                 title = "通知",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop

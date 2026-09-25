@@ -59,6 +59,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.schedule.gmis.GmisTimetableAdapter
+import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
+import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
+import com.ahu.ahutong.data.schedule.GraduateTodayCoursePolicy
+import java.time.ZoneId
+import java.util.Date
+import kotlinx.coroutines.CancellationException
 import com.ahu.ahutong.data.dao.HomeWidgetLayoutFamily
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
@@ -119,25 +126,77 @@ fun Home(
     enterEditModeRequest: Boolean = false,
     onEnterEditModeRequestConsumed: () -> Unit = {}
 ) {
+    val undergraduateEnabled = AHUCache.canUseUndergraduateAcademics()
+    val graduateAccountId = if (undergraduateEnabled) null else AHUCache.getCurrentUser()?.xh
+    val graduateRepository = remember { PostgraduateScheduleRepository.instance }
+    val graduateCacheRevision by graduateRepository.revision.collectAsState()
+    val graduateWeekRevision by AHUCache.postgraduateWeekUpdates().collectAsState()
+    val graduateSnapshot = remember(graduateAccountId, graduateCacheRevision) {
+        graduateAccountId?.let(graduateRepository::cachedCurrent)
+    }
+    LaunchedEffect(graduateAccountId, graduateSnapshot == null) {
+        val account = graduateAccountId ?: return@LaunchedEffect
+        if (graduateSnapshot == null) {
+            try {
+                withContext(Dispatchers.IO) { graduateRepository.current(account) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("PostgraduateHome", "Graduate timetable unavailable (${e.javaClass.simpleName})")
+            }
+        }
+    }
+    val graduateGrid = remember(graduateSnapshot?.timetable) {
+        graduateSnapshot?.timetable?.let(GmisTimetableAdapter::adapt)
+    }
+    var graduateToday by remember { mutableStateOf(DebugClock.nowLocalDate()) }
+    val graduateTerm = graduateSnapshot?.selectedTerm
+    val graduateAnchor = remember(graduateAccountId, graduateTerm?.code, graduateWeekRevision) {
+        graduateTerm?.let {
+            PostgraduateTeachingWeek.parseStored(AHUCache.getPostgraduateWeekStart(it.code))
+        }
+    }
+    val graduateConfig = remember(graduateAnchor, graduateToday, graduateTerm?.code) {
+        graduateAnchor?.let { monday ->
+            ScheduleConfigBean().apply {
+                val actualWeek = PostgraduateTeachingWeek.weekOn(monday, graduateToday)
+                week = actualWeek.coerceIn(1, PostgraduateTeachingWeek.MAX_WEEK)
+                weekDay = graduateToday.dayOfWeek.value
+                startTime = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant())
+                isInSemester = actualWeek in 1..PostgraduateTeachingWeek.MAX_WEEK &&
+                    (graduateTerm?.selected == true || graduateSnapshot?.terms?.none { it.selected } == true)
+            }
+        }
+    }
+    val homeAcademicReady = undergraduateEnabled || (graduateSnapshot != null && graduateConfig != null)
     val density = LocalDensity.current
     val schedule = scheduleViewModel.schedule.observeAsState().value?.valueOrNull() ?: emptyList()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
     val localScheduleConfig by produceState<ScheduleConfigBean?>(
         initialValue = null,
-        key1 = scheduleConfig
+        key1 = scheduleConfig,
+        key2 = undergraduateEnabled
     ) {
-        value = scheduleConfig ?: withContext(Dispatchers.IO) {
+        value = if (!undergraduateEnabled) null else scheduleConfig ?: withContext(Dispatchers.IO) {
             CurrentWeekResolver.resolveLocalConfig()?.config
         }
     }
-    val effectiveScheduleConfig = scheduleConfig ?: localScheduleConfig
+    val effectiveScheduleConfig = if (undergraduateEnabled) scheduleConfig ?: localScheduleConfig else graduateConfig
     val isInSemester = effectiveScheduleConfig?.isInSemester != false
     val currentWeek = effectiveScheduleConfig?.week ?: 1
     val currentWeekday = effectiveScheduleConfig?.weekDay ?: 1
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
     val todayCourses = remember(schedule, isInSemester, currentWeek, currentWeekday) {
         if (isInSemester) {
-            schedule
+            if (!undergraduateEnabled && effectiveScheduleConfig != null) {
+                GraduateTodayCoursePolicy.filter(
+                    schedule,
+                    currentWeek,
+                    effectiveScheduleConfig.weekDay
+                )
+            } else if (!undergraduateEnabled) {
+                emptyList()
+            } else schedule
                 .asSequence()
                 .filter { currentWeek in it.weekIndexes }
                 .filter { it.weekday == currentWeekday }
@@ -343,6 +402,7 @@ fun Home(
                 SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(now)
             }
             currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+            graduateToday = DebugClock.nowLocalDate()
             delay(HOME_REFRESH_INTERVAL_MS)
             discoveryViewModel.refreshCardBalance()
         }
@@ -424,12 +484,13 @@ fun Home(
                 ),
             verticalArrangement = Arrangement.Center
         ) {
-            AtAGlance(
+            if (homeAcademicReady) AtAGlance(
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
                 currentDateText = currentDateText,
                 onOpenSchedule = onOpenSchedule,
                 isInSemester = isInSemester,
+                emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
                 enabled = !isEditingHome,
                 trailingContent = trailingContent
             )

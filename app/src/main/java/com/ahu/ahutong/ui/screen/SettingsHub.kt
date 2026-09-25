@@ -7,6 +7,7 @@ import androidx.navigation.NavHostController
 import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ui.state.MainViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 
@@ -33,7 +34,11 @@ fun SettingsHub(
         onDataCleared = { navController.navigate("login") { popUpTo(0) } },
         onCheckUpdate = mainViewModel::checkApkUpdateManually,
         accountName = SessionStore.currentUser()?.name,
-        scheduleSummary = "${scheduleViewModel.schoolYear} 学年 · 第 ${scheduleViewModel.schoolTerm} 学期",
+        scheduleSummary = if (AHUCache.canUseUndergraduateAcademics()) {
+            "${scheduleViewModel.schoolYear} 学年 · 第 ${scheduleViewModel.schoolTerm} 学期"
+        } else {
+            "研究生账号"
+        },
         debugBuild = BuildConfig.DEBUG,
         appName = stringResource(R.string.app_name),
         appIcon = painterResource(R.mipmap.ic_launcher_foreground),

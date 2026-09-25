@@ -11,6 +11,9 @@ interface ChaoxingSession {
     /** 本机是否还留着可用的学习通会话。 */
     fun hasSession(): Boolean
 
+    /** 只读提供给作业题目 WebView 的现有会话 Cookie。 */
+    fun cookieHeader(): String
+
     /** 用账号密码登录；失败时抛异常（与迁移前一致）。 */
     suspend fun loginByPassword(account: String, password: String)
 

@@ -127,8 +127,10 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         }
         // AppWidgetProvider callbacks run on the broadcast thread. Keep this path cache-only;
         // remote semester synchronization is handled by the app and the suspend Glance widget.
+        val undergraduateEnabled = scheduleReadModel().canUseUndergraduateAcademics()
         val scheduleConfig = scheduleReadModel().cachedConfig()
         val schedule = scheduleReadModel().currentSchoolTerm()
+            .takeIf { undergraduateEnabled }
             ?.let { scheduleReadModel().cachedSchedule(it) }
             .orEmpty()
         val fetchedAt = scheduleReadModel().cachedScheduleFetchedAt()
@@ -142,7 +144,10 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         val widgetColors = resolve(context)
         val titleText: String
         val subtitleText: String
-        if (displayCourses.isEmpty()) {
+        if (!undergraduateEnabled) {
+            titleText = "研究生账号"
+            subtitleText = "暂不支持本科课表微件"
+        } else if (displayCourses.isEmpty()) {
             titleText = "没课啦🎉"
             subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
         } else {
@@ -169,9 +174,9 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         if (displayCourses.isEmpty()) {
             val emptyItem = RemoteViews(context.packageName, R.layout.layout_widget_item)
             emptyItem.setViewVisibility(R.id.little_circle, View.GONE)
-            emptyItem.setTextViewText(R.id.course_name_tv, "暂无课程")
+            emptyItem.setTextViewText(R.id.course_name_tv, if (undergraduateEnabled) "暂无课程" else "本科课表已停用")
             emptyItem.setViewVisibility(R.id.course_time_tv, View.GONE)
-            emptyItem.setTextViewText(R.id.course_location_tv, "点击打开安大通查看完整课表")
+            emptyItem.setTextViewText(R.id.course_location_tv, if (undergraduateEnabled) "点击打开安大通查看完整课表" else "智慧安大服务仍可使用")
             emptyItem.setTextColor(R.id.little_circle, widgetColors.off.toArgb())
             emptyItem.setTextColor(R.id.course_name_tv, widgetColors.primaryText.toArgb())
             emptyItem.setTextColor(R.id.course_time_tv, widgetColors.secondaryText.toArgb())

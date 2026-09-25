@@ -12,12 +12,13 @@ import com.ahu.ahutong.data.crawler.api.adwmh.AdwmhApi
 import com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi
 import com.ahu.ahutong.data.crawler.configs.Constants
 import com.ahu.ahutong.data.crawler.login.AhuTongCaptchaSolver
-import com.ahu.ahutong.data.crawler.login.CrawlerLoginFlow
-import com.ahu.ahutong.data.crawler.login.CrawlerLoginOutcome
+import com.ahu.ahutong.data.crawler.login.WisdomLoginFlow
+import com.ahu.ahutong.data.crawler.login.AcademicLoginFlow
+import com.ahu.ahutong.data.crawler.login.AcademicPortalLogin
+import com.ahu.ahutong.data.crawler.login.AcademicPortalHttp
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.crawler.model.adwnh.AllCampus
 import com.ahu.ahutong.data.crawler.model.adwnh.AllLostFoundType
-import com.ahu.ahutong.data.crawler.model.adwnh.Info
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundPublishRequest
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundResponse
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
@@ -67,12 +68,6 @@ object AHURepository {
     val jwxtBrowserUserAgent: String get() = com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi.BROWSER_USER_AGENT
     const val WEB_VERIFICATION_REQUIRED_CODE = 412
 
-    private enum class JwxtLoginResult {
-        Succeeded,
-        Failed,
-        WebVerificationRequired
-    }
-
     @Volatile
     private var dataSource: BaseDataSource = SdkDataSource()
     private val scheduleRefreshMutex = Mutex()
@@ -99,6 +94,9 @@ object AHURepository {
      * @param isRetry 是否为重试（静默重登录后），防止无限循环
      */
     suspend fun getSchedule(isRefresh: Boolean = false): AhuResult<List<Course>> = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科课表"))
+        }
 
         if (isRefresh) {
             return@withContext refreshScheduleCache().map { it.schedule }
@@ -141,6 +139,9 @@ object AHURepository {
         fetchedAt: Long = System.currentTimeMillis()
     ): AhuResult<ScheduleRefreshResult> = scheduleRefreshMutex.withLock {
         withContext(Dispatchers.IO) {
+            if (!AHUCache.canUseUndergraduateAcademics()) {
+                return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科课表"))
+            }
             try {
                 val previousSemesterKey = AHUCache.getSchoolTerm()
                 val latest = when (val scheduleResult = dataSource.getSchedule()) {
@@ -165,6 +166,9 @@ object AHURepository {
     }
 
     suspend fun getNextSchedule(isRefresh: Boolean = false): AhuResult<List<Course>> = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科课表"))
+        }
         if (!isRefresh && !AHUCache.getMockData()) {
             AHUCache.getNextSchedule()?.let {
                 Log.e(TAG, "getNextSchedule: 本地获取")
@@ -192,6 +196,9 @@ object AHURepository {
      * @return Result<List<News>>
      */
     suspend fun getGrade(isRefresh: Boolean = false) = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科成绩查询"))
+        }
         if (!isRefresh && !AHUCache.getMockData()) {
             // 优先从 per-profile 缓存重建合并成绩
             val perProfile = AHUCache.getPerProfileGrades()
@@ -215,6 +222,7 @@ object AHURepository {
     }
 
     suspend fun getGradeStudentProfiles(): List<GradeStudentProfile> = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) return@withContext emptyList()
         if (AHUCache.getMockData()) {
             Log.i(TAG, "getGradeStudentProfiles skip: mock data")
             return@withContext emptyList()
@@ -265,6 +273,9 @@ object AHURepository {
      */
     suspend fun getExamInfo(isRefresh: Boolean = false, studentID: String, studentName: String) =
         withContext(Dispatchers.IO) {
+            if (!AHUCache.canUseUndergraduateAcademics()) {
+                return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科考试查询"))
+            }
             if (!isRefresh && !AHUCache.getMockData()) {
                 val localData = AHUCache.getExamInfo().orEmpty()
                 if (localData.isNotEmpty()) {
@@ -305,76 +316,43 @@ object AHURepository {
 
 
     /**
-     * 爬虫登录
+     * Authenticate Wisdom AHU first, then positively identify the academic portal.
+     * Native login bundles undergraduate authentication, so it cannot identify graduates.
      */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun loginWithCrawler(
         username: String,
         password: String,
         preferNative: Boolean = true
-    ): AhuResult<LoginOutcome> =
-        withContext(Dispatchers.IO) {
-            if (preferNative) getHttpClient()?.let { httpClient ->
-                try {
-                    httpClient.init("")
-                    SessionStore.saveRustCookies("")
-
-                    val loginResult = httpClient.login(username, password)
-                    if (loginResult.isSuccess) {
-                        val user = loginResult.getOrThrow()
-                        persistRustCookies(httpClient)
-                        syncCookies()
-                        return@withContext AhuResult.Success(LoginOutcome.Success(user))
-                    }
-
-                    Log.w(TAG, "Rust login failed, fallback to Android crawler", loginResult.exceptionOrNull())
-                } catch (e: Throwable) {
-                    if (e is CancellationException) throw e
-                    Log.w(TAG, "Rust login threw, fallback to Android crawler", e)
+    ): AhuResult<LoginOutcome> = withContext(Dispatchers.IO) {
+        try {
+            val wisdom = WisdomLoginFlow(
+                fetchCaptcha = { AdwmhApi.LOGIN_API.getAuthCode().use { it.bytes() } },
+                solveCaptcha = AhuTongCaptchaSolver::solve,
+                submitLogin = { account, secret, captcha ->
+                    AdwmhApi.LOGIN_API.loginWithCaptcha(account, secret, 0, captcha).use { it.string() }
                 }
-            }
-
-            if (preferNative && RustSDK.isNativeLoaded()) {
-                try {
-                    RustSDK.initSafe("")
-                    SessionStore.saveRustCookies("")
-
-                    val loginResult = RustSDK.loginSafe(username, password)
-                    if (loginResult.isSuccess) {
-                        val user = loginResult.getOrThrow()
-                        persistRustCookiesFromNative()
-                        syncCookies()
-                        return@withContext AhuResult.Success(LoginOutcome.Success(user))
-                    }
-
-                    Log.w(TAG, "Rust JNI login failed, fallback to Android crawler", loginResult.exceptionOrNull())
-                } catch (e: Throwable) {
-                    if (e is CancellationException) throw e
-                    Log.w(TAG, "Rust JNI login threw, fallback to Android crawler", e)
-                }
-            }
-
-            val flow = CrawlerLoginFlow(
-                jwxt = JwxtApi.LOGIN_API,
-                adwmh = AdwmhApi.LOGIN_API,
-                captchaSolver = AhuTongCaptchaSolver
             )
-            when (val outcome = flow.login(username, password)) {
-                is CrawlerLoginOutcome.Succeeded -> {
-                    syncAndroidCookiesToRust()
-                    AhuResult.Success(LoginOutcome.Success(outcome.user))
+            val portal = AcademicPortalLogin(
+                diagnostic = { Log.i("AcademicLogin", it) },
+                request = AcademicPortalHttp::request
+            )
+            val outcome = AcademicLoginFlow(
+                wisdom = wisdom::login,
+                undergraduate = { account, secret, user ->
+                    portal.login(AcademicPortalLogin.UNDERGRADUATE_ENTRY, account, secret, user)
+                },
+                postgraduate = { account, secret, user ->
+                    portal.login(AcademicPortalLogin.GMIS_ENTRY, account, secret, user)
                 }
-                is CrawlerLoginOutcome.WebVerificationRequired ->
-                    AhuResult.Success(LoginOutcome.JwxtWebVerificationRequired(outcome.user))
-                CrawlerLoginOutcome.CredentialsRejected ->
-                    AhuResult.Failure(AhuError.Unauthorized("用户名或密码错误，请重新输入"))
-                is CrawlerLoginOutcome.ProtocolChanged ->
-                    AhuResult.Failure(AhuError.ProtocolChanged(outcome.detail))
-                is CrawlerLoginOutcome.Upstream ->
-                    AhuResult.Failure(AhuError.Server(outcome.code, outcome.message))
-                is CrawlerLoginOutcome.TransportFailure ->
-                    AhuResult.Failure(outcome.error)
-            }
+            ).login(username, password)
+            if (outcome.valueOrNull() is LoginOutcome.Success) syncAndroidCookiesToRust()
+            outcome
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            AhuResult.Failure(e.toAhuError())
         }
+    }
 
     /**
      * Restores the central CAS session for a concrete first-party service. A valid JWXT
@@ -691,6 +669,9 @@ object AHURepository {
 
     suspend fun getGpaRankInfo(studentId: String): AhuResult<GpaRankInfo> =
         withContext(Dispatchers.IO) {
+            if (!AHUCache.canUseUndergraduateAcademics()) {
+                return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科绩点排名"))
+            }
             Log.i(TAG, "getGpaRankInfo start studentId=${studentId.maskStudentId()}")
             syncCookies()
             val result = dataSource.getGpaRankFromHtml(studentId)

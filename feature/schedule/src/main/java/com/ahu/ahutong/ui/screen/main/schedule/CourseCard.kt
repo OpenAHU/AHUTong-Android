@@ -63,6 +63,7 @@ fun CourseCard(
     cellHeight: Dp,
     isCurrentWeek: Boolean = true,
     date: String? = null,
+    timetable: Map<Int, String> = ScheduleSectionTimes.timetable,
     onClick: (Course) -> Unit
 ) {
     val tonalPalettes = remember(color) { courseTonalPalettes(color) }

@@ -148,6 +148,7 @@ private fun BoxScope.RadiantBottomNavBar(
         ),
         RadiantDestination("settings", "设置", R.drawable.ic_nav_settings)
     )
+        .filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it.route) }
     if (selectedRoute !in destinations.map { it.route }) return
 
     fun select(route: String) {
@@ -243,7 +244,7 @@ private fun BoxScope.RadiantBottomNavBar(
                     enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it / 3 }
                 ) {
                     AnchoredGuideBubble(
-                        anchorCenterX = { bounds.left + bounds.width * 0.625f - overlayOrigin.x },
+                        anchorCenterX = { bounds.left + bounds.width * ((destinations.indexOfFirst { it.route == "xuexiaotong" } + 0.5f) / destinations.size) - overlayOrigin.x },
                         anchorTopY = { bounds.top - overlayOrigin.y },
                         backdrop = backdrop,
                         text = "再次点击可切换日程 / 课程页"

@@ -114,6 +114,7 @@ import com.ahu.ahutong.personalization.recorder.BehaviorRecorder
 import com.ahu.ahutong.ui.suggestion.SmartSuggestionHost
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import dagger.hilt.EntryPoint
@@ -137,6 +138,7 @@ fun Main(
     navController: NavHostController,
     mainViewModel: MainViewModel = hiltViewModel(),
     loginViewModel: LoginViewModel = viewModel(),
+    postgraduateScheduleViewModel: com.ahu.ahutong.ui.state.PostgraduateScheduleViewModel = viewModel(),
     discoveryViewModel: DiscoveryViewModel = viewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     aboutViewModel: AboutViewModel = viewModel(),
@@ -147,6 +149,9 @@ fun Main(
     isReLoginShown: Boolean,
     onReLoginDismiss: () -> Unit
 ) {
+    val academicType by com.ahu.ahutong.data.dao.AHUCache.academicTypeUpdates().collectAsState()
+    val undergraduateEnabled = academicType != com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE ||
+        com.ahu.ahutong.data.dao.AHUCache.getMockData()
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -295,9 +300,11 @@ fun Main(
                     onSetup = {
                         navController.popBackStack()
                         discoveryViewModel.loadActivityBean()
-                        scheduleViewModel.loadConfig()
-                        scheduleViewModel.refreshSchedule()
-                        scope.launch {
+                        if (undergraduateEnabled) {
+                            scheduleViewModel.loadConfig()
+                            scheduleViewModel.refreshSchedule()
+                        }
+                        if (undergraduateEnabled) scope.launch {
                             GlanceAppWidgetManager(context).requestPinGlanceAppWidget(
                                 ScheduleAppWidgetReceiver::class.java
                             )
@@ -323,8 +330,10 @@ fun Main(
                             )
                         }
                         discoveryViewModel.loadActivityBean()
-                        scheduleViewModel.loadConfig()
-                        scheduleViewModel.refreshSchedule()
+                        if (AHUCache.canUseUndergraduateAcademics()) {
+                            scheduleViewModel.loadConfig()
+                            scheduleViewModel.refreshSchedule()
+                        }
                     }
                 )
             }
@@ -339,7 +348,9 @@ fun Main(
                 // 返回转场竞态；非 RADIANT 主题下独立展示课表页可正常用系统返回
                 Schedule(
                     scheduleViewModel = scheduleViewModel,
-                    behaviorRecorder = behaviorRecorder
+                    behaviorRecorder = behaviorRecorder,
+                    graduateController = if (undergraduateEnabled) null else postgraduateScheduleViewModel,
+                    graduateAccountId = if (undergraduateEnabled) null else SessionStore.currentUser()?.xh
                 )
             }
             animatedComposable("tools") {
@@ -482,7 +493,8 @@ fun Main(
             animatedComposable("preferences") {
                 Preferences(
                     onBack = ::navigateBackFromPreferences,
-                    onOpenThemeLab = { navController.navigate("settings__theme_lab") }
+                    onOpenThemeLab = { navController.navigate("settings__theme_lab") },
+                    undergraduateEnabled = undergraduateEnabled
                 )
             }
 

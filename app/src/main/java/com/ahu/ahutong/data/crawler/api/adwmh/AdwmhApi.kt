@@ -89,7 +89,7 @@ interface AdwmhApi {
     companion object {
         val loggingInterceptor = NetworkLogging.debugInterceptor()
 
-        private val cookieJar = CookieManager.cookieJar
+        private val cookieJar by lazy { CookieManager.cookieJar }
 //        val cookieJar = PersistentCookieJar(
 //            SetCookieCache(),
 //            SharedPrefsCookiePersistor(MyApp.instance.applicationContext)
@@ -100,7 +100,7 @@ interface AdwmhApi {
         val BASE_URL = "https://adwmh.ahu.edu.cn/"
 
 
-        val okHttpClient = AhuHttp.plain()
+        val okHttpClient by lazy { AhuHttp.plain()
             .addNetworkInterceptor { chain ->
                 val request = chain.request().newBuilder()
                     .addHeader("X-Requested-With", "XMLHttpRequest")
@@ -113,15 +113,15 @@ interface AdwmhApi {
             .apply {
                 loggingInterceptor?.let { addNetworkInterceptor(it) }
             }
-            .build()
+            .build() }
 
-        private val loginOkHttpClient = okHttpClient.newBuilder()
+        private val loginOkHttpClient by lazy { okHttpClient.newBuilder()
             .withoutCampusSessionRefresh()
-            .build()
+            .build() }
 
-        val API = createAdwmhApi(okHttpClient, BASE_URL)
+        val API by lazy { createAdwmhApi(okHttpClient, BASE_URL) }
 
-        val LOGIN_API = createAdwmhApi(loginOkHttpClient, BASE_URL)
+        val LOGIN_API by lazy { createAdwmhApi(loginOkHttpClient, BASE_URL) }
 
     }
 }

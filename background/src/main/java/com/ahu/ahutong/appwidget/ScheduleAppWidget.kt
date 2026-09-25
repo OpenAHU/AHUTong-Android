@@ -60,6 +60,10 @@ import kotlin.collections.sortedBy
 class ScheduleAppWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        if (!scheduleReadModel().canUseUndergraduateAcademics()) {
+            provideContent { androidx.glance.text.Text("研究生账号暂不支持本科课表微件") }
+            return
+        }
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
         // 只读缓存（P4 的验收标准）：本地优先解析会在本地未确认过时问一次远端并写缓存，
         // 那正是"小组件冷启动不该触发登录"要挡住的事，所以这里只读缓存配置。
