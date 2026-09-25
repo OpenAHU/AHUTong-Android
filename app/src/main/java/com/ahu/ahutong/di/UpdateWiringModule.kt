@@ -3,9 +3,11 @@ package com.ahu.ahutong.di
 import com.ahu.ahutong.data.update.ApkDownloader
 import com.ahu.ahutong.data.adapter.AhuTongApkUpdateInfoSource
 import com.ahu.ahutong.data.adapter.AppApkDirectory
+import com.ahu.ahutong.data.adapter.AppApkUpdateSkipStore
 import com.ahu.ahutong.data.update.ApkDirectory
 import com.ahu.ahutong.data.update.ApkUpdateChecker
 import com.ahu.ahutong.data.update.ApkUpdateInfoSource
+import com.ahu.ahutong.data.update.ApkUpdateSkipStore
 import com.ahu.ahutong.data.update.DefaultApkUpdateChecker
 import com.ahu.ahutong.data.update.DefaultApkDownloader
 import com.ahu.ahutong.data.update.ApkDownloadTransport
@@ -47,6 +49,10 @@ abstract class UpdateWiringModule {
     @Binds
     @Singleton
     abstract fun bindApkDirectory(implementation: AppApkDirectory): ApkDirectory
+
+    @Binds
+    @Singleton
+    abstract fun bindApkUpdateSkipStore(implementation: AppApkUpdateSkipStore): ApkUpdateSkipStore
 
     @Binds
     @Singleton

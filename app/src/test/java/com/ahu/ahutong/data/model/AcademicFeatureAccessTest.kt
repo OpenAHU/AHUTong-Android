@@ -16,15 +16,21 @@ class AcademicFeatureAccessTest {
     @Test fun sharedCampusServicesRemainAvailable() {
         for (route in listOf("home", "schedule", "tools", "settings", "bathroom_deposit", "electricity_pay",
             "card_balance_deposit", "network_recharge", "lost_found", "phone_book", "weather",
-            "school_calendar", "repository", "xuexiaotong")) {
+            "school_calendar", "repository")) {
             assertTrue(route, AcademicFeatureAccess.allowsRoute(AcademicAccountType.POSTGRADUATE, route))
         }
+    }
+
+    @Test fun graduateCannotOpenChaoxingButUndergraduateCan() {
+        assertFalse(AcademicFeatureAccess.allowsRoute(AcademicAccountType.POSTGRADUATE, "xuexiaotong"))
+        assertFalse(AcademicFeatureAccess.allowsRoute(AcademicAccountType.POSTGRADUATE, "xuexiaotong?source=deeplink"))
+        assertTrue(AcademicFeatureAccess.allowsRoute(AcademicAccountType.UNDERGRADUATE, "xuexiaotong"))
     }
 
     @Test fun allHomeThemesAndWidgetLibrariesExcludeUndergraduateShortcuts() {
         for (radiant in listOf(false, true)) {
             val graduate = HomeWidgetRegistry.availableWidgets(radiant, undergraduateEnabled = false)
-            assertTrue(graduate.none { it.route in AcademicFeatureAccess.undergraduateRoutes })
+            assertTrue(graduate.none { it.route in AcademicFeatureAccess.postgraduateHiddenRoutes })
             assertTrue(graduate.any { it.route == "bathroom_deposit" })
             val undergraduate = HomeWidgetRegistry.availableWidgets(radiant, undergraduateEnabled = true)
             assertTrue(undergraduate.any { it.route == "grade" })

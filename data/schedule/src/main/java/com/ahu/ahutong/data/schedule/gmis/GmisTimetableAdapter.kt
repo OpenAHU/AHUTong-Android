@@ -21,7 +21,7 @@ object GmisTimetableAdapter {
         val courses = placed.map { original ->
             val weeks = original.weeks.orEmpty().sorted()
             Course().apply {
-                name = original.name
+                name = GmisCourseNameFormatter.display(original.name)
                 teacher = original.teacher
                 location = original.location
                 extra = original.details
@@ -36,7 +36,7 @@ object GmisTimetableAdapter {
         }
         return GmisScheduleGridData(
             courses = courses,
-            unplaced = unplaced,
+            unplaced = unplaced.map { it.copy(name = GmisCourseNameFormatter.display(it.name)) },
             timetable = (1..lastPeriod).associateWith { periods[it].orEmpty() },
             weekCount = maxOf(20, source.maxWeek)
         )

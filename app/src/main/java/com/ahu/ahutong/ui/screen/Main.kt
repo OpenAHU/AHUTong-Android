@@ -154,6 +154,10 @@ fun Main(
     val academicType by com.ahu.ahutong.data.dao.AHUCache.academicTypeUpdates().collectAsState()
     val undergraduateEnabled = academicType != com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE ||
         com.ahu.ahutong.data.dao.AHUCache.getMockData()
+    val visiblePrimaryRoutes = remember(undergraduateEnabled) {
+        if (undergraduateEnabled) primaryDestinationRoutes
+        else primaryDestinationRoutes.filterNot { it == "xuexiaotong" }
+    }
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -185,6 +189,7 @@ fun Main(
         route: String,
         source: ActionSource = ActionSource.ORGANIC
     ) {
+        if (!AHUCache.canOpenRoute(route)) return
         val target = if (route == "tools") "widgets" else route
         if (target == navController.currentBackStackEntry?.destination?.route) return
         val selectionToken = navigationPolicy.expectSelection(target, source)
@@ -602,7 +607,7 @@ fun Main(
             backdrop = backdrop,
             blocked = productUiBlocked,
             hiddenForDiagnostics = diagnosticsRouteVisible,
-            bottomSpacing = if (effectiveRoute in primaryDestinationRoutes) {
+            bottomSpacing = if (effectiveRoute in visiblePrimaryRoutes) {
                 88.dp
             } else {
                 16.dp

@@ -352,7 +352,7 @@ private fun BoxScope.ClassicBottomNavBar(
         } else {
             destination
         }
-    }
+    }.filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it.route) }
 
     fun select(route: String) {
         if (route == "xuexiaotong" && route == selectedRoute) {
