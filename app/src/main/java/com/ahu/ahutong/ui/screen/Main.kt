@@ -103,8 +103,6 @@ import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.ui.SmartSuggestionHost
 import com.ahu.ahutong.personalization.action.AppActionId
 
-private val primaryDestinationRoutes = listOf("home", "schedule", "tools", "settings")
-
 @OptIn(ExperimentalAnimationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun Main(
@@ -120,6 +118,9 @@ fun Main(
     isReLoginShown: Boolean,
     onReLoginDismiss: () -> Unit
 ) {
+    val undergraduateEnabled = com.ahu.ahutong.data.dao.AHUCache.canUseUndergraduateAcademics()
+    val primaryDestinationRoutes = listOf("home", "schedule", "tools", "settings")
+        .filter { undergraduateEnabled || it != "schedule" }
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -138,11 +139,11 @@ fun Main(
     val appUiThemeState = rememberUpdatedState(appUiTheme)
     val primaryPagerState = rememberPagerState(pageCount = { primaryDestinationRoutes.size })
     var preloadPrimaryNeighbors by remember { mutableStateOf(false) }
-    val primaryRoute = primaryDestinationRoutes[primaryPagerState.currentPage]
+    val primaryRoute = primaryDestinationRoutes.getOrElse(primaryPagerState.currentPage) { "home" }
     val effectiveRoute = resolveVisibleRoute(
         currentRoute,
         appUiTheme,
-        primaryDestinationRoutes[primaryPagerState.settledPage]
+        primaryDestinationRoutes.getOrElse(primaryPagerState.settledPage) { "home" }
     )
 
     fun cancelSelection(token: Long) {
@@ -157,6 +158,7 @@ fun Main(
         route: String,
         source: ActionSource = ActionSource.ORGANIC
     ) {
+        if (!com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(route)) return
         if (appUiTheme == AppUiTheme.RADIANT) {
             val target = if (route == "tools") "widgets" else route
             if (target == navController.currentBackStackEntry?.destination?.route) return
@@ -284,8 +286,8 @@ fun Main(
                         userScrollEnabled = false,
                         key = primaryDestinationRoutes::get
                     ) { page ->
-                        when (page) {
-                            0 -> Home(
+                        when (primaryDestinationRoutes[page]) {
+                            "home" -> Home(
                                 discoveryViewModel = discoveryViewModel,
                                 scheduleViewModel = scheduleViewModel,
                                 navController = navController,
@@ -299,16 +301,16 @@ fun Main(
                                     shouldEnterHomeEdit = false
                                 }
                             )
-                            1 -> Schedule(
+                            "schedule" -> Schedule(
                                 scheduleViewModel = scheduleViewModel,
                                 behaviorRuntime = behaviorRuntime
                             )
-                            2 -> Tools(
+                            "tools" -> Tools(
                                 navController = navController,
                                 homeEditEnabled = homeEditGrayState.enabled,
                                 onEditHome = ::requestHomeEdit
                             )
-                            3 -> Settings(
+                            "settings" -> Settings(
                                 navController = navController,
                                 mainViewModel = mainViewModel,
                                 aboutViewModel = aboutViewModel,
@@ -328,7 +330,7 @@ fun Main(
                         discoveryViewModel.loadActivityBean()
                         scheduleViewModel.loadConfig()
                         scheduleViewModel.refreshSchedule()
-                        scope.launch {
+                        if (undergraduateEnabled) scope.launch {
                             GlanceAppWidgetManager(context).requestPinGlanceAppWidget(
                                 ScheduleAppWidgetReceiver::class.java
                             )
@@ -386,7 +388,7 @@ fun Main(
                 } else {
                     PrimaryDestinationRedirect(
                         navController = navController,
-                        onRedirect = { primaryPagerState.scrollToPage(2) }
+                        onRedirect = { primaryPagerState.scrollToPage(primaryDestinationRoutes.indexOf("tools")) }
                     )
                 }
             }

@@ -130,6 +130,9 @@ interface JwxtApi {
         val okHttpClient = OkHttpClient.Builder()
             .cookieJar(cookieJar)
             .addInterceptor { chain ->
+                if (chain.request().url.host == "jw.ahu.edu.cn" &&
+                    !com.ahu.ahutong.data.dao.AHUCache.canUseUndergraduateAcademics()
+                ) throw java.io.IOException("研究生账号不支持本科教务功能")
                 chain.proceed(
                     chain.request()
                         .newBuilder()

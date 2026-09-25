@@ -67,6 +67,10 @@ object CourseReminderScheduler {
 
     private suspend fun rescheduleNow(context: Context) {
         cancelScheduledReminder(context)
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            CourseReminderNotifier.cancelActiveReminder(context)
+            return
+        }
         if (!isReminderEnabled(context)) return
 
         val nextReminder = findNextReminder() ?: return

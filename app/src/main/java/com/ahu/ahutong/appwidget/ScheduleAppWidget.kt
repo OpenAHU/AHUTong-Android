@@ -59,6 +59,10 @@ import kotlin.collections.sortedBy
 class ScheduleAppWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        if (!com.ahu.ahutong.data.dao.AHUCache.canUseUndergraduateAcademics()) {
+            provideContent { androidx.glance.text.Text("研究生账号暂不支持本科课表微件") }
+            return
+        }
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
         val scheduleConfig = CurrentWeekResolver.resolveLocalFirst().config
         val currentWeek = scheduleConfig.week

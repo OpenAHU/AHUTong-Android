@@ -78,6 +78,10 @@ class ScheduleViewModel () : ViewModel() {
 
     fun loadConfig() {
         viewModelScope.launchSafe {
+            if (!AHUCache.canUseUndergraduateAcademics()) {
+                scheduleConfig.value = null
+                return@launchSafe
+            }
             val initialConfig = withContext(Dispatchers.IO) {
                 CurrentWeekResolver.resolveLocalFirst()
             }

@@ -141,6 +141,7 @@ private fun BoxScope.RadiantBottomNavBar(
         ),
         RadiantDestination("settings", "设置", R.drawable.ic_nav_settings)
     )
+        .filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it.route) }
     if (selectedRoute !in destinations.map { it.route }) return
 
     fun select(route: String) {
@@ -236,7 +237,7 @@ private fun BoxScope.RadiantBottomNavBar(
                     enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it / 3 }
                 ) {
                     AnchoredGuideBubble(
-                        anchorCenterX = { bounds.left + bounds.width * 0.625f - overlayOrigin.x },
+                        anchorCenterX = { bounds.left + bounds.width * ((destinations.indexOfFirst { it.route == "xuexiaotong" } + 0.5f) / destinations.size) - overlayOrigin.x },
                         anchorTopY = { bounds.top - overlayOrigin.y },
                         backdrop = backdrop,
                         text = "再次点击可切换日程 / 课程页"
@@ -335,7 +336,10 @@ private fun BoxScope.ClassicBottomNavBar(
     selectedRoute: String?,
     onDestinationSelected: (String) -> Unit
 ) {
-    if (selectedRoute !in classicDestinations.map { it.route }) return
+    val destinations = classicDestinations.filter {
+        com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it.route)
+    }
+    if (selectedRoute !in destinations.map { it.route }) return
 
     if (LocalIsLiquidGlassEnabled.current) {
         Row(
@@ -347,14 +351,14 @@ private fun BoxScope.ClassicBottomNavBar(
         ) {
             LiquidBottomTabs(
                 selectedTabIndex = {
-                    classicDestinations.indexOfFirst { it.route == selectedRoute }.coerceAtLeast(0)
+                    destinations.indexOfFirst { it.route == selectedRoute }.coerceAtLeast(0)
                 },
-                onTabSelected = { onDestinationSelected(classicDestinations[it].route) },
+                onTabSelected = { onDestinationSelected(destinations[it].route) },
                 backdrop = backdrop,
-                tabsCount = classicDestinations.size,
+                tabsCount = destinations.size,
                 modifier = Modifier.padding(horizontal = 36.dp)
             ) {
-                classicDestinations.forEach { destination ->
+                destinations.forEach { destination ->
                     val selected = selectedRoute == destination.route
                     LiquidBottomTab(
                         selected = selected,
@@ -374,11 +378,11 @@ private fun BoxScope.ClassicBottomNavBar(
             }
         }
     } else if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
-        val selectedIndex = classicDestinations
+        val selectedIndex = destinations
             .indexOfFirst { it.route == selectedRoute }
             .coerceAtLeast(0)
         MiuixNavigationBar(
-            items = classicDestinations.mapIndexed { index, destination ->
+            items = destinations.mapIndexed { index, destination ->
                 MiuixNavigationItem(
                     label = destination.label,
                     icon = if (index == selectedIndex) {
@@ -389,7 +393,7 @@ private fun BoxScope.ClassicBottomNavBar(
                 )
             },
             selected = selectedIndex,
-            onClick = { onDestinationSelected(classicDestinations[it].route) },
+            onClick = { onDestinationSelected(destinations[it].route) },
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
@@ -402,7 +406,7 @@ private fun BoxScope.ClassicBottomNavBar(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 0.dp
         ) {
-            classicDestinations.forEach { destination ->
+            destinations.forEach { destination ->
                 val selected = selectedRoute == destination.route
                 NavigationBarItem(
                     selected = selected,

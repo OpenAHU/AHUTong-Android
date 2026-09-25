@@ -243,7 +243,7 @@ fun Preferences(onBack: () -> Unit = {}) {
             )
         }
 
-            SettingsSection(
+            if (com.ahu.ahutong.data.dao.AHUCache.canUseUndergraduateAcademics()) SettingsSection(
                 title = "通知",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop

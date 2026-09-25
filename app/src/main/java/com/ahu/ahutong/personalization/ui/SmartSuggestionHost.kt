@@ -91,6 +91,8 @@ fun SmartSuggestionHost(
     }
     if (blocked || hiddenForDiagnostics) return
     val suggestion = state as? PredictionUiState.Suggestion ?: return
+    val suggestionRoute = com.ahu.ahutong.personalization.action.AppActionCatalog.spec(suggestion.action).route
+    if (!com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(suggestionRoute)) return
     val density = LocalDensity.current
     val navigationBarInset = WindowInsets.navigationBars.getBottom(density)
     val horizontalOffsetPx = with(density) { 12.dp.roundToPx() }

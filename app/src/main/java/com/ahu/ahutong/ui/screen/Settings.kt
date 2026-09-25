@@ -188,7 +188,7 @@ fun Settings(
             ) {
                 SettingsInfoRow(
                     title = user.name,
-                    subtitle = schoolTerm
+                    subtitle = if (AHUCache.canUseUndergraduateAcademics()) schoolTerm else "研究生账号"
                 )
                 SettingsActionRow(
                     title = "重新登录",

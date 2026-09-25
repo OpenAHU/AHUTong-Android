@@ -29,8 +29,7 @@ class TokenAuthenticator : Authenticator {
                 Log.i(TAG, "Refreshing expired first-party session")
                 val loginResponse = AHURepository.loginWithCrawler(
                     username = user.xh.toString(),
-                    password = password,
-                    preferNative = false
+                    password = password
                 )
                 if (!loginResponse.isSuccessful) {
                     AHUApplication.sessionExpired = true
@@ -39,6 +38,7 @@ class TokenAuthenticator : Authenticator {
                 }
 
                 TokenManager.clear()
+                AHUCache.saveCurrentUser(loginResponse.data)
                 true
             }
             if (!refreshed) return@runBlocking null

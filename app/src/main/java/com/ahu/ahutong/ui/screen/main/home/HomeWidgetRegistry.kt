@@ -2,6 +2,8 @@ package com.ahu.ahutong.ui.screen.main.home
 
 import androidx.compose.ui.graphics.Color
 import com.ahu.ahutong.R
+import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.model.AcademicFeatureAccess
 
 data class HomeWidgetSpec(
     val id: String,
@@ -125,6 +127,11 @@ object HomeWidgetRegistry {
      * 当前风格下可展示的小工具列表。
      * 曜光版下「学习通日历」已提级为底部 tab，从小工具列表 / 主页插槽中隐藏。
      */
-    fun availableWidgets(radiant: Boolean): List<HomeWidgetSpec> =
-        if (radiant) widgets.filter { it.id != "xuexiaotong" } else widgets
+    fun availableWidgets(
+        radiant: Boolean,
+        undergraduateEnabled: Boolean = AHUCache.canUseUndergraduateAcademics()
+    ): List<HomeWidgetSpec> = widgets.filter {
+        (!radiant || it.id != "xuexiaotong") &&
+            (undergraduateEnabled || it.route !in AcademicFeatureAccess.undergraduateRoutes)
+    }
 }

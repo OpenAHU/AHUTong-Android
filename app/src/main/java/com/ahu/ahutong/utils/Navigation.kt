@@ -11,6 +11,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.navigation.NamedNavArgument
@@ -227,5 +228,16 @@ private fun NavGraphBuilder.animatedComposableWithThemeProvider(
             }
         }
     },
-    content = content
+    content = { entry ->
+        if (com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(route)) {
+            content(entry)
+        } else {
+            androidx.compose.foundation.layout.Box(
+                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                androidx.compose.material3.Text("研究生账号暂不支持本科教务功能")
+            }
+        }
+    }
 )

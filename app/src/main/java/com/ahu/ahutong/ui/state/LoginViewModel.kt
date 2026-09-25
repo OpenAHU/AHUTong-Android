@@ -11,6 +11,7 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.ext.launchSafe
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 /**
@@ -47,6 +48,7 @@ class LoginViewModel : ViewModel() {
                 }
             }
         } catch (e: Throwable) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Login failed unexpectedly", e)
             pendingWebLoginUser = null
             state = LoginState.Failed
@@ -85,13 +87,16 @@ class LoginViewModel : ViewModel() {
     }
 
     private fun completeLogin(user: User, password: String) {
-        state = LoginState.Succeeded
-        succeedMessage = "欢迎，${user.name}！"
         AHUCache.saveCurrentUser(user)
         AHUCache.saveWisdomPassword(password)
         AHUCache.setAgreementAccepted()
         AHUCache.setBusinessAccepted()
         AHUCache.setPrivacyAccepted()
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            com.ahu.ahutong.notification.CourseReminderScheduler.cancel(com.ahu.ahutong.AHUApplication.getApp())
+        }
+        succeedMessage = "欢迎，${user.name}！"
+        state = LoginState.Succeeded
     }
 
     private companion object {

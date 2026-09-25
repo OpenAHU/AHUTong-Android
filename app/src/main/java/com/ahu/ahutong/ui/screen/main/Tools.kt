@@ -177,6 +177,7 @@ fun Tools(
 
 @Composable
 internal fun DesktopScheduleWidgetCard() {
+    if (!AHUCache.canUseUndergraduateAcademics()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     Column(

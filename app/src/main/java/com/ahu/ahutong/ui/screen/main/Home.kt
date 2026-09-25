@@ -117,14 +117,16 @@ fun Home(
     enterEditModeRequest: Boolean = false,
     onEnterEditModeRequestConsumed: () -> Unit = {}
 ) {
+    val undergraduateEnabled = AHUCache.canUseUndergraduateAcademics()
     val density = LocalDensity.current
     val schedule = scheduleViewModel.schedule.observeAsState().value?.getOrNull() ?: emptyList()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
     val localScheduleConfig by produceState<ScheduleConfigBean?>(
         initialValue = null,
-        key1 = scheduleConfig
+        key1 = scheduleConfig,
+        key2 = undergraduateEnabled
     ) {
-        value = scheduleConfig ?: withContext(Dispatchers.IO) {
+        value = if (!undergraduateEnabled) null else scheduleConfig ?: withContext(Dispatchers.IO) {
             CurrentWeekResolver.resolveLocalConfig()?.config
         }
     }
@@ -162,7 +164,7 @@ fun Home(
     } else {
         HomeWidgetRegistry.slotCountClassic
     }
-    val knownWidgetIds = remember(radiant) {
+    val knownWidgetIds = remember(radiant, undergraduateEnabled) {
         HomeWidgetRegistry.availableWidgets(radiant).mapTo(mutableSetOf()) { it.id }
     }
     val initialCalendar = remember { Calendar.getInstance(Locale.CHINA) }
@@ -173,7 +175,7 @@ fun Home(
         )
     }
     var isEditingHome by remember { mutableStateOf(false) }
-    var homeWidgetSlots by remember(layoutFamily) {
+    var homeWidgetSlots by remember(layoutFamily, undergraduateEnabled) {
         mutableStateOf(
             normalizeHomeWidgetSlots(
                 AHUCache.getHomeWidgetSlots(layoutFamily),
@@ -445,7 +447,7 @@ fun Home(
                 Arrangement.spacedBy(24.dp)
             }
         ) {
-            AtAGlance(
+            if (undergraduateEnabled) AtAGlance(
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
                 currentDateText = currentDateText,
@@ -453,9 +455,9 @@ fun Home(
                 isInSemester = isInSemester,
                 enabled = !isEditingHome,
                 trailingContent = trailingContent
-            )
+            ) else if (!radiant) HomeDateRow(trailingContent = trailingContent)
             if (radiant) Spacer(modifier = Modifier.height(12.dp))
-            if (todayCourses.isNotEmpty()) {
+            if (undergraduateEnabled && todayCourses.isNotEmpty()) {
                 if (radiant) Spacer(modifier = Modifier.height(16.dp))
                 TodayCourseList(
                     todayCourses = todayCourses,

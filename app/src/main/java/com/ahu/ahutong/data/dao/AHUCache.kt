@@ -215,6 +215,15 @@ object AHUCache {
         return getCurrentUser() != null
     }
 
+    fun canUseUndergraduateAcademics(): Boolean =
+        getMockData() || getCurrentUser()?.academicAccountType !=
+            com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE
+
+    fun canOpenRoute(route: String?): Boolean =
+        getMockData() || com.ahu.ahutong.data.model.AcademicFeatureAccess.allowsRoute(
+            getCurrentUser()?.academicAccountType, route
+        )
+
     /**
      * 保存智慧安大密码
      * @param password String
