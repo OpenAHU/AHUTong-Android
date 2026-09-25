@@ -89,7 +89,9 @@ import com.ahu.ahutong.ui.components.LocalAppBackground
 import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
+import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppDialogSurface
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
@@ -265,7 +267,16 @@ fun Main(
         LocalGlassEffectsReduced provides HomeBackgroundStore.reduceGlassEffects
     ) {
     LiquidGlassAppHost(modifier = Modifier.fillMaxSize()) {
-        val backdrop = LocalLiquidGlassContentBackdrop.current
+        val contentBackdrop = LocalLiquidGlassContentBackdrop.current
+        // 自定义背景在 ambient 层、页面内容在 content 层（两层分离）——
+        // 导航栏模糊源只给 content 层会漏掉背景图，胶囊在图上几乎透明（P2 回归）。
+        // 有背景时给导航栏「ambient + content」组合采样层，恢复对背景的模糊。
+        val navBackdrop = if (appBackground != null) {
+            rememberCombinedBackdrop(LocalLiquidGlassAmbientBackdrop.current, contentBackdrop)
+        } else {
+            contentBackdrop
+        }
+        val backdrop = navBackdrop
         NavHost(
             navController = navController,
             startDestination = "splash",
