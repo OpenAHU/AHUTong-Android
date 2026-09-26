@@ -7,7 +7,14 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,10 +42,18 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.model.ElectricityController
+import com.ahu.ahutong.data.model.ElectricityAlertRoom
+import com.ahu.ahutong.data.model.RoomSelectionInfo
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.ui.component.SecurePaymentPasswordDialog
 import com.ahu.ahutong.ui.components.AppSectionCard
+import com.ahu.ahutong.ui.components.AppCard
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
+import com.ahu.ahutong.ui.components.AppDialogActionStyle
+import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.TrailingAction
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
@@ -58,23 +74,24 @@ import kotlinx.coroutines.delay
 fun ElectricityDeposit(
     onBack: () -> Unit,
     onOpenRecentRooms: () -> Unit,
-    viewModel: ElectricityDepositViewModel = hiltViewModel()
+    onOpenAlertSettings: () -> Unit,
+    viewModel: ElectricityDepositViewModel = hiltViewModel(),
+    initialSelection: RoomSelectionInfo? = null,
+    onInitialSelectionConsumed: () -> Unit = {}
 ) {
     val payState by viewModel.payState.collectAsState()
     val builtInKeyboard by viewModel.builtInKeyboard.collectAsState()
     val selectedController by viewModel.selectedController.collectAsState()
-    val campusList by viewModel.campusList.collectAsState()
     val selectedCampus by viewModel.selectedCampus.collectAsState()
-    val buildingsList by viewModel.buildingsList.collectAsState()
     val selectedBuilding by viewModel.selectedBuilding.collectAsState()
-    val floorsList by viewModel.floorsList.collectAsState()
     val selectedFloor by viewModel.selectedFloor.collectAsState()
-    val roomsList by viewModel.roomsList.collectAsState()
     val selectedRoom by viewModel.selectedRoom.collectAsState()
+    val fullRoomDetails by viewModel.fullRoomDetails.collectAsState()
     val roomInfo by viewModel.roomInfo.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val historyOptions by viewModel.historyOptions.collectAsState()
+    val alertConfiguration by viewModel.alertConfiguration.collectAsState()
     val focusManager = LocalFocusManager.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -82,6 +99,12 @@ fun ElectricityDeposit(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var password by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(initialSelection) {
+        initialSelection?.let {
+            viewModel.restoreRoom(it)
+            onInitialSelectionConsumed()
+        }
+    }
     DisposableEffect(lifecycleOwner) {
         val clearPassword = {
             password = ""
@@ -97,22 +120,6 @@ fun ElectricityDeposit(
             clearPassword()
         }
     }
-    val controllerOptions = remember {
-        ElectricityController.entries.map { AppSelectOption(it, it.displayName) }
-    }
-    val campusOptions = remember(campusList) {
-        campusList.map { AppSelectOption(it, it.name) }
-    }
-    val buildingOptions = remember(buildingsList) {
-        buildingsList.map { AppSelectOption(it, it.name) }
-    }
-    val floorOptions = remember(floorsList) {
-        floorsList.map { AppSelectOption(it, it.name) }
-    }
-    val roomOptions = remember(roomsList) {
-        roomsList.map { AppSelectOption(it, it.name) }
-    }
-
     LaunchedEffect(payState) {
         if (payState is PayState.Succeeded || payState is PayState.Failed) {
             delay(PAYMENT_RESULT_DISPLAY_DURATION_MS)
@@ -122,6 +129,7 @@ fun ElectricityDeposit(
 
     val canPay = (!selectedController.requiresCampus || selectedCampus != null) &&
         selectedBuilding != null && selectedFloor != null && selectedRoom != null &&
+        fullRoomDetails != null &&
         amount.toDoubleOrNull()?.let { it > 0.0 } == true &&
         !isLoading && payState is PayState.Idle
     // 壳（AppPageScaffold）已统一提供内容水平 padding，页面侧补偿归零；阶段④清理页面内容时再删
@@ -148,72 +156,7 @@ fun ElectricityDeposit(
             }
         }
 
-        val loadingSelector = when {
-            !isLoading -> null
-            selectedController.requiresCampus && selectedCampus == null -> ElectricitySelectorLevel.Campus
-            selectedBuilding == null -> ElectricitySelectorLevel.Building
-            selectedFloor == null -> ElectricitySelectorLevel.Floor
-            selectedRoom == null -> ElectricitySelectorLevel.Room
-            else -> ElectricitySelectorLevel.Room
-        }
-        val selectorContent: @Composable ColumnScope.() -> Unit = {
-            AppSelectField(
-                label = "电控入口",
-                selected = selectedController,
-                options = controllerOptions,
-                onSelected = viewModel::onControllerSelected,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading,
-                miuixStandalone = true
-            )
-            if (selectedController.requiresCampus) {
-                ElectricitySelectorField(
-                    label = "校区",
-                    selected = selectedCampus,
-                    options = campusOptions,
-                    onSelected = viewModel::onCampusSelected,
-                    modifier = Modifier,
-                    placeholder = "请选择校区",
-                    enabled = !isLoading,
-                    loading = loadingSelector == ElectricitySelectorLevel.Campus
-                )
-            }
-            ElectricitySelectorField(
-                label = "楼栋",
-                selected = selectedBuilding,
-                options = buildingOptions,
-                onSelected = viewModel::onBuildingSelected,
-                modifier = Modifier,
-                placeholder = if (selectedController.requiresCampus && selectedCampus == null) "请先选择校区" else "请选择楼栋",
-                enabled = (!selectedController.requiresCampus || selectedCampus != null) && !isLoading,
-                loading = loadingSelector == ElectricitySelectorLevel.Building
-            )
-            ElectricitySelectorField(
-                label = "楼层",
-                selected = selectedFloor,
-                options = floorOptions,
-                onSelected = viewModel::onfloorSelected,
-                modifier = Modifier,
-                placeholder = if (selectedBuilding == null) "请先选择楼栋" else "请选择楼层",
-                enabled = selectedBuilding != null && !isLoading,
-                loading = loadingSelector == ElectricitySelectorLevel.Floor
-            )
-            ElectricitySelectorField(
-                label = "房间",
-                selected = selectedRoom,
-                options = roomOptions,
-                onSelected = viewModel::onRoomSelected,
-                modifier = Modifier,
-                placeholder = if (selectedFloor == null) "请先选择楼层" else "请选择房间",
-                enabled = selectedFloor != null && !isLoading,
-                loading = loadingSelector == ElectricitySelectorLevel.Room
-            )
-        }
-        if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = selectorContent)
-        } else {
-            AppSectionCard(content = selectorContent)
-        }
+        ElectricityRoomSelectors(viewModel)
 
         roomInfo?.takeIf(String::isNotBlank)?.let { info ->
             val roomContent: @Composable ColumnScope.() -> Unit = {
@@ -302,6 +245,14 @@ fun ElectricityDeposit(
     AppPageScaffold(
         title = "电控缴费",
         onBack = onBack,
+        actions = listOf(
+            TrailingAction(
+                icon = if (alertConfiguration.enabled) Icons.Outlined.NotificationsActive
+                    else Icons.Outlined.NotificationsNone,
+                contentDescription = "电费预警设置",
+                onClick = onOpenAlertSettings
+            )
+        ),
         modifier = Modifier.fillMaxSize(),
         bottomPadding = 48.dp,
         content = pageContent
@@ -348,51 +299,309 @@ fun ElectricityRecentRooms(
         title = "最近使用的房间",
         onBack = onBack,
         modifier = Modifier.fillMaxSize(),
-        bottomPadding = 48.dp
-    ) {
-        if (historyOptions.isEmpty()) {
-            AppStateCard.Empty(message = "暂无最近使用的房间")
-        } else {
-            historyOptions.forEach { item ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AppButton(
+        bottomPadding = 48.dp,
+        content = {
+            if (historyOptions.isEmpty()) {
+                AppStateCard.Empty(message = "暂无最近使用的房间")
+            } else {
+                historyOptions.forEach { item ->
+                    AppCard(
+                        modifier = Modifier.fillMaxWidth(),
                         onClick = {
                             viewModel.selectHistory(item)
                             onRoomSelected()
-                        },
-                        modifier = Modifier.weight(1f),
-                        variant = AppButtonVariant.Secondary
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(item.label, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                text = listOfNotNull(
-                                    item.selection.campus?.name,
-                                    item.selection.building?.name,
-                                    item.selection.floor?.name
-                                ).joinToString(" · "),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1
-                            )
                         }
-                    }
-                    AppButton(
-                        onClick = { viewModel.deleteHistory(item) },
-                        variant = AppButtonVariant.Destructive
                     ) {
-                        Text("删除")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(item.label, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    text = listOfNotNull(
+                                        item.selection.campus?.name,
+                                        item.selection.building?.name,
+                                        item.selection.floor?.name
+                                    ).joinToString(" · "),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1
+                                )
+                            }
+                            IconButton(onClick = { viewModel.deleteHistory(item) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = "删除 ${item.label}",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+    )
+}
+
+@Composable
+fun ElectricityAlertSettings(
+    onBack: () -> Unit,
+    viewModel: ElectricityDepositViewModel
+) {
+    val configuration by viewModel.alertConfiguration.collectAsState()
+    val selectedController by viewModel.selectedController.collectAsState()
+    val selectedCampus by viewModel.selectedCampus.collectAsState()
+    val selectedBuilding by viewModel.selectedBuilding.collectAsState()
+    val selectedFloor by viewModel.selectedFloor.collectAsState()
+    val selectedRoom by viewModel.selectedRoom.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val currentRoom = if ((!selectedController.requiresCampus || selectedCampus != null) &&
+        selectedBuilding != null && selectedFloor != null && selectedRoom != null
+    ) ElectricityAlertRoom(
+        RoomSelectionInfo(
+            selectedCampus, selectedBuilding, selectedFloor, selectedRoom, selectedController
+        )
+    ) else null
+    val dialogModifier = Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp)
+    var editingRoom by remember { mutableStateOf<ElectricityAlertRoom?>(null) }
+    var threshold by rememberSaveable { mutableStateOf("") }
+    val roomToEdit = editingRoom
+    if (roomToEdit != null) {
+        val thresholdDays = threshold.toIntOrNull()?.takeIf { it in 1..30 }
+        AppDialog(
+            title = "提醒阈值",
+            onDismiss = { editingRoom = null },
+            modifier = dialogModifier,
+            contentScrollable = true,
+            actions = listOf(
+                AppDialogAction("取消", { editingRoom = null }),
+                AppDialogAction(
+                    label = "保存",
+                    onClick = {
+                        thresholdDays?.let { viewModel.updateAlertThreshold(roomToEdit, it) }
+                        editingRoom = null
+                    },
+                    style = AppDialogActionStyle.Primary,
+                    enabled = thresholdDays != null
+                )
+            )
+        ) {
+            Text(roomToEdit.label, style = MaterialTheme.typography.bodyMedium)
+            AppTextField(
+                value = threshold,
+                onValueChange = { input ->
+                    if (input.length <= 2 && input.all(Char::isDigit)) threshold = input
+                },
+                label = "剩余天数（1–30 天）",
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            Text(
+                "预计余额不足以继续使用这些天数时提醒。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+
+    AppPageScaffold(
+        title = "电费预警",
+        onBack = onBack,
+        modifier = Modifier.fillMaxSize(),
+        bottomPadding = 48.dp,
+        content = {
+            AppSectionCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("余额不足提醒", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "登录后检查，每天最多提醒一次",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    AppToggle(
+                        checked = configuration.enabled,
+                        onCheckedChange = viewModel::setAlertEnabled,
+                        contentDescription = "启用电费预警"
+                    )
+                }
+            }
+
+            if (errorMessage != null) {
+                AppStateCard.InlineError(
+                    title = "电控信息加载失败",
+                    message = errorMessage.orEmpty(),
+                    retryLabel = "重新加载",
+                    onRetry = viewModel::retry
+                )
+            }
+            ElectricityRoomSelectors(viewModel)
+
+            val alreadyAdded = currentRoom != null && configuration.rooms.any { it.key == currentRoom.key }
+            AppSectionCard {
+                Text("当前房间", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    currentRoom?.label ?: "尚未选择房间",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                AppButton(
+                    onClick = { viewModel.addCurrentAlertRoom() },
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = AppButtonVariant.Secondary,
+                    enabled = currentRoom != null && !isLoading && !alreadyAdded
+                ) {
+                    Text(if (alreadyAdded) "当前房间已添加" else "添加当前房间")
+                }
+                Text(
+                    "在本页选择房间后添加，可为多个房间分别设置提醒天数。默认 3 天。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (configuration.rooms.isEmpty()) {
+                AppStateCard.Empty(message = "尚未设置预警房间")
+            }
+            configuration.rooms.forEach { room ->
+                AppSectionCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            room.label,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        IconButton(onClick = { viewModel.removeAlertRoom(room) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "移除预警 ${room.label}",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    AppButton(
+                        onClick = {
+                            threshold = room.thresholdDays.toString()
+                            editingRoom = room
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = AppButtonVariant.Secondary
+                    ) {
+                        Text("剩余不足 ${room.thresholdDays} 天时提醒 · 修改")
+                    }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
+    val selectedController by viewModel.selectedController.collectAsState()
+    val campusList by viewModel.campusList.collectAsState()
+    val selectedCampus by viewModel.selectedCampus.collectAsState()
+    val buildingsList by viewModel.buildingsList.collectAsState()
+    val selectedBuilding by viewModel.selectedBuilding.collectAsState()
+    val floorsList by viewModel.floorsList.collectAsState()
+    val selectedFloor by viewModel.selectedFloor.collectAsState()
+    val roomsList by viewModel.roomsList.collectAsState()
+    val selectedRoom by viewModel.selectedRoom.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val controllerOptions = remember {
+        ElectricityController.entries.map { AppSelectOption(it, it.displayName) }
+    }
+    val campusOptions = remember(campusList) {
+        campusList.map { AppSelectOption(it, it.name) }
+    }
+    val buildingOptions = remember(buildingsList) {
+        buildingsList.map { AppSelectOption(it, it.name) }
+    }
+    val floorOptions = remember(floorsList) {
+        floorsList.map { AppSelectOption(it, it.name) }
+    }
+    val roomOptions = remember(roomsList) {
+        roomsList.map { AppSelectOption(it, it.name) }
+    }
+
+    val loadingSelector = when {
+        !isLoading -> null
+        selectedController.requiresCampus && selectedCampus == null -> ElectricitySelectorLevel.Campus
+        selectedBuilding == null -> ElectricitySelectorLevel.Building
+        selectedFloor == null -> ElectricitySelectorLevel.Floor
+        selectedRoom == null -> ElectricitySelectorLevel.Room
+        else -> ElectricitySelectorLevel.Room
+    }
+    val selectorContent: @Composable ColumnScope.() -> Unit = {
+        AppSelectField(
+            label = "电控入口",
+            selected = selectedController,
+            options = controllerOptions,
+            onSelected = viewModel::onControllerSelected,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
+            miuixStandalone = true
+        )
+        if (selectedController.requiresCampus) {
+            ElectricitySelectorField(
+                label = "校区",
+                selected = selectedCampus,
+                options = campusOptions,
+                onSelected = viewModel::onCampusSelected,
+                modifier = Modifier,
+                placeholder = "请选择校区",
+                enabled = !isLoading,
+                loading = loadingSelector == ElectricitySelectorLevel.Campus
+            )
+        }
+        ElectricitySelectorField(
+            label = "楼栋",
+            selected = selectedBuilding,
+            options = buildingOptions,
+            onSelected = viewModel::onBuildingSelected,
+            modifier = Modifier,
+            placeholder = if (selectedController.requiresCampus && selectedCampus == null) "请先选择校区" else "请选择楼栋",
+            enabled = (!selectedController.requiresCampus || selectedCampus != null) && !isLoading,
+            loading = loadingSelector == ElectricitySelectorLevel.Building
+        )
+        ElectricitySelectorField(
+            label = "楼层",
+            selected = selectedFloor,
+            options = floorOptions,
+            onSelected = viewModel::onfloorSelected,
+            modifier = Modifier,
+            placeholder = if (selectedBuilding == null) "请先选择楼栋" else "请选择楼层",
+            enabled = selectedBuilding != null && !isLoading,
+            loading = loadingSelector == ElectricitySelectorLevel.Floor
+        )
+        ElectricitySelectorField(
+            label = "房间",
+            selected = selectedRoom,
+            options = roomOptions,
+            onSelected = viewModel::onRoomSelected,
+            modifier = Modifier,
+            placeholder = if (selectedFloor == null) "请先选择楼层" else "请选择房间",
+            enabled = selectedFloor != null && !isLoading,
+            loading = loadingSelector == ElectricitySelectorLevel.Room
+        )
+    }
+    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = selectorContent)
+    } else {
+        AppSectionCard(content = selectorContent)
     }
 }
 

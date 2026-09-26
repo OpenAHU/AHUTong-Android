@@ -15,12 +15,18 @@ import com.ahu.ahutong.data.dao.AHUCache;
 import com.ahu.ahutong.core.common.AppEnvironmentHolder;
 import com.ahu.ahutong.core.common.UserNoticeHolder;
 import com.ahu.ahutong.data.debug.DebugTimeSourceHolder;
+import com.ahu.ahutong.data.network.AliyunDns;
+import com.ahu.ahutong.data.network.AppImageLoaderFactory;
 import com.ahu.ahutong.data.xuexiaotong.Store;
 import com.ahu.ahutong.reminder.ReminderScheduler;
 import com.ahu.ahutong.notification.CourseReminderScheduler;
 
 
 import java.util.HashSet;
+import java.io.File;
+
+import coil.ImageLoader;
+import coil.ImageLoaderFactory;
 
 import dagger.hilt.android.HiltAndroidApp;
 
@@ -30,12 +36,13 @@ import dagger.hilt.android.HiltAndroidApp;
  */
 
 @HiltAndroidApp
-public class AHUApplication extends Application {
+public class AHUApplication extends Application implements ImageLoaderFactory {
     private static final String TAG = "AHUApplication";
 
     @Override
     public void onCreate() {
         super.onCreate();
+        AliyunDns.INSTANCE.initializeCache(new File(getCacheDir(), "aliyun-doh"));
 
         // 应用级环境的安装点：必须早于任何用到 Context 的非 UI 代码
         // （MMKV 初始化、SecureStorage、Cookie 持久化都依赖它）。
@@ -84,6 +91,11 @@ public class AHUApplication extends Application {
             };
             // todo add privacy related options
         }
+    }
+
+    @Override
+    public ImageLoader newImageLoader() {
+        return AppImageLoaderFactory.create(this);
     }
 
 

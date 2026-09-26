@@ -9,6 +9,10 @@ import com.ahu.ahutong.data.recharge.NetworkRechargeSource
 import com.ahu.ahutong.data.adapter.RepositoryNetworkRechargeSource
 import com.ahu.ahutong.data.adapter.RepositoryElectricityDepositSource
 import com.ahu.ahutong.data.recharge.ElectricityDepositSource
+import com.ahu.ahutong.data.recharge.ElectricityUsageSource
+import com.ahu.ahutong.data.adapter.RepositoryElectricityUsageSource
+import com.ahu.ahutong.core.storage.ElectricityAlertSettings
+import com.ahu.ahutong.electricity.LocalElectricityAlertStore
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -26,6 +30,14 @@ import kotlinx.coroutines.Dispatchers
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RechargeWiringModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindElectricityAlertSettings(implementation: LocalElectricityAlertStore): ElectricityAlertSettings
+
+    @Binds
+    @Singleton
+    abstract fun bindElectricityUsageSource(implementation: RepositoryElectricityUsageSource): ElectricityUsageSource
 
     @Binds
     @Singleton

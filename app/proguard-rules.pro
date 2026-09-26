@@ -47,6 +47,9 @@
 # These models are deserialized both from the native bridge and from local Gson caches. Field-only
 # rules do not prevent vertical class merging, which is unsafe for reflection-based construction.
 -keep class com.ahu.ahutong.data.model.** { *; }
+# The automatic electricity query/prompt dates must survive R8 and app upgrades as stable JSON.
+-keep class com.ahu.ahutong.electricity.ElectricityAlertMarker { *; }
+-keep class com.ahu.ahutong.electricity.ElectricityRoomForecast { *; }
 -keep class com.ahu.ahutong.ui.screen.main.ElectricityDepositKt { *; }
 -keep class com.ahu.ahutong.ui.screen.main.home.ElectricityPaymentKt { *; }
 -keep class com.ahu.ahutong.data.dao.AHUCache { *; }

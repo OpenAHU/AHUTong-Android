@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.core.common.toUserMessage
 import com.ahu.ahutong.core.storage.PaymentKeyboardSetting
+import com.ahu.ahutong.core.storage.ElectricityAlertSettings
 import com.ahu.ahutong.data.crawler.PayState
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,8 @@ import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityController
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
+import com.ahu.ahutong.data.model.ElectricityAlertConfiguration
+import com.ahu.ahutong.data.model.ElectricityAlertRoom
 import com.ahu.ahutong.data.model.RoomSelectionInfo
 import com.ahu.ahutong.data.recharge.ElectricityDepositSource
 import com.ahu.ahutong.data.recharge.ElectricityOptionLevel
@@ -50,13 +53,46 @@ class ElectricityDepositViewModel @Inject constructor(
     private val source: ElectricityDepositSource,
     private val behavior: BehaviorRecorder,
     private val presets: PresetSuggestions,
-    settings: PaymentKeyboardSetting
+    settings: PaymentKeyboardSetting,
+    private val alertSettings: ElectricityAlertSettings
 ) : ViewModel() {
 
     /** 支付密码键盘：null 表示设置还没读出来（界面此时不渲染对话框，与迁移前一致）。 */
     val builtInKeyboard: StateFlow<Boolean?> = settings.useBuiltInSecurePasswordKeyboard
         .map { it as Boolean? }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val alertConfiguration: StateFlow<ElectricityAlertConfiguration> = alertSettings.configuration
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ElectricityAlertConfiguration())
+
+    fun setAlertEnabled(enabled: Boolean) = saveAlertSetting { alertSettings.setEnabled(enabled) }
+
+    fun addCurrentAlertRoom(thresholdDays: Int = 3) {
+        val selection = currentSelection()
+        if (!isCompleteSelection(selection) || thresholdDays !in 1..30) return
+        val room = ElectricityAlertRoom(selection, thresholdDays)
+        // 再次加入同一房间不覆盖已经设置的阈值。
+        if (alertConfiguration.value.rooms.any { it.key == room.key }) return
+        saveAlertSetting { alertSettings.saveRoom(room) }
+    }
+
+    fun updateAlertThreshold(room: ElectricityAlertRoom, thresholdDays: Int) {
+        if (thresholdDays !in 1..30) return
+        saveAlertSetting { alertSettings.saveRoom(room.copy(thresholdDays = thresholdDays)) }
+    }
+
+    fun removeAlertRoom(room: ElectricityAlertRoom) =
+        saveAlertSetting { alertSettings.removeRoom(room.key) }
+
+    private fun saveAlertSetting(save: suspend () -> Unit) = viewModelScope.launch {
+        try {
+            save()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _errorMessage.value = "保存电费预警设置失败，请重试"
+        }
+    }
 
     var _payState = MutableStateFlow<PayState>(PayState.Idle)
     val payState : StateFlow<PayState> = _payState
@@ -119,8 +155,9 @@ class ElectricityDepositViewModel @Inject constructor(
 
     init {
         val history = source.depositHistory()
-            .filter(ElectricityDepositHistoryItem::confirmedByPayment)
+            .filter { isCompleteSelection(it.selection) }
             .sortedByDescending(ElectricityDepositHistoryItem::updatedAt)
+            .distinctBy { selectionKey(it.selection) }
             .take(MAX_ROOM_HISTORY)
         _historyOptions.value = history
         val lastSelection = source.roomSelection()
@@ -145,6 +182,9 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private fun loadAndRestoreSelection(selection: RoomSelectionInfo, commitPresetOnRoomRequest: Boolean = false) {
         selectionLoadJob?.cancel()
+        // 切换后必须重新取得当前房间详情，查询失败时不能沿用上一房间的支付参数。
+        _fullRoomDetails.value = null
+        _roomInfo.value = null
         selectionLoadJob = viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
@@ -217,6 +257,10 @@ class ElectricityDepositViewModel @Inject constructor(
 
     fun selectHistory(item: ElectricityDepositHistoryItem) {
         loadAndRestoreSelection(item.selection)
+    }
+
+    fun restoreRoom(selection: RoomSelectionInfo) {
+        if (isCompleteSelection(selection)) loadAndRestoreSelection(selection)
     }
 
     fun deleteHistory(item: ElectricityDepositHistoryItem) {
@@ -662,7 +706,6 @@ class ElectricityDepositViewModel @Inject constructor(
         if (!isCompleteSelection(selection)) return
 
         source.saveRoomSelection(selection)
-        if (!confirmedByPayment) return
         val roomLabel = normalizeLabel(
             _fullRoomDetails.value?.details?.roomName ?: selection.room?.name.orEmpty()
         )
@@ -670,13 +713,14 @@ class ElectricityDepositViewModel @Inject constructor(
         val controller = selection.controller ?: ElectricityController.C
         val label = "${controller.displayName} · $roomLabel"
 
+        val key = selectionKey(selection)
+        val previous = _historyOptions.value.firstOrNull { selectionKey(it.selection) == key }
         val item = ElectricityDepositHistoryItem(
             selection = selection,
             label = label,
             updatedAt = System.currentTimeMillis(),
-            confirmedByPayment = true
+            confirmedByPayment = confirmedByPayment || previous?.confirmedByPayment == true
         )
-        val key = selectionKey(selection)
         val updatedHistory = (listOf(item) + _historyOptions.value.filter {
             selectionKey(it.selection) != key
         }).take(MAX_ROOM_HISTORY)

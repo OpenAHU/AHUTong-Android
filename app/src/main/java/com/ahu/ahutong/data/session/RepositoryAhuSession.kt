@@ -82,13 +82,14 @@ class RepositoryAhuSession(
                 }
             }
         } else {
+            // failureKindOf 和 commitIfCurrent 共用非可重入锁，先读取失败类型再提交状态。
+            val rejected = SessionRefreshCoordinator.failureKindOf(observedGeneration) ==
+                SessionRefreshCoordinator.FailureKind.REJECTED
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
                 // 手动登录可能已经推进代号；旧失败无权覆盖那个新会话。
                 // 只有凭据被明确拒绝（REJECTED）才宣告过期、触发重新登录引导；
                 // 瞬时失败（网络抖动/超时）保持静默——冷却窗外下个请求会自动再试，
                 // 这是 0492acc 之前旧实现的自愈体验，不该退化成「抖一下就逼用户重登」。
-                val rejected = SessionRefreshCoordinator.failureKindOf(observedGeneration) ==
-                    SessionRefreshCoordinator.FailureKind.REJECTED
                 if (rejected && AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
                     AhuSessionState.markExpired()
                 }

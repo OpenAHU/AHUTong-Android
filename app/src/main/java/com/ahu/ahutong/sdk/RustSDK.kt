@@ -7,6 +7,7 @@ import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.model.Card
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.User
+import com.ahu.ahutong.data.network.AhuHttp
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import androidx.annotation.Keep
@@ -30,6 +31,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlin.system.exitProcess
 import org.conscrypt.Conscrypt
+import okhttp3.Request
 import java.security.Security
 
 
@@ -50,6 +52,17 @@ object RustSDK {
     private val SHA256_HEX_REGEX = Regex("^[0-9a-fA-F]{64}$")
     private var isLoaded = false
     private val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+    private val updateConfigClient by lazy {
+        AhuHttp.plain(
+            connectTimeoutSeconds = 5,
+            readTimeoutSeconds = 5,
+            followRedirects = false,
+            followSslRedirects = false
+        ).build()
+    }
+    private val calendarClient by lazy {
+        AhuHttp.plain(followRedirects = false, followSslRedirects = false).build()
+    }
 
     init {
         // Keep Conscrypt as well
@@ -180,66 +193,32 @@ object RustSDK {
                 // 2) 发起网络请求（带完整日志）
                 val startMs = System.currentTimeMillis()
                 val jsonStr: String = try {
-                    val url = URL(configUrl)
-                    val conn = (url.openConnection() as javax.net.ssl.HttpsURLConnection).apply {
-
-                        instanceFollowRedirects = false
-                        connectTimeout = 5000
-                        readTimeout = 5000
-                        requestMethod = "GET"
-                        useCaches = false
-
-                        // 建议加上这些头，很多网关/防火墙对“空 UA”会更敏感
-                        setRequestProperty("User-Agent", "RustSdkHotUpdate/1.0 (Android)")
-                        setRequestProperty("Accept", "application/json")
-                        setRequestProperty("Connection", "close")
-
-                    }
-
-                    // 触发真正连接/请求
-                    val code = conn.responseCode
-                    val finalUrl = runCatching { conn.url?.toString() }.getOrNull()
-
-                    val headers = buildString {
-                        for ((k, v) in conn.headerFields) {
-                            if (k == null) continue
-                            append(k).append(": ").append(v?.joinToString(";") ?: "").append("\n")
-                        }
-                    }
-
-                    val stream =
-                        if (code in 200..299) conn.inputStream
-                        else conn.errorStream
-
-                    val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-                        ?: ""
-
-                    val cost = System.currentTimeMillis() - startMs
-                    Log.i(
-                        TAG_HOTUPDATE,
-                        "checkUpdate http done. code=$code cost=${cost}ms " +
-                                "originUrl=$configUrl finalUrl=$finalUrl " +
-                                "contentLength=${conn.contentLengthLong} " +
-                                "contentType=${conn.contentType}"
-                    )
-                    Log.d(TAG_HOTUPDATE, "checkUpdate response headers received (values suppressed)")
-
-                    // 只打印前 400 字符，避免日志爆炸
-                    Log.d(
-                        TAG_HOTUPDATE,
-                        "checkUpdate response body (first 400 chars): ${body.take(400)}"
-                    )
-
-                    if (code !in 200..299) {
-                        // 非 2xx 直接认为失败（避免后面 Gson 解析异常掩盖真实问题）
-                        Log.w(
+                    val request = Request.Builder()
+                        .url(configUrl)
+                        .header("User-Agent", "RustSdkHotUpdate/1.0 (Android)")
+                        .header("Accept", "application/json")
+                        .header("Connection", "close")
+                        .build()
+                    updateConfigClient.newCall(request).execute().use { response ->
+                        val code = response.code
+                        val contentLength = response.body.contentLength()
+                        val body = response.body.string()
+                        val cost = System.currentTimeMillis() - startMs
+                        Log.i(
                             TAG_HOTUPDATE,
-                            "checkUpdate non-2xx response. code=$code, body(first200)=${body.take(200)}"
+                            "checkUpdate http done. code=$code cost=${cost}ms " +
+                                    "originUrl=$configUrl finalUrl=${response.request.url} " +
+                                    "contentLength=$contentLength " +
+                                    "contentType=${response.header("Content-Type")}"
                         )
-                        return@launch
+                        Log.d(TAG_HOTUPDATE, "checkUpdate response headers received (values suppressed)")
+                        Log.d(TAG_HOTUPDATE, "checkUpdate response body (first 400 chars): ${body.take(400)}")
+                        if (!response.isSuccessful) {
+                            Log.w(TAG_HOTUPDATE, "checkUpdate non-2xx response. code=$code, body(first200)=${body.take(200)}")
+                            return@launch
+                        }
+                        body
                     }
-
-                    body
                 } catch (e: Exception) {
                     val cost = System.currentTimeMillis() - startMs
                     // 这里用带堆栈的日志，定位 Connection reset / handshake / dns 会更清楚
@@ -591,37 +570,33 @@ object RustSDK {
         val tempFile = File(saveFile.parentFile, "${saveFile.name}.part")
         return try {
             tempFile.delete()
-            val conn = URL(urlStr).openConnection() as javax.net.ssl.HttpsURLConnection
-            conn.connectTimeout = 10_000
-            conn.readTimeout = 10_000
-            conn.useCaches = false
-            conn.instanceFollowRedirects = false
-            val status = conn.responseCode
-            require(status in 200..299) { "Calendar download returned HTTP $status" }
-            require(conn.contentType?.substringBefore(';')?.startsWith("image/") == true) {
-                "Calendar download returned a non-image response"
-            }
-            val totalBytes = conn.contentLengthLong
-            var downloadedBytes = 0
-            
-            conn.getInputStream().use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    val buffer = ByteArray(8 * 1024)
-                    var bytes = input.read(buffer)
-                    while (bytes >= 0) {
-                        output.write(buffer, 0, bytes)
-                        downloadedBytes += bytes
-                        if (totalBytes > 0) {
-                            onProgress(downloadedBytes.toFloat() / totalBytes)
-                        }
-                        bytes = input.read(buffer)
-                    }
-                    output.fd.sync()
+            val request = Request.Builder().url(urlStr).build()
+            calendarClient.newCall(request).execute().use { response ->
+                require(response.isSuccessful) { "Calendar download returned HTTP ${response.code}" }
+                require(response.header("Content-Type")?.substringBefore(';')?.startsWith("image/") == true) {
+                    "Calendar download returned a non-image response"
                 }
-            }
-            require(downloadedBytes > 0) { "Calendar image is empty" }
-            require(totalBytes <= 0 || downloadedBytes.toLong() == totalBytes) {
-                "Calendar image is incomplete"
+                val totalBytes = response.body.contentLength()
+                var downloadedBytes = 0L
+                response.body.byteStream().use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        val buffer = ByteArray(8 * 1024)
+                        var bytes = input.read(buffer)
+                        while (bytes >= 0) {
+                            output.write(buffer, 0, bytes)
+                            downloadedBytes += bytes
+                            if (totalBytes > 0) {
+                                onProgress(downloadedBytes.toFloat() / totalBytes)
+                            }
+                            bytes = input.read(buffer)
+                        }
+                        output.fd.sync()
+                    }
+                }
+                require(downloadedBytes > 0) { "Calendar image is empty" }
+                require(totalBytes <= 0 || downloadedBytes == totalBytes) {
+                    "Calendar image is incomplete"
+                }
             }
             require(isValidCalendarImage(tempFile)) { "Calendar response cannot be decoded" }
             try {

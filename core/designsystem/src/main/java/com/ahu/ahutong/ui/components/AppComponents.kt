@@ -102,6 +102,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -117,6 +118,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -1248,6 +1250,19 @@ internal fun <T> MiuixSelectFieldImpl(
     insideMargin: PaddingValues = PaddingValues(16.dp),
     standalone: Boolean = false
 ) {
+    // Miuix 0.7.2 sends menus to the Activity host, while a Compose Dialog has its own window.
+    // Use a window-owned menu here so both the anchor coordinates and z-order follow the dialog.
+    if (LocalView.current.parent is DialogWindowProvider) {
+        MaterialSelectFieldImpl(
+            label = label,
+            selected = selected,
+            options = options,
+            onSelected = onSelected,
+            modifier = modifier,
+            enabled = enabled
+        )
+        return
+    }
     val selectedIndex = remember(options, selected) {
         options.indexOfFirst { it.value == selected }
     }

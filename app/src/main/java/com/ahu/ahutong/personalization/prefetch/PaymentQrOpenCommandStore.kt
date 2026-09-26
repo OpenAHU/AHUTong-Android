@@ -24,6 +24,9 @@ data class PaymentQrOpenCommand(
 
 @Singleton
 class PaymentQrOpenCommandStore @Inject constructor() {
+    private val _visible = MutableStateFlow(false)
+    val visible: StateFlow<Boolean> = _visible.asStateFlow()
+    fun setVisible(visible: Boolean) { _visible.value = visible }
     private val _command = MutableStateFlow<PaymentQrOpenCommand?>(null)
     val command: StateFlow<PaymentQrOpenCommand?> = _command.asStateFlow()
     private var activeProfileGeneration: Long = 0L

@@ -22,6 +22,7 @@ class FakeElectricityDepositSource(
 
     val optionQueries = mutableListOf<ElectricityOptionQuery>()
     val payments = mutableListOf<ElectricityPayment>()
+    val roomQueries = mutableListOf<Pair<ElectricityController, RoomSelectionInfo>>()
     private var history = emptyList<ElectricityDepositHistoryItem>()
     private var chargeInfo: ElectricityChargeInfo? = null
 
@@ -33,7 +34,10 @@ class FakeElectricityDepositSource(
     override suspend fun room(
         controller: ElectricityController,
         selection: RoomSelectionInfo
-    ): AhuResult<ElectricityRoom> = roomResult
+    ): AhuResult<ElectricityRoom> {
+        roomQueries += controller to selection
+        return roomResult
+    }
 
     override suspend fun pay(payment: ElectricityPayment): AhuResult<RechargeReceipt> {
         payments += payment

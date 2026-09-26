@@ -111,6 +111,11 @@ fun CampusCard(
     var isQrcode by remember { mutableStateOf(false) }
     val paymentQrCommand by paymentQrCommands.command.collectAsState()
 
+    DisposableEffect(isHomeActive, isQrcode) {
+        paymentQrCommands.setVisible(isHomeActive && isQrcode)
+        onDispose { paymentQrCommands.setVisible(false) }
+    }
+
     PaymentQrNfcGuard(
         isHomeActive = isHomeActive,
         isPaymentQrVisible = isQrcode

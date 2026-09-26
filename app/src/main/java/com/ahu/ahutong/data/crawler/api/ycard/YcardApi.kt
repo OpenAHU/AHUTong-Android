@@ -87,6 +87,21 @@ interface YcardApi {
     @POST("/charge/feeitem/getThirdData")
     suspend fun getFeeItemThirdData(@Body body: RequestBody): Response<ResponseBody>
 
+    @Headers("Referer: https://ycard.ahu.edu.cn/charge-app/")
+    @GET("/charge/feeitem/getRechargeRecord")
+    suspend fun getElectricityUsageHistory(
+        @Query("feeitemid") feeItemId: String,
+        @Query("building") building: String,
+        @Query("floor") floor: String,
+        @Query("room") room: String,
+        @Query("campus") campus: String?,
+        @Query("startdate") startDate: String,
+        @Query("enddate") endDate: String,
+        @Query("page") page: Int,
+        @Query("row") rows: Int,
+        @Query("rtype") recordType: String = "dayEnergy"
+    ): Response<ResponseBody>
+
     @Headers(
         "Referer: https://ycard.ahu.edu.cn/charge-app/",
         "Origin: https://ycard.ahu.edu.cn"

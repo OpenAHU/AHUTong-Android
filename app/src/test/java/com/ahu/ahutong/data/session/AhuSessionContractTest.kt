@@ -11,6 +11,7 @@ import com.ahu.ahutong.testing.FakeSessionAccount
 import com.ahu.ahutong.testing.FakeSessionResidue
 import com.ahu.ahutong.testing.FakeSessionSignIn
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -124,7 +125,9 @@ class AhuSessionContractTest {
         )
         AhuSessionState.markAuthenticated()
 
-        val refreshed = subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        val refreshed = withTimeout(5_000) {
+            subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        }
 
         assertFalse(refreshed)
         assertTrue(login.calls.isEmpty())
@@ -176,7 +179,9 @@ class AhuSessionContractTest {
         )
         AhuSessionState.markAuthenticated()
 
-        val refreshed = subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        val refreshed = withTimeout(5_000) {
+            subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        }
 
         assertFalse(refreshed)
         assertEquals(AhuSessionState.Status.Expired, subject.state.value)
@@ -191,7 +196,9 @@ class AhuSessionContractTest {
         )
         AhuSessionState.markAuthenticated()
 
-        val refreshed = subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        val refreshed = withTimeout(5_000) {
+            subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        }
 
         assertFalse(refreshed)
         // 网络抖动不该弹重新登录：保持已认证，冷却窗外下个请求会自愈
@@ -208,7 +215,9 @@ class AhuSessionContractTest {
             residue = residue
         )
 
-        subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        withTimeout(5_000) {
+            subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
+        }
 
         // 续期没成功就什么都不该清：清了令牌等于把可用的凭据也一起丢了。
         assertEquals(0, residue.clearDerivedTokenCount)

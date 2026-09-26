@@ -38,6 +38,7 @@ android {
 dependencies {
     // okhttp 原先只经 retrofit 传递而来；显式声明，避免传递依赖变化时静默失去编译期可见性。
     implementation(libs.okhttp)
+    implementation(libs.dnsoverhttps)
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.logging.interceptor)
@@ -45,4 +46,5 @@ dependencies {
 
     // SessionRefreshPolicy 是模块内部的策略，测试跟着策略走（:app 看不到 internal）。
     testImplementation(kotlin("test-junit"))
+    testImplementation(libs.mockwebserver)
 }

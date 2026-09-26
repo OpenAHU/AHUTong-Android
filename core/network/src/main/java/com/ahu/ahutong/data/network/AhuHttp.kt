@@ -23,6 +23,7 @@ object AhuHttp {
         followRedirects: Boolean = true,
         followSslRedirects: Boolean = true
     ): OkHttpClient.Builder = OkHttpClient.Builder()
+        .dns(AliyunDns)
         .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
         .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
         .writeTimeout(writeTimeoutSeconds, TimeUnit.SECONDS)

@@ -44,6 +44,15 @@ class AppActionCatalogTest {
     }
 
     @Test
+    fun electricityAlertSettingsRouteHasCatalogMapping() {
+        assertTrue("electricity_alert_settings" in AppActionCatalog.navigationRouteManifest)
+        assertEquals(
+            AppActionId.OPEN_ELECTRICITY_PAYMENT,
+            AppActionCatalog.actionForRoute("electricity_alert_settings")
+        )
+    }
+
+    @Test
     fun outputSchemaHasReservedClassesAtEnd() {
         assertEquals(AppActionCatalog.OTHER_OUTPUT_ID, AppActionCatalog.outputIds.takeLast(2).first())
         assertEquals(AppActionCatalog.NONE_OUTPUT_ID, AppActionCatalog.outputIds.last())

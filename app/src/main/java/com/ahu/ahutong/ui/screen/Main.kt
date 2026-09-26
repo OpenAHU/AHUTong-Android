@@ -53,6 +53,7 @@ import com.ahu.ahutong.ui.screen.main.Billing
 import com.ahu.ahutong.ui.screen.main.BillingStats
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.ElectricityDeposit
+import com.ahu.ahutong.ui.screen.main.ElectricityAlertSettings
 import com.ahu.ahutong.ui.screen.main.ElectricityRecentRooms
 import com.ahu.ahutong.ui.screen.main.Evaluation
 import com.ahu.ahutong.ui.screen.main.Exam
@@ -99,6 +100,7 @@ import com.ahu.ahutong.ui.components.captureLiquidGlassContent
 import com.ahu.ahutong.ui.state.AboutViewModel
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
+import com.ahu.ahutong.ui.state.ElectricityAlertViewModel
 import com.ahu.ahutong.ui.state.LoginViewModel
 import com.ahu.ahutong.ui.state.MainViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
@@ -152,6 +154,8 @@ fun Main(
     isReLoginShown: Boolean,
     onReLoginDismiss: () -> Unit
 ) {
+    val electricityAlertViewModel: ElectricityAlertViewModel = hiltViewModel()
+    val electricityRechargeSelection by electricityAlertViewModel.rechargeSelection.collectAsState()
     val academicType by com.ahu.ahutong.data.dao.AHUCache.academicTypeUpdates().collectAsState()
     val undergraduateEnabled = academicType != com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE ||
         com.ahu.ahutong.data.dao.AHUCache.getMockData()
@@ -524,7 +528,19 @@ fun Main(
             animatedComposable("electricity_pay") {
                 ElectricityDeposit(
                     onBack = { navController.popBackStack() },
-                    onOpenRecentRooms = { navController.navigate("electricity_recent_rooms") }
+                    onOpenRecentRooms = { navController.navigate("electricity_recent_rooms") },
+                    onOpenAlertSettings = { navController.navigate("electricity_alert_settings") },
+                    initialSelection = electricityRechargeSelection,
+                    onInitialSelectionConsumed = electricityAlertViewModel::selectionConsumed
+                )
+            }
+
+            animatedComposable("electricity_alert_settings") {
+                // Scope the selector to this entry; configuring alerts must not change the pay page.
+                val settingsViewModel: ElectricityDepositViewModel = hiltViewModel()
+                ElectricityAlertSettings(
+                    onBack = { navController.popBackStack() },
+                    viewModel = settingsViewModel
                 )
             }
 
@@ -603,7 +619,7 @@ fun Main(
         val productUiBlocked = effectiveRoute == "login" || effectiveRoute == "setup" ||
             effectiveRoute == "splash" || effectiveRoute?.contains("deposit") == true ||
             effectiveRoute?.contains("recharge") == true ||
-            effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms") ||
+            effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
             isReLoginShown || suggestionOverlayBlocked || imeVisible
         SmartSuggestionHost(
             runtime = behaviorRuntime,
@@ -638,6 +654,13 @@ fun Main(
         with(diagnosticsContribution) {
             Overlay(navController, behaviorRuntime, productUiBlocked)
         }
+        ElectricityAlertHost(
+            navController = navController,
+            route = currentRoute,
+            loginState = loginViewModel.state,
+            paymentQrCommands = paymentQrCommands,
+            viewModel = electricityAlertViewModel
+        )
         if (isReLoginShown) {
             AppDialogSurface(
                 onDismissRequest = { onReLoginDismiss() },
