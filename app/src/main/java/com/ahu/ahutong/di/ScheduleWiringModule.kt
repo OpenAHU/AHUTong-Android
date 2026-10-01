@@ -2,6 +2,8 @@ package com.ahu.ahutong.di
 
 import com.ahu.ahutong.data.schedule.ScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
+import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import com.ahu.ahutong.data.calendar.RepositoryScheduleHolidaySource
 import com.ahu.ahutong.ui.state.CacheScheduleReadModel
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.ui.state.RepositoryScheduleSource
@@ -24,6 +26,12 @@ abstract class ScheduleWiringModule {
     @Binds
     @Singleton
     abstract fun bindScheduleSource(implementation: RepositoryScheduleSource): ScheduleSource
+
+    @Binds
+    @Singleton
+    abstract fun bindScheduleHolidaySource(
+        implementation: RepositoryScheduleHolidaySource
+    ): ScheduleHolidaySource
 
     @Binds
     @Singleton

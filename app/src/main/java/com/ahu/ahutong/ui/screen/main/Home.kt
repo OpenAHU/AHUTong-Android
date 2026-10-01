@@ -122,6 +122,16 @@ fun Home(
     val density = LocalDensity.current
     val schedule = scheduleViewModel.schedule.observeAsState().value?.valueOrNull() ?: emptyList()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
+    val holidays by scheduleViewModel.scheduleHolidays.observeAsState(emptyMap())
+    var today by remember { mutableStateOf(DebugClock.nowLocalDate()) }
+    LaunchedEffect(isActive, today) {
+        if (isActive) {
+            while (true) {
+                scheduleViewModel.loadHolidaysForDates(setOf(today, today.plusDays(1)))
+                delay(5 * 60_000L)
+            }
+        }
+    }
     val localScheduleConfig by produceState<ScheduleConfigBean?>(
         initialValue = null,
         key1 = scheduleConfig
@@ -338,6 +348,7 @@ fun Home(
     LaunchedEffect(Unit) {
         while (true) {
             val now = withContext(Dispatchers.IO) { DebugClock.nowDate() }
+            today = now.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()
             val calendar = Calendar.getInstance(Locale.CHINA).apply { time = now }
             currentDateText = withContext(Dispatchers.Default) {
                 SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(now)
@@ -431,6 +442,7 @@ fun Home(
                 onOpenSchedule = onOpenSchedule,
                 isInSemester = isInSemester,
                 enabled = !isEditingHome,
+                holiday = holidays[today],
                 trailingContent = trailingContent
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -469,7 +481,8 @@ fun Home(
                     todayCourses = stripCourses.first,
                     currentMinutes = currentMinutes,
                     onOpenSchedule = onOpenSchedule,
-                    isTomorrow = stripCourses.second
+                    isTomorrow = stripCourses.second,
+                    holiday = holidays[if (stripCourses.second) today.plusDays(1) else today]
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))

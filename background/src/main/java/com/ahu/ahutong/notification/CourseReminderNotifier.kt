@@ -11,6 +11,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.TaskStackBuilder
 import com.ahu.ahutong.background.launchIntent
+import com.ahu.ahutong.background.backgroundCourseDate
+import com.ahu.ahutong.background.backgroundHolidayForDate
+import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
 import com.ahu.ahutong.notification.model.CourseReminderPayload
 
 object CourseReminderNotifier {
@@ -20,14 +23,18 @@ object CourseReminderNotifier {
     ): Boolean {
         if (!canPostNotifications(context)) return false
 
+        val holidayNotice = backgroundCourseDate(payload.courseStartAtMillis)
+            ?.let { backgroundHolidayForDate(context, it) }
+            ?.let(::scheduleHolidayNotice)
+
         if (CourseReminderCapability.shouldTryLiveCountdown(context, payload)) {
-            val shown = CourseLiveUpdateHelper.showLiveUpdate(context, payload)
+            val shown = CourseLiveUpdateHelper.showLiveUpdate(context, payload, holidayNotice)
             if (shown) return true
         }
 
         CourseLiveUpdateHelper.cancel(context)
         CourseLiveUpdateHelper.cancelScheduledUpdate(context)
-        showStandardReminder(context, payload)
+        showStandardReminder(context, payload, holidayNotice)
         return false
     }
 
@@ -38,7 +45,8 @@ object CourseReminderNotifier {
 
     private fun showStandardReminder(
         context: Context,
-        payload: CourseReminderPayload
+        payload: CourseReminderPayload,
+        holidayNotice: String?
     ) {
         CourseReminderScheduler.createNotificationChannel(context)
 
@@ -54,11 +62,12 @@ object CourseReminderNotifier {
             }
         }
 
+        val displayText = withCourseHolidayNotice(contentText, holidayNotice)
         val notification = NotificationCompat.Builder(context, CourseReminderScheduler.CHANNEL_ID)
             .setSmallIcon(context.applicationInfo.icon)
             .setContentTitle(payload.courseName)
-            .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setContentText(displayText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(displayText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

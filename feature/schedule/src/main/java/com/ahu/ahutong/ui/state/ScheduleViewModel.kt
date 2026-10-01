@@ -13,6 +13,10 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.schedule.ConfigSource
 import com.ahu.ahutong.data.schedule.ScheduleSource
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import com.ahu.ahutong.data.schedule.scheduleHolidayYears
+import com.ahu.ahutong.data.schedule.scheduleWeekDates
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.data.session.SessionIdentity
 import com.ahu.ahutong.ext.launchSafe
@@ -20,6 +24,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,8 +34,8 @@ import kotlinx.coroutines.withContext
 /**
  * 课表页的状态。
  *
- * 四个协作方都是接口：课表数据（[ScheduleSource]）、学期与周次（[ScheduleWeekConfig]）、
- * 登录态（[SessionIdentity]）与提醒重算（[CourseReminderControl]）。
+ * 协作方都是接口：课表数据（[ScheduleSource]）、学期与周次（[ScheduleWeekConfig]）、
+ * 登录态（[SessionIdentity]）、提醒重算（[CourseReminderControl]）与国家放假安排（[ScheduleHolidaySource]）。
  * 协议、缓存键、提醒调度与登录态存储因此都不在这个类里——它们由 :app 的适配器接上。
  */
 @HiltViewModel
@@ -37,7 +43,8 @@ class ScheduleViewModel @Inject constructor(
     private val scheduleSource: ScheduleSource,
     private val weekConfig: ScheduleWeekConfig,
     private val session: SessionIdentity,
-    private val reminders: CourseReminderControl
+    private val reminders: CourseReminderControl,
+    private val holidaySource: ScheduleHolidaySource
 ) : ViewModel() {
 
     val TAG = "ScheduleViewModel"
@@ -58,6 +65,27 @@ class ScheduleViewModel @Inject constructor(
     /** 最近一次后台刷新失败的原因；界面只判断有没有失败（文案由界面自己写，见 ADR 0001 规则 3）。 */
     val scheduleRefreshError = MutableLiveData<AhuError?>(null)
     private var backgroundRefreshJob: Job? = null
+    val scheduleHolidays = MutableLiveData<Map<LocalDate, ScheduleHoliday>>(emptyMap())
+    private var holidayStartDate: LocalDate? = null
+
+    init {
+        viewModelScope.launchSafe {
+            holidaySource.holidays.collect { scheduleHolidays.value = it }
+        }
+    }
+
+    fun loadHolidays(startDate: LocalDate?, refresh: Boolean = false) {
+        holidayStartDate = startDate
+        if (startDate != null) loadHolidaysForDates(scheduleWeekDates(startDate).flatten().toSet(), refresh)
+    }
+
+    fun loadHolidaysForDates(dates: Set<LocalDate>, refresh: Boolean = false) {
+        if (dates.isEmpty()) return
+        viewModelScope.launchSafe {
+            // 所有界面订阅同一在线状态；失败、断网与过期时由数据源统一撤销标注。
+            holidaySource.load(scheduleHolidayYears(listOf(dates.toList())), refresh)
+        }
+    }
 
     // 更新周
     fun changeWeek(week: Int) {
@@ -71,6 +99,12 @@ class ScheduleViewModel @Inject constructor(
      */
     fun refreshSchedule(isRefresh: Boolean = false) {
         if (isRefresh) {
+            val start = holidayStartDate ?: scheduleConfig.value?.startTime
+                ?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+            val today = DebugClock.nowLocalDate()
+            val dates = start?.let { scheduleWeekDates(it).flatten().toSet() }.orEmpty() +
+                setOf(today, today.plusDays(1))
+            loadHolidaysForDates(dates, refresh = true)
             refreshLatestSchedule()
             return
         }
@@ -208,6 +242,8 @@ class ScheduleViewModel @Inject constructor(
 
     fun clear() {
         backgroundRefreshJob?.cancel()
+        holidayStartDate = null
+        scheduleHolidays.value = emptyMap()
         schedule.value = AhuResult.Success(emptyList())
         scheduleConfig.value = null
         scheduleFetchedAt.value = null

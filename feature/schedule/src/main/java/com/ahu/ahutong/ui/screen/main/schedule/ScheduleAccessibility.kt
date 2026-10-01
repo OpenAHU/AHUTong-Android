@@ -1,18 +1,24 @@
 package com.ahu.ahutong.ui.screen.main.schedule
 
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
 
 private val accessibleWeekdays = listOf("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
 
-fun scheduleDayDescription(weekday: Int, date: String? = null): String {
+fun scheduleDayDescription(weekday: Int, date: String? = null, holiday: ScheduleHoliday? = null): String {
     val day = accessibleWeekdays.getOrNull(weekday - 1) ?: "星期未知"
     val parts = date?.split('-').orEmpty()
     val month = parts.getOrNull(0)?.toIntOrNull()
     val dayOfMonth = parts.getOrNull(1)?.toIntOrNull()
-    return if (month != null && month in 1..12 && dayOfMonth != null && dayOfMonth in 1..31) {
+    val description = if (month != null && month in 1..12 && dayOfMonth != null && dayOfMonth in 1..31) {
         "$day，${month}月${dayOfMonth}日"
     } else {
         day
+    }
+    return description + when {
+        holiday == null -> ""
+        holiday.isOffDay -> "，${holiday.name}放假"
+        else -> "，${holiday.name}调休补班，教学安排请自行确认"
     }
 }
 

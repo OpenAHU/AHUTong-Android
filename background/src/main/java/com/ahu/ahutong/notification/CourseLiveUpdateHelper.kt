@@ -23,7 +23,8 @@ object CourseLiveUpdateHelper {
 
     fun showLiveUpdate(
         context: Context,
-        payload: CourseReminderPayload
+        payload: CourseReminderPayload,
+        holidayNotice: String? = null
     ): Boolean {
         if (!CourseReminderCapability.isAndroid16Plus()) return false
 
@@ -37,8 +38,8 @@ object CourseLiveUpdateHelper {
         }
 
         val countdownText = buildCountdownText(remainingMinutes)
-        val collapsedText = buildCollapsedText(payload, countdownText)
-        val expandedText = buildExpandedText(payload, countdownText)
+        val collapsedText = withCourseHolidayNotice(buildCollapsedText(payload, countdownText), holidayNotice)
+        val expandedText = withCourseHolidayNotice(buildExpandedText(payload, countdownText), holidayNotice)
         CourseReminderScheduler.createNotificationChannel(context)
         val notification = NotificationCompat.Builder(context, CourseReminderScheduler.CHANNEL_ID)
             .setSmallIcon(context.applicationInfo.icon)

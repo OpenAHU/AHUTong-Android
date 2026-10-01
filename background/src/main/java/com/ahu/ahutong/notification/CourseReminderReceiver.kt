@@ -4,6 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.ahu.ahutong.notification.model.CourseReminderPayload
+import com.ahu.ahutong.background.backgroundCourseDate
+import com.ahu.ahutong.background.backgroundHolidayForDate
+import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,7 +38,10 @@ class CourseReminderReceiver : BroadcastReceiver() {
                             return@launch
                         }
 
-                        val liveUpdateShown = CourseLiveUpdateHelper.showLiveUpdate(context, payload)
+                        val holidayNotice = backgroundCourseDate(payload.courseStartAtMillis)
+                            ?.let { backgroundHolidayForDate(context, it) }
+                            ?.let(::scheduleHolidayNotice)
+                        val liveUpdateShown = CourseLiveUpdateHelper.showLiveUpdate(context, payload, holidayNotice)
                         if (liveUpdateShown) {
                             CourseLiveUpdateHelper.scheduleNextUpdate(context, payload)
                         } else {

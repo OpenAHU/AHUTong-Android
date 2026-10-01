@@ -36,6 +36,7 @@ dependencies {
     // 端口用 AhuResult 表达失败，返回值是 Course。
     api(project(":core:common"))
     api(project(":core:model"))
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
 
     testImplementation(kotlin("test-junit"))
 }

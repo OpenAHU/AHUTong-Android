@@ -56,6 +56,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -82,6 +83,9 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.ahu.ahutong.data.schedule.hasHolidayCourses
+import com.ahu.ahutong.data.schedule.scheduleWeekDates
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
@@ -123,6 +127,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.time.ZoneId
 
 import android.widget.Toast
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCardSpec.cellSpacing
@@ -158,6 +163,7 @@ fun Schedule(
     val scheduleFetchedAt by scheduleViewModel.scheduleFetchedAt.observeAsState()
     val isScheduleRefreshing by scheduleViewModel.isScheduleRefreshing.observeAsState(false)
     val scheduleRefreshError by scheduleViewModel.scheduleRefreshError.observeAsState()
+    val scheduleHolidays by scheduleViewModel.scheduleHolidays.observeAsState(emptyMap())
     var isPreviewNextSemester by rememberSaveable { mutableStateOf(false) }
     var isOverviewSchedule by rememberSaveable { mutableStateOf(false) }
     var isSettingsVisible by rememberSaveable { mutableStateOf(false) }
@@ -276,6 +282,37 @@ fun Schedule(
             }
         }
     }
+
+    val semesterStart = remember(scheduleConfig?.startTime) {
+        scheduleConfig?.startTime?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+    }
+    val fullWeekDates = remember(semesterStart) {
+        semesterStart?.let { scheduleWeekDates(it) }.orEmpty()
+    }
+    LaunchedEffect(semesterStart, isActive) {
+        if (isActive) {
+            while (true) {
+                scheduleViewModel.loadHolidays(semesterStart)
+                kotlinx.coroutines.delay(5 * 60_000L)
+            }
+        }
+    }
+    val weekHolidays = remember(fullWeekDates, scheduleHolidays, isPreviewNextSemester) {
+        fullWeekDates.map { dates ->
+            dates.map { date ->
+                if (isPreviewNextSemester) null
+                else scheduleHolidays[date]
+            }
+        }
+    }
+    val showHolidayNotice = !isPreviewNextSemester && (
+        hasHolidayCourses(
+            schedule,
+            currentWeek,
+            fullWeekDates.getOrElse(currentWeek - 1) { emptyList() },
+            scheduleHolidays
+        ) || weekHolidays.getOrNull(currentWeek - 1)?.any { it?.isOffDay == false } == true
+    )
 
     var detailedCourse by rememberSaveable { mutableStateOf<Course?>(null) }
     val settingsCardColor = 100.n1 withNight 20.n1
@@ -499,9 +536,11 @@ fun Schedule(
                 // weekday tags
 
                 val weekDates = weekDateLabels.getOrElse(page) { emptyList() }
+                val holidays = weekHolidays.getOrElse(page) { emptyList() }
 
                 ScheduleGridLabels(
                     weekDates = weekDates,
+                    holidays = holidays,
                     cellWidth = cellWidth,
                     cellHeight = cellHeight,
                     pageWeek = pageWeek,
@@ -522,6 +561,8 @@ fun Schedule(
                                 cellWidth = cellWidth,
                                 cellHeight = cellHeight,
                                 currentWeek = pageWeek,
+                                holidayName = holidays.getOrNull(sameTimeCourses.first().weekday - 1)
+                                    ?.takeIf { it.isOffDay }?.name,
                                 onClick = {
                                     behaviorRecorder.recordOrganicAction(AppActionId.OPEN_COURSE_DETAIL)
                                     detailedCourse = it
@@ -539,6 +580,7 @@ fun Schedule(
                                 cellHeight = cellHeight,
                                 isCurrentWeek = true,
                                 date = weekDates.getOrNull(course.weekday - 1),
+                                holidayName = holidays.getOrNull(course.weekday - 1)?.takeIf { it.isOffDay }?.name,
                                 onClick = {
                                     behaviorRecorder.recordOrganicAction(AppActionId.OPEN_COURSE_DETAIL)
                                     detailedCourse = it
@@ -574,6 +616,15 @@ fun Schedule(
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center
         )
+        if (showHolidayNotice) {
+            Text(
+                text = "节假日及调休标注由系统依据国家放假安排自动生成，实际是否上课及补课安排请结合学校通知及教师安排自行确认。",
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                color = 50.n1 withNight 70.n1,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 
     if (isSettingsVisible) {
@@ -661,6 +712,7 @@ fun Schedule(
 @Composable
 private fun BoxScope.ScheduleGridLabels(
     weekDates: List<String>,
+    holidays: List<ScheduleHoliday?>,
     cellWidth: Dp,
     cellHeight: Dp,
     pageWeek: Int,
@@ -675,6 +727,10 @@ private fun BoxScope.ScheduleGridLabels(
     val secondaryColor = 50.n1 withNight 80.n1
     val selectedBackground = 90.a1
     val selectedContent = 0.n1
+    val holidayBadgeBackground = MaterialTheme.colorScheme.errorContainer
+    val holidayBadgeContent = MaterialTheme.colorScheme.onErrorContainer
+    val adjustedBadgeBackground = MaterialTheme.colorScheme.tertiaryContainer
+    val adjustedBadgeContent = MaterialTheme.colorScheme.onTertiaryContainer
     val dayStyle = MaterialTheme.typography.labelLarge
     val secondaryStyle = MaterialTheme.typography.labelSmall
     val dayNames = remember(radiant) {
@@ -750,6 +806,22 @@ private fun BoxScope.ScheduleGridLabels(
                 style = secondaryStyle.copy(color = dateColor),
                 center = Offset(centerX, mainRowHeightPx * 0.70f)
             )
+            holidays.getOrNull(index)?.let { holiday ->
+                val badgeSize = 14.dp.toPx()
+                val badgeLeft = left + cellWidthPx - badgeSize
+                drawRoundRect(
+                    color = if (holiday.isOffDay) holidayBadgeBackground else adjustedBadgeBackground,
+                    topLeft = Offset(badgeLeft, 0f),
+                    size = Size(badgeSize, badgeSize),
+                    cornerRadius = CornerRadius(3.dp.toPx())
+                )
+                drawCentered(
+                    text = if (holiday.isOffDay) "休" else "调",
+                    style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                        color = if (holiday.isOffDay) holidayBadgeContent else adjustedBadgeContent),
+                    center = Offset(badgeLeft + badgeSize / 2f, badgeSize / 2f)
+                )
+            }
         }
 
         timeLabels.forEachIndexed { itemIndex, (section, time) ->
@@ -777,7 +849,7 @@ private fun BoxScope.ScheduleGridLabels(
                 .offset(x = CourseCardSpec.mainColumnWidth + (cellWidth + cellSpacing) * index + cellSpacing)
                 .size(cellWidth, CourseCardSpec.mainRowHeight)
                 .semantics {
-                    contentDescription = scheduleDayDescription(index + 1, date)
+                    contentDescription = scheduleDayDescription(index + 1, date, holidays.getOrNull(index))
                     heading()
                 }
         )
@@ -888,6 +960,7 @@ private fun OverviewCourseGroupCard(
     cellWidth: Dp,
     cellHeight: Dp,
     currentWeek: Int,
+    holidayName: String?,
     onClick: (Course) -> Unit
 ) {
     val course = courses.firstOrNull() ?: return
@@ -932,6 +1005,7 @@ private fun OverviewCourseGroupCard(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
+                            .alpha(if (isCurrentWeek && holidayName != null) 0.45f else 1f)
                             .background(if (isCurrentWeek) color else color.copy(alpha = 0.45f))
                             .clickable { onClick(item) }
                             .semantics(mergeDescendants = true) {
@@ -939,7 +1013,8 @@ private fun OverviewCourseGroupCard(
                                     item,
                                     ScheduleSectionTimes.timetable,
                                     includeWeeks = true
-                                )
+                                ) + (holidayName?.takeIf { isCurrentWeek }
+                                    ?.let { "，$it 放假日期，是否上课请自行确认" } ?: "")
                             }
                             .padding(4.dp)
                     ) {
