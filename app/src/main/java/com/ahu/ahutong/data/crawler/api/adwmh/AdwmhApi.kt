@@ -15,10 +15,13 @@ import com.ahu.ahutong.data.network.campusCookies
 import com.ahu.ahutong.data.network.campusSessionRefresh
 import com.ahu.ahutong.data.network.withoutCampusSessionRefresh
 import com.ahu.ahutong.data.session.RepositorySessionExpiryHook
+import com.ahu.ahutong.data.session.DefaultWisdomSession
+import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import okhttp3.MultipartBody
 import okhttp3.Authenticator
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
+import java.util.concurrent.TimeUnit
 import retrofit2.http.Body
 import com.ahu.ahutong.data.network.retrofit
 import retrofit2.http.Field
@@ -108,7 +111,9 @@ interface AdwmhApi {
                 chain.proceed(request)
             }
             .campusAutoLogin()
-            .campusSessionRefresh(RepositorySessionExpiryHook())
+            .campusSessionRefresh(RepositorySessionExpiryHook(
+                DefaultWisdomSession, SessionRefreshCoordinator.Scope.WISDOM
+            ))
             .campusCookies(CookieManager.cookieJar)
             .apply {
                 loggingInterceptor?.let { addNetworkInterceptor(it) }
@@ -120,6 +125,10 @@ interface AdwmhApi {
             .build() }
 
         val API by lazy { createAdwmhApi(okHttpClient, BASE_URL) }
+
+        val QR_API by lazy { createAdwmhApi(
+            okHttpClient.newBuilder().callTimeout(12, TimeUnit.SECONDS).build(), BASE_URL
+        ) }
 
         val LOGIN_API by lazy { createAdwmhApi(loginOkHttpClient, BASE_URL) }
 

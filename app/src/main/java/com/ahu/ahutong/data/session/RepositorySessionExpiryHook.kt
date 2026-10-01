@@ -10,13 +10,19 @@ import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
  * 会话实例可注入，因此"网络层通知 → 会话层动作"这条映射本身也能被测试钉住。
  */
 class RepositorySessionExpiryHook(
-    private val session: AhuSession = DefaultAhuSession
+    private val session: AhuSession = DefaultAhuSession,
+    private val scope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC
 ) : SessionExpiryHook {
 
     override suspend fun refresh(observedGeneration: Long): Boolean =
         session.ensureFresh(observedGeneration)
 
     override suspend fun onExpired(observedGeneration: Long) {
+        // The authenticator also reports exhausted retries and transient failures.
+        // Neither proves the user's stored credential was rejected.
+        if (SessionRefreshCoordinator.failureKindOf(observedGeneration, scope) !=
+            SessionRefreshCoordinator.FailureKind.REJECTED
+        ) return
         SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
             if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
                 AhuSessionState.markExpired()

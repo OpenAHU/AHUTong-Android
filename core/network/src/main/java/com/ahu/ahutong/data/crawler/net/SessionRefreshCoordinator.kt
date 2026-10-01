@@ -23,12 +23,15 @@ object SessionRefreshCoordinator {
      * - [TRANSIENT]：网络抖动、超时、上游 5xx 等可自愈失败。封禁带冷却窗
      *   （[TRANSIENT_COOLDOWN_MS]），窗外第一个请求获准再试——旧实现（0492acc 之前）
      *   正是靠"下个请求再试"自愈的，永久封禁会把一次校园网抖动变成强制重新登录；
-     * - [REJECTED]：凭据被明确拒绝（Unauthorized / 4xx）或本机没有凭据。
+     * - [REJECTED]：凭据被明确拒绝或本机没有凭据。
      *   重试无意义且可能触发风控，封禁到下一次真实登录（[onAuthenticated]）。
      */
     enum class RefreshOutcome { SUCCESS, TRANSIENT, REJECTED }
 
     enum class FailureKind { TRANSIENT, REJECTED }
+
+    // A failed academic login must not suppress Wisdom QR or campus-card CAS recovery.
+    enum class Scope { ACADEMIC, WISDOM, CENTRAL_CAS }
 
     private val refreshMutex = Mutex()
 
@@ -39,14 +42,8 @@ object SessionRefreshCoordinator {
      * 失败记忆：防惊群（同一代的并发 401 只真正续期一次），但不再永久封禁——
      * [TRANSIENT] 失败过了冷却窗就放行一次新尝试；只有 [REJECTED] 才封到人工重登。
      */
-    @Volatile
-    private var failedGeneration: Long? = null
-
-    @Volatile
-    private var failedKind: FailureKind? = null
-
-    @Volatile
-    private var failedAtMillis: Long = 0L
+    private data class Failure(val kind: FailureKind, val atMillis: Long)
+    private val failures = mutableMapOf<Scope, Failure>()
 
     /** 登出后置真：匿名代号禁止自动续期，直到下一次真实登录。 */
     @Volatile
@@ -61,8 +58,7 @@ object SessionRefreshCoordinator {
      */
     suspend fun onAuthenticated(action: () -> Unit = {}) = refreshMutex.withLock {
         generation += 1
-        failedGeneration = null
-        failedKind = null
+        failures.clear()
         refreshDisabled = false
         action()
     }
@@ -73,8 +69,7 @@ object SessionRefreshCoordinator {
         // 退出后的匿名代号禁止自动续期；否则残留清理完成前的新请求还能拿旧凭据重登。
         // 下一次真实登录会由 onAuthenticated 推进代号并解除这道闸。
         refreshDisabled = true
-        failedGeneration = null
-        failedKind = null
+        failures.clear()
         action()
     }
 
@@ -106,15 +101,16 @@ object SessionRefreshCoordinator {
         timeoutMillis: Long = REFRESH_TIMEOUT_MS,
         transientCooldownMillis: Long = TRANSIENT_COOLDOWN_MS,
         nowMillis: Long = System.currentTimeMillis(),
+        scope: Scope = Scope.ACADEMIC,
         refresh: suspend () -> RefreshOutcome
     ): Boolean = refreshMutex.withLock {
         if (refreshDisabled) return@withLock false
         if (generation != observedGeneration) return@withLock true
 
-        if (failedGeneration == generation) {
+        failures[scope]?.let { failure ->
             // 凭据被拒：封到人工重登；瞬时失败：冷却窗内快速失败（防惊群），窗外放行一次再试。
-            if (failedKind == FailureKind.REJECTED) return@withLock false
-            if (nowMillis - failedAtMillis < transientCooldownMillis) return@withLock false
+            if (failure.kind == FailureKind.REJECTED) return@withLock false
+            if (nowMillis - failure.atMillis < transientCooldownMillis) return@withLock false
         }
 
         // ADR 0002 的有界刷新：单次续期带总超时；超时按瞬时失败处理（可冷却重试），不推进代号。
@@ -126,27 +122,26 @@ object SessionRefreshCoordinator {
         when (outcome) {
             RefreshOutcome.SUCCESS -> {
                 generation += 1
-                failedGeneration = null
-                failedKind = null
+                failures.clear()
                 true
             }
             RefreshOutcome.TRANSIENT -> {
-                failedGeneration = generation
-                failedKind = FailureKind.TRANSIENT
-                failedAtMillis = nowMillis
+                failures[scope] = Failure(FailureKind.TRANSIENT, nowMillis)
                 false
             }
             RefreshOutcome.REJECTED -> {
-                failedGeneration = generation
-                failedKind = FailureKind.REJECTED
+                failures[scope] = Failure(FailureKind.REJECTED, nowMillis)
                 false
             }
         }
     }
 
     /** 供会话层区分「这次失败要不要宣告过期」：只有 [FailureKind.REJECTED] 才该弹重新登录。 */
-    suspend fun failureKindOf(observedGeneration: Long): FailureKind? = refreshMutex.withLock {
-        if (failedGeneration == observedGeneration) failedKind else null
+    suspend fun failureKindOf(
+        observedGeneration: Long,
+        scope: Scope = Scope.ACADEMIC
+    ): FailureKind? = refreshMutex.withLock {
+        if (generation == observedGeneration) failures[scope]?.kind else null
     }
 
     /** 单次续期的总预算：一次完整登录的合理上限，超了就不再等（ADR 0002）。 */

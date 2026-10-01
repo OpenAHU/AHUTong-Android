@@ -16,6 +16,7 @@ import com.ahu.ahutong.data.crawler.login.WisdomLoginFlow
 import com.ahu.ahutong.data.crawler.login.AcademicLoginFlow
 import com.ahu.ahutong.data.crawler.login.AcademicPortalLogin
 import com.ahu.ahutong.data.crawler.login.AcademicPortalHttp
+import com.ahu.ahutong.data.crawler.PaymentQrRequest
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.crawler.model.adwnh.AllCampus
 import com.ahu.ahutong.data.crawler.model.adwnh.AllLostFoundType
@@ -50,6 +51,8 @@ import okhttp3.ResponseBody
 import org.jsoup.Jsoup
 import retrofit2.Response
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.session.DefaultWisdomSession
+import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 /**
  * @Author: SinkDev
  * @Date: 2021/7/31-下午9:12
@@ -326,13 +329,7 @@ object AHURepository {
         preferNative: Boolean = true
     ): AhuResult<LoginOutcome> = withContext(Dispatchers.IO) {
         try {
-            val wisdom = WisdomLoginFlow(
-                fetchCaptcha = { AdwmhApi.LOGIN_API.getAuthCode().use { it.bytes() } },
-                solveCaptcha = AhuTongCaptchaSolver::solve,
-                submitLogin = { account, secret, captcha ->
-                    AdwmhApi.LOGIN_API.loginWithCaptcha(account, secret, 0, captcha).use { it.string() }
-                }
-            )
+            val wisdom = wisdomLoginFlow()
             val portal = AcademicPortalLogin(
                 diagnostic = { Log.i("AcademicLogin", it) },
                 request = AcademicPortalHttp::request
@@ -351,6 +348,36 @@ object AHURepository {
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             AhuResult.Failure(e.toAhuError())
+        }
+    }
+
+    private fun wisdomLoginFlow() = WisdomLoginFlow(
+        fetchCaptcha = { AdwmhApi.LOGIN_API.getAuthCode().use { it.bytes() } },
+        solveCaptcha = AhuTongCaptchaSolver::solve,
+        submitLogin = { account, secret, captcha ->
+            AdwmhApi.LOGIN_API.loginWithCaptcha(account, secret, 0, captcha).use { it.string() }
+        }
+    )
+
+    /** QR only needs ADWMH; academic identification must not gate session recovery. */
+    internal suspend fun refreshWisdomSession(
+        username: String,
+        password: String
+    ): AhuResult<LoginOutcome> = withContext(Dispatchers.IO) {
+        try {
+            val result = wisdomLoginFlow().login(username, password)
+            if (result.isSuccess) {
+                try {
+                    syncAndroidCookiesToRust(importNative = false)
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    Log.w(TAG, "Wisdom session restored; Rust cookie sync failed (${error.javaClass.simpleName})")
+                }
+            }
+            result.map { LoginOutcome.Success(it) }
+        } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            AhuResult.Failure(error.toAhuError())
         }
     }
 
@@ -460,7 +487,7 @@ object AHURepository {
      * Android's CookieJar retains the effective host for host-only cookies. Exporting from it
      * avoids the ambiguity of inferring domains from cookie names such as JSESSIONID.
      */
-    private suspend fun syncAndroidCookiesToRust() {
+    private suspend fun syncAndroidCookiesToRust(importNative: Boolean = true) {
         val cookiesJson = Gson().toJson(
             com.ahu.ahutong.data.crawler.manager.CookieManager.cookieJar
                 .allCookies
@@ -476,6 +503,12 @@ object AHURepository {
                 }
         )
         SessionStore.saveRustCookies(cookiesJson)
+        // Import in-process without waiting on an optional HTTP transport. JNI init
+        // only loads/persists cookies; it does not perform a network login.
+        if (!importNative) {
+            if (RustSDK.isNativeLoaded()) RustSDK.initSafe(cookiesJson)
+            return
+        }
 
         val localServiceImported = getHttpClient()
             ?.init(cookiesJson)
@@ -723,31 +756,38 @@ object AHURepository {
 
     suspend fun getQrcode(): AhuResult<String> =
         withContext(Dispatchers.IO) {
-            getHttpClient()?.let { httpClient ->
-                val httpResult = httpClient.getQrcode()
-                if (httpResult.isSuccess) {
-                    return@withContext parseQrcodeResponse(httpResult.getOrThrow())
+            var wisdomRefreshAttempted = false
+            PaymentQrRequest(
+                firstParty = {
+                    var response = AdwmhApi.QR_API.getQrcode()
+                    if (response.code != 10000 && !wisdomRefreshAttempted && SessionStore.isLoggedIn()) {
+                        // API-level rejection may arrive as HTTP 200 and bypass the
+                        // redirect authenticator. Try Wisdom recovery once per display.
+                        wisdomRefreshAttempted = true
+                        if (DefaultWisdomSession.ensureFresh(SessionRefreshCoordinator.currentGeneration())) {
+                            response = AdwmhApi.QR_API.getQrcode()
+                        }
+                    }
+                    if (response.code == 10000 && response.`object`.isNotBlank()) {
+                        Result.success(response.`object`)
+                    } else {
+                        Result.failure(IllegalStateException("payment QR request rejected"))
+                    }
+                },
+                rustHttp = {
+                    val response = getHttpClient()?.getQrcode()
+                        ?: Result.failure(IllegalStateException("local QR service unavailable"))
+                    response.fold(
+                        onSuccess = { json ->
+                            when (val parsed = parseQrcodeResponse(json)) {
+                                is AhuResult.Success -> Result.success(parsed.value)
+                                is AhuResult.Failure -> Result.failure(IllegalStateException("local QR response rejected"))
+                            }
+                        },
+                        onFailure = { Result.failure(it) }
+                    )
                 }
-                Log.w(TAG, "Rust HTTP qrcode failed, fallback to JNI (details suppressed)")
-            }
-
-            val jniResult = RustSDK.getQrcodeSafe()
-            if (jniResult.isSuccess) {
-                return@withContext AhuResult.Success(jniResult.getOrThrow())
-            }
-
-            Log.w(TAG, "Rust JNI qrcode failed, fallback to Android crawler (details suppressed)")
-            try {
-                val response = AdwmhApi.API.getQrcode()
-                if (response.code == 10000 && response.`object`.isNotEmpty()) {
-                    AhuResult.Success(response.`object`)
-                } else {
-                    AhuResult.Failure(AhuError.Unknown(response.msg))
-                }
-            } catch (e: Throwable) {
-                if (e is CancellationException) throw e
-                AhuResult.Failure(e.toAhuError())
-            }
+            ).execute().toAhuResult()
         }
 
     private fun parseQrcodeResponse(json: String): AhuResult<String> {

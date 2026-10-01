@@ -15,8 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * - `signIn`：登录（爬虫 / 原生 / 回退策略不变），成功后标记已登录；
  * - `signOut`：登录态置为未登录 + 清理本机会话残留；
- * - `ensureFresh`：沿用 [SessionRefreshCoordinator] 的 generation 机制与"用凭据重登"策略，
- *   失败即标记过期并返回 false —— 有界刷新，不做后台无限重试。
+ * - `ensureFresh`：按服务范围协调续期；凭据被明确拒绝才标记过期，
+ *   网络或上游临时失败保留会话，冷却后允许新的请求再次尝试。
  *   成功时只清派生的校园卡令牌（[SessionResidue.clearDerivedToken]）：刚刚建立的 Cookie 会话
  *   正是重试要用的东西，清掉它会让重试立刻再次失败。
  */
@@ -24,7 +24,9 @@ class RepositoryAhuSession(
     private val login: SessionSignIn,
     private val credentials: CredentialVault,
     private val account: SessionAccount,
-    private val residue: SessionResidue
+    private val residue: SessionResidue,
+    private val refreshLogin: SessionSignIn = login,
+    private val refreshScope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC
 ) : AhuSession {
 
     override val state: StateFlow<AhuSessionState.Status> = AhuSessionState.status
@@ -54,14 +56,14 @@ class RepositoryAhuSession(
     }
 
     override suspend fun ensureFresh(observedGeneration: Long): Boolean {
-        val refreshed = SessionRefreshCoordinator.refreshIfNeeded(observedGeneration) {
+        val refreshed = SessionRefreshCoordinator.refreshIfNeeded(observedGeneration, scope = refreshScope) {
             val user = account.currentUser()
                 ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
             val password = credentials.wisdomPassword()?.takeIf { it.isNotBlank() }
                 ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
 
             Log.i(TAG, "Refreshing expired first-party session")
-            val loginResult = login.signIn(
+            val loginResult = refreshLogin.signIn(
                 username = user.xh.toString(),
                 password = password,
                 preferNative = false
@@ -83,7 +85,7 @@ class RepositoryAhuSession(
             }
         } else {
             // failureKindOf 和 commitIfCurrent 共用非可重入锁，先读取失败类型再提交状态。
-            val rejected = SessionRefreshCoordinator.failureKindOf(observedGeneration) ==
+            val rejected = SessionRefreshCoordinator.failureKindOf(observedGeneration, refreshScope) ==
                 SessionRefreshCoordinator.FailureKind.REJECTED
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
                 // 手动登录可能已经推进代号；旧失败无权覆盖那个新会话。
@@ -101,12 +103,8 @@ class RepositoryAhuSession(
     private fun AhuError?.toRefreshOutcome(): SessionRefreshCoordinator.RefreshOutcome =
         when (this) {
             is AhuError.Unauthorized -> SessionRefreshCoordinator.RefreshOutcome.REJECTED
-            is AhuError.Server ->
-                if (code in 400..499) {
-                    SessionRefreshCoordinator.RefreshOutcome.REJECTED
-                } else {
-                    SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
-                }
+            // HTTP 403/408/429 can be WAF, timeout or rate limiting. Only a parsed
+            // credential rejection (Unauthorized) warrants stopping automatic login.
             // Network / Timeout / ProtocolChanged / Unknown / null：一律按瞬时可自愈处理。
             else -> SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
         }

@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * 它把"登录 / 登出 / 续期"集中到一处，并让 [state] 成为登录态唯一真相：
  * - 调用方不再各自拼装 Cookie 清理与 token 重置；
- * - 续期是**有界**的：失败即回到 Expired，由 UI 引导重新登录，不做后台无限重试。
+ * - 续期是**有界**的：临时失败保留会话并允许冷却重试；明确的凭据拒绝才进入 Expired。
  *
  * 实现见 [RepositoryAhuSession]；接口本身也让登录流程具备被契约测试替换的可能。
  */

@@ -214,4 +214,40 @@ class SessionRefreshTimeoutTest {
         assertFalse(timedOut)
         assertTrue(healed, "超时算瞬时失败：冷却窗外必须允许自愈")
     }
+
+    @Test
+    fun anAcademicRejectionDoesNotBlockWisdomOrCampusCardRecovery() = runBlocking {
+        for (scope in listOf(SessionRefreshCoordinator.Scope.WISDOM, SessionRefreshCoordinator.Scope.CENTRAL_CAS)) {
+            SessionRefreshCoordinator.onAuthenticated()
+            val generation = SessionRefreshCoordinator.currentGeneration()
+            SessionRefreshCoordinator.refreshIfNeeded(generation) {
+                SessionRefreshCoordinator.RefreshOutcome.REJECTED
+            }
+            var attempted = false
+            assertTrue(SessionRefreshCoordinator.refreshIfNeeded(generation, scope = scope) {
+                attempted = true
+                SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+            })
+            assertTrue(attempted)
+        }
+    }
+
+    @Test
+    fun aWisdomCooldownDoesNotSuppressOtherRecoveryOrForgetItsOwnFailure() = runBlocking {
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        SessionRefreshCoordinator.refreshIfNeeded(generation, scope = SessionRefreshCoordinator.Scope.WISDOM) {
+            SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+        }
+        var academicAttempted = false
+        SessionRefreshCoordinator.refreshIfNeeded(generation) {
+            academicAttempted = true
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+        assertTrue(academicAttempted)
+        assertEquals(SessionRefreshCoordinator.FailureKind.TRANSIENT,
+            SessionRefreshCoordinator.failureKindOf(generation, SessionRefreshCoordinator.Scope.WISDOM))
+        assertFalse(SessionRefreshCoordinator.refreshIfNeeded(generation, scope = SessionRefreshCoordinator.Scope.WISDOM) {
+            error("Wisdom must still observe its own cooldown")
+        })
+    }
 }

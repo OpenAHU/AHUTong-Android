@@ -12,6 +12,13 @@ import com.ahu.ahutong.testing.FakeSessionResidue
 import com.ahu.ahutong.testing.FakeSessionSignIn
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import com.ahu.ahutong.data.crawler.api.adwmh.createAdwmhApi
+import com.ahu.ahutong.data.network.AhuHttp
+import com.ahu.ahutong.data.network.campusAutoLogin
+import com.ahu.ahutong.data.network.campusSessionRefresh
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import retrofit2.HttpException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -225,6 +232,44 @@ class AhuSessionContractTest {
     }
 
     @Test
+    fun `wisdom recovery does not call academic login`() = runBlocking {
+        val academic = FakeSessionSignIn(AhuResult.Failure(AhuError.ProtocolChanged("academic unavailable")))
+        val wisdom = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
+        val subject = RepositoryAhuSession(
+            academic, FakeCredentialVault("stored-secret"), FakeSessionAccount(user),
+            FakeSessionResidue(), refreshLogin = wisdom,
+            refreshScope = SessionRefreshCoordinator.Scope.WISDOM
+        )
+        AhuSessionState.markAuthenticated()
+
+        assertTrue(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+        assertTrue(academic.calls.isEmpty())
+        assertEquals(1, wisdom.calls.size)
+    }
+
+    @Test
+    fun `WAF timeout and throttling responses preserve the stored session`() = runBlocking {
+        for (code in listOf(403, 408, 429)) {
+            SessionRefreshCoordinator.onAuthenticated()
+            val subject = session(
+                login = FakeSessionSignIn(AhuResult.Failure(AhuError.Server(code, "temporary upstream failure"))),
+                credentials = FakeCredentialVault("stored-secret"),
+                account = FakeSessionAccount(user)
+            )
+            AhuSessionState.markAuthenticated()
+            val generation = SessionRefreshCoordinator.currentGeneration()
+
+            assertFalse(subject.ensureFresh(generation))
+            RepositorySessionExpiryHook(subject).onExpired(generation)
+            assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+            assertEquals(
+                SessionRefreshCoordinator.FailureKind.TRANSIENT,
+                SessionRefreshCoordinator.failureKindOf(generation)
+            )
+        }
+    }
+
+    @Test
     fun `a stale generation reuses the refresh someone else already did`() = runBlocking {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val subject = session(
@@ -247,7 +292,10 @@ class AhuSessionContractTest {
 class SessionExpiryHookContractTest {
 
     @BeforeTest
-    fun resetSessionState() = AhuSessionState.markAnonymous()
+    fun resetSessionState() = runBlocking {
+        AhuSessionState.markAnonymous()
+        SessionRefreshCoordinator.onAuthenticated()
+    }
 
     @Test
     fun `the hook forwards refresh to the session it was given`() = runBlocking {
@@ -259,13 +307,65 @@ class SessionExpiryHookContractTest {
     }
 
     @Test
-    fun `a network-reported expiry moves the current session state to expired`() = runBlocking {
+    fun `an explicit credential rejection moves the current session state to expired`() = runBlocking {
         val hook = RepositorySessionExpiryHook(FakeAhuSession())
         AhuSessionState.markAuthenticated()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        SessionRefreshCoordinator.refreshIfNeeded(generation) {
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
 
-        hook.onExpired(SessionRefreshCoordinator.currentGeneration())
+        hook.onExpired(generation)
 
         assertEquals(AhuSessionState.Status.Expired, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `a failed network refresh cannot overwrite authenticated with expired`() = runBlocking {
+        val hook = RepositorySessionExpiryHook(FakeAhuSession())
+        AhuSessionState.markAuthenticated()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        SessionRefreshCoordinator.refreshIfNeeded(generation) {
+            SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+        }
+        hook.onExpired(generation)
+
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `exhausted response retries alone cannot expire a session`() = runBlocking {
+        AhuSessionState.markAuthenticated()
+        RepositorySessionExpiryHook(FakeAhuSession())
+            .onExpired(SessionRefreshCoordinator.currentGeneration())
+
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `login redirect plus weak network recovery does not force global relogin`() = runBlocking {
+        val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Network))
+        val session = RepositoryAhuSession(
+            login, FakeCredentialVault("stored-secret"), FakeSessionAccount(User("student", "20210001")),
+            FakeSessionResidue(), refreshScope = SessionRefreshCoordinator.Scope.WISDOM
+        )
+        AhuSessionState.markAuthenticated()
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(302)
+                .setHeader("Location", "https://one.ahu.edu.cn/cas/login"))
+            server.start()
+            val client = AhuHttp.plain().campusAutoLogin().campusSessionRefresh(
+                RepositorySessionExpiryHook(session, SessionRefreshCoordinator.Scope.WISDOM)
+            ).build()
+            try {
+                createAdwmhApi(client, server.url("/").toString()).getQrcode()
+                error("An unsuccessful recovery must not fabricate a QR")
+            } catch (error: HttpException) {
+                assertEquals(401, error.code())
+            }
+        }
+        assertEquals(1, login.calls.size)
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
     }
 
     @Test

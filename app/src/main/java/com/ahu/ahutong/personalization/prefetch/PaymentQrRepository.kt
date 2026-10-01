@@ -1,7 +1,8 @@
 package com.ahu.ahutong.personalization.prefetch
 
 import android.os.SystemClock
-import com.ahu.ahutong.data.crawler.api.adwmh.AdwmhApi
+import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.core.common.AhuResult
 import java.net.URI
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
@@ -11,6 +12,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -66,6 +68,9 @@ class PaymentQrRepository internal constructor(
         if (profileKey == null) return firstPartyRequest()
 
         val result = fetch(forceRefresh = forceRefresh, predictive = false)
+        if (result.isFailure) {
+            consumeFreshForDisplay()?.let { return Result.success(it) }
+        }
         return result.map(SensitiveQrEnvelope::value)
     }
 
@@ -105,21 +110,32 @@ class PaymentQrRepository internal constructor(
         }
         if (selectedRequest !== deferred) return selectedRequest.await()
 
-        val result = runCatching { requestFirstParty() }.fold(
-            onSuccess = { it },
-            onFailure = { Result.failure(it) }
-        )
-        mutex.withLock {
-            if (inFlight === deferred) {
-                val value = result.getOrNull()
-                if (value != null && value.profileKey == profileKey &&
-                    value.profileGeneration == profileGeneration && value.loginGeneration == loginGeneration &&
-                    value.requestGeneration == requestGeneration.get()
-                ) {
-                    envelope = value
+        val result = try {
+            requestFirstParty()
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) {
+                mutex.withLock {
+                    if (inFlight === deferred) inFlight = null
+                    deferred.cancel(cancelled)
                 }
-                inFlight = null
-                deferred.complete(result)
+            }
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+        withContext(NonCancellable) {
+            mutex.withLock {
+                if (inFlight === deferred) {
+                    val value = result.getOrNull()
+                    if (value != null && value.profileKey == profileKey &&
+                        value.profileGeneration == profileGeneration && value.loginGeneration == loginGeneration &&
+                        value.requestGeneration == requestGeneration.get()
+                    ) {
+                        envelope = value
+                    }
+                    inFlight = null
+                    deferred.complete(result)
+                }
             }
         }
         val final = deferred.await()
@@ -184,11 +200,9 @@ class PaymentQrRepository internal constructor(
 }
 
 private suspend fun requestPaymentQrFirstParty(): Result<String> = try {
-    val response = AdwmhApi.API.getQrcode()
-    if (response.code == 10000 && response.`object`.isNotBlank()) {
-        Result.success(response.`object`)
-    } else {
-        Result.failure(IllegalStateException("payment QR request rejected"))
+    when (val response = AHURepository.getQrcode()) {
+        is AhuResult.Success -> Result.success(response.value)
+        is AhuResult.Failure -> Result.failure(IllegalStateException("payment QR request failed"))
     }
 } catch (cancelled: CancellationException) {
     throw cancelled

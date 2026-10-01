@@ -136,7 +136,9 @@ object TokenManager {
         observedGeneration: Long,
         casLoginUrl: String?
     ): Boolean {
-        val refreshed = SessionRefreshCoordinator.refreshIfNeeded(observedGeneration) {
+        val refreshed = SessionRefreshCoordinator.refreshIfNeeded(
+            observedGeneration, scope = SessionRefreshCoordinator.Scope.CENTRAL_CAS
+        ) {
             val user = SessionStore.currentUser()
                 ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
             val password = SecureCredentialVault.wisdomPassword()?.takeIf { it.isNotBlank() }
@@ -166,11 +168,12 @@ object TokenManager {
                 }
             }
         } else {
+            val rejected = SessionRefreshCoordinator.failureKindOf(
+                observedGeneration, SessionRefreshCoordinator.Scope.CENTRAL_CAS
+            ) == SessionRefreshCoordinator.FailureKind.REJECTED
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
                 // 只有凭据被明确拒绝才宣告过期；瞬时失败保持静默，冷却窗外自愈。
                 // 若手动登录已推进代号，这个旧失败不会进入提交块，也就不能覆盖新会话。
-                val rejected = SessionRefreshCoordinator.failureKindOf(observedGeneration) ==
-                    SessionRefreshCoordinator.FailureKind.REJECTED
                 if (rejected && AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
                     AhuSessionState.markExpired()
                 }

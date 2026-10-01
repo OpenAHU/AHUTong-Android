@@ -669,7 +669,7 @@ fun Main(
             AppDialogSurface(
                 onDismissRequest = { onReLoginDismiss() },
                 properties = DialogProperties(
-                    dismissOnBackPress = false,
+                    dismissOnBackPress = true,
                     dismissOnClickOutside = false,
                     usePlatformDefaultWidth = false
                 )
@@ -691,6 +691,12 @@ fun Main(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("重新登录", style = MaterialTheme.typography.titleMedium)
+                    }
+                    AppButton(
+                        onClick = onReLoginDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("继续使用", style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }

@@ -11,6 +11,12 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import java.io.IOException
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -65,6 +71,11 @@ class LocalServiceClient(
         readTimeoutSeconds = 30,
         writeTimeoutSeconds = 30
     ).build()
+
+    private val qrClient = client.newBuilder()
+        .callTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
     
     private val gson = Gson()
     
@@ -288,25 +299,35 @@ class LocalServiceClient(
     /**
      * 获取二维码
      */
-    suspend fun getQrcode(): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("$baseUrl/ycard/qrcode")
-                .header("X-AHUTONG-TOKEN", token)
-                .get()
-                .build()
-            client.newCall(request).execute().use { response ->
-                val json = response.body?.string() ?: "{}"
-                if (json.contains("\"error\"")) {
-                    Result.failure(Exception(extractErrorMessage(json) ?: json))
-                } else {
-                    Result.success(json)
-                }
+    suspend fun getQrcode(): Result<String> = suspendCancellableCoroutine { continuation ->
+        val request = Request.Builder()
+            .url("$baseUrl/ycard/qrcode")
+            .header("X-AHUTONG-TOKEN", token)
+            .get()
+            .build()
+        val call = qrClient.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                continuation.resume(Result.failure(e))
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Get QR code failed (${e.javaClass.simpleName})")
-            Result.failure(e)
-        }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = try {
+                    response.use {
+                        val json = it.body?.string().orEmpty()
+                        if (!it.isSuccessful || json.isBlank() || json.contains("\"error\"")) {
+                            Result.failure(IOException("local QR service returned an error (${it.code})"))
+                        } else {
+                            Result.success(json)
+                        }
+                    }
+                } catch (error: Exception) {
+                    Result.failure(error)
+                }
+                continuation.resume(result)
+            }
+        })
     }
     
     /**
