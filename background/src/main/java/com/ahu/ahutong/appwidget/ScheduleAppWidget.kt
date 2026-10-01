@@ -8,6 +8,8 @@ import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,7 +44,14 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.ahu.ahutong.background.launchIntent
 import com.ahu.ahutong.background.scheduleReadModel
+import com.ahu.ahutong.background.backgroundCourseDate
+import com.ahu.ahutong.background.backgroundHolidayForDate
+import com.ahu.ahutong.background.backgroundEntryPoint
+import com.ahu.ahutong.background.loadBackgroundHoliday
 import com.ahu.ahutong.data.debug.DebugClock
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.ahu.ahutong.data.schedule.scheduleHolidayLabel
+import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.model.Course
 import com.kyant.monet.LocalTonalPalettes
@@ -74,14 +83,19 @@ class ScheduleAppWidget : GlanceAppWidget() {
         val fetchedAt = scheduleReadModel().cachedScheduleFetchedAt()
         val currentMinutes = DebugClock.currentMinutes()
         val todayCourses = todayWidgetCourses(schedule, scheduleConfig)
+        val today = backgroundCourseDate(DebugClock.nowDate().time)!!
+        val holidaySource = backgroundEntryPoint(context).scheduleHolidaySource()
+        loadBackgroundHoliday(holidaySource, today)
         val keyColor = resolveWidgetKeyColor(context)
         provideContent {
+            val holidays by holidaySource.holidays.collectAsState()
             ScheduleWidgetContent(
                 context = context,
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
                 fetchedAt = fetchedAt,
-                keyColor = keyColor
+                keyColor = keyColor,
+                holiday = holidays[today]
             )
         }
     }
@@ -116,6 +130,9 @@ class RefreshAction : ActionCallback {
         parameters: ActionParameters
     ) {
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
+        backgroundCourseDate(DebugClock.nowDate().time)?.let {
+            backgroundHolidayForDate(context, it, refresh = true)
+        }
         ScheduleAppWidget().update(context, glanceId)
         WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
@@ -127,7 +144,8 @@ private fun ScheduleWidgetContent(
     todayCourses: List<Course>,
     currentMinutes: Int,
     fetchedAt: Long?,
-    keyColor: Color
+    keyColor: Color,
+    holiday: ScheduleHoliday?
 ) {
     val openAppAction = actionStartActivity(
         launchIntent(context).apply {
@@ -175,7 +193,7 @@ private fun ScheduleWidgetContent(
                     )
                     Spacer(modifier = GlanceModifier.width(8.dp))
                     Text(
-                        text = dateText,
+                        text = holiday?.let { "$dateText · ${scheduleHolidayLabel(it)}" } ?: dateText,
                         style = TextStyle(
                             color = secondaryTextColor,
                             fontSize = 12.sp
@@ -201,6 +219,13 @@ private fun ScheduleWidgetContent(
                     style = TextStyle(color = secondaryTextColor, fontSize = 10.sp),
                     modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp)
                 )
+                holiday?.let {
+                    Text(
+                        text = scheduleHolidayNotice(it),
+                        style = TextStyle(color = secondaryTextColor, fontSize = 10.sp),
+                        modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp)
+                    )
+                }
                 Spacer(modifier = GlanceModifier.height(10.dp))
                 if (remainingCourses.isEmpty()) {
                     Text(

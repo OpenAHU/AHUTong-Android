@@ -28,7 +28,8 @@ object CourseLiveUpdateHelper {
 
     fun showLiveUpdate(
         context: Context,
-        payload: CourseReminderPayload
+        payload: CourseReminderPayload,
+        holidayNotice: String? = null
     ): Boolean {
         if (!CourseReminderCapability.isAndroid16Plus()) return false
 
@@ -42,8 +43,10 @@ object CourseLiveUpdateHelper {
 
         val startText = Instant.ofEpochMilli(courseStartAtMillis).atZone(ZoneId.systemDefault())
             .format(DateTimeFormatter.ofPattern("HH:mm")) + " 开始上课"
-        val contentText = listOfNotNull(payload.location?.takeIf { it.isNotBlank() }, startText)
-            .joinToString(" · ")
+        val contentText = withCourseHolidayNotice(
+            listOfNotNull(payload.location?.takeIf { it.isNotBlank() }, startText).joinToString(" · "),
+            holidayNotice
+        )
         CourseReminderScheduler.createNotificationChannel(context)
         val notification = NotificationCompat.Builder(context, CourseReminderScheduler.CHANNEL_ID)
             .setSmallIcon(context.applicationInfo.icon)

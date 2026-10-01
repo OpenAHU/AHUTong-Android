@@ -11,6 +11,9 @@ import com.ahu.ahutong.data.schedule.ConfigSource
 import com.ahu.ahutong.data.schedule.ResolvedConfig
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
 import com.ahu.ahutong.data.schedule.ScheduleSource
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import java.time.LocalDate
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.data.schedule.SemesterKey
 import com.ahu.ahutong.data.session.SessionIdentity
@@ -24,7 +27,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.Rule
@@ -57,8 +64,97 @@ class ScheduleViewModelTest {
         source: FakeScheduleSource = FakeScheduleSource(),
         config: FakeScheduleWeekConfig = FakeScheduleWeekConfig(),
         session: FakeSessionIdentity = FakeSessionIdentity(),
-        reminders: FakeCourseReminderControl = FakeCourseReminderControl()
-    ) = ScheduleViewModel(source, config, session, reminders)
+        reminders: FakeCourseReminderControl = FakeCourseReminderControl(),
+        holidays: ScheduleHolidaySource = object : ScheduleHolidaySource {
+            override val holidays = MutableStateFlow(emptyMap<LocalDate, ScheduleHoliday>())
+            override suspend fun load(years: Set<Int>, refresh: Boolean) =
+                AhuResult.Success(emptyMap<LocalDate, ScheduleHoliday>())
+        }
+    ) = ScheduleViewModel(source, config, session, reminders, holidays)
+
+    @Test
+    fun `holiday refresh failure removes markings and does not change reminders`() {
+        val date = LocalDate.of(2026, 10, 1)
+        val cached = mapOf(date to ScheduleHoliday("国庆节", true))
+        val calls = mutableListOf<Boolean>()
+        val holidays = object : ScheduleHolidaySource {
+            override val holidays = MutableStateFlow(emptyMap<LocalDate, ScheduleHoliday>())
+            override suspend fun load(years: Set<Int>, refresh: Boolean): AhuResult<Map<LocalDate, ScheduleHoliday>> {
+                calls.add(refresh)
+                assertEquals(setOf(2026, 2027), years)
+                holidays.value = if (refresh) emptyMap() else cached
+                return if (refresh) AhuResult.Failure(AhuError.Network) else AhuResult.Success(cached)
+            }
+        }
+        val reminders = FakeCourseReminderControl()
+        val subject = viewModel(holidays = holidays, reminders = reminders)
+
+        subject.loadHolidays(LocalDate.of(2026, 9, 1))
+
+        assertEquals(listOf(false), calls)
+        assertEquals(cached, subject.scheduleHolidays.value)
+        subject.loadHolidays(LocalDate.of(2026, 9, 1), refresh = true)
+        assertEquals(listOf(false, true), calls)
+        assertEquals(emptyMap(), subject.scheduleHolidays.value)
+        assertEquals(0, reminders.rescheduleCount)
+    }
+
+    @Test
+    fun `fresh holiday arrangements replace the cache and clear removes them`() {
+        val date = LocalDate.of(2026, 10, 1)
+        val latest = mapOf(date to ScheduleHoliday("国庆节", true))
+        val holidays = object : ScheduleHolidaySource {
+            override val holidays = MutableStateFlow(emptyMap<LocalDate, ScheduleHoliday>())
+            override suspend fun load(years: Set<Int>, refresh: Boolean): AhuResult<Map<LocalDate, ScheduleHoliday>> {
+                holidays.value = latest
+                return AhuResult.Success(latest)
+            }
+        }
+        val subject = viewModel(holidays = holidays)
+
+        subject.loadHolidays(LocalDate.of(2026, 9, 1))
+        assertEquals(latest, subject.scheduleHolidays.value)
+        subject.clear()
+        assertEquals(emptyMap(), subject.scheduleHolidays.value)
+    }
+
+    @Test
+    fun `refresh button requests both timetable and holidays and source revocation reaches screen`() {
+        val calls = mutableListOf<Boolean>()
+        val date = LocalDate.of(2026, 10, 1)
+        val holidays = object : ScheduleHolidaySource {
+            override val holidays = MutableStateFlow(mapOf(date to ScheduleHoliday("国庆节", true)))
+            override suspend fun load(years: Set<Int>, refresh: Boolean): AhuResult<Map<LocalDate, ScheduleHoliday>> {
+                calls.add(refresh)
+                return AhuResult.Success(holidays.value)
+            }
+        }
+        val source = FakeScheduleSource()
+        val subject = viewModel(source = source, holidays = holidays)
+
+        subject.refreshSchedule(isRefresh = true)
+
+        assertEquals(listOf(true), calls)
+        assertEquals(1, source.refreshCount)
+        assertTrue(subject.scheduleHolidays.value.orEmpty().containsKey(date))
+        holidays.holidays.value = emptyMap()
+        assertEquals(emptyMap(), subject.scheduleHolidays.value)
+    }
+
+    @Test
+    fun `holiday range follows the supplied semester length`() {
+        val requested = mutableListOf<Set<Int>>()
+        val holidays = object : ScheduleHolidaySource {
+            override val holidays = MutableStateFlow(emptyMap<LocalDate, ScheduleHoliday>())
+            override suspend fun load(years: Set<Int>, refresh: Boolean): AhuResult<Map<LocalDate, ScheduleHoliday>> {
+                requested.add(years)
+                return AhuResult.Success(emptyMap())
+            }
+        }
+        val subject = viewModel(holidays = holidays)
+        subject.loadHolidays(LocalDate.of(2026, 1, 1), weekCount = 60)
+        assertEquals(listOf(setOf(2026, 2027)), requested)
+    }
 
     @Test
     fun `refreshing without a session and without mock data reports unauthorized`() {
@@ -112,7 +208,8 @@ class ScheduleViewModelTest {
     }
 
     @Test
-    fun `entering the screen seeds from the cache before refreshing`() {
+    fun `entering the screen seeds from the cache before refreshing`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val cached = listOf(Course())
         val source = FakeScheduleSource().apply { cachedSchedule = cached }
         val subject = viewModel(source = source)
@@ -120,7 +217,10 @@ class ScheduleViewModelTest {
         subject.onScheduleEntered()
 
         assertEquals(cached, subject.schedule.value?.valueOrNull())
+        assertEquals(0, source.refreshCount)
+        runCurrent()
         assertEquals(1, source.refreshCount)
+        assertEquals(cached, subject.schedule.value?.valueOrNull())
     }
 
     @Test

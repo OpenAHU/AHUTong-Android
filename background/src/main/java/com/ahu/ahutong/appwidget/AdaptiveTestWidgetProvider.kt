@@ -17,6 +17,16 @@ import androidx.compose.ui.graphics.toArgb
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.background.R
 import com.ahu.ahutong.background.scheduleReadModel
+import com.ahu.ahutong.background.backgroundCourseDate
+import com.ahu.ahutong.background.backgroundHolidayForDate
+import com.ahu.ahutong.background.backgroundEntryPoint
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.ahu.ahutong.data.schedule.scheduleHolidayLabel
+import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -32,7 +42,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
                 ?: appWidgetManager.getAppWidgetIds(
                     ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
                 )
-            ids.forEach { updateAppWidget(context, appWidgetManager, it) }
+            renderWidgets(context, appWidgetManager, ids)
             return
         }
         super.onReceive(context, intent)
@@ -43,12 +53,12 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
                 AppWidgetManager.INVALID_APPWIDGET_ID
             )
             if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                updateAppWidget(context, appWidgetManager, appWidgetId)
+                renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId), refreshHoliday = true)
             } else {
                 val ids = appWidgetManager.getAppWidgetIds(
                     ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
                 )
-                ids.forEach { updateAppWidget(context, appWidgetManager, it) }
+                renderWidgets(context, appWidgetManager, ids, refreshHoliday = true)
             }
             WidgetUpdateScheduler.requestScheduleRefresh(context)
         }
@@ -80,9 +90,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        appWidgetIds.forEach { appWidgetId ->
-            updateAppWidget(context, appWidgetManager, appWidgetId)
-        }
+        renderWidgets(context, appWidgetManager, appWidgetIds)
         if (appWidgetIds.isNotEmpty()) WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
 
@@ -92,14 +100,35 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         newOptions: android.os.Bundle
     ) {
-        updateAppWidget(context, appWidgetManager, appWidgetId)
+        renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
         WidgetUpdateScheduler.requestScheduleRefresh(context)
+    }
+
+    private fun renderWidgets(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+        refreshHoliday: Boolean = false
+    ) {
+        if (appWidgetIds.isEmpty()) return
+        val pendingResult = goAsync()
+        widgetScope.launch {
+            try {
+                val holiday = backgroundCourseDate(DebugClock.nowDate().time)?.let {
+                    backgroundHolidayForDate(context, it, refresh = refreshHoliday)
+                }
+                appWidgetIds.forEach { updateAppWidget(context, appWidgetManager, it, holiday) }
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private fun updateAppWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
-        appWidgetId: Int
+        appWidgetId: Int,
+        holiday: ScheduleHoliday?
     ) {
         Log.e(TAG, "updateAppWidget: 小组件刷新", )
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
@@ -125,8 +154,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         } else {
             R.id.adaptive_test_items_small
         }
-        // AppWidgetProvider callbacks run on the broadcast thread. Keep this path cache-only;
-        // remote semester synchronization is handled by the app and the suspend Glance widget.
+        // 教务课表仍然只读缓存；公开日历在 IO 协程中查询，不触发教务登录。
         val undergraduateEnabled = scheduleReadModel().canUseUndergraduateAcademics()
         val scheduleConfig = scheduleReadModel().cachedConfig()
         val schedule = scheduleReadModel().currentSchoolTerm()
@@ -154,14 +182,25 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
             titleText = "还剩 ${remainingCourses.size} 节"
             subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
         }
+        // 断网会撤销 StateFlow 并请求重绘；旧的并发渲染也不能重新写回已撤销的标记。
+        val currentHoliday = holiday?.takeIf {
+            val today = backgroundCourseDate(DebugClock.nowDate().time)
+            today?.let { date -> backgroundEntryPoint(context).scheduleHolidaySource().holidays.value[date] } == it
+        }
         val remoteViews = RemoteViews(context.packageName, layoutRes)
         remoteViews.setOnClickPendingIntent(
             R.id.layout_wight,
             createRefreshPendingIntent(context, appWidgetId)
         )
         remoteViews.setTextViewText(titleId, titleText)
-        remoteViews.setTextViewText(subtitleId, subtitleText)
-        remoteViews.setTextViewText(R.id.widget_last_fetched_at, widgetScheduleFetchedText(fetchedAt))
+        remoteViews.setTextViewText(
+            subtitleId,
+            currentHoliday?.let { "$subtitleText · ${scheduleHolidayLabel(it)}" } ?: subtitleText
+        )
+        remoteViews.setTextViewText(
+            R.id.widget_last_fetched_at,
+            widgetScheduleFetchedText(fetchedAt) + (currentHoliday?.let { "\n${scheduleHolidayNotice(it)}" } ?: "")
+        )
         remoteViews.setTextColor(titleId, widgetColors.primaryText.toArgb())
         remoteViews.setTextColor(subtitleId, widgetColors.secondaryText.toArgb())
         remoteViews.setTextColor(R.id.widget_last_fetched_at, widgetColors.secondaryText.toArgb())
@@ -254,6 +293,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+        private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         const val ACTION_RENDER_CACHED = "com.ahu.ahutong.appwidget.ACTION_RENDER_CACHED"
         private const val ACTION_REFRESH = "com.ahu.ahutong.appwidget.ACTION_REFRESH_SCHEDULE"
     }

@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -64,6 +65,7 @@ fun CourseCard(
     isCurrentWeek: Boolean = true,
     date: String? = null,
     timetable: Map<Int, String> = ScheduleSectionTimes.timetable,
+    holidayName: String? = null,
     onClick: (Course) -> Unit
 ) {
     val tonalPalettes = remember(color) { courseTonalPalettes(color) }
@@ -112,10 +114,12 @@ fun CourseCard(
                         mainColumnWidth + (cellWidth + cellSpacing) * (course.weekday - 1) + cellSpacing,
                         mainRowHeight + (cellHeight + cellSpacing) * (course.startTime - 1) + cellSpacing
                     )
+                    .alpha(if (holidayName != null) 0.45f else 1f)
                     .clip(SmoothRoundedCornerShape(8.dp))
                     .background(if (!isCurrentWeek) Color.Gray else color)
                     .semantics(mergeDescendants = true) {
-                        contentDescription = courseScheduleDescription(course, ScheduleSectionTimes.timetable, date)
+                        contentDescription = courseScheduleDescription(course, ScheduleSectionTimes.timetable, date) +
+                            (holidayName?.let { "，$it 放假日期，是否上课请自行确认" } ?: "")
                         onClick(label = "查看课程详情") {
                             onClick(course)
                             true
