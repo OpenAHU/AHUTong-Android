@@ -5,6 +5,8 @@ import android.content.Intent
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.core.storage.CourseReminderSettings
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
+import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import com.ahu.ahutong.data.schedule.WidgetScheduleReadModel
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminderStore
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -18,7 +20,8 @@ import dagger.hilt.components.SingletonComponent
  * 它们要的东西也不多，而且**都必须是只读的**：小组件只读课表快照，课程提醒只读两条提醒开关。
  * 组合根（:app）提供实现，方向仍然是 background → 端口。
  *
- * 因此这里给的是两个窄接口，而不是 SettingsStore 与 ScheduleWeekConfig——后两者带着写入口，
+ * 节假日端口仅查询公开日历，不依赖教务登录，也不写教务数据。
+ * 因此这里给的是窄接口，而不是 SettingsStore 与 ScheduleWeekConfig——后两者带着写入口，
  * 也带着"问一次远端"的能力。后台拿不到它们，就不可能顺手改用户设置或触发登录；门禁 R28 守着这条线。
  */
 @EntryPoint
@@ -26,6 +29,8 @@ import dagger.hilt.components.SingletonComponent
 interface BackgroundEntryPoint {
     fun courseReminderSettings(): CourseReminderSettings
     fun scheduleReadModel(): ScheduleReadModel
+    fun scheduleHolidaySource(): ScheduleHolidaySource
+    fun widgetScheduleReadModel(): WidgetScheduleReadModel
     /** 提醒要读学习通的作业与日程，也要写自己的记账——因此给的是窄视图，不是整个 Store。 */
     fun chaoxingReminderStore(): ChaoxingReminderStore
 }
@@ -47,6 +52,8 @@ internal fun courseReminderSettings(): CourseReminderSettings =
     backgroundEntryPoint().courseReminderSettings()
 
 internal fun scheduleReadModel(): ScheduleReadModel = backgroundEntryPoint().scheduleReadModel()
+
+internal fun widgetScheduleReadModel(): WidgetScheduleReadModel = backgroundEntryPoint().widgetScheduleReadModel()
 
 internal fun chaoxingReminderStore(): ChaoxingReminderStore =
     backgroundEntryPoint().chaoxingReminderStore()

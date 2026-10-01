@@ -2,6 +2,10 @@ package com.ahu.ahutong.di
 
 import com.ahu.ahutong.data.schedule.ScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
+import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import com.ahu.ahutong.data.calendar.RepositoryScheduleHolidaySource
+import com.ahu.ahutong.data.schedule.WidgetScheduleReadModel
+import com.ahu.ahutong.appwidget.AppWidgetScheduleReadModel
 import com.ahu.ahutong.ui.state.CacheScheduleReadModel
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.ui.state.RepositoryScheduleSource
@@ -27,12 +31,22 @@ abstract class ScheduleWiringModule {
 
     @Binds
     @Singleton
+    abstract fun bindScheduleHolidaySource(
+        implementation: RepositoryScheduleHolidaySource
+    ): ScheduleHolidaySource
+
+    @Binds
+    @Singleton
     abstract fun bindScheduleWeekConfig(
         implementation: RepositoryScheduleWeekConfig
     ): ScheduleWeekConfig
 
-    /** 后台组件只拿只读事实（小组件、提醒都靠它）。 */
+    /** 课前提醒继续使用原有本科只读事实。 */
     @Binds
     @Singleton
     abstract fun bindScheduleReadModel(implementation: CacheScheduleReadModel): ScheduleReadModel
+
+    @Binds
+    @Singleton
+    abstract fun bindWidgetScheduleReadModel(implementation: AppWidgetScheduleReadModel): WidgetScheduleReadModel
 }

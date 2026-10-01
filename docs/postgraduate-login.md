@@ -29,8 +29,8 @@ Diagnostic logs use the AcademicLogin tag and omit identifiers, tickets and HTML
 Postgraduate accounts hide undergraduate timetable data, grades/GPA, exams, evaluation,
 free classrooms, undergraduate semester settings and course reminder controls.
 Home widget libraries and both bottom-navigation variants use the same account policy.
-Direct routes and academic requests are also gated; cached timetable widgets show
-an unavailable message. Campus-card/Wisdom services, payments, lost-and-found,
+Direct routes and academic requests are also gated. Desktop timetable widgets now
+read GMIS data through a separate widget snapshot (see below). Campus-card/Wisdom services, payments, lost-and-found,
 school calendar, resources, weather and separately authenticated Chaoxing remain.
 
 The login stage previously passed 260 unit tests and built a Debug APK.
@@ -93,3 +93,65 @@ or section remain outside the timed home cards.
 WebVPN was used only for read-only investigation. Its locally supplied cookies
 were kept in memory and sent only to wvpn.ahu.edu.cn, never to the native app or
 another host. Tests use fictional courses and an independently generated AES vector.
+
+## Desktop timetable widgets
+
+Both Glance and adaptive RemoteViews widgets use the undergraduate rendering and
+refresh triggers: show cache first, request a unique WorkManager refresh, then redraw
+after completion. The operating system controls delivery of widget updates; returning
+to the launcher does not provide a guaranteed visibility callback. Existing periodic,
+manual, add-widget and resize triggers are retained.
+
+Graduate widgets reuse the GMIS timetable adapter, explicit week memberships, verified
+clock ranges (including period 14), and the term's user-confirmed first-week Monday.
+Missing calendars and unknown-time courses show instructions instead of invented
+undergraduate times or a misleading empty timetable. Foreground cache/week revisions
+request a cache-only widget redraw.
+
+Widget responses are saved atomically under `gmis.widget.schedule.v1` in the encrypted
+account box. They do not write the timetable page's cache, revision, semester settings
+or reminder read model. Existing page caches can seed the widget. A foreground cache
+change after a widget request starts takes priority over that request's saved result.
+The widget's subtle acquisition label is the last successful network fetch time;
+old page caches have no fetch timestamp and are displayed with an unknown timestamp.
+Failed requests retain both courses and the previous acquisition time.
+
+The widget copies valid CAS/GMIS cookies into a private in-memory jar and uses only
+session-check GETs and the read-only timetable query POST. Response cookies are never
+persisted to the app's cookie jar. Widgets do not submit passwords or renew expired
+login credentials; an expired session asks the user to open the app and then refresh.
+Account identity is checked around network work, and writes use the captured account
+box. Logout/relogin with the same account also cancels an old request.
+
+Automated coverage includes cache-only rendering, missing calendar, exact weeks,
+GMIS period 14, account changes, same-account relogin, failed/expired refreshes,
+foreground cache races, cache replacement, and cookie isolation. Live graduate
+account verification remains a separate manual check.
+
+Validation on 2026-10-01, based on develop `d8f4c47a`:
+
+- `adb devices` found an authorized Android device before each build.
+- Gradle `:app:testDebugUnitTest --tests '*appwidget.*' --tests '*crawler.gmis.*'
+  --tests '*ModuleBoundaryTest' :background:testDebugUnitTest
+  :data:schedule:testDebugUnitTest`: 94 tests passed (54 app, 18 background, 22 schedule).
+- `:app:assembleDebug :app:assembleRelease`: both passed, including release R8 and vital lint.
+  JDK 24 and a temporary dependency-mirror init script outside the repository were used.
+- `adb install -r app/build/outputs/apk/debug/app-debug.apk`: success. Force-stop followed
+  by `adb shell am start -W -n com.ahu.ahutong.debug/com.ahu.ahutong.MainActivity`
+  reported a successful cold start. The new process had no AndroidRuntime error log.
+- An initial complete app run passed 362 of 370 tests. Eight navigation/theme checks failed.
+  Repeating those four test classes on the unmodified develop baseline produced the same
+  eight failures out of 32 checks; the feature's related tests pass independently.
+- This is a build/startup check and synthetic-data verification, not a live GMIS account
+  or launcher-widget visual validation. Neither the production APK nor update service was changed.
+
+Integration validation against develop `a0007d64` on 2026-10-01:
+
+- Preserved the newly merged online holiday labels in both desktop widget renderers
+  and retained both holiday and widget snapshot Hilt bindings.
+- Repeated the above Gradle verification with `--tests '*data.calendar.*'` added:
+  all 122 related tests passed (70 app, 28 background, 24 schedule), and both Debug
+  and Release builds passed.
+- `adb devices` found the same authorized device. The updated Debug APK installed
+  successfully and cold-started successfully; its process had no AndroidRuntime error log.
+- Live postgraduate account and launcher widget verification remains pending.

@@ -12,6 +12,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.TaskStackBuilder
 import com.ahu.ahutong.background.launchIntent
+import com.ahu.ahutong.background.backgroundCourseDate
+import com.ahu.ahutong.background.backgroundHolidayForDate
+import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
 import com.ahu.ahutong.notification.model.CourseReminderPayload
 
 object CourseReminderNotifier {
@@ -25,14 +28,20 @@ object CourseReminderNotifier {
         val startAt = payload.courseStartAtMillis
         if (startAt != null && startAt <= System.currentTimeMillis()) return DeliveryResult.BLOCKED
 
+        val holidayNotice = backgroundCourseDate(payload.courseStartAtMillis)
+            ?.let { backgroundHolidayForDate(context, it) }
+            ?.let(::scheduleHolidayNotice)
+        // 日历查询期间课程可能已开始，继续遵守提醒的过期检查。
+        if (startAt != null && startAt <= System.currentTimeMillis()) return DeliveryResult.BLOCKED
+
         if (CourseReminderCapability.shouldTryLiveCountdown(context, payload)) {
-            val shown = CourseLiveUpdateHelper.showLiveUpdate(context, payload)
+            val shown = CourseLiveUpdateHelper.showLiveUpdate(context, payload, holidayNotice)
             if (shown) return DeliveryResult.LIVE
         }
 
         CourseLiveUpdateHelper.cancel(context)
         CourseLiveUpdateHelper.cancelScheduledUpdate(context)
-        return if (showStandardReminder(context, payload)) DeliveryResult.STANDARD else DeliveryResult.BLOCKED
+        return if (showStandardReminder(context, payload, holidayNotice)) DeliveryResult.STANDARD else DeliveryResult.BLOCKED
     }
 
     fun cancelActiveReminder(context: Context) {
@@ -48,7 +57,8 @@ object CourseReminderNotifier {
 
     private fun showStandardReminder(
         context: Context,
-        payload: CourseReminderPayload
+        payload: CourseReminderPayload,
+        holidayNotice: String?
     ): Boolean {
         CourseReminderScheduler.createNotificationChannel(context)
 
@@ -70,11 +80,12 @@ object CourseReminderNotifier {
             }
         }
 
+        val displayText = withCourseHolidayNotice(contentText, holidayNotice)
         val notification = NotificationCompat.Builder(context, CourseReminderScheduler.CHANNEL_ID)
             .setSmallIcon(context.applicationInfo.icon)
             .setContentTitle(payload.courseName)
-            .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setContentText(displayText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(displayText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

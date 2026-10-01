@@ -26,4 +26,23 @@ class WidgetScheduleCoursesTest {
         config.setInSemester(false)
         assertEquals(emptyList<Course>(), todayWidgetCourses(listOf(course), config))
     }
+
+    @Test
+    fun `graduate fourteenth period uses explicit weeks and GMIS clock`() {
+        val course = Course().apply {
+            weekIndexes = listOf(1, 5, 23)
+            setWeekday("1")
+            setStartTime("14")
+            setLength("1")
+            clockRange = "21:30-22:15"
+        }
+        val config = ScheduleConfigBean().apply { week = 3; weekDay = 1 }
+        assertEquals(emptyList<Course>(), todayWidgetCourses(listOf(course), config))
+        config.week = 23
+        assertEquals(listOf(course), todayWidgetCourses(listOf(course), config))
+        assertEquals(1290..1335,
+            com.ahu.ahutong.data.schedule.ScheduleSectionTimes.getCourseTimeRangeInMinutes(course))
+        config.weekDay = 2
+        assertEquals(emptyList<Course>(), todayWidgetCourses(listOf(course), config))
+    }
 }

@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen.main.schedule
 
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -21,6 +22,18 @@ class ScheduleAccessibilityTest {
     @Test
     fun `time axis labels expose exact start and end clocks`() {
         assertEquals("第13节，20:40至21:25", schedulePeriodDescription(13, timetable.getValue(13)))
+    }
+
+    @Test
+    fun `day headers distinguish time off from adjusted workdays`() {
+        assertEquals(
+            "星期四，10月1日，国庆节放假",
+            scheduleDayDescription(4, "10-01", ScheduleHoliday("国庆节", true))
+        )
+        assertEquals(
+            "星期六，10月10日，国庆节调休补班，教学安排请自行确认",
+            scheduleDayDescription(6, "10-10", ScheduleHoliday("国庆节", false))
+        )
     }
 
     @Test

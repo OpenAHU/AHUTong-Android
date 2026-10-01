@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
+import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.a1
@@ -36,6 +38,7 @@ fun AtAGlance(
     isInSemester: Boolean = true,
     emptyCourseText: String = "已全部上完",
     enabled: Boolean = true,
+    holiday: ScheduleHoliday? = null,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     // 主页排版全主题统一为 Radiant 方案（currentDateText/trailingContent 由曜光头部承担）
@@ -44,7 +47,8 @@ fun AtAGlance(
         currentMinutes = currentMinutes,
         onOpenSchedule = onOpenSchedule,
         isInSemester = isInSemester,
-        enabled = enabled
+        enabled = enabled,
+        holiday = holiday
     )
 }
 
@@ -55,7 +59,8 @@ private fun RadiantAtAGlance(
     currentMinutes: Int,
     onOpenSchedule: () -> Unit,
     isInSemester: Boolean,
-    enabled: Boolean
+    enabled: Boolean,
+    holiday: ScheduleHoliday?
 ) {
     val currentCourse = todayCourses.find {
         currentMinutes in ScheduleSectionTimes.getCourseTimeRangeInMinutes(it)
@@ -116,6 +121,15 @@ private fun RadiantAtAGlance(
             overflow = TextOverflow.Clip,
             style = MaterialTheme.typography.bodyMedium
         )
+        holiday?.let {
+            Text(
+                text = "今日${scheduleHolidayNotice(it)}",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
