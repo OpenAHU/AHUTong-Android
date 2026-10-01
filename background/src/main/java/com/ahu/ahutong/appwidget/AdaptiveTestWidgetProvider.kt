@@ -16,7 +16,6 @@ import android.widget.RemoteViews
 import androidx.compose.ui.graphics.toArgb
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.background.R
-import com.ahu.ahutong.background.scheduleReadModel
 import com.ahu.ahutong.background.backgroundCourseDate
 import com.ahu.ahutong.background.backgroundHolidayForDate
 import com.ahu.ahutong.background.backgroundEntryPoint
@@ -27,6 +26,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import com.ahu.ahutong.background.widgetScheduleReadModel
+import com.ahu.ahutong.background.launchIntent
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -155,15 +156,9 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
             R.id.adaptive_test_items_small
         }
         // 教务课表仍然只读缓存；公开日历在 IO 协程中查询，不触发教务登录。
-        val undergraduateEnabled = scheduleReadModel().canUseUndergraduateAcademics()
-        val scheduleConfig = scheduleReadModel().cachedConfig()
-        val schedule = scheduleReadModel().currentSchoolTerm()
-            .takeIf { undergraduateEnabled }
-            ?.let { scheduleReadModel().cachedSchedule(it) }
-            .orEmpty()
-        val fetchedAt = scheduleReadModel().cachedScheduleFetchedAt()
+        val snapshot = widgetScheduleReadModel().cachedSnapshot()
         val currentMinutes = DebugClock.currentMinutes()
-        val todayCourses = todayWidgetCourses(schedule, scheduleConfig)
+        val todayCourses = todayWidgetCourses(snapshot.courses, snapshot.config)
         val remainingCourses = todayCourses.filter {
             currentMinutes <= ScheduleSectionTimes.getCourseTimeRangeInMinutes(it).last
         }
@@ -172,9 +167,9 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         val widgetColors = resolve(context)
         val titleText: String
         val subtitleText: String
-        if (!undergraduateEnabled) {
-            titleText = "研究生账号"
-            subtitleText = "暂不支持本科课表微件"
+        if (snapshot.unavailableMessage != null) {
+            titleText = "课表待更新"
+            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
         } else if (displayCourses.isEmpty()) {
             titleText = "没课啦🎉"
             subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
@@ -199,7 +194,8 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         )
         remoteViews.setTextViewText(
             R.id.widget_last_fetched_at,
-            widgetScheduleFetchedText(fetchedAt) + (currentHoliday?.let { "\n${scheduleHolidayNotice(it)}" } ?: "")
+            listOfNotNull(widgetScheduleFetchedText(snapshot.fetchedAt), snapshot.notice).joinToString(" · ") +
+                (currentHoliday?.let { "\n${scheduleHolidayNotice(it)}" } ?: "")
         )
         remoteViews.setTextColor(titleId, widgetColors.primaryText.toArgb())
         remoteViews.setTextColor(subtitleId, widgetColors.secondaryText.toArgb())
@@ -213,9 +209,12 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         if (displayCourses.isEmpty()) {
             val emptyItem = RemoteViews(context.packageName, R.layout.layout_widget_item)
             emptyItem.setViewVisibility(R.id.little_circle, View.GONE)
-            emptyItem.setTextViewText(R.id.course_name_tv, if (undergraduateEnabled) "暂无课程" else "本科课表已停用")
+            emptyItem.setTextViewText(R.id.course_name_tv, snapshot.unavailableMessage ?: "暂无课程")
             emptyItem.setViewVisibility(R.id.course_time_tv, View.GONE)
-            emptyItem.setTextViewText(R.id.course_location_tv, if (undergraduateEnabled) "点击打开安大通查看完整课表" else "智慧安大服务仍可使用")
+            emptyItem.setTextViewText(R.id.course_location_tv, "点击打开安大通查看完整课表")
+            emptyItem.setOnClickPendingIntent(R.id.widget_item_color_bg,
+                PendingIntent.getActivity(context, appWidgetId, launchIntent(context),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
             emptyItem.setTextColor(R.id.little_circle, widgetColors.off.toArgb())
             emptyItem.setTextColor(R.id.course_name_tv, widgetColors.primaryText.toArgb())
             emptyItem.setTextColor(R.id.course_time_tv, widgetColors.secondaryText.toArgb())

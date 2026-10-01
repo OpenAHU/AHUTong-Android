@@ -43,11 +43,11 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.ahu.ahutong.background.launchIntent
-import com.ahu.ahutong.background.scheduleReadModel
 import com.ahu.ahutong.background.backgroundCourseDate
 import com.ahu.ahutong.background.backgroundHolidayForDate
 import com.ahu.ahutong.background.backgroundEntryPoint
 import com.ahu.ahutong.background.loadBackgroundHoliday
+import com.ahu.ahutong.background.widgetScheduleReadModel
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.scheduleHolidayLabel
@@ -69,20 +69,12 @@ import kotlin.collections.sortedBy
 class ScheduleAppWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        if (!scheduleReadModel().canUseUndergraduateAcademics()) {
-            provideContent { androidx.glance.text.Text("研究生账号暂不支持本科课表微件") }
-            return
-        }
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
         // 只读缓存（P4 的验收标准）：本地优先解析会在本地未确认过时问一次远端并写缓存，
         // 那正是"小组件冷启动不该触发登录"要挡住的事，所以这里只读缓存配置。
-        val scheduleConfig = scheduleReadModel().cachedConfig()
-        val schedule = scheduleReadModel().currentSchoolTerm()
-            ?.let { scheduleReadModel().cachedSchedule(it) }
-            .orEmpty()
-        val fetchedAt = scheduleReadModel().cachedScheduleFetchedAt()
+        val snapshot = widgetScheduleReadModel().cachedSnapshot()
         val currentMinutes = DebugClock.currentMinutes()
-        val todayCourses = todayWidgetCourses(schedule, scheduleConfig)
+        val todayCourses = todayWidgetCourses(snapshot.courses, snapshot.config)
         val today = backgroundCourseDate(DebugClock.nowDate().time)!!
         val holidaySource = backgroundEntryPoint(context).scheduleHolidaySource()
         loadBackgroundHoliday(holidaySource, today)
@@ -93,7 +85,9 @@ class ScheduleAppWidget : GlanceAppWidget() {
                 context = context,
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
-                fetchedAt = fetchedAt,
+                fetchedAt = snapshot.fetchedAt,
+                unavailableMessage = snapshot.unavailableMessage,
+                notice = snapshot.notice,
                 keyColor = keyColor,
                 holiday = holidays[today]
             )
@@ -144,6 +138,8 @@ private fun ScheduleWidgetContent(
     todayCourses: List<Course>,
     currentMinutes: Int,
     fetchedAt: Long?,
+    unavailableMessage: String?,
+    notice: String?,
     keyColor: Color,
     holiday: ScheduleHoliday?
 ) {
@@ -184,7 +180,8 @@ private fun ScheduleWidgetContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (remainingCourses.size == 0) "暂无课程" else "还剩 ${remainingCourses.size} 节",
+                        text = unavailableMessage?.let { "课表待更新" }
+                            ?: if (remainingCourses.size == 0) "暂无课程" else "还剩 ${remainingCourses.size} 节",
                         style = TextStyle(
                             color = primaryTextColor,
                             fontSize = 15.sp,
@@ -215,7 +212,7 @@ private fun ScheduleWidgetContent(
                     )
                 }
                 Text(
-                    text = widgetScheduleFetchedText(fetchedAt),
+                    text = listOfNotNull(widgetScheduleFetchedText(fetchedAt), notice).joinToString(" · "),
                     style = TextStyle(color = secondaryTextColor, fontSize = 10.sp),
                     modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp)
                 )
@@ -229,7 +226,7 @@ private fun ScheduleWidgetContent(
                 Spacer(modifier = GlanceModifier.height(10.dp))
                 if (remainingCourses.isEmpty()) {
                     Text(
-                        text = "没课啦",
+                        text = unavailableMessage ?: "没课啦",
                         style = TextStyle(
                             color = primaryTextColor,
                             fontSize = 16.sp,

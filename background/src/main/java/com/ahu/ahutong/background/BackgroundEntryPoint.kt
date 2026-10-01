@@ -6,6 +6,7 @@ import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.core.storage.CourseReminderSettings
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
 import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import com.ahu.ahutong.data.schedule.WidgetScheduleReadModel
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminderStore
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -29,6 +30,7 @@ interface BackgroundEntryPoint {
     fun courseReminderSettings(): CourseReminderSettings
     fun scheduleReadModel(): ScheduleReadModel
     fun scheduleHolidaySource(): ScheduleHolidaySource
+    fun widgetScheduleReadModel(): WidgetScheduleReadModel
     /** 提醒要读学习通的作业与日程，也要写自己的记账——因此给的是窄视图，不是整个 Store。 */
     fun chaoxingReminderStore(): ChaoxingReminderStore
 }
@@ -50,6 +52,8 @@ internal fun courseReminderSettings(): CourseReminderSettings =
     backgroundEntryPoint().courseReminderSettings()
 
 internal fun scheduleReadModel(): ScheduleReadModel = backgroundEntryPoint().scheduleReadModel()
+
+internal fun widgetScheduleReadModel(): WidgetScheduleReadModel = backgroundEntryPoint().widgetScheduleReadModel()
 
 internal fun chaoxingReminderStore(): ChaoxingReminderStore =
     backgroundEntryPoint().chaoxingReminderStore()

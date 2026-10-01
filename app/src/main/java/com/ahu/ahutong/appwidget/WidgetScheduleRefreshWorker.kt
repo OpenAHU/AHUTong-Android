@@ -8,6 +8,7 @@ import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.model.AcademicAccountType
 import kotlinx.coroutines.CancellationException
 
 /** 后台检查最新课表；成功后重绘缓存和获取时间，失败时保留原有内容。 */
@@ -19,6 +20,12 @@ class WidgetScheduleRefreshWorker(
         if (!SessionStore.isLoggedIn() && !AHUCache.getMockData()) return Result.success()
 
         return try {
+            val user = SessionStore.currentUser()
+            if (user?.academicAccountType == AcademicAccountType.POSTGRADUATE) {
+                GraduateWidgetSchedule.instance.refresh(user)
+                WidgetUpdateScheduler.renderCached(applicationContext)
+                return Result.success()
+            }
             when (AHURepository.refreshScheduleCache()) {
                 is AhuResult.Success -> {
                     WidgetUpdateScheduler.renderCached(applicationContext)
