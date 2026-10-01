@@ -30,12 +30,17 @@ private fun createSession(wisdomOnly: Boolean) = RepositoryAhuSession(
     account = SessionAccount { SessionStore.currentUser() },
     residue = object : SessionResidue {
 
+        override fun clearRetainedServiceSessions() {
+            com.ahu.ahutong.data.mail.StudentMailSession.clear()
+        }
+
         override fun clearDerivedToken() {
             // 续期成功后只丢派生的校园卡令牌：第一方 Cookie 是刚建立的会话本身。
             TokenManager.clear()
         }
 
         override suspend fun clear() {
+            com.ahu.ahutong.data.mail.StudentMailSession.clear()
             EvaluationRepository.clearSession()
             TokenManager.clear()
             CookieManager.cookieJar.clear()

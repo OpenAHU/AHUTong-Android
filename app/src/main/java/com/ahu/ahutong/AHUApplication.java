@@ -48,10 +48,10 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
         super.onCreate();
         AliyunDns.INSTANCE.initializeCache(new File(getCacheDir(), "aliyun-doh"));
 
-        // This isolated process only renders the public graduate notice page. Do not start the
-        // ordinary app's analytics, schedulers or login services in it.
+        // Isolated WebViews have their own profiles; do not initialize login services or analytics.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-                Application.getProcessName().endsWith(":postgraduate_notices")) {
+                (Application.getProcessName().endsWith(":postgraduate_notices") ||
+                 Application.getProcessName().endsWith(":student_mail"))) {
             return;
         }
 

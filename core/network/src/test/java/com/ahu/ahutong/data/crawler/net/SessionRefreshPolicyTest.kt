@@ -12,6 +12,34 @@ class SessionRefreshPolicyTest {
     private val requestUrl = "https://jw.ahu.edu.cn/student/for-std/lesson-search".toHttpUrl()
 
     @Test
+    fun `routine refresh retains service identity while manual login and logout revoke it`() = kotlinx.coroutines.runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        val identity = SessionRefreshCoordinator.currentIdentityGeneration()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        assertTrue(SessionRefreshCoordinator.refreshIfNeeded(generation) { SessionRefreshCoordinator.RefreshOutcome.SUCCESS })
+        assertEquals(generation + 1, SessionRefreshCoordinator.currentGeneration())
+        assertEquals(identity, SessionRefreshCoordinator.currentIdentityGeneration())
+        SessionRefreshCoordinator.onSignedOut()
+        assertEquals(identity + 1, SessionRefreshCoordinator.currentIdentityGeneration())
+        SessionRefreshCoordinator.onAuthenticated()
+        assertEquals(identity + 2, SessionRefreshCoordinator.currentIdentityGeneration())
+    }
+
+    @Test
+    fun `explicit sign out is distinguishable from cold startup and clears on authentication`() = kotlinx.coroutines.runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        try {
+            assertFalse(SessionRefreshCoordinator.isExplicitlySignedOut())
+            SessionRefreshCoordinator.onSignedOut()
+            assertTrue(SessionRefreshCoordinator.isExplicitlySignedOut())
+            SessionRefreshCoordinator.onAuthenticated()
+            assertFalse(SessionRefreshCoordinator.isExplicitlySignedOut())
+        } finally {
+            SessionRefreshCoordinator.onAuthenticated()
+        }
+    }
+
+    @Test
     fun `recognizes first party login redirect`() {
         assertTrue(
             SessionRefreshPolicy.isFirstPartyLoginRedirect(

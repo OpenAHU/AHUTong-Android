@@ -36,6 +36,7 @@ class RepositoryAhuSession(
         if (result.valueOrNull() is LoginOutcome.Success) {
             // 先在协调器里推进代号，再发布已认证状态：并发中的旧续期不能覆盖这次新登录。
             SessionRefreshCoordinator.onAuthenticated {
+                residue.clearRetainedServiceSessions()
                 AhuSessionState.markAuthenticated()
             }
         }
@@ -44,6 +45,7 @@ class RepositoryAhuSession(
 
     override suspend fun completeWebVerification() {
         SessionRefreshCoordinator.onAuthenticated {
+            residue.clearRetainedServiceSessions()
             AhuSessionState.markAuthenticated()
         }
     }

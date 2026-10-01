@@ -222,6 +222,8 @@ dependencies {
     implementation(libs.kyant0.backdrop)
     implementation(libs.kyant0.capsule)
     implementation(libs.markwon.core)
+    implementation(libs.commonmark.tables)
+    implementation(libs.commonmark.strikethrough)
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)

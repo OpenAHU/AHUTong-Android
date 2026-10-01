@@ -135,7 +135,6 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator as MiuixCircularPro
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
-import top.yukonga.miuix.kmp.basic.InputField as MiuixSearchInputField
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults as MiuixProgressIndicatorDefaults
@@ -841,39 +840,31 @@ internal fun MiuixSearchFieldImpl(
     modifier: Modifier,
     onSearch: (String) -> Unit
 ) {
-    if (LocalAppBackground.current != null) {
-        MiuixTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = placeholder,
-            useLabelAsPlaceholder = true,
-            modifier = modifier.appWallpaperFrostedSurface(
-                SmoothRoundedCornerShape(16.dp),
-                MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.66f)
-            ),
-            backgroundColor = Color.Transparent,
-            borderColor = Color.Transparent,
-            leadingIcon = {
-                MiuixIcon(
-                    imageVector = MiuixIcons.Useful.Search,
-                    contentDescription = null,
-                    tint = MiuixTheme.colorScheme.onSurface
-                )
-            },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onSearch(value) })
-        )
-        return
-    }
-    MiuixSearchInputField(
-        query = value,
-        onQueryChange = onValueChange,
+    // This is an inline search field. SearchBar's expanded input intentionally
+    // hides its label, so use the same theme text field as the wallpaper variant.
+    val wallpaperEnabled = LocalAppBackground.current != null
+    MiuixTextField(
+        value = value,
+        onValueChange = onValueChange,
         label = placeholder,
-        onSearch = onSearch,
-        expanded = true,
-        onExpandedChange = {},
-        modifier = modifier
+        useLabelAsPlaceholder = true,
+        modifier = if (wallpaperEnabled) modifier.appWallpaperFrostedSurface(
+            SmoothRoundedCornerShape(16.dp),
+            MiuixTheme.colorScheme.secondaryContainer.copy(alpha = 0.66f)
+        ) else modifier,
+        backgroundColor = if (wallpaperEnabled) Color.Transparent else MiuixTheme.colorScheme.secondaryContainer,
+        borderColor = Color.Transparent,
+        leadingIcon = {
+            MiuixIcon(
+                imageVector = MiuixIcons.Useful.Search,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 16.dp, end = 8.dp),
+                tint = MiuixTheme.colorScheme.onSurface
+            )
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch(value) })
     )
 }
 

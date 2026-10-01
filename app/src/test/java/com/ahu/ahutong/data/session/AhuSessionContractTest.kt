@@ -62,12 +62,14 @@ class AhuSessionContractTest {
     @Test
     fun `a successful sign in marks the session authenticated`() = runBlocking {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
-        val subject = session(login = login)
+        val residue = FakeSessionResidue()
+        val subject = session(login = login, residue = residue)
 
         val outcome = subject.signIn("20210001", "secret")
 
         assertTrue(outcome.isSuccess)
         assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+        assertEquals(1, residue.clearRetainedServiceSessionsCount)
         // 首登保持"原生优先"，与仓库层默认值一致
         assertEquals(listOf(Triple("20210001", "secret", true)), login.calls)
     }
@@ -144,13 +146,15 @@ class AhuSessionContractTest {
     @Test
     fun `completing web verification authenticates the session and invalidates old requests`() =
         runBlocking {
-            val subject = session()
+            val residue = FakeSessionResidue()
+            val subject = session(residue = residue)
             val oldGeneration = SessionRefreshCoordinator.currentGeneration()
 
             subject.completeWebVerification()
 
             assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
             assertEquals(oldGeneration + 1, SessionRefreshCoordinator.currentGeneration())
+            assertEquals(1, residue.clearRetainedServiceSessionsCount)
         }
 
     @Test
@@ -174,6 +178,7 @@ class AhuSessionContractTest {
             assertEquals(listOf(Triple("20210001", "stored-secret", false)), login.calls)
             // 只清派生的校园卡令牌：第一方 Cookie 是刚建立的会话，登出才有权清它。
             assertEquals(1, residue.clearDerivedTokenCount)
+            assertEquals(0, residue.clearRetainedServiceSessionsCount)
             assertEquals(0, residue.clearCount)
         }
 

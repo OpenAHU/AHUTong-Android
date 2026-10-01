@@ -12,6 +12,9 @@ package com.ahu.ahutong.data.session
  */
 interface SessionResidue {
 
+    /** Invalidate retained service credentials after an explicit login or Web verification. */
+    fun clearRetainedServiceSessions() {}
+
     /** 清掉派生的校园卡令牌（续期成功后调用）。 */
     fun clearDerivedToken()
 

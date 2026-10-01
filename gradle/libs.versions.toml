@@ -30,6 +30,7 @@ adsMobileSdkVersion = "0.18.0-beta01"
 kyant0Backdrop = "1.0.0"
 kyant0Capsule = "2.1.1"
 markwon = "4.6.2"
+commonmark = "0.13.0"
 room = "2.8.4"
 serialization = "1.8.1"
 work = "2.11.2"
@@ -83,6 +84,8 @@ sentry-android = { module = "io.sentry:sentry-android", version.ref = "sentryAnd
 kyant0-backdrop = { module = "io.github.kyant0:backdrop", version.ref = "kyant0Backdrop" }
 kyant0-capsule = { module = "io.github.kyant0:capsule", version.ref = "kyant0Capsule" }
 markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
+commonmark-tables = { module = "com.atlassian.commonmark:commonmark-ext-gfm-tables", version.ref = "commonmark" }
+commonmark-strikethrough = { module = "com.atlassian.commonmark:commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }

@@ -120,7 +120,12 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
                 }
                 appWidgetIds.forEach { updateAppWidget(context, appWidgetManager, it, holiday) }
             } finally {
-                pendingResult.finish()
+                try {
+                    pendingResult.finish()
+                } catch (_: IllegalStateException) {
+                    // A completed broadcast must not turn a background widget redraw into an app crash.
+                    Log.w(TAG, "Widget broadcast was already finished")
+                }
             }
         }
     }

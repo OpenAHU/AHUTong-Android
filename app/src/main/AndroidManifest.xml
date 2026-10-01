@@ -108,6 +108,17 @@
             android:exported="false"
             android:process=":postgraduate_notices" />
 
+        <provider
+            android:name=".data.mail.StudentMailSessionProvider"
+            android:authorities="${applicationId}.student_mail_session"
+            android:exported="false" />
+        <activity
+            android:name=".ui.screen.main.StudentMailWebActivity"
+            android:exported="false"
+            android:process=":student_mail"
+            android:screenOrientation="portrait"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
         <receiver
             android:name=".appwidget.ScheduleAppWidgetReceiver"
             android:enabled="@bool/glance_appwidget_available"

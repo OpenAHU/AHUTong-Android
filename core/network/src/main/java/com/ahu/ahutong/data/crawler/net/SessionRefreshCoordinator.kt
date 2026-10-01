@@ -38,6 +38,11 @@ object SessionRefreshCoordinator {
     @Volatile
     private var generation = 0L
 
+    // Service sessions survive routine CAS refreshes, but never a manual login/logout.
+    @Volatile private var identityGeneration = 0L
+
+    fun currentIdentityGeneration(): Long = identityGeneration
+
     /**
      * 失败记忆：防惊群（同一代的并发 401 只真正续期一次），但不再永久封禁——
      * [TRANSIENT] 失败过了冷却窗就放行一次新尝试；只有 [REJECTED] 才封到人工重登。
@@ -51,6 +56,9 @@ object SessionRefreshCoordinator {
 
     fun currentGeneration(): Long = generation
 
+    /** Unlike the unhydrated UI status at cold start, this flag represents an explicit sign-out. */
+    fun isExplicitlySignedOut(): Boolean = refreshDisabled
+
     /**
      * 一次真正的登录刚刚成功（用户手动登录或完成 Web 验证）：推进代号并清掉失败记忆。
      * 推进代号会让登录前发出的慢响应变成旧响应，避免它在新会话上再次触发自动续期。
@@ -58,6 +66,7 @@ object SessionRefreshCoordinator {
      */
     suspend fun onAuthenticated(action: () -> Unit = {}) = refreshMutex.withLock {
         generation += 1
+        identityGeneration += 1
         failures.clear()
         refreshDisabled = false
         action()
@@ -66,6 +75,7 @@ object SessionRefreshCoordinator {
     /** 主动登出同样推进代号，使所有已发出的请求与在途续期立即失去提交资格。 */
     suspend fun onSignedOut(action: () -> Unit = {}) = refreshMutex.withLock {
         generation += 1
+        identityGeneration += 1
         // 退出后的匿名代号禁止自动续期；否则残留清理完成前的新请求还能拿旧凭据重登。
         // 下一次真实登录会由 onAuthenticated 推进代号并解除这道闸。
         refreshDisabled = true

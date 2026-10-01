@@ -43,6 +43,11 @@ class FakeSessionAccount(var user: User? = null) : SessionAccount {
 /** [SessionResidue] 的 fake：两种语义各记各的次数。 */
 class FakeSessionResidue : SessionResidue {
 
+    var clearRetainedServiceSessionsCount = 0
+        private set
+
+    override fun clearRetainedServiceSessions() { clearRetainedServiceSessionsCount++ }
+
     var clearCount = 0
         private set
 

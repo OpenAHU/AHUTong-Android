@@ -66,6 +66,7 @@ import com.ahu.ahutong.ui.screen.main.LostFound
 import com.ahu.ahutong.ui.screen.main.MoreWidgetsScreen
 import com.ahu.ahutong.ui.screen.main.NetworkRecharge
 import com.ahu.ahutong.ui.screen.main.PhoneBook
+import com.ahu.ahutong.ui.screen.main.StudentMailScreen
 import com.ahu.ahutong.ui.screen.main.Repository
 import com.ahu.ahutong.ui.screen.main.RepositoryDownloads
 import com.ahu.ahutong.ui.screen.main.Schedule
@@ -414,6 +415,9 @@ fun Main(
             }
             animatedComposable("phone_book") {
                 PhoneBook(onBack = { navController.popBackStack() })
+            }
+            animatedComposable("student_mail") {
+                StudentMailScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("exam") {
                 Exam(onBack = { navController.popBackStack() })
