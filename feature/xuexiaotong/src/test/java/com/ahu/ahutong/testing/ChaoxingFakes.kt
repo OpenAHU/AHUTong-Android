@@ -84,8 +84,6 @@ class FakeChaoxingStore(
     var savedRemindSetting: RemindSetting? = null
         private set
 
-    override fun cookie(): String = ""
-
     override fun works(): List<Work> = works
     override fun courses(): List<Course> = courses
     override fun courseProgress(): List<CourseProgress> = courseProgress

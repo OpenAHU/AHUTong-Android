@@ -49,6 +49,16 @@ object Store : ChaoxingReminderStore {
     override fun hasCookie(): Boolean = getCookie().length > 20
     fun clearCookie() = remove("cx_cookie")
 
+    /**
+     * 清空学习通全部本地数据（登录 Cookie、加密凭据、课程/作业/进度缓存、提醒状态、UI 偏好）。
+     * 隐私清理（设置页「清除数据」、换号）由此收口：整文件清空，
+     * 功能以后加新键时无需回来维护清单。调用方传 context 是为防御未初始化（正常流程 Application 已 init）。
+     */
+    fun clearAll(context: Context) {
+        if (!::sp.isInitialized) init(context)
+        sp.edit().clear().apply()
+    }
+
     fun saveCredential(phone: String, pwd: String) {
         val encryptedPhone = CredentialCrypto.encrypt(phone)
         val encryptedPassword = CredentialCrypto.encrypt(pwd)

@@ -8,6 +8,10 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.notice.CampusNoticeRepository
 import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.update.ApkUpdateSkipStore
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
+import com.ahu.ahutong.data.xuexiaotong.PersistentCookieJar
+import com.ahu.ahutong.data.xuexiaotong.Store
 import com.ahu.ahutong.notification.CourseReminderScheduler
 import com.ahu.ahutong.notification.CampusNoticeNotifier
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
@@ -28,7 +32,9 @@ class DeviceDataReset @Inject constructor(
     private val behavior: BehaviorPredictionRuntime,
     private val settings: SettingsStore,
     private val session: AhuSession,
-    private val updateSkipStore: ApkUpdateSkipStore
+    private val updateSkipStore: ApkUpdateSkipStore,
+    private val chaoxingSession: ChaoxingSession,
+    private val chaoxingReminders: ChaoxingReminders
 ) : AppDataReset {
 
     private val context: Context get() = AppEnvironmentHolder.context()
@@ -36,6 +42,7 @@ class DeviceDataReset @Inject constructor(
     override suspend fun clearAll() {
         CourseReminderScheduler.cancel(context).join()
         CampusNoticeNotifier.cancelAll(context)
+        chaoxingReminders.cancelAll()
         CampusNoticeRepository.clearAll()
         settings.clearAll()
         CourseReminderScheduler.clearDeliveryHistory(context)
@@ -45,6 +52,12 @@ class DeviceDataReset @Inject constructor(
         AHUCache.logout()
         android.webkit.CookieManager.getInstance().removeAllCookies(null)
         android.webkit.CookieManager.getInstance().flush()
+        // 学习通：独立 SharedPreferences（登录 Cookie、加密凭据、课程/作业/进度缓存），
+        // AHUCache 的 MMKV 清理覆盖不到——隐私协议要求「清除数据」时一并清空。
+        // clearSession 撤内存中的 CookieJar 与在途请求；后两行清磁盘上的两个 prefs 文件。
+        chaoxingSession.clearSession()
+        Store.clearAll(context)
+        PersistentCookieJar.clearPersisted(context)
         AHUCache.clearAll()
         RustSDK.initSafe("")
         CookieManager.cookieJar.clear()

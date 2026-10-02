@@ -8,6 +8,15 @@ import org.json.JSONObject
 
 class PersistentCookieJar(private val context: Context) : CookieJar {
 
+    companion object {
+        const val PREFS_NAME = "ahutong_cx_cookies"
+
+        /** 无实例可达时直接清掉磁盘上的 Cookie 持久化文件（隐私清理路径用）。 */
+        fun clearPersisted(context: Context) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+        }
+    }
+
     private val cache = mutableMapOf<String, MutableList<Cookie>>()
 
     init {
@@ -47,7 +56,7 @@ class PersistentCookieJar(private val context: Context) : CookieJar {
 
     fun clear() {
         cache.clear()
-        context.getSharedPreferences("ahutong_cx_cookies", Context.MODE_PRIVATE)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().clear().apply()
     }
 
