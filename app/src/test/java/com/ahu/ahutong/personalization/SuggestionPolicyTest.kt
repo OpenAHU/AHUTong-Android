@@ -70,17 +70,31 @@ class SuggestionPolicyTest {
     }
 
     @Test
-    fun ordinaryNextActionRejectsConfidenceBelowThirtyPercent() {
+    fun ordinaryNextActionRejectsConfidenceBelowFortyPercent() {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
-                AppActionId.VIEW_SCHEDULE to 0.29f,
-                AppActionId.VIEW_GRADES to 0.25f
+                AppActionId.VIEW_SCHEDULE to 0.3999f,
+                AppActionId.VIEW_GRADES to 0.30f
             ),
             setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
         )
 
         assertFalse(assessment.accepted)
         assertEquals(OrdinaryNextActionGateReason.BELOW_CONFIDENCE_THRESHOLD, assessment.rejectionReason)
+    }
+
+    @Test
+    fun ordinaryNextActionConfidenceBoundaryIsInclusive() {
+        val assessment = SuggestionPolicy.assessOrdinaryNextAction(
+            vector(
+                AppActionId.VIEW_SCHEDULE to 0.40f,
+                AppActionId.VIEW_GRADES to 0.30f
+            ),
+            setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
+        )
+
+        assertTrue(assessment.accepted)
+        assertEquals(AppActionId.VIEW_SCHEDULE, assessment.candidate?.action)
     }
 
     @Test
@@ -102,7 +116,7 @@ class SuggestionPolicyTest {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
                 AppActionId.SUBMIT_CARD_RECHARGE to 0.45f,
-                AppActionId.VIEW_SCHEDULE to 0.35f
+                AppActionId.VIEW_SCHEDULE to 0.40f
             ),
             setOf(AppActionId.SUBMIT_CARD_RECHARGE.stableId, AppActionId.VIEW_SCHEDULE.stableId)
         )
