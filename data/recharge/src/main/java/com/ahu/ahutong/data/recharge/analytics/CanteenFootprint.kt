@@ -222,3 +222,38 @@ private fun currentStreak(days: Set<String>, lastDay: String): Int {
 private fun formatDayKey(cal: Calendar): String = "%04d-%02d-%02d".format(
     cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH)
 )
+
+/* ==================== 必吃榜二期：上传聚合（窗口 × 日期） ==================== */
+
+/** 上传行：窗口 × 日期 的聚合量。与服务器 StatsEntry 同构（app 层只做字段拷贝）。 */
+data class DailyCanteenStat(
+    val terminal: String,
+    /** YYYY-MM-DD（逻辑日）。 */
+    val day: String,
+    val meals: Int,
+    val mealsLunch: Int,
+    val mealsDinner: Int,
+    val amountCents: Long,
+    val canteen: String
+)
+
+/**
+ * 流水 → 每日每终端聚合量。沿用正餐口径与餐次合并；无终端码的餐不上传。
+ * 服务端幂等（餐次更大者整行替换），客户端可放心重传最近 30 天。
+ */
+fun List<TurnoverRecord>.toDailyCanteenStats(): List<DailyCanteenStat> =
+    mergeMeals()
+        .filter { !it.terminal.isNullOrBlank() }
+        .groupBy { it.terminal!! to it.logicalDay }
+        .map { (key, dayMeals) ->
+            DailyCanteenStat(
+                terminal = key.first,
+                day = key.second,
+                meals = dayMeals.size,
+                mealsLunch = dayMeals.count { it.slot == MealSlot.LUNCH },
+                mealsDinner = dayMeals.count { it.slot == MealSlot.DINNER },
+                amountCents = dayMeals.sumOf { it.totalFen },
+                canteen = dayMeals.last().canteen
+            )
+        }
+

@@ -50,25 +50,6 @@ import com.ahu.ahutong.ui.state.CanteenFootprintViewModel
  * 素白底 + 点评橙点睛，锁亮色（年度账单类内容页固定肤色，不随系统暗色）。
  * 配色全部集中在 CanteenPalette；页面自包含在 ui/screen/canteen 包内。
  */
-private object CanteenPalette {
-    val accent = Color(0xFFFF6633)       // 点评橙：点睛色
-    val accentDeep = Color(0xFFD64A17)   // 热力最高档
-    val textPrimary = Color(0xFF1A1A1A)
-    val textSecondary = Color(0xFF999999)
-    val cardLine = Color(0xFFE8E6E0)
-    val heat0 = Color(0xFFF0EFE9)
-    val heat1 = Color(0xFFFFD9C2)
-    val heat2 = Color(0xFFFFAF85)
-    val championBg = Color(0xFFFFF9F5)
-    val gold = Color(0xFFF5A623)
-    val bronze = Color(0xFFC08A5A)
-}
-
-private val HeroNumber = TextStyle(fontSize = 42.sp, fontWeight = FontWeight.Medium)
-private val SectionTitle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium)
-private val BodyText = TextStyle(fontSize = 13.sp)
-private val CaptionText = TextStyle(fontSize = 11.sp)
-
 @Composable
 fun CanteenFootprintScreen(
     onBack: (() -> Unit)? = null,
@@ -207,27 +188,6 @@ private fun FootprintContent(footprint: CanteenFootprint) {
                 OutlineChip("周末坚守 ×${footprint.weekendMealCount}")
             }
         }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, tail: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .width(3.dp)
-                    .height(13.dp)
-                    .background(CanteenPalette.accent)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(title, style = SectionTitle, color = CanteenPalette.textPrimary)
-        }
-        Text(tail, style = CaptionText, color = CanteenPalette.accent)
     }
 }
 
@@ -388,17 +348,3 @@ private fun RankBadge(rank: Int) {
         Text("$rank", style = CaptionText.copy(fontWeight = FontWeight.Medium), color = textColor)
     }
 }
-
-@Composable
-private fun OutlineChip(text: String) {
-    Box(
-        Modifier
-            .border(0.5.dp, CanteenPalette.cardLine, RoundedCornerShape(11.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(text, style = CaptionText, color = Color(0xFF666666))
-    }
-}
-
-/** 分 → "¥12.30"。 */
-private fun Long.money(): String = "¥%.2f".format(this / 100.0).trimEnd('0').trimEnd('.')

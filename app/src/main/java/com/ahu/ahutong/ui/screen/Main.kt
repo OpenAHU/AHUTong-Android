@@ -51,6 +51,7 @@ import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.Billing
 import com.ahu.ahutong.ui.screen.canteen.CanteenFootprintScreen
+import com.ahu.ahutong.ui.screen.canteen.CanteenRankingScreen
 import com.ahu.ahutong.ui.screen.main.BillingStats
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.CampusNoticeScreen
@@ -613,6 +614,9 @@ fun Main(
             }
             animatedComposable("canteen_footprint") {
                 CanteenFootprintScreen(onBack = { navController.popBackStack() })
+            }
+            animatedComposable("canteen_ranking") {
+                CanteenRankingScreen(onBack = { navController.popBackStack() })
             }
 
             animatedComposable("bathroom_deposit") {

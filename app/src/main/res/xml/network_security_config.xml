@@ -6,4 +6,8 @@
         <domain includeSubdomains="false">127.0.0.1</domain>
         <domain includeSubdomains="false">localhost</domain>
     </domain-config>
+    <!-- 必吃榜服务器：域名备案完成前 IP 明文直连（文档 docs/canteen-server-api.md §1），上 HTTPS 后删除本块 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">121.37.174.199</domain>
+    </domain-config>
 </network-security-config>

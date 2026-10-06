@@ -146,4 +146,30 @@ class CanteenFootprintTest {
         assertTrue(fp.weeks.isEmpty())
         assertNull(fp.cheapestWindow)
     }
+
+    @Test
+    fun `daily stats aggregate per terminal and day with slots`() {
+        val records = listOf(
+            record("2026-10-05 12:00:00", "77-139", 1000),
+            record("2026-10-05 12:03:00", "77-139", 300),   // 合并为一餐
+            record("2026-10-05 18:30:00", "77-139", 1500),  // 同日同终端晚餐
+            record("2026-10-06 12:00:00", "77-139", 1200),  // 另一天
+            record("2026-10-05 12:10:00", null, 900),       // 无终端码：不上传
+            record("2026-10-05 07:30:00", "77-139", 400)    // 早餐：不上传
+        )
+        val stats = records.toDailyCanteenStats()
+        assertEquals(2, stats.size)
+
+        val day1 = stats.first { it.day == "2026-10-05" }
+        assertEquals("77-139", day1.terminal)
+        assertEquals(2, day1.meals)
+        assertEquals(1, day1.mealsLunch)
+        assertEquals(1, day1.mealsDinner)
+        assertEquals(2800, day1.amountCents)
+        assertEquals("榴园", day1.canteen)
+
+        val day2 = stats.first { it.day == "2026-10-06" }
+        assertEquals(1, day2.meals)
+        assertEquals(1200, day2.amountCents)
+    }
 }

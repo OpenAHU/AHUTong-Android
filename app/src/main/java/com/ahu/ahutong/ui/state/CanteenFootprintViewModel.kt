@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.CanteenWindowStore
+import com.ahu.ahutong.data.canteen.CanteenGateway
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.recharge.analytics.CanteenFootprint
 import com.ahu.ahutong.data.recharge.analytics.toCanteenFootprint
@@ -66,7 +67,11 @@ class CanteenFootprintViewModel @Inject constructor() : ViewModel() {
                 return@launch
             }
             cachedRecords = records
+            // 先同步服务器映射表（版本比对，失败则沿用本地缓存），再重算足迹
+            CanteenGateway.syncWindowMap()
             recompute(records)
+            // 顺带把最近 30 天聚合量匿名上传（幂等可重传，静默失败）
+            CanteenGateway.uploadStats(records)
         }
     }
 

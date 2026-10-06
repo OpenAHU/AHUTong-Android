@@ -158,6 +158,14 @@ object HomeWidgetRegistry {
             category = WidgetCategory.CAMPUS
         ),
         HomeWidgetSpec(
+            id = "canteen_ranking",
+            title = "必吃榜",
+            route = "canteen_ranking",
+            iconId = R.drawable.ic_evaluation,
+            tint = Color(0xFFFF6633),
+            category = WidgetCategory.CAMPUS
+        ),
+        HomeWidgetSpec(
             id = "student_mail",
             title = "学生邮箱",
             route = "student_mail",

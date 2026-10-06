@@ -629,6 +629,26 @@ object AHUCache {
     fun getCanteenWindowMapJson(): String? =
         userGetStringOrMigrate("canteen_window_map") { null }
 
+    /** 必吃榜映射表版本号（sinceVersion 增量同步用）。 */
+    fun getCanteenMapVersion(): Int =
+        userGetStringOrMigrate("canteen_map_version") { null }?.toIntOrNull() ?: 0
+
+    fun setCanteenMapVersion(version: Int) {
+        userPutString("canteen_map_version", version.toString())
+    }
+
+    /**
+     * 必吃榜匿名上报标识：随机 UUID，仅用于同人去重与限频。
+     * 不用设备指纹/学号；per-user 存储 → 清除数据即焚（符合隐私协议）。
+     */
+    fun getOrCreateCanteenReporterToken(): String {
+        userGetStringOrMigrate("canteen_reporter_token") { null }?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+        val token = java.util.UUID.randomUUID().toString()
+        userPutString("canteen_reporter_token", token)
+        return token
+    }
+
     fun getJwxtStudentId() : String?{
         return userGetStringOrMigrate("jwxt_stu_id") {
             kv.getString(
