@@ -409,7 +409,7 @@ private fun String?.toSemesterDayOrNull(): String? {
 /* ==================== 时间与日期（手写解析，线程安全） ==================== */
 
 /** 解析 "yyyy-MM-dd HH:mm[:ss]"（服务端本地化字符串），失败返回 null。 */
-private fun parseDateTime(value: String?): Date? {
+internal fun parseDateTime(value: String?): Date? {
     val v = value?.trim() ?: return null
     val m = Regex("(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2})(?::(\\d{2}))?").find(v)
         ?: return null
@@ -444,7 +444,7 @@ private fun formatMonth(date: Date): String {
 }
 
 /** ★ 逻辑日 ★ 04:00 之前算前一天。 */
-private fun logicalDayKey(date: Date): String {
+internal fun logicalDayKey(date: Date): String {
     val cal = Calendar.getInstance(Locale.CHINA).apply { time = date }
     if (cal.get(Calendar.HOUR_OF_DAY) < DAY_BOUNDARY_HOUR) {
         cal.add(Calendar.DAY_OF_MONTH, -1)
@@ -455,7 +455,7 @@ private fun logicalDayKey(date: Date): String {
 /* ==================== 记录口径（按工程实测适配） ==================== */
 
 /** ★ 支出识别 ★ typeFrom 为唯一权威（"2"=支出 "1"=收入）；缺失时关键字兜底。 */
-private fun TurnoverRecord.isExpenseRecord(): Boolean {
+internal fun TurnoverRecord.isExpenseRecord(): Boolean {
     typeFrom?.let { return it != "1" }
     val text = searchText()
     if (listOf("充值", "退款", "退费", "转入", "入账").any { text.contains(it) }) return false
@@ -470,7 +470,7 @@ private fun TurnoverRecord.searchText(): String {
     ).joinToString(" ")
 }
 
-private fun TurnoverRecord.merchantText(): String {
+internal fun TurnoverRecord.merchantText(): String {
     return listOf(resume.orEmpty(), toMerchant.orEmpty())
         .firstOrNull { it.isNotBlank() }
         .orEmpty()
@@ -479,7 +479,7 @@ private fun TurnoverRecord.merchantText(): String {
 
 /* ==================== 校园约定（与 Ahu_Plus 同源同校，直接沿用） ==================== */
 
-private fun extractCanteenName(text: String): String? {
+internal fun extractCanteenName(text: String): String? {
     if (text.isBlank()) return null
     val isFoodPlace = text.contains("食堂") || text.contains("餐厅")
     val zone = Regex("(北[一二三四五六七八九十]+区|南[一二三四五六七八九十]+区)").find(text)?.value
@@ -489,7 +489,7 @@ private fun extractCanteenName(text: String): String? {
     return Regex("([\\u4e00-\\u9fa5]{1,10}(?:食堂|餐厅))").find(text)?.groupValues?.getOrNull(1)
 }
 
-private fun normalizeMerchantName(raw: String): String {
+internal fun normalizeMerchantName(raw: String): String {
     val canteen = extractCanteenName(raw)
     if (canteen != null) return canteen
     return raw

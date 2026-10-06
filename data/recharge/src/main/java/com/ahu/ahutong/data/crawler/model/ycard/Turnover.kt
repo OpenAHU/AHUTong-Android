@@ -45,7 +45,9 @@ data class TurnoverRecord(
     /** 卡账号 */
     val fromAccount: String? = null,
     /** 退款标记 */
-    val isRefund: String? = null
+    val isRefund: String? = null,
+    /** 终端位置码（POS 机号，如 "77-139"）——窗口级粒度，干饭足迹/必吃榜的数据源。 */
+    val locationName: String? = null
 ) {
     val isExpense: Boolean get() = typeFrom != "1"
 }

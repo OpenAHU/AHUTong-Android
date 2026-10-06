@@ -50,6 +50,7 @@ import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.Billing
+import com.ahu.ahutong.ui.screen.canteen.CanteenFootprintScreen
 import com.ahu.ahutong.ui.screen.main.BillingStats
 import com.ahu.ahutong.ui.screen.main.CardBalanceDeposit
 import com.ahu.ahutong.ui.screen.main.CampusNoticeScreen
@@ -605,7 +606,13 @@ fun Main(
             }
 
             animatedComposable("billing_stats") {
-                BillingStats(onBack = { navController.popBackStack() })
+                BillingStats(
+                    onBack = { navController.popBackStack() },
+                    onOpenFootprint = { navController.navigate("canteen_footprint") }
+                )
+            }
+            animatedComposable("canteen_footprint") {
+                CanteenFootprintScreen(onBack = { navController.popBackStack() })
             }
 
             animatedComposable("bathroom_deposit") {

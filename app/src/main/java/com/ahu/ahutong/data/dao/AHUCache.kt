@@ -621,6 +621,14 @@ object AHUCache {
     fun getProgramCompletionJson(stdId: String): String? =
         userGetStringOrMigrate("program_completion_$stdId") { null }
 
+    /** 食堂窗口映射表（终端码→窗口名，JSON map）。公共数据，用户自标注积累，后续可热更新。 */
+    fun saveCanteenWindowMapJson(json: String) {
+        userPutString("canteen_window_map", json)
+    }
+
+    fun getCanteenWindowMapJson(): String? =
+        userGetStringOrMigrate("canteen_window_map") { null }
+
     fun getJwxtStudentId() : String?{
         return userGetStringOrMigrate("jwxt_stu_id") {
             kv.getString(
