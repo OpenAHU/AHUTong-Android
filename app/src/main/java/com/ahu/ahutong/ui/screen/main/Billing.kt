@@ -397,6 +397,10 @@ private fun BillingDetailDialog(record: TurnoverRecord, onDismiss: () -> Unit) {
             BillingDetailRow("类型", record.consumeTypeName ?: record.turnoverType.orEmpty())
             BillingDetailRow("时间", record.effectdateStr.orEmpty())
             BillingDetailRow("交易后余额", "¥${formatFen(record.cardBalance)}")
+            // POS 终端号：必吃榜映射表踩点用的关键信息，吃完当场看这条就能报号
+            record.locationName?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                BillingDetailRow("POS 机号", it)
+            }
             record.resume?.takeIf { it.isNotBlank() }?.let { BillingDetailRow("摘要", it) }
             if (record.feeAmt > 0) BillingDetailRow("手续费", "¥${formatFen(record.feeAmt)}")
         }

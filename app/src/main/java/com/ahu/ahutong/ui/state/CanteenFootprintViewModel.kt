@@ -70,14 +70,6 @@ class CanteenFootprintViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    /** 求认领 → 标注窗口名：写映射表后用暂存流水本地重算，不触网。 */
-    fun renameWindow(terminal: String, name: String) {
-        CanteenWindowStore.rename(terminal, name)
-        viewModelScope.launch {
-            cachedRecords?.let { recompute(it) }
-        }
-    }
-
     private suspend fun recompute(records: List<TurnoverRecord>) {
         val fp = withContext(Dispatchers.Default) {
             records.toCanteenFootprint(windowNames = CanteenWindowStore.all())

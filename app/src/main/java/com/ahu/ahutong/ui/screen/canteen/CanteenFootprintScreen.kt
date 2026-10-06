@@ -22,18 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,7 +75,6 @@ fun CanteenFootprintScreen(
     viewModel: CanteenFootprintViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var renamingTerminal by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -141,30 +134,13 @@ fun CanteenFootprintScreen(
                 }
             }
 
-            is CanteenFootprintViewModel.UiState.Ready -> FootprintContent(
-                footprint = s.footprint,
-                onClaimWindow = { renamingTerminal = it }
-            )
+            is CanteenFootprintViewModel.UiState.Ready -> FootprintContent(s.footprint)
         }
-    }
-
-    renamingTerminal?.let { terminal ->
-        RenameWindowDialog(
-            terminal = terminal,
-            onDismiss = { renamingTerminal = null },
-            onConfirm = { name ->
-                viewModel.renameWindow(terminal, name)
-                renamingTerminal = null
-            }
-        )
     }
 }
 
 @Composable
-private fun FootprintContent(
-    footprint: CanteenFootprint,
-    onClaimWindow: (String) -> Unit
-) {
+private fun FootprintContent(footprint: CanteenFootprint) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -214,11 +190,7 @@ private fun FootprintContent(
             )
         }
         footprint.topWindows.take(10).forEachIndexed { index, window ->
-            WindowRow(
-                rank = index + 1,
-                window = window,
-                onClaim = onClaimWindow
-            )
+            WindowRow(rank = index + 1, window = window)
             Spacer(Modifier.height(8.dp))
         }
 
@@ -327,11 +299,7 @@ private fun heatColor(count: Int): Color = when {
 }
 
 @Composable
-private fun WindowRow(
-    rank: Int,
-    window: WindowStat,
-    onClaim: (String) -> Unit
-) {
+private fun WindowRow(rank: Int, window: WindowStat) {
     val champion = rank == 1
     val claimed = window.windowName != null
     val dashEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f))
@@ -356,7 +324,7 @@ private fun WindowRow(
                 }
             )
             .background(
-                // 未认领卡用 drawBehind 画虚线描边，底色必须透明，否则盖住虚线
+                // 未标注卡用 drawBehind 画虚线描边，底色必须透明，否则盖住虚线
                 if (claimed) {
                     if (champion) CanteenPalette.championBg else Color.White
                 } else {
@@ -364,8 +332,6 @@ private fun WindowRow(
                 },
                 RoundedCornerShape(12.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = !claimed) { onClaim(window.terminal) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -380,7 +346,7 @@ private fun WindowRow(
             Text(
                 "${window.mealCount} 次 · 均价 ${window.avgFen.money()}" +
                     (if (window.currentStreak >= 2) " · 连续 ${window.currentStreak} 天" else "") +
-                    (if (!claimed) " · 求认领" else ""),
+                    (if (!claimed) " · POS 机未标注" else ""),
                 style = CaptionText,
                 color = if (!claimed) CanteenPalette.accent else CanteenPalette.textSecondary
             )
@@ -432,44 +398,6 @@ private fun OutlineChip(text: String) {
     ) {
         Text(text, style = CaptionText, color = Color(0xFF666666))
     }
-}
-
-@Composable
-private fun RenameWindowDialog(
-    terminal: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("认领窗口") },
-        text = {
-            Column {
-                Text(
-                    "给 $terminal 号窗起个名字（比如「烤盘饭」），之后榜单上就这么显示",
-                    style = BodyText
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    singleLine = true,
-                    placeholder = { Text("窗口名") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank()) onConfirm(name) },
-                enabled = name.isNotBlank()
-            ) { Text("认领") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
 }
 
 /** 分 → "¥12.30"。 */
