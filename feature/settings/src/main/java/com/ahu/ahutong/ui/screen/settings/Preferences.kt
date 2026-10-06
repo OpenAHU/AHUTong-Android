@@ -86,6 +86,7 @@ fun Preferences(
 
     val showQRCode by viewModel.showQRCode.collectAsState()
     val personalizationEnabled by viewModel.personalizationEnabled.collectAsState()
+    val canteenUploadConsent by viewModel.canteenUploadConsent.collectAsState()
     val predictivePrefetchEnabled by viewModel.predictivePrefetchEnabled.collectAsState()
     val wifiOnlyPrefetch by viewModel.wifiOnlyPrefetch.collectAsState()
     val behaviorRetentionDays by viewModel.behaviorRetentionDays.collectAsState()
@@ -156,6 +157,16 @@ fun Preferences(
                         subtitle = "根据本机使用习惯显示常用入口",
                         selected = enabled,
                         onSelectedChange = viewModel::setPersonalizationEnabled,
+                        backdrop = backdrop,
+                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                    )
+                }
+                canteenUploadConsent?.let { consent ->
+                    SettingsToggleRow(
+                        title = "参与必吃榜数据共建",
+                        subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
+                        selected = consent,
+                        onSelectedChange = viewModel::setCanteenUploadConsent,
                         backdrop = backdrop,
                         onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
                     )

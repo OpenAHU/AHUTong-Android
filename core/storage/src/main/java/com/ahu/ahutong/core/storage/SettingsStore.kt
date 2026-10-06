@@ -66,6 +66,16 @@ interface SettingsStore {
     val personalizationEnabled: Flow<Boolean>
     suspend fun setPersonalizationEnabled(value: Boolean)
 
+    /**
+     * 必吃榜匿名数据上传同意：null=未表态（首页弹窗询问一次），true/false=已选。
+     * 上传内容仅为去标识交易（POS 终端码+时间+金额+食堂），详见 docs/canteen-server-api.md。
+     * 默认实现保护既有 fake 与测试。
+     */
+    val canteenUploadConsent: Flow<Boolean?>
+        get() = kotlinx.coroutines.flow.flowOf(null)
+
+    suspend fun setCanteenUploadConsent(value: Boolean) {}
+
     val predictivePrefetchEnabled: Flow<Boolean>
     suspend fun setPredictivePrefetchEnabled(value: Boolean)
 

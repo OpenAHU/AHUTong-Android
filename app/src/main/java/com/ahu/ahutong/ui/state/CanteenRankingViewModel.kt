@@ -30,15 +30,16 @@ class CanteenRankingViewModel @Inject constructor() : ViewModel() {
     private var period = Period.WEEK
 
     init {
-        load(Period.WEEK)
+        // 每次进入页面都强制拉新（用户要求）；缓存只挡页面内切周期的重发
+        load(Period.WEEK, forceRefresh = true)
     }
 
-    fun load(p: Period) {
+    fun load(p: Period, forceRefresh: Boolean = false) {
         period = p
         val cached = _state.value
         if (cached !is UiState.Ready) _state.value = UiState.Loading
         viewModelScope.launch {
-            val data = CanteenGateway.insights(period = p.api, limit = 50)
+            val data = CanteenGateway.insights(period = p.api, limit = 50, forceRefresh = forceRefresh)
             _state.value = if (data != null) {
                 UiState.Ready(p, data)
             } else {
@@ -46,4 +47,7 @@ class CanteenRankingViewModel @Inject constructor() : ViewModel() {
             }
         }
     }
+
+    /** 标题栏刷新：绕过端侧缓存。 */
+    fun refresh() = load(period, forceRefresh = true)
 }

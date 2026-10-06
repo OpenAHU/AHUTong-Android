@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -26,7 +27,9 @@ import kotlinx.coroutines.withContext
  * 窗口改名（求认领标注）不重新拉网，用暂存流水本地重算。
  */
 @HiltViewModel
-class CanteenFootprintViewModel @Inject constructor() : ViewModel() {
+class CanteenFootprintViewModel @Inject constructor(
+    private val settings: com.ahu.ahutong.core.storage.SettingsStore
+) : ViewModel() {
 
     companion object {
         private const val PAGE_SIZE = 100
@@ -70,8 +73,10 @@ class CanteenFootprintViewModel @Inject constructor() : ViewModel() {
             // 先同步服务器映射表（版本比对，失败则沿用本地缓存），再重算足迹
             CanteenGateway.syncWindowMap()
             recompute(records)
-            // 顺带把最近 30 天聚合量匿名上传（幂等可重传，静默失败）
-            CanteenGateway.uploadStats(records)
+            // 顺带把最近 30 天去标识交易上传（**用户已同意才传**；幂等可重传；静默失败）
+            if (settings.canteenUploadConsent.first() == true) {
+                CanteenGateway.uploadTxns(records)
+            }
         }
     }
 

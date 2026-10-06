@@ -1,13 +1,17 @@
 package com.ahu.ahutong.ui.screen.main
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import com.ahu.ahutong.R
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -399,7 +403,7 @@ private fun BillingDetailDialog(record: TurnoverRecord, onDismiss: () -> Unit) {
             BillingDetailRow("交易后余额", "¥${formatFen(record.cardBalance)}")
             // POS 终端号：必吃榜映射表踩点用的关键信息，吃完当场看这条就能报号
             record.locationName?.trim()?.takeIf { it.isNotEmpty() }?.let {
-                BillingDetailRow("POS 机号", it)
+                BillingDetailRow("POS 机号", it, copyable = true)
             }
             record.resume?.takeIf { it.isNotBlank() }?.let { BillingDetailRow("摘要", it) }
             if (record.feeAmt > 0) BillingDetailRow("手续费", "¥${formatFen(record.feeAmt)}")
@@ -407,9 +411,24 @@ private fun BillingDetailDialog(record: TurnoverRecord, onDismiss: () -> Unit) {
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BillingDetailRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth()) {
+private fun BillingDetailRow(label: String, value: String, copyable: Boolean = false) {
+    val clipboard = LocalClipboardManager.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (copyable) {
+                    Modifier.combinedClickable(
+                        onClick = {},
+                        onLongClick = { clipboard.setText(AnnotatedString(value)) }
+                    )
+                } else {
+                    Modifier
+                }
+            )
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
@@ -417,7 +436,7 @@ private fun BillingDetailRow(label: String, value: String) {
             modifier = Modifier.weight(0.35f)
         )
         Text(
-            text = value,
+            text = if (copyable) "$value（长按复制）" else value,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(0.65f)
         )

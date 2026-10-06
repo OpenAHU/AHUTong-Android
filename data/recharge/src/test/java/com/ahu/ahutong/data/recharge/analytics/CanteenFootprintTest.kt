@@ -148,28 +148,30 @@ class CanteenFootprintTest {
     }
 
     @Test
-    fun `daily stats aggregate per terminal and day with slots`() {
+    fun `deidentified txns keep verbatim ts and skip non-canteen`() {
         val records = listOf(
             record("2026-10-05 12:00:00", "77-139", 1000),
-            record("2026-10-05 12:03:00", "77-139", 300),   // 合并为一餐
-            record("2026-10-05 18:30:00", "77-139", 1500),  // 同日同终端晚餐
-            record("2026-10-06 12:00:00", "77-139", 1200),  // 另一天
-            record("2026-10-05 12:10:00", null, 900),       // 无终端码：不上传
-            record("2026-10-05 07:30:00", "77-139", 400)    // 早餐：不上传
+            record("2026-10-05 07:30:00", "77-139", 400),    // 早餐：客户端不过滤（服务端过滤），仍应出口
+            record("2026-10-05 12:10:00", null, 900),        // 无终端码：不上传
+            record("2026-10-05 12:20:00", "77-140", 500, "天猫超市"),  // 非食堂：不上传
+            TurnoverRecord(orderId = "x1", tranamt = 5000, typeFrom = "1",
+                resume = "北二区食堂一楼", effectdateStr = "2026-10-05 12:30:00", locationName = "77-139")  // 收入：不上传
         )
-        val stats = records.toDailyCanteenStats()
-        assertEquals(2, stats.size)
+        val txns = records.toDeidentifiedTxns()
+        assertEquals(2, txns.size)
+        assertEquals("2026-10-05 12:00:00", txns[0].ts)      // 秒级原样
+        assertEquals(1000, txns[0].amountCents)
+        assertEquals("榴园", txns[0].canteen)
+        assertEquals("2026-10-05 07:30:00", txns[1].ts)
+    }
 
-        val day1 = stats.first { it.day == "2026-10-05" }
-        assertEquals("77-139", day1.terminal)
-        assertEquals(2, day1.meals)
-        assertEquals(1, day1.mealsLunch)
-        assertEquals(1, day1.mealsDinner)
-        assertEquals(2800, day1.amountCents)
-        assertEquals("榴园", day1.canteen)
-
-        val day2 = stats.first { it.day == "2026-10-06" }
-        assertEquals(1, day2.meals)
-        assertEquals(1200, day2.amountCents)
+    @Test
+    fun `ts without seconds gets zero padded`() {
+        val records = listOf(
+            TurnoverRecord(orderId = "x2", tranamt = 800, typeFrom = "2",
+                resume = "北二区食堂一楼-扫码支付", effectdateStr = "2026-10-05 12:00", locationName = "77-139")
+        )
+        val txns = records.toDeidentifiedTxns()
+        assertEquals("2026-10-05 12:00:00", txns[0].ts)
     }
 }

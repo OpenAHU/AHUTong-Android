@@ -2,15 +2,16 @@
 
 > 面向：客户端（AHUTong App）开发侧
 > 服务端状态：**已开发完成并部署上线**（2026-10-06）
-> 对应需求：《安大必吃榜-服务器需求》§2（一期）与 §3（二期）—— **两期均已实现**
 > 服务端代码：服务器 `~/projects/ahutong/`（本机开发副本在 Qoder 工作区 `ahutong-server/`）
 
 ---
 
 ## 0. 一句话
 
-服务端提供 **①「终端码 → 窗口名」公共映射表（读取 + 上报）** 和 **②全校匿名榜单**。
-**全链路不含学号 / 卡号 / 姓名等任何个人身份数据**，客户端只上传终端码、商户原文、建议名、消费笔数。
+客户端上传 **「哪台 POS、哪一秒、多少钱」** 的**去标识交易**；服务端负责去重、聚合与全部分析，只下发**算好的结果**。
+
+> **关键**：上传的数据里**没有任何用户 / 设备标识**（连哈希都没有）。
+> 去重靠 **`(POS, 秒, 金额)`** 唯一约束——同一台 POS 同一秒不会刷出两笔**同金额**交易，所以同一笔交易无论被上传多少次、被多少台设备上传，都只落一行。
 
 ---
 
@@ -19,20 +20,18 @@
 | 环境 | Base URL | 说明 |
 |---|---|---|
 | **现在（备案前）** | `http://121.37.174.199:8000` | 也可用 `http://121.37.174.199`（80 口同样可用）。**HTTP 明文** |
-| 备案 + 域名就绪后 | `https://<你的域名>` | 服务端只需改一行配置即自动启用 HTTPS，接口路径 `base path` 不变 |
+| 备案 + 域名就绪后 | `https://<你的域名>` | 服务端只改一行配置即自动启用 HTTPS，**接口路径不变** |
 
 > ⚠️ **客户端必须注意**：当前是 **HTTP 明文**，Android 9(API 28)+ 默认禁止明文流量。联调阶段需在 App 里放行该地址：
 > - 全局放行：`AndroidManifest.xml` → `<application android:usesCleartextTraffic="true">`
-> - 或精确白名单（推荐）：`network_security_config.xml` 里为 `121.37.174.199` 单独开 `cleartextTrafficPermitted="true"`
+> - 或精确白名单（推荐）：`network_security_config.xml` 里为 `121.37.174.199` 开 `cleartextTrafficPermitted="true"`
 > 上线换 HTTPS 后应把这些放行**撤掉**。
 
-**连通性自检**（任意机器/浏览器都可试）：
-```bash
-curl http://121.37.174.199:8000/api/health
-# → {"ok":true}
-```
+**连通性自检**：`curl http://121.37.174.199:8000/api/health` → `{"ok":true}`
+**交互式文档**：`http://121.37.174.199:8000/docs`
 
-交互式接口文档（可直接点着调，方便联调）：`http://121.37.174.199:8000/docs`
+> 📦 服务端已灌入一组演示数据（约 400 笔交易 / 6 个窗口 / 3 天），方便直接联调看真实响应。
+> 清掉：`cd ~/projects/ahutong/deploy && docker compose stop api && rm -f ../data/app.db* && docker compose start api`
 
 ---
 
@@ -41,192 +40,241 @@ curl http://121.37.174.199:8000/api/health
 | 项 | 约定 |
 |---|---|
 | 编码 | UTF-8 |
-| JSON 字段风格 | **camelCase**（如 `suggestedName`、`sinceVersion`） |
+| JSON 字段风格 | **camelCase**（如 `terminal`、`amountCents`、`minTxns`） |
 | 请求体 | `Content-Type: application/json` |
-| 成功无内容 | 返回 **204**，**无响应体** |
-| 错误 | `{"detail": "..."}` + 对应状态码 |
-| 鉴权 | **客户端接口无需鉴权**；`/api/admin/*` 与 `/admin` 走 HTTP Basic（仅管理员用，客户端不碰） |
-| 时间格式 | 服务端返回 ISO 字符串；上传日期用 `YYYY-MM-DD` |
+| 成功无内容 | **204**，无响应体 |
+| 错误 | `{"detail": "..."}` + 状态码 |
+| 鉴权 | 读取接口无需鉴权；`/api/admin/*` 与 `/admin` 走 HTTP Basic（仅管理员）。
+**写入接口**可选要求 `X-Api-Key`（服务端设了 `WRITE_API_KEY` 才校验） |
+| 时间格式 | 上传用 `YYYY-MM-DD HH:MM:SS`（本地时间，秒级）；返回 ISO 字符串 |
 
 **错误码**
 
-| 码 | 含义 | 客户端处理 |
+| 码 | 含义 | 处理 |
 |---|---|---|
-| 204 | 成功（无内容） | 视为成功 |
-| 401 | 管理接口未授权 | 客户端不应出现 |
-| 422 | 参数不合法（如 terminal 为空） | 不入库、不重试 |
-| **429** | 触发限频（同一 token 每分钟超过上限） | **退避后重试**，不要立刻连发 |
-| 503 | 服务端未配置管理口令（仅后台） | 客户端不应出现 |
+| 204 | 成功 | 视为成功 |
+| 401 | 写入密钥不对 | 检查 `X-Api-Key` |
+| 422 | 参数不合法（含整批校验失败） | 修正参数，不要重试 |
+| **429** | 限频（同 IP 写 ≤30 次/分、读 ≤180 次/分） | **退避后重试** |
 
 ---
 
-## 3. 一期接口
+## 3. 窗口映射表（人工维护）
 
-### 3.1 拉取窗口映射表
+### 3.1 拉取
 
 ```
 GET /api/canteen/window-map?sinceVersion={int}
 ```
 
-| 参数 | 必填 | 说明 |
-|---|---|---|
-| `sinceVersion` | 否 | 客户端本地已缓存的版本号。**与当前版本相同 → 返回空 `entries`（省流量）**；不传 → 返回全量 |
+| 参数 | 说明 |
+|---|---|
+| `sinceVersion` | 客户端本地版本号。**与当前版本相同 → 返回空 `entries`**；不传 → 全量 |
 
 **响应 200**
 
 ```json
 {
-  "version": 7,
+  "version": 1,
   "entries": [
-    { "terminal": "77-139", "name": "烤盘饭", "canteen": "桔园", "floor": "一楼" },
-    { "terminal": "88-001", "name": "麻辣香锅", "canteen": "榴园", "floor": null }
+    { "terminal": "88-001", "name": "石锅拌饭", "canteen": "榴园", "floor": null }
   ]
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `version` | int | 当前映射表版本号，客户端需落盘 |
-| `entries[].terminal` | string | 终端码（对应账单 `locationName`，如 `77-139`） |
-| `entries[].name` | string | 窗口名 |
-| `entries[].canteen` | string | 食堂（学生叫法），可能为空串 `""` |
-| `entries[].floor` | string \| null | 楼层，可能为 `null` |
+**客户端语义**：首次全量落地并保存 `version`；之后带 `version` 请求，版本未变则沿用缓存；变了则返回**全量新表**（非差分），**整体替换**；**离线必须回退本地缓存**。
 
-**客户端语义（重要）**
-
-1. **首次**：不带 `sinceVersion` → 拿到全量，落地 `version`。
-2. **之后**：带上本地 `version` → 若服务端版本未变，`entries` 为空数组，**直接沿用本地缓存**；若变了，返回的是**全量新表**（不是差分），**整体替换**本地缓存并把 `version` 更新。
-3. **离线**：拉取失败时**必须回退本地缓存**（需求 §5.1）。
-4. 服务端**不返回**未发布的改动（管理员点「发布」才对外可见），客户端无需感知发布机制。
-
-### 3.2 上报（未标注 / 带名标注）
+### 3.2 上报窗口名（可选功能，冷启动期不启用）
 
 ```
 POST /api/canteen/window-report
 Header: X-Reporter-Token: <匿名UUID，可选>
+Body: { "terminal": "62-118", "merchant": "北二区食堂一楼", "suggestedName": "黄焖鸡", "sampleCount": 3 }
+→ 204
+```
+
+- 只进**待审队列**，管理员审核 + 点「发布」后才进映射表
+- `X-Reporter-Token` 仅用于同人去重与限频，服务端只存**哈希**；不传也可
+
+---
+
+## 4. 交易上传与分析结果
+
+### 4.1 上传去标识交易
+
+```
+POST /api/canteen/txns
 Body:
 {
-  "terminal": "77-139",
-  "merchant": "北二区食堂一楼",
-  "suggestedName": "烤盘饭",
-  "sampleCount": 9
+  "txns": [
+    { "terminal": "88-001", "ts": "2026-10-06 12:03:05", "amountCents": 1300, "canteen": "榴园" }
+  ]
 }
 → 204
 ```
 
 | 字段 | 必填 | 说明 |
 |---|---|---|
-| `terminal` | ✅ | 终端码，1–64 字符 |
-| `merchant` | 否 | 客户端账单里的 `toMerchant` **原文**，帮管理员定位楼层 |
-| `suggestedName` | 否 | 用户建议的窗口名，**≤20 字**；**不传/空 = 纯「POS 机未标注」报告** |
-| `sampleCount` | 否 | 该用户在此终端的消费笔数（佐证强度），0–100000 |
-
-| 头 | 说明 |
-|---|---|
-| `X-Reporter-Token` | **可选**。客户端首次启动生成一个随机 UUID 存本地，仅用于**同人去重**与**限频**；用户清除 App 数据即失效。**不含任何身份信息**。 |
+| `terminal` | ✅ | POS 终端码（账单 `locationName`，如 `77-139`） |
+| `ts` | ✅ | **`YYYY-MM-DD HH:MM:SS`**（本地时间，**秒级**）。容忍 `T` 分隔符；时间越界（如 `99:99:99`）会被拒 |
+| `amountCents` | ✅ | **必填**，本笔金额（分）。它参与幂等键 `(POS, 秒, 金额)`，**缺了会让同一笔重复入库** |
+| `canteen` | 否 | 食堂名（客户端本地映射，如「北区二食堂」→「榴园」）。用于食堂榜，**管理员无需手填** |
 
 **服务端行为**
 
-- **幂等聚合**：同一 `terminal + suggestedName` 合并为一行、累计上报人数，**不产生重复行**。
-- **同人去重**：同一 `X-Reporter-Token` 对同一目标重复上报**只计 1 次**。
-- **限频**：同一 token **每分钟 ≤5 条**（`429`）。
-- **清洗**：服务端会剔除控制字符、去首尾空白、按上限截断。
-- **不立即生效**：上报只进**待审队列**，管理员审核 + 点「发布」后才进映射表。
-
----
-
-## 4. 二期接口（已实现）
-
-### 4.1 上传匿名周期计数
-
-```
-POST /api/canteen/stats
-Header: X-Reporter-Token: <匿名UUID，可选>
-Body:
-{
-  "entries": [
-    { "terminal": "77-139", "meals": 12, "period": "2026-10-06" }
-  ]
-}
-→ 204
-```
-
-| 字段 | 说明 |
+| | |
 |---|---|
-| `entries[].terminal` | 终端码 |
-| `entries[].meals` | 该终端在该周期的**餐次数**（客户端已按需求 §1 口径统计：只算正餐、餐次合并、剔除非食堂） |
-| `entries[].period` | **`YYYY-MM-DD`**（按天上传）。为空或格式不对 → 服务端按「今天」处理。单次最多 5000 条 |
+| **去重** | 唯一约束 **`(terminal, ts, amount_cents)`** + `INSERT OR IGNORE`。**同一笔反复上传只算一次**，无需客户端做任何同步 |
+| **正餐口径** | 只统计**午餐 10:30–14:00、晚餐 16:30–22:30**；早餐/夜宵不计入榜单（服务端过滤，客户端**可以全量上传**） |
+| **脏数据防护** | 时间越界/非法拒收；单笔金额 >500 元丢弃；每台 POS 每天 ≤3000 笔；终端总数 ≤5000 |
+| **限频** | 同 IP 写 ≤30 次/分，**单次最多 5000 笔**（建议 200–500 笔一批） |
 
-**幂等**：同一 `(terminal, day)` 重复上传**取较大值**，不会累加放大 → **客户端可放心重传**。
-**限频**：同 token 每分钟 ≤5 次上传请求。
+> **注意**：`ts` 必须秒级、且**同一笔交易在不同设备上要能规整成同一个字符串**（都用账单里的同一个时间字段，如 `effectdateStr`）。
+> 否则 `(POS, 秒, 金额)` 去重会失效 —— 这是整个方案的关键前提。
 
-### 4.2 全校榜
+### 4.2 服务端分析结果（页面只渲染这个）
 
 ```
-GET /api/canteen/ranking?period=week&limit=50
+GET /api/canteen/insights?period=month&limit=10&canteens=桔园,榴园&minTxns=20
 ```
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `period` | `week` | `week`(近7天) / `month`(近30天) / `all` |
-| `limit` | `50` | 1–200 |
+| `period` | `month` | `week`(近7天) / `month`(近30天) / `all` |
+| `limit` | `50` | 各榜单最多返回条数。**取前十就传 `limit=10`** |
+| `canteens` | 无 | 按食堂筛选，逗号分隔。**筛选后占比按子集重算** |
+| `minTxns` | `20` | 「之最」评选的最低笔数门槛 |
 
-**响应 200**
+> **校区筛选由客户端做**：客户端本地已知「校区 → 食堂」，选中校区就把该校区下的食堂列表用 `canteens=` 传上来。
+
+**响应 200（真实输出）**
 
 ```json
 {
-  "period": "week",
-  "items": [
-    { "terminal": "77-139", "name": "烤盘饭", "canteen": "桔园", "floor": "一楼", "meals": 42 }
+  "period": "近 30 天",
+  "startDay": "2026-09-07", "endDay": "2026-10-06", "minTxns": 20,
+  "sample": { "terminals": 6, "days": 3, "txns": 405, "totalAmountCents": 551200 },
+  "confidence": { "level": "medium", "note": "覆盖 3 天、405 笔交易、6 个窗口，样本中等，结论仅供参考", "txns": 405 },
+  "ranking": [
+    { "rank": 1, "terminal": "77-140", "name": "麻辣香锅", "canteen": "桔园", "floor": null,
+      "txns": 76, "share": 0.1877, "amountCents": 106600, "avgCentsPerTxn": 1402.6 }
+  ],
+  "canteenRanking": [ { "canteen": "榴园", "txns": 203, "share": 0.501 } ],
+  "segments": [
+    { "segment": "lunch",  "txns": 237, "share": 0.585 },
+    { "segment": "dinner", "txns": 168, "share": 0.415 }
+  ],
+  "hourly": [ { "hour": 11, "txns": 62, "share": 0.153 }, { "hour": 12, "txns": 105, "share": 0.259 } ],
+  "trend": [ { "day": "2026-10-04", "txns": 130 } ],
+  "superlatives": {
+    "topWindow":      { "terminal": "77-140", "name": "麻辣香锅", "canteen": "桔园", "floor": null, "txns": 76 },
+    "topCanteen":     { "canteen": "榴园", "txns": 203, "share": 0.501 },
+    "lunchTopWindow": { "terminal": "77-140", "name": "麻辣香锅", "canteen": "桔园", "floor": null, "txns": 45 },
+    "dinnerTopWindow":{ "terminal": "77-140", "name": "麻辣香锅", "canteen": "桔园", "floor": null, "txns": 31 },
+    "peakDay":        { "day": "2026-10-06", "terminal": "62-119", "name": null, "canteen": "榴园", "floor": null, "txns": 26 },
+    "busiestHour":    { "hour": 12, "txns": 105, "share": 0.259 },
+    "mostConsistent": { "terminal": "90-200", "name": "黄焖鸡", "canteen": "梅园", "floor": null, "txns": 67, "days": 3, "cv": 0.0512 },
+    "leastPopular":   { "terminal": "88-001", "name": "石锅拌饭", "canteen": "榴园", "floor": null, "txns": 61 },
+    "mostImproved":   null
+  },
+  "notes": [
+    "无上期数据，「上升最快」暂不可用（需累积至少一个完整周期）",
+    "指标为「正餐交易笔数」（数据不含用户标识，无法做同一人的餐次合并）"
   ]
 }
 ```
 
-- 已按 `meals` 降序。
-- `name/canteen/floor` 来自映射表；**未命名的终端返回 `null`**（客户端可显示「未标注窗口」或直接过滤）。
+| 结果块 | 内容 |
+|---|---|
+| `sample` | 本期样本规模（窗口数 / 天数 / 笔数 / 总金额） |
+| **`confidence`** | 置信度：`level`(`low`/`medium`/`high`) + `note`(人话) + `txns`。**客户端可直接做"数据可信度"标签** |
+| `ranking` | **窗口榜**：名次、窗口信息、**笔数**、占比、金额、**人均** |
+| `canteenRanking` | 食堂榜 |
+| `segments` | **餐段分布**（午/晚 及占比） |
+| **`hourly`** | **时段分布（几点最挤）** |
+| `trend` | 按天趋势 |
+| `superlatives` | **之最**：最受欢迎窗口、最热食堂、午/晚冠军、单日峰值、**最挤时段**、最稳定、最冷门、上升最快 |
+| `notes` | 人类可读说明（样本不足 / 无上期 / 未命名窗口数…）。**客户端应展示或据此隐藏卡片** |
+
+**客户端必须处理的"暂时没有"**
+
+1. `mostImproved` 为 `null` → 服务端没有上期数据（首月必然），隐藏该卡片或显示"数据积累中"
+2. `mostConsistent` / `leastPopular` 为 `null` → 样本天数或笔数不足（`minTxns` 可调）
+3. `ranking[].name` 为 `null` → 该终端**还没被命名**，显示「未标注窗口」（建议连 POS 机号一起显示，方便补名字）
+
+### 4.3 精简窗口榜（保留兼容）
+
+```
+GET /api/canteen/ranking?period=week&limit=50
+→ { "period": "week", "items": [ { "terminal": "...", "name": "...", "txns": 42 } ] }
+```
+新接入请用 `/insights`（信息更全）。
+
+### 4.4 「必吃榜页面」推荐用法（照抄即可）
+
+```
+GET /api/canteen/insights?period=month&limit=10&canteens=桔园,榴园
+```
+
+| 页面元素 | 取哪个字段 |
+|---|---|
+| 窗口名 | `ranking[].name`（`null` 时显示「未标注窗口」） |
+| 所属食堂 | `ranking[].canteen` |
+| **本周期用餐人次** | `ranking[].txns`（口径为**正餐交易笔数**，展示时可标为"人次"） |
+| **人均消费** | `ranking[].avgCentsPerTxn`（单位：**分**，÷100 显示） |
+| 名次 | `ranking[].rank`（已按笔数降序，顺序渲染即可） |
+| 数据可信度 | `confidence.level` / `confidence.note` |
+
+- **筛选**：校区/食堂/时间跨度 → 对应 `canteens=`（校区传该校区下的食堂列表）与 `period=`
+- **建议端侧做 5~10 分钟缓存**，避免用户反复切筛选狂发请求
 
 ---
 
-## 5. 管理后台（仅作者本人；客户端不涉及）
+## 5. 管理后台（仅作者本人）
 
-地址 `http://121.37.174.199:8000/admin`（HTTP Basic 鉴权），含：映射表检视/编辑、按终端聚合的待审队列（上报人数多的排前）、采纳 / 改后采纳 / 拒绝、**发布**（点一下才递增版本同步给所有客户端）。
-
-后台 API（`/api/admin/*`，均需 Basic）：
+地址 `http://121.37.174.199:8000/admin`（HTTP Basic）。含：映射表检视/编辑、按终端聚合的待审队列、采纳/拒绝、**发布**（点一下才递增版本同步给所有客户端）、**待补终端清单**、**批量粘贴导入**。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/admin/status` | 版本号 / 已发布数 / 草稿数 / 待审数 |
-| GET | `/api/admin/reports?status=pending\|approved\|rejected\|all` | 上报队列 |
-| POST | `/api/admin/reports/{id}/approve` | 采纳（body 可带 `name/canteen/floor`），**进草稿** |
+| GET | `/api/admin/reports?status=pending` | 上报队列 |
+| POST | `/api/admin/reports/{id}/approve` | 采纳（可带 `name/canteen/floor`），**进草稿** |
 | POST | `/api/admin/reports/{id}/reject` | 拒绝 |
 | GET | `/api/admin/window-map` | 全表（含草稿态） |
 | PUT | `/api/admin/window-map/{terminal}` | 新增/修改（**进草稿**） |
 | DELETE | `/api/admin/window-map/{terminal}` | 删除（**进草稿**） |
 | POST | `/api/admin/window-map/discard-drafts` | 放弃全部草稿 |
-| POST | `/api/admin/publish` | **发布**：草稿合并 + `version++` → `{"version":1,"applied":1}` |
+| GET | `/api/admin/unmapped?days=30` | **待补终端清单**（有数据但没名字，按笔数降序）→ 实地踩点用 |
+| POST | `/api/admin/window-map/bulk` | **批量补表**（`{"text":"77-139,烤盘饭\n88-001，石锅拌饭"}`） |
+| POST | `/api/admin/publish` | **发布**：草稿合并 + `version++` |
 
 ---
 
-## 6. 客户端对接清单（对照需求 §4）
+## 6. 客户端对接清单
 
-- [ ] 新增「必吃榜」页入口，进入时 `GET /api/canteen/window-map?sinceVersion=<本地版本>`
-- [ ] 首次全量落盘；后续版本未变则沿用缓存；**离线时用本地缓存兜底**
-- [ ] 「求认领」文案改「POS 机未标注」→ 点击 `POST /api/canteen/window-report`（可不带名直接报告）
-- [ ] 用户带名标注 → 同时本地保存 + 上报（带 `suggestedName`、`sampleCount`）
-- [ ] 生成并本地持久化一个匿名 UUID 作为 `X-Reporter-Token`（**不要**用任何设备指纹/学号）
-- [ ] 二期：按需求口径算出每日每终端 `meals` → `POST /api/canteen/stats`（可重传）
-- [ ] 二期：渲染 `GET /api/canteen/ranking?period=week`（`name` 为 `null` 即未命名窗口）
-- [ ] 联调阶段配置明文 HTTP 白名单（见 §1 提醒）
-- [ ] **不要**在任何请求里带上学号 / 卡号 / 姓名 / 教务会话
+- [ ] 「必吃榜」页进入时 `GET /api/canteen/window-map?sinceVersion=<本地版本>`，**离线回退本地缓存**
+- [ ] 从账单流水里抽 **食堂类**交易，转成 `{terminal, ts, amountCents, canteen}`
+  - `terminal` = `TurnoverRecord.locationName`
+  - `ts` = **秒级本地时间字符串**（统一用同一个时间字段，如 `effectdateStr`，规整成 `YYYY-MM-DD HH:MM:SS`）
+  - `canteen` = 本地「商户/区域 → 食堂」映射结果
+- [ ] 分批 `POST /api/canteen/txns`（建议 200–500 笔一批），**失败可原样重传**（服务端幂等）
+- [ ] 进页面时 `GET /api/canteen/insights?period=&limit=10&canteens=`，**直接渲染**
+- [ ] 用 `confidence.level` / `note` 展示"数据可信度"标签
+- [ ] 账单详情页**多显示一行 POS 机号**（便于作者踩点补窗口名；建议长按可复制）
+- [ ] 联调阶段配置明文 HTTP 白名单（见 §1）
+- [ ] 写入请求按需带上 `X-Api-Key`（服务端启用后必须带）
+- [ ] **不要**在任何请求里带上学号 / 卡号 / 姓名 / 教务会话 / 设备标识
 
 ---
 
-## 7. 服务端与需求文档的差异（客户端需知）
+## 7. 与需求文档的差异（有意为之）
 
-1. **`sinceVersion` 是"版本比对"而非行级差分**：版本相同返回空 `entries`；版本不同返回**全量**。客户端按"整体替换"处理即可。
-2. **发布机制在服务端内部**：采纳 ≠ 生效，管理员点「发布」才对外。客户端只看到已发布内容，无需处理草稿。
-3. **上报的 `reporterToken` 走 HTTP 头 `X-Reporter-Token`**（需求文档未指定位置，这里定为头，便于限频）。
-4. **二期 `period` 语义定为 `YYYY-MM-DD`（按天）**；若你希望改成按周聚合上传，告诉我，服务端可加。
+1. **上传单位从"每日聚合"改为"逐笔交易"**：`{terminal, ts, amountCents}`。这样服务端能自己算餐段、时段分布、趋势等任意维度，**客户端零分析负担**。
+2. **完全去标识**：交易表里**连设备/用户哈希都不存**，去重靠 `(POS, 秒)` 唯一约束。
+3. **指标是「正餐交易笔数」而非「人次」**：因为没有用户标识，无法做"同一人 5 分钟内合并"。两者≈（差异来自"一顿饭分两次付款"这种少数情况）。
+4. **`sinceVersion` 是版本比对而非行级差分**：版本相同返回空 `entries`；不同返回全量，客户端整体替换。
+5. **发布机制在服务端内部**：采纳 ≠ 生效，管理员点「发布」才对外。
+6. **食堂名由客户端上传自动带**，管理员不必手填（管理员显式填写则覆盖）。
 
 ---
 
@@ -235,18 +283,19 @@ GET /api/canteen/ranking?period=week&limit=50
 | 项 | 状态 |
 |---|---|
 | 域名 + ICP 备案 | 进行中；到位前用 IP 直连（实测 IP 访问不受备案限制） |
-| HTTPS | 域名就绪后，服务端改 `SITE_ADDRESS` 一行即自动签发 |
+| HTTPS | 域名就绪后服务端改 `SITE_ADDRESS` 一行即自动签发 |
 | 个人站前端 | 占位页已上线，等设计稿替换 |
-| 管理后台口令 | 部署时随机生成，存服务器 `deploy/.env`；**建议改成自己的** |
-| 明文期安全 | HTTP 期间管理口令是 Base64 明文，**别在不可信网络登后台** |
+| 管理后台口令 | 部署时随机生成，存服务器 `deploy/.env`（已 `chmod 600`）；**建议改成自己的** |
+| 明文期安全 | HTTP 期间管理口令 Base64 明文传输，**别在不可信网络登后台** |
+| 「上升最快」 | 需累积一个完整周期后才有值（首月为 `null`） |
 
 ---
 
 ## 9. 验证记录（服务端自测）
 
-- 本机单元测试 **12 passed**
-- 服务器端到端（真实 HTTP）：上报 `204` → 待审队列出现 → 采纳 `204` → 发布 `{"version":1,"applied":1}` → 客户端 `window-map` 拿到新名 → 同版本增量返回空 → 二期上传 `204` + 榜单返回 `meals:42`
-- 覆盖需求 §5 全部 5 条验收标准
+- 本机单元测试 **24 passed**（含去标识断言：交易表里**不存在** token/device 列；同笔重复上传只算一次；同秒不同 POS 不误合并；午/晚口径边界；时段分布；限频与配额）
+- 服务器端到端（真实 HTTP，约 400 笔演示交易）：
+  `ranking` 6 项 / `canteenRanking` 3 项 / `segments` 午 58.5% 晚 41.5% / **`hourly` 最挤 12 点（25.9%）** / `superlatives` 有值 + `mostImproved: null` 并附 `notes`
 
 ---
 

@@ -323,6 +323,8 @@ fun Main(
                         shouldEnterHomeEdit = false
                     }
                 )
+                // 必吃榜匿名上传同意（未表态时弹一次，之后不再打扰）
+                com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
             }
             animatedComposable("setup") {
                 Setup(
@@ -607,16 +609,16 @@ fun Main(
             }
 
             animatedComposable("billing_stats") {
-                BillingStats(
-                    onBack = { navController.popBackStack() },
-                    onOpenFootprint = { navController.navigate("canteen_footprint") }
-                )
+                BillingStats(onBack = { navController.popBackStack() })
             }
             animatedComposable("canteen_footprint") {
                 CanteenFootprintScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("canteen_ranking") {
-                CanteenRankingScreen(onBack = { navController.popBackStack() })
+                CanteenRankingScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenFootprint = { navController.navigate("canteen_footprint") }
+                )
             }
 
             animatedComposable("bathroom_deposit") {

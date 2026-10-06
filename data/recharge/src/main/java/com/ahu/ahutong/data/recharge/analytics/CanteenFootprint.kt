@@ -223,37 +223,37 @@ private fun formatDayKey(cal: Calendar): String = "%04d-%02d-%02d".format(
     cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH)
 )
 
-/* ==================== 必吃榜二期：上传聚合（窗口 × 日期） ==================== */
+/* ==================== 必吃榜二期：逐笔去标识交易上传 ==================== */
 
-/** 上传行：窗口 × 日期 的聚合量。与服务器 StatsEntry 同构（app 层只做字段拷贝）。 */
-data class DailyCanteenStat(
+/** 上传行：去标识交易（终端 + 秒级时间 + 金额 + 食堂）。与服务器 txns 接口同构。 */
+data class DeidentifiedTxn(
     val terminal: String,
-    /** YYYY-MM-DD（逻辑日）。 */
-    val day: String,
-    val meals: Int,
-    val mealsLunch: Int,
-    val mealsDinner: Int,
+    /** 账单原始时间字段规整为 "yyyy-MM-dd HH:mm:ss"（跨设备去重键的一致性全靠它）。 */
+    val ts: String,
     val amountCents: Long,
     val canteen: String
 )
 
 /**
- * 流水 → 每日每终端聚合量。沿用正餐口径与餐次合并；无终端码的餐不上传。
- * 服务端幂等（餐次更大者整行替换），客户端可放心重传最近 30 天。
+ * 流水 → 去标识交易（服务端最终形态）。
+ * - 只抽食堂类消费（extractCanteenName 命中）+ 有终端码的；非食堂/收入不出口
+ * - **不做正餐时段过滤**（服务端统一过滤，客户端全量上传，口径单点在服务端）
+ * - ts 用 effectdateStr 原值规整（秒级补齐），不重新生成——(POS, 秒, 金额) 是服务端去重键
+ * - 不含任何用户/设备标识
  */
-fun List<TurnoverRecord>.toDailyCanteenStats(): List<DailyCanteenStat> =
-    mergeMeals()
-        .filter { !it.terminal.isNullOrBlank() }
-        .groupBy { it.terminal!! to it.logicalDay }
-        .map { (key, dayMeals) ->
-            DailyCanteenStat(
-                terminal = key.first,
-                day = key.second,
-                meals = dayMeals.size,
-                mealsLunch = dayMeals.count { it.slot == MealSlot.LUNCH },
-                mealsDinner = dayMeals.count { it.slot == MealSlot.DINNER },
-                amountCents = dayMeals.sumOf { it.totalFen },
-                canteen = dayMeals.last().canteen
-            )
-        }
+fun List<TurnoverRecord>.toDeidentifiedTxns(): List<DeidentifiedTxn> =
+    mapNotNull { record ->
+        if (!record.isExpenseRecord()) return@mapNotNull null
+        val terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+        val canteen = extractCanteenName(record.merchantText()) ?: return@mapNotNull null
+        val ts = normalizeTs(record.effectdateStr) ?: return@mapNotNull null
+        DeidentifiedTxn(terminal = terminal, ts = ts, amountCents = record.tranamt, canteen = canteen)
+    }
+
+/** "yyyy-MM-dd HH:mm[:ss]" → 秒级补齐；无法解析返回 null。 */
+private fun normalizeTs(raw: String?): String? {
+    val v = raw?.trim() ?: return null
+    val m = Regex("(\\d{4}-\\d{2}-\\d{2})[ T](\\d{2}:\\d{2})(?::(\\d{2}))?").find(v) ?: return null
+    return "${m.groupValues[1]} ${m.groupValues[2]}:${m.groupValues[3].ifEmpty { "00" }}"
+}
 

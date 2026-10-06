@@ -57,7 +57,6 @@ import java.util.Locale
 @Composable
 fun BillingStats(
     onBack: () -> Unit,
-    onOpenFootprint: () -> Unit = {},
     viewModel: BillingStatsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -86,7 +85,6 @@ fun BillingStats(
                     }
                 } else {
                     item { StatsOverviewCard(summary) }
-                    item { FootprintEntryCard(onOpenFootprint) }
                     item {
                         StatsTrendChart(
                             summary = summary,
@@ -129,40 +127,6 @@ fun BillingStats(
 
 /* ==================== 汇总卡 ==================== */
 
-/** 干饭足迹入口：概念预告卡，点击进入三级页（素底点评风内容页）。 */
-@Composable
-private fun FootprintEntryCard(onClick: () -> Unit) {
-    AppCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(
-                    "干饭足迹",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "热力图 · 窗口榜 · 干饭徽章（仅正餐）",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                "›",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
 
 @Composable
 private fun StatsOverviewCard(summary: CardAnalyticsSummary) {

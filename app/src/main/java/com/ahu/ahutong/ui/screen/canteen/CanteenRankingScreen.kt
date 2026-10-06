@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,6 +51,7 @@ import com.ahu.ahutong.ui.state.CanteenRankingViewModel
 @Composable
 fun CanteenRankingScreen(
     onBack: (() -> Unit)? = null,
+    onOpenFootprint: () -> Unit = {},
     viewModel: CanteenRankingViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -78,6 +81,29 @@ fun CanteenRankingScreen(
                 modifier = Modifier
                     .clip(CircleShape)
                     .clickable { onBack?.invoke() }
+                    .padding(10.dp)
+                    .size(24.dp)
+            )
+            Spacer(Modifier.weight(1f))
+            // 个人干饭足迹（子页面入口）
+            Icon(
+                imageVector = Icons.Rounded.Person,
+                contentDescription = "我的干饭足迹",
+                tint = CanteenPalette.textPrimary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onOpenFootprint() }
+                    .padding(10.dp)
+                    .size(24.dp)
+            )
+            // 刷新（绕过端侧缓存）
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = "刷新",
+                tint = CanteenPalette.textPrimary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { viewModel.refresh() }
                     .padding(10.dp)
                     .size(24.dp)
             )
@@ -217,7 +243,7 @@ private fun RankingContent(
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        "${item.meals} 餐 · ${((item.share ?: 0.0) * 100).toInt()}%",
+                        "${item.txns} 餐 · ${((item.share ?: 0.0) * 100).toInt()}%",
                         style = CaptionText,
                         color = CanteenPalette.textSecondary
                     )
@@ -226,7 +252,7 @@ private fun RankingContent(
         }
 
         // —— 餐段分布 ——
-        val segments = data.segments.orEmpty().filter { it.meals > 0 }
+        val segments = data.segments.orEmpty().filter { it.txns > 0 }
         if (segments.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             SectionHeader("餐段分布")
@@ -240,6 +266,41 @@ private fun RankingContent(
                         else -> seg.segment
                     }
                     OutlineChip("$label ${((seg.share ?: 0.0) * 100).toInt()}%")
+                }
+            }
+        }
+
+        // —— 几点最挤（hourly 时段分布条） ——
+        val hourly = data.hourly.orEmpty().filter { it.txns > 0 }
+        if (hourly.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            val peak = data.superlatives?.busiestHour
+            SectionHeader(
+                "几点最挤",
+                tail = peak?.let { "${it.hour} 点 · ${((it.share ?: 0.0) * 100).toInt()}%" }
+            )
+            Spacer(Modifier.height(8.dp))
+            val maxTxns = hourly.maxOf { it.txns }.coerceAtLeast(1)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                hourly.sortedBy { it.hour }.forEach { h ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${h.hour} 点",
+                            style = CaptionText,
+                            color = CanteenPalette.textSecondary,
+                            modifier = Modifier.width(36.dp)
+                        )
+                        Box(
+                            Modifier
+                                .height(8.dp)
+                                .fillMaxWidth(h.txns.toFloat() / maxTxns)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (peak?.hour == h.hour) CanteenPalette.accent
+                                    else CanteenPalette.heat2
+                                )
+                        )
+                    }
                 }
             }
         }
@@ -263,7 +324,7 @@ private fun RankingContent(
                     ) {
                         Text(label, style = BodyText, color = CanteenPalette.textSecondary)
                         Text(
-                            "${item.name ?: "未命名窗口"} · ${item.meals} 餐",
+                            "${item.name ?: "未命名窗口"} · ${item.txns} 餐",
                             style = BodyText,
                             color = CanteenPalette.textPrimary
                         )
@@ -330,7 +391,7 @@ private fun ChampionCard(top: InsightRankingItem, data: InsightsResponse) {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "${top.meals} 人次" + (top.avgCentsPerMeal?.let { " · 人均 ¥%.1f".format(it / 100.0) } ?: ""),
+            "${top.txns} 人次" + (top.avgCentsPerTxn?.let { " · 人均 ¥%.1f".format(it / 100.0) } ?: ""),
             style = BodyText,
             color = CanteenPalette.accent
         )
@@ -362,8 +423,8 @@ private fun RankingRow(item: InsightRankingItem) {
             )
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("${item.meals} 人次", style = BodyText, color = CanteenPalette.textPrimary)
-            item.avgCentsPerMeal?.let {
+            Text("${item.txns} 人次", style = BodyText, color = CanteenPalette.textPrimary)
+            item.avgCentsPerTxn?.let {
                 Text(
                     "人均 ¥%.1f".format(it / 100.0),
                     style = CaptionText,

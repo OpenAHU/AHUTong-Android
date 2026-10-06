@@ -51,6 +51,9 @@ class PreferencesViewModel @Inject constructor(
     private val _personalizationEnabled = MutableStateFlow<Boolean?>(null)
     val personalizationEnabled: StateFlow<Boolean?> = _personalizationEnabled.asStateFlow()
 
+    private val _canteenUploadConsent = MutableStateFlow<Boolean?>(null)
+    val canteenUploadConsent: StateFlow<Boolean?> = _canteenUploadConsent.asStateFlow()
+
     private val _predictivePrefetchEnabled = MutableStateFlow<Boolean?>(null)
     val predictivePrefetchEnabled: StateFlow<Boolean?> = _predictivePrefetchEnabled.asStateFlow()
 
@@ -133,6 +136,7 @@ class PreferencesViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { settings.personalizationEnabled.collect { _personalizationEnabled.value = it } }
+        viewModelScope.launch { settings.canteenUploadConsent.collect { _canteenUploadConsent.value = it } }
         viewModelScope.launch { settings.predictivePrefetchEnabled.collect { _predictivePrefetchEnabled.value = it } }
         viewModelScope.launch { settings.wifiOnlyPrefetch.collect { _wifiOnlyPrefetch.value = it } }
         viewModelScope.launch { settings.behaviorRetentionDays.collect { _behaviorRetentionDays.value = it } }
@@ -196,6 +200,12 @@ class PreferencesViewModel @Inject constructor(
         writeSetting {
             settings.setPersonalizationEnabled(value)
             if (!value) personalization.dismissSuggestion()
+        }
+    }
+
+    fun setCanteenUploadConsent(value: Boolean) {
+        writeSetting {
+            settings.setCanteenUploadConsent(value)
         }
     }
 

@@ -44,6 +44,7 @@ object PreferencesKeys {
     val THEME_MODE = stringPreferencesKey("theme_mode")
     val REPOSITORY_ACCELERATION_SOURCE = stringPreferencesKey("repository_acceleration_source")
     val PERSONALIZATION_ENABLED = booleanPreferencesKey("personalization_enabled")
+    val CANTEEN_UPLOAD_CONSENT = booleanPreferencesKey("canteen_upload_consent")
     val PREDICTIVE_PREFETCH_ENABLED = booleanPreferencesKey("predictive_prefetch_enabled")
     val WIFI_ONLY_PREFETCH = booleanPreferencesKey("wifi_only_prefetch")
     val MODEL_QUALITY_TELEMETRY_PROFILES = stringSetPreferencesKey("model_quality_telemetry_profiles")
@@ -326,6 +327,17 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
 
     override val showQRCode: Flow<Boolean> = preferences { prefs ->
         prefs[PreferencesKeys.SHOW_QR_CODE] ?: false
+    }
+
+    /** 必吃榜匿名上传同意：键不存在 = 未表态（null），首页弹窗据此询问一次。 */
+    override val canteenUploadConsent: Flow<Boolean?> = preferences { prefs ->
+        prefs[PreferencesKeys.CANTEEN_UPLOAD_CONSENT]
+    }
+
+    override suspend fun setCanteenUploadConsent(value: Boolean) {
+        editPreferences { prefs ->
+            prefs[PreferencesKeys.CANTEEN_UPLOAD_CONSENT] = value
+        }
     }
 
     override suspend fun setShowQRCode(value: Boolean) {

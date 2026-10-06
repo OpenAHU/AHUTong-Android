@@ -7,33 +7,30 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
-import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Query
 
 /**
- * 必吃榜服务器接口（契约文档：docs/canteen-server-api.md）。
+ * 必吃榜服务器接口（契约文档：docs/canteen-server-api.md，2026-10-06 记录级模型版）。
  *
- * 隐私红线：所有上传只含「窗口×日期」聚合量与窗口名建议，
- * 绝不携带学号/卡号/姓名/教务会话；匿名标识只有 X-Reporter-Token（随机 UUID，清数据即焚）。
+ * 隐私红线：上传的去标识交易为 {terminal, ts, amountCents, canteen}——
+ * 不含任何用户/设备标识（连哈希都没有）；去重靠服务端 (POS, 秒, 金额) 唯一约束。
+ * 绝不在任何请求里带学号/卡号/姓名/教务会话。
  */
 interface CanteenApi {
 
     @GET("/api/canteen/window-map")
     suspend fun windowMap(@Query("sinceVersion") sinceVersion: Int? = null): WindowMapResponse
 
-    @POST("/api/canteen/stats")
-    suspend fun uploadStats(
-        @Header("X-Reporter-Token") reporterToken: String,
-        @Body body: StatsUpload
-    ): Response<Unit>
+    @POST("/api/canteen/txns")
+    suspend fun uploadTxns(@Body body: TxnsUpload): Response<Unit>
 
     @GET("/api/canteen/insights")
     suspend fun insights(
         @Query("period") period: String,
         @Query("limit") limit: Int = 50,
         @Query("canteens") canteens: String? = null,
-        @Query("minMeals") minMeals: Int = 10
+        @Query("minTxns") minTxns: Int = 20
     ): InsightsResponse
 
     companion object {
@@ -64,22 +61,17 @@ data class WindowMapEntry(
     val floor: String? = null
 )
 
-/* ---------------- 聚合上传 ---------------- */
+/* ---------------- 去标识交易上传 ---------------- */
 
-/** 「窗口 × 日期」一行聚合量（服务端幂等：餐次更大者整行替换，可放心重传）。 */
-data class StatsEntry(
+/** 一笔去标识交易。ts 秒级 "yyyy-MM-dd HH:mm:ss"，(terminal, ts, amountCents) 为服务端幂等键。 */
+data class TxnEntry(
     val terminal: String,
-    /** YYYY-MM-DD */
-    val period: String,
-    val meals: Int,
-    val mealsLunch: Int = 0,
-    val mealsDinner: Int = 0,
-    val mealsBreakfast: Int = 0,
-    val amountCents: Long = 0,
+    val ts: String,
+    val amountCents: Long,
     val canteen: String? = null
 )
 
-data class StatsUpload(val entries: List<StatsEntry>)
+data class TxnsUpload(val txns: List<TxnEntry>)
 
 /* ---------------- insights ---------------- */
 
@@ -92,6 +84,8 @@ data class InsightsResponse(
     val ranking: List<InsightRankingItem>? = null,
     val canteenRanking: List<InsightCanteenItem>? = null,
     val segments: List<InsightSegment>? = null,
+    /** 时段分布（几点最挤）。 */
+    val hourly: List<InsightHourly>? = null,
     val trend: List<InsightTrendPoint>? = null,
     val superlatives: InsightSuperlatives? = null,
     val notes: List<String>? = null
@@ -100,14 +94,14 @@ data class InsightsResponse(
 data class InsightSample(
     val terminals: Int = 0,
     val days: Int = 0,
-    val totalMeals: Int = 0,
+    val txns: Int = 0,
     val totalAmountCents: Long? = null
 )
 
 data class InsightConfidence(
     val level: String? = null,
     val note: String? = null,
-    val contributors: Int? = null
+    val txns: Int? = null
 )
 
 data class InsightRankingItem(
@@ -117,25 +111,29 @@ data class InsightRankingItem(
     val name: String?,
     val canteen: String?,
     val floor: String? = null,
-    val meals: Int,
+    /** 正餐交易笔数（展示口径可作「人次」）。 */
+    val txns: Int,
     val share: Double? = null,
     val amountCents: Long? = null,
-    val avgCentsPerMeal: Double? = null
+    /** 人均（分），÷100 显示为元。 */
+    val avgCentsPerTxn: Double? = null
 )
 
 data class InsightCanteenItem(
     val canteen: String,
-    val meals: Int,
+    val txns: Int,
     val share: Double? = null
 )
 
 data class InsightSegment(
     val segment: String,
-    val meals: Int,
+    val txns: Int,
     val share: Double? = null
 )
 
-data class InsightTrendPoint(val day: String, val meals: Int)
+data class InsightHourly(val hour: Int, val txns: Int, val share: Double? = null)
+
+data class InsightTrendPoint(val day: String, val txns: Int)
 
 data class InsightSuperlatives(
     val topWindow: InsightRankingItem? = null,
@@ -145,8 +143,8 @@ data class InsightSuperlatives(
     val mostConsistent: InsightRankingItem? = null,
     val leastPopular: InsightRankingItem? = null,
     val mostImproved: InsightRankingItem? = null,
-    /** 单日峰值（day + terminal + meals）。 */
-    @SerializedName("peakDay") val peakDay: InsightPeakDay? = null
+    @SerializedName("peakDay") val peakDay: InsightPeakDay? = null,
+    @SerializedName("busiestHour") val busiestHour: InsightHourly? = null
 )
 
 data class InsightPeakDay(
@@ -154,5 +152,5 @@ data class InsightPeakDay(
     val terminal: String,
     val name: String? = null,
     val canteen: String? = null,
-    val meals: Int
+    val txns: Int
 )
