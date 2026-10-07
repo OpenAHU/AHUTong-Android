@@ -1,9 +1,13 @@
 package com.ahu.ahutong.ui.screen.canteen
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.storage.SettingsStore
@@ -17,14 +21,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
  * 必吃榜匿名数据上传的同意弹窗（挂在主页）：consent 为 null（未表态）时弹一次。
  * 同意/拒绝都会落盘，之后不再弹；设置-偏好里随时可以改。
  *
- * 同时兼任「进 App 静默上传」触发点：已同意时，每个进程冷启动后第一次进主页
- * 触发一次后台账单同步上传（CanteenGateway.uploadRecentBills），全程无 UI。
+ * 同时兼任「静默上传」触发点（已同意时）：
+ * - 进程冷启动进主页触发一次
+ * - 之后每次主页 ON_RESUME（回前台/从别的页返回）检查一次，距上次 ≥30 分钟才真跑
+ * 全程无 UI，失败静默。
  */
 @HiltViewModel
 class CanteenConsentViewModel @Inject constructor(
@@ -39,10 +46,20 @@ class CanteenConsentViewModel @Inject constructor(
         viewModelScope.launch {
             settings.canteenUploadConsent.collect { consent ->
                 _shouldAsk.value = consent == null
-                // 已同意：每次进 App（进程级一次）静默拉取最近账单并上传去标识交易
-                if (consent == true && uploadTriggered.compareAndSet(false, true)) {
-                    launch(Dispatchers.IO) { CanteenGateway.uploadRecentBills() }
-                }
+                if (consent == true) maybeBackgroundSync()
+            }
+        }
+    }
+
+    /** 节流触发后台同步：距上次触发不足 30 分钟直接跳过；未同意不上传。 */
+    fun maybeBackgroundSync() {
+        val now = System.currentTimeMillis()
+        val last = lastSyncAt.get()
+        if (now - last < SYNC_THROTTLE_MS) return
+        if (!lastSyncAt.compareAndSet(last, now)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            if (settings.canteenUploadConsent.first() == true) {
+                CanteenGateway.uploadRecentBills()
             }
         }
     }
@@ -52,14 +69,26 @@ class CanteenConsentViewModel @Inject constructor(
     }
 
     companion object {
-        /** 进程级防重：一次冷启动只触发一次后台上传（主页重组/导航往返不重复触发）。 */
-        private val uploadTriggered = java.util.concurrent.atomic.AtomicBoolean(false)
+        /** 上次触发时间（进程内）：冷启动为 0 必触发；之后 30 分钟节流。 */
+        private val lastSyncAt = java.util.concurrent.atomic.AtomicLong(0)
+        private const val SYNC_THROTTLE_MS = 30 * 60 * 1000L
     }
 }
 
 @Composable
 fun CanteenConsentGate(viewModel: CanteenConsentViewModel = hiltViewModel()) {
     val shouldAsk by viewModel.shouldAsk.collectAsState()
+
+    // 回前台/返回主页时检查节流同步（节流逻辑在 VM 内，未同意时恒不上传）
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.maybeBackgroundSync()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     if (shouldAsk != true) return
 
     AppDialog(

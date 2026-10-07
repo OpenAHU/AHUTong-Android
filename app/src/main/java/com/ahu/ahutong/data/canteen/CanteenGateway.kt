@@ -96,14 +96,20 @@ object CanteenGateway {
                     }
                 }
             }
-            if (records.isNotEmpty()) uploadTxns(records)
+            if (records.isNotEmpty()) {
+                // 上传失败不推进标记——窗口留在失败日，下次触发时重传（否则数据会漏）
+                if (!uploadTxns(records)) {
+                    Log.w(TAG, "upload incomplete, keep marker for retry")
+                    return@runCatching
+                }
+            }
             AHUCache.setCanteenLastUploadDay(today)
             Log.i(TAG, "background sync done: window=${gapDays}d, fetched=${records.size}")
         }.onFailure { Log.w(TAG, "background bill sync failed", it) }
     }
 
-    /** 上传最近 30 天去标识交易（调用侧已确认用户同意；幂等可重传；静默失败）。 */
-    suspend fun uploadTxns(records: List<TurnoverRecord>): Unit = withContext(Dispatchers.IO) {
+    /** 上传最近 30 天去标识交易（调用侧已确认用户同意；幂等可重传）。返回是否全部成功。 */
+    suspend fun uploadTxns(records: List<TurnoverRecord>): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val cutoff = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
                 .format(Date(System.currentTimeMillis() - UPLOAD_DAYS * 24 * 3600 * 1000))
@@ -113,19 +119,23 @@ object CanteenGateway {
             CanteenWindowStore.saveLearnedFloors(
                 txns.mapNotNull { t -> t.floor?.let { t.terminal to it } }.toMap()
             )
-            if (txns.isEmpty()) return@runCatching
+            if (txns.isEmpty()) return@runCatching true
             var sent = 0
+            var ok = true
             txns.map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen, it.floor) }
                 .chunked(BATCH_SIZE).forEach { batch ->
-                val resp = CanteenApi.API.uploadTxns(TxnsUpload(batch))
-                if (!resp.isSuccessful) {
-                    Log.w(TAG, "txns upload http ${resp.code()}")
-                    return@forEach
+                    val resp = CanteenApi.API.uploadTxns(TxnsUpload(batch))
+                    if (!resp.isSuccessful) {
+                        Log.w(TAG, "txns upload http ${resp.code()}")
+                        ok = false
+                        return@forEach
+                    }
+                    sent += batch.size
                 }
-                sent += batch.size
-            }
             Log.i(TAG, "txns uploaded: $sent/${txns.size}")
+            ok
         }.onFailure { Log.w(TAG, "txns upload failed", it) }
+            .getOrDefault(false)
     }
 
     @Volatile
