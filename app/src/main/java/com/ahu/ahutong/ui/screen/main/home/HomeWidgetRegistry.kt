@@ -161,7 +161,7 @@ object HomeWidgetRegistry {
             id = "canteen_ranking",
             title = "必吃榜",
             route = "canteen_ranking",
-            iconId = R.drawable.ic_evaluation,
+            iconId = R.drawable.ic_canteen_ranking,
             tint = Color(0xFFFF6633),
             category = WidgetCategory.CAMPUS
         ),

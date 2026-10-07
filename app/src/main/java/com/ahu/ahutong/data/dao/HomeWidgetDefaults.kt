@@ -4,12 +4,15 @@ package com.ahu.ahutong.data.dao
 internal object HomeWidgetDefaults {
     const val NOTICE_WIDGET_ID = "campus_notices"
 
+    /** 首页固定位（原校园通知位，2026-10-07 替换）：必吃榜。 */
+    const val PINNED_WIDGET_ID = "canteen_ranking"
+
     val classic: List<String?> = listOf(
-        "bathroom", "electricity", NOTICE_WIDGET_ID
+        "bathroom", "electricity", PINNED_WIDGET_ID
     ) + List(5) { null }
 
     val radiant: List<String?> = listOf(
         "electricity", "bathroom", "grade", "exam",
-        "weather", "network_recharge", NOTICE_WIDGET_ID
+        "weather", "network_recharge", PINNED_WIDGET_ID
     )
 }

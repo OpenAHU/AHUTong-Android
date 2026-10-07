@@ -434,6 +434,7 @@ object AHUCache {
     // Keep the legacy key as Classic so existing layouts migrate without a copy or downgrade hazard.
     private const val HOME_WIDGET_SLOTS_CLASSIC_KEY = "home_widget_slots"
     private const val HOME_WIDGET_SLOTS_RADIANT_KEY = "home_widget_slots_radiant"
+    private const val HOME_SLOTS_CANTEEN_MIGRATED_PREFIX = "home_slots_canteen_migrated_"
     private const val HOME_WIDGET_SLOT_COUNT_CLASSIC = 8
     private const val HOME_WIDGET_SLOT_COUNT_RADIANT = 7
 
@@ -498,9 +499,37 @@ object AHUCache {
             }.getOrNull()
                 ?.let { normalizeHomeWidgetSlots(layoutFamily, it) }
                 ?: defaultHomeWidgetSlots(layoutFamily)
-        }
+        }.let { migratePinnedWidgetToCanteenRanking(layoutFamily, it) }
         homeWidgetSlotsCache = HomeWidgetSlotsCache(userId, layoutFamily, slots)
         return slots
+    }
+
+    /**
+     * 一次性迁移（2026-10-07）：首页固定位由校园通知换成必吃榜。
+     * 已保存过布局的用户不会吃到新默认值，这里把旧固定位里的 campus_notices
+     * 原位替换为 canteen_ranking 并落盘；用户之后仍可自由拖回。
+     */
+    private fun migratePinnedWidgetToCanteenRanking(
+        layoutFamily: HomeWidgetLayoutFamily,
+        slots: List<String?>
+    ): List<String?> {
+        val flagKey = HOME_SLOTS_CANTEEN_MIGRATED_PREFIX + layoutFamily.name
+        if (userGetStringOrMigrate(flagKey) { null } != null) return slots
+        userPutString(flagKey, "1")
+        if (HomeWidgetDefaults.NOTICE_WIDGET_ID !in slots ||
+            HomeWidgetDefaults.PINNED_WIDGET_ID in slots
+        ) {
+            return slots
+        }
+        val migrated = slots.map {
+            if (it == HomeWidgetDefaults.NOTICE_WIDGET_ID) {
+                HomeWidgetDefaults.PINNED_WIDGET_ID
+            } else {
+                it
+            }
+        }
+        saveHomeWidgetSlots(layoutFamily, migrated)
+        return migrated
     }
 
     /** 用户是否曾自定义主页插槽（true=已保存过布局，false=从未设置）。 */
