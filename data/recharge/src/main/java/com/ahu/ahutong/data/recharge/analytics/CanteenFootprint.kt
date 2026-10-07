@@ -250,10 +250,10 @@ data class DeidentifiedTxn(
 
 /**
  * 流水 → 去标识交易（服务端最终形态）。
- * - 只抽食堂类消费（extractCanteenName 命中）+ 有终端码的；非食堂/收入不出口
- * - **不做正餐时段过滤**（服务端统一过滤，客户端全量上传，口径单点在服务端）
- * - ts 用 effectdateStr 原值规整（秒级补齐），不重新生成——(POS, 秒, 金额) 是服务端去重键
- * - canteen 保持食堂名（食堂榜分组键）；floor 不发给服务端，调用侧用于本地楼层学习
+ * 客户端过滤口径（2026-10-07 用户拍板）：只抽 **正餐时段的食堂类消费**（有终端码、剔收入）——
+ * 正餐过滤必须客户端做；**去重不做**（服务端 (POS,秒,金额) 幂等键单点负责）。
+ * - ts 用 effectdateStr 原值规整（秒级补齐），不重新生成
+ * - canteen 保持食堂名（食堂榜分组键）；floor 为纯展示透传字段
  * - 不含任何用户/设备标识
  */
 fun List<TurnoverRecord>.toDeidentifiedTxns(): List<DeidentifiedTxn> =
@@ -262,6 +262,8 @@ fun List<TurnoverRecord>.toDeidentifiedTxns(): List<DeidentifiedTxn> =
         val terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
         val raw = record.merchantText()
         val canteen = extractCanteenName(raw) ?: return@mapNotNull null
+        val time = parseDateTime(record.effectdateStr) ?: return@mapNotNull null
+        mealSlotOf(time) ?: return@mapNotNull null   // 正餐过滤（客户端必做，用户拍板）
         val ts = normalizeTs(record.effectdateStr) ?: return@mapNotNull null
         DeidentifiedTxn(
             terminal = terminal,

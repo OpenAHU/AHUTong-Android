@@ -149,22 +149,21 @@ class CanteenFootprintTest {
     }
 
     @Test
-    fun `deidentified txns keep verbatim ts and skip non-canteen`() {
+    fun `deidentified txns keep verbatim ts and export meal-slot canteen records only`() {
         val records = listOf(
             record("2026-10-05 12:00:00", "77-139", 1000),
-            record("2026-10-05 07:30:00", "77-139", 400),    // 早餐：客户端不过滤（服务端过滤），仍应出口
+            record("2026-10-05 07:30:00", "77-139", 400),    // 早餐：正餐过滤（客户端），不出口
             record("2026-10-05 12:10:00", null, 900),        // 无终端码：不上传
             record("2026-10-05 12:20:00", "77-140", 500, "天猫超市"),  // 非食堂：不上传
             TurnoverRecord(orderId = "x1", tranamt = 5000, typeFrom = "1",
                 resume = "北二区食堂一楼", effectdateStr = "2026-10-05 12:30:00", locationName = "77-139")  // 收入：不上传
         )
         val txns = records.toDeidentifiedTxns()
-        assertEquals(2, txns.size)
+        assertEquals(1, txns.size)
         assertEquals("2026-10-05 12:00:00", txns[0].ts)      // 秒级原样
         assertEquals(1000, txns[0].amountCents)
         assertEquals("榴园", txns[0].canteen)      // 上传字段保持食堂名（食堂榜分组键）
-        assertEquals("一楼", txns[0].floor)        // 楼层走本地学习，不上传
-        assertEquals("2026-10-05 07:30:00", txns[1].ts)
+        assertEquals("一楼", txns[0].floor)        // 楼层为纯展示透传字段
     }
 
     @Test

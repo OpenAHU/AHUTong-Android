@@ -75,7 +75,6 @@ object CanteenGateway {
             val timeTo = tsFmt.format(Date(now))
 
             val records = mutableListOf<TurnoverRecord>()
-            val seen = HashSet<String>()
             var page = 1
             while (page <= MAX_SYNC_PAGES) {
                 when (
@@ -86,7 +85,8 @@ object CanteenGateway {
                     is AhuResult.Success -> {
                         val pageData = result.value
                         val rows = pageData.records.orEmpty()
-                        records += rows.filter { seen.add(it.orderId) }
+                        // 不做去重（用户拍板）：服务端 (POS,秒,金额) 幂等键单点负责
+                        records += rows
                         if (rows.isEmpty() || page >= (pageData.pages ?: 1)) break
                         page++
                     }
@@ -108,7 +108,10 @@ object CanteenGateway {
         }.onFailure { Log.w(TAG, "background bill sync failed", it) }
     }
 
-    /** 上传最近 30 天去标识交易（调用侧已确认用户同意；幂等可重传）。返回是否全部成功。 */
+    /**
+     * 上传最近 30 天去标识交易（调用侧已确认用户同意）。返回是否全部成功。
+     * **空载也 POST 一个空批次**：服务端数据包监控需要看到每次触发的请求时间戳。
+     */
     suspend fun uploadTxns(records: List<TurnoverRecord>): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val cutoff = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
@@ -119,11 +122,12 @@ object CanteenGateway {
             CanteenWindowStore.saveLearnedFloors(
                 txns.mapNotNull { t -> t.floor?.let { t.terminal to it } }.toMap()
             )
-            if (txns.isEmpty()) return@runCatching true
             var sent = 0
             var ok = true
             txns.map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen, it.floor) }
-                .chunked(BATCH_SIZE).forEach { batch ->
+                .chunked(BATCH_SIZE)
+                .ifEmpty { listOf(emptyList()) }   // 空载心跳：监控可见
+                .forEach { batch ->
                     val resp = CanteenApi.API.uploadTxns(TxnsUpload(batch))
                     if (!resp.isSuccessful) {
                         Log.w(TAG, "txns upload http ${resp.code()}")
