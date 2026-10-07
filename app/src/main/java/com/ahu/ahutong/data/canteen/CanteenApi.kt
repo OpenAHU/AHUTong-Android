@@ -68,7 +68,9 @@ data class TxnEntry(
     val terminal: String,
     val ts: String,
     val amountCents: Long,
-    val canteen: String? = null
+    val canteen: String? = null,
+    /** 楼层（「一楼」）：客户端从账单商户文本提取，服务端透传进 insights 条目展示。 */
+    val floor: String? = null
 )
 
 data class TxnsUpload(val txns: List<TxnEntry>)

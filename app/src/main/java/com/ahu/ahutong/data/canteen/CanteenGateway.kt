@@ -115,7 +115,7 @@ object CanteenGateway {
             )
             if (txns.isEmpty()) return@runCatching
             var sent = 0
-            txns.map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen) }
+            txns.map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen, it.floor) }
                 .chunked(BATCH_SIZE).forEach { batch ->
                 val resp = CanteenApi.API.uploadTxns(TxnsUpload(batch))
                 if (!resp.isSuccessful) {
