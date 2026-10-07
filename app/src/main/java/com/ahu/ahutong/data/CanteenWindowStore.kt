@@ -27,4 +27,23 @@ object CanteenWindowStore {
     fun saveAll(map: Map<String, String>) {
         AHUCache.saveCanteenWindowMapJson(gson.toJson(map))
     }
+
+    /* ---------------- 本地「终端→楼层」学习表 ----------------
+     * 从用户自己的账单商户文本（「北二区食堂一楼」）提取，随上传流程顺手积累。
+     * 用途：必吃榜条目服务端 floor 为空时的本地兜底（你去过的窗口都有楼层）。
+     */
+
+    fun learnedFloors(): Map<String, String> {
+        val raw = AHUCache.getCanteenLearnedFloorsJson() ?: return emptyMap()
+        return runCatching { gson.fromJson<Map<String, String>>(raw, mapType) }.getOrNull() ?: emptyMap()
+    }
+
+    fun learnedFloorOf(terminal: String): String? = learnedFloors()[terminal]
+
+    /** 合并写入新学到的楼层（增量合并，不覆盖已有键为新值以外的内容）。 */
+    fun saveLearnedFloors(new: Map<String, String>) {
+        if (new.isEmpty()) return
+        val merged = learnedFloors() + new
+        AHUCache.saveCanteenLearnedFloorsJson(gson.toJson(merged))
+    }
 }

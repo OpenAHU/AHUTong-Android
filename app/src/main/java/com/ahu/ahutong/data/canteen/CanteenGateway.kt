@@ -109,10 +109,14 @@ object CanteenGateway {
                 .format(Date(System.currentTimeMillis() - UPLOAD_DAYS * 24 * 3600 * 1000))
             val txns = records.toDeidentifiedTxns()
                 .filter { it.ts.substring(0, 10) >= cutoff }
-                .map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen) }
+            // 顺手攒「终端→楼层」本地学习表（榜单条目服务端 floor 为空时的兜底；不发给服务器）
+            CanteenWindowStore.saveLearnedFloors(
+                txns.mapNotNull { t -> t.floor?.let { t.terminal to it } }.toMap()
+            )
             if (txns.isEmpty()) return@runCatching
             var sent = 0
-            txns.chunked(BATCH_SIZE).forEach { batch ->
+            txns.map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen) }
+                .chunked(BATCH_SIZE).forEach { batch ->
                 val resp = CanteenApi.API.uploadTxns(TxnsUpload(batch))
                 if (!resp.isSuccessful) {
                     Log.w(TAG, "txns upload http ${resp.code()}")

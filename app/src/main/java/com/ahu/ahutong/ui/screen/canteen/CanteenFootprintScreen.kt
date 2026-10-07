@@ -299,12 +299,14 @@ private fun WindowRow(rank: Int, window: WindowStat) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                window.windowName ?: "${window.terminal} 号窗",
+                // 未收录：「榴园一楼 · 77-139 号窗」；已收录：窗口名为主标题，楼层在副标题
+                window.windowName ?: "${window.location} · ${window.terminal} 号窗",
                 style = BodyText.copy(fontWeight = if (champion) FontWeight.Medium else FontWeight.Normal),
                 color = if (claimed) CanteenPalette.textPrimary else Color(0xFF666666)
             )
             Text(
-                "${window.mealCount} 次 · 均价 ${window.avgFen.money()}" +
+                (if (claimed) "${window.location} · " else "") +
+                    "${window.mealCount} 次 · 均价 ${window.avgFen.money()}" +
                     (if (window.currentStreak >= 2) " · 连续 ${window.currentStreak} 天" else "") +
                     (if (!claimed) " · POS 机未标注" else ""),
                 style = CaptionText,

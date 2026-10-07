@@ -629,6 +629,14 @@ object AHUCache {
     fun getCanteenWindowMapJson(): String? =
         userGetStringOrMigrate("canteen_window_map") { null }
 
+    /** 本地「终端→楼层」学习表（从自己账单原始商户文本提取，纯公共信息，不上传）。 */
+    fun saveCanteenLearnedFloorsJson(json: String) {
+        userPutString("canteen_learned_floors", json)
+    }
+
+    fun getCanteenLearnedFloorsJson(): String? =
+        userGetStringOrMigrate("canteen_learned_floors") { null }
+
     /** 必吃榜映射表版本号（sinceVersion 增量同步用）。 */
     fun getCanteenMapVersion(): Int =
         userGetStringOrMigrate("canteen_map_version") { null }?.toIntOrNull() ?: 0

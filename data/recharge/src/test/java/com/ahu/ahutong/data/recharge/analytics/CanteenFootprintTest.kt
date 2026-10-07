@@ -96,6 +96,7 @@ class CanteenFootprintTest {
         assertEquals("77-139", top.terminal)
         assertEquals("烤盘饭", top.windowName)
         assertEquals("榴园", top.canteen)
+        assertEquals("榴园一楼", top.location)     // 楼层来自原始商户文本
         assertEquals(3, top.mealCount)
         assertEquals(3, top.currentStreak)         // 10-03/04/05 连击
         assertEquals(1300, top.avgFen)
@@ -161,8 +162,21 @@ class CanteenFootprintTest {
         assertEquals(2, txns.size)
         assertEquals("2026-10-05 12:00:00", txns[0].ts)      // 秒级原样
         assertEquals(1000, txns[0].amountCents)
-        assertEquals("榴园", txns[0].canteen)
+        assertEquals("榴园", txns[0].canteen)      // 上传字段保持食堂名（食堂榜分组键）
+        assertEquals("一楼", txns[0].floor)        // 楼层走本地学习，不上传
         assertEquals("2026-10-05 07:30:00", txns[1].ts)
+    }
+
+    @Test
+    fun `canteen falls back to plain name when floor missing`() {
+        val records = listOf(
+            record("2026-10-06 12:00:00", "77-141", 900, merchant = "北二区食堂")
+        )
+        val txn = records.toDeidentifiedTxns().first()
+        assertEquals("榴园", txn.canteen)
+        assertNull(txn.floor)
+        assertNull(extractFloor("北二区食堂"))
+        assertEquals("一楼", extractFloor("北二区食堂一楼-扫码支付"))
     }
 
     @Test

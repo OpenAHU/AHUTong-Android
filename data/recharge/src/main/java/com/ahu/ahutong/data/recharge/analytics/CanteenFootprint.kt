@@ -27,6 +27,8 @@ enum class MealSlot(val label: String) {
 data class FootprintMeal(
     val terminal: String?,
     val canteen: String,
+    /** 食堂+楼层（如「榴园一楼」）；无楼层信息时退化为食堂名。 */
+    val location: String,
     val slot: MealSlot,
     val startTime: Date,
     val totalFen: Long,
@@ -38,6 +40,8 @@ data class WindowStat(
     /** 映射表命中的窗口名；null = 未收录。 */
     val windowName: String?,
     val canteen: String,
+    /** 食堂+楼层（该窗口消费记录里出现最多的 location）。 */
+    val location: String,
     val mealCount: Int,
     val totalFen: Long,
     val avgFen: Long,
@@ -124,6 +128,7 @@ fun List<TurnoverRecord>.toCanteenFootprint(
             terminal = terminal,
             windowName = windowNames[terminal],
             canteen = sorted.last().canteen,
+            location = list.groupingBy { it.location }.eachCount().maxByOrNull { it.value }!!.key,
             mealCount = list.size,
             totalFen = list.sumOf { it.totalFen },
             avgFen = list.sumOf { it.totalFen } / list.size,
@@ -163,10 +168,12 @@ private fun List<TurnoverRecord>.mergeMeals(): List<FootprintMeal> {
         if (!record.isExpenseRecord()) return@mapNotNull null
         val time = parseDateTime(record.effectdateStr) ?: return@mapNotNull null
         val slot = mealSlotOf(time) ?: return@mapNotNull null
-        val canteen = extractCanteenName(record.merchantText()) ?: return@mapNotNull null
+        val raw = record.merchantText()
+        val canteen = extractCanteenName(raw) ?: return@mapNotNull null
         FootprintMeal(
             terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() },
             canteen = canteen,
+            location = canteen + (extractFloor(raw) ?: ""),
             slot = slot,
             startTime = time,
             totalFen = record.tranamt,
@@ -194,6 +201,10 @@ private fun List<TurnoverRecord>.mergeMeals(): List<FootprintMeal> {
 }
 
 private const val MERGE_GAP_MS = 5 * 60 * 1000L
+
+/** 楼层提取：原始商户文本里的「一楼/二楼/负一楼」等；无则 null（extractCanteenName 会把楼层剥掉）。 */
+internal fun extractFloor(text: String): String? =
+    Regex("(负一|[一二三四五六七八])楼").find(text)?.value
 
 /** 正餐时段：午 10:30-14:00，晚 16:30-22:30（夜宵并入晚餐）；其余时刻返回 null。 */
 private fun mealSlotOf(time: Date): MealSlot? {
@@ -231,7 +242,10 @@ data class DeidentifiedTxn(
     /** 账单原始时间字段规整为 "yyyy-MM-dd HH:mm:ss"（跨设备去重键的一致性全靠它）。 */
     val ts: String,
     val amountCents: Long,
-    val canteen: String
+    /** 食堂名（「榴园」）；楼层不进上传字段（服务端食堂榜按 canteen 分组，带楼层会拆碎分组）。 */
+    val canteen: String,
+    /** 楼层（「一楼」，可空）：不进服务端契约，由调用侧就地攒进本地「终端→楼层」学习表。 */
+    val floor: String? = null
 )
 
 /**
@@ -239,15 +253,23 @@ data class DeidentifiedTxn(
  * - 只抽食堂类消费（extractCanteenName 命中）+ 有终端码的；非食堂/收入不出口
  * - **不做正餐时段过滤**（服务端统一过滤，客户端全量上传，口径单点在服务端）
  * - ts 用 effectdateStr 原值规整（秒级补齐），不重新生成——(POS, 秒, 金额) 是服务端去重键
+ * - canteen 保持食堂名（食堂榜分组键）；floor 不发给服务端，调用侧用于本地楼层学习
  * - 不含任何用户/设备标识
  */
 fun List<TurnoverRecord>.toDeidentifiedTxns(): List<DeidentifiedTxn> =
     mapNotNull { record ->
         if (!record.isExpenseRecord()) return@mapNotNull null
         val terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-        val canteen = extractCanteenName(record.merchantText()) ?: return@mapNotNull null
+        val raw = record.merchantText()
+        val canteen = extractCanteenName(raw) ?: return@mapNotNull null
         val ts = normalizeTs(record.effectdateStr) ?: return@mapNotNull null
-        DeidentifiedTxn(terminal = terminal, ts = ts, amountCents = record.tranamt, canteen = canteen)
+        DeidentifiedTxn(
+            terminal = terminal,
+            ts = ts,
+            amountCents = record.tranamt,
+            canteen = canteen,
+            floor = extractFloor(raw)
+        )
     }
 
 /** "yyyy-MM-dd HH:mm[:ss]" → 秒级补齐；无法解析返回 null。 */

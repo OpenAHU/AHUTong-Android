@@ -2,7 +2,9 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ahu.ahutong.data.CanteenWindowStore
 import com.ahu.ahutong.data.canteen.CanteenGateway
+import com.ahu.ahutong.data.canteen.InsightRankingItem
 import com.ahu.ahutong.data.canteen.InsightsResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -41,7 +43,7 @@ class CanteenRankingViewModel @Inject constructor() : ViewModel() {
         viewModelScope.launch {
             val data = CanteenGateway.insights(period = p.api, limit = 50, forceRefresh = forceRefresh)
             _state.value = if (data != null) {
-                UiState.Ready(p, data)
+                UiState.Ready(p, data.withLearnedFloors())
             } else {
                 UiState.Error(p, "榜单加载失败，请检查网络后重试")
             }
@@ -50,4 +52,26 @@ class CanteenRankingViewModel @Inject constructor() : ViewModel() {
 
     /** 标题栏刷新：绕过端侧缓存。 */
     fun refresh() = load(period, forceRefresh = true)
+}
+
+/**
+ * 楼层兜底：服务端条目的 floor 来自映射表（管理员踩点填写），未收录窗口为空——
+ * 用本地从账单学习的「终端→楼层」补（你去过的窗口都有楼层）。零服务端改动。
+ */
+private fun InsightsResponse.withLearnedFloors(): InsightsResponse {
+    fun InsightRankingItem.patch(): InsightRankingItem =
+        if (floor != null) this else copy(floor = CanteenWindowStore.learnedFloorOf(terminal))
+    return copy(
+        ranking = ranking?.map { it.patch() },
+        superlatives = superlatives?.let { s ->
+            s.copy(
+                topWindow = s.topWindow?.patch(),
+                lunchTopWindow = s.lunchTopWindow?.patch(),
+                dinnerTopWindow = s.dinnerTopWindow?.patch(),
+                mostConsistent = s.mostConsistent?.patch(),
+                leastPopular = s.leastPopular?.patch(),
+                mostImproved = s.mostImproved?.patch()
+            )
+        }
+    )
 }
