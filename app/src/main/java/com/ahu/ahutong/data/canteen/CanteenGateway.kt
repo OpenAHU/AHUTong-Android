@@ -28,9 +28,11 @@ object CanteenGateway {
     private const val UPLOAD_DAYS = 30L
     private const val BATCH_SIZE = 400
     private const val DAY_MS = 24 * 3600 * 1000L
-    private const val BACKFILL_DAYS = 30
+    private const val BACKFILL_DAYS = 30L
+    /** 窗口向前重叠：兜上游入账延迟（迟到的记录带着原消费时间出现在账单里）。 */
+    private const val OVERLAP_MS = DAY_MS
     private const val SYNC_PAGE_SIZE = 100
-    private const val MAX_SYNC_PAGES = 3
+    private const val MAX_SYNC_PAGES = 6
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -49,29 +51,27 @@ object CanteenGateway {
     }
 
     /**
-     * 进 App 静默同步（每次冷启动一次，由 CanteenConsentGate 在已同意时触发）：
-     * 后台拉取「上次上传日 → 今天」的账单流水并上传去标识交易。
-     * 首次（无标记）回补 30 天；之后滚动增量，窗口与前一天重叠一天（服务端幂等去重）。
-     * 任何失败静默，不打扰用户。
+     * 静默同步（冷启动一次 + 主页回前台节流触发，由 CanteenConsentGate 发起）：
+     * 后台拉取「上次成功上传时刻 → 现在」的账单流水并上传去标识交易。
+     * - 窗口向前重叠 1 天：兜住上游入账延迟（记录可能几小时后才带着原时间出现在账单里）
+     * - 首次（无标记）回补 30 天；长期未用也封顶 30 天（uploadTxns 本就只认近 30 天）
+     * - 时间戳级标记，只在全部批次上传成功后推进；失败则下次原窗口重试
+     * - 任何失败静默，不打扰用户
      */
     suspend fun uploadRecentBills(): Unit = withContext(Dispatchers.IO) {
         runCatching {
-            val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
             val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
             val now = System.currentTimeMillis()
-            val today = dayFmt.format(Date(now))
 
-            // 上传窗口天数：距上次上传的天数，钳制到 [1, BACKFILL_DAYS]；首传回补 30 天
-            val gapDays = AHUCache.getCanteenLastUploadDay()?.let {
-                val last = runCatching { dayFmt.parse(it)?.time }.getOrNull()
-                if (last == null) {
-                    BACKFILL_DAYS
-                } else {
-                    ((now - last) / DAY_MS).toInt().coerceIn(1, BACKFILL_DAYS)
-                }
-            } ?: BACKFILL_DAYS
-
-            val timeFrom = tsFmt.format(Date(now - (gapDays - 1L) * DAY_MS))
+            val lastTs = AHUCache.getCanteenLastUploadTs()
+            val backfillFrom = now - BACKFILL_DAYS * DAY_MS
+            // 起点 = 上次成功时刻 - 1 天重叠；无标记/窗口超 30 天则封顶到 30 天前
+            val fromTs = if (lastTs == null) {
+                backfillFrom
+            } else {
+                (lastTs - OVERLAP_MS).coerceAtLeast(backfillFrom)
+            }
+            val timeFrom = tsFmt.format(Date(fromTs))
             val timeTo = tsFmt.format(Date(now))
 
             val records = mutableListOf<TurnoverRecord>()
@@ -97,14 +97,14 @@ object CanteenGateway {
                 }
             }
             if (records.isNotEmpty()) {
-                // 上传失败不推进标记——窗口留在失败日，下次触发时重传（否则数据会漏）
+                // 上传失败不推进标记——窗口留在失败时刻，下次触发原窗口重传（不漏数据）
                 if (!uploadTxns(records)) {
                     Log.w(TAG, "upload incomplete, keep marker for retry")
                     return@runCatching
                 }
             }
-            AHUCache.setCanteenLastUploadDay(today)
-            Log.i(TAG, "background sync done: window=${gapDays}d, fetched=${records.size}")
+            AHUCache.setCanteenLastUploadTs(now)
+            Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
         }.onFailure { Log.w(TAG, "background bill sync failed", it) }
     }
 
