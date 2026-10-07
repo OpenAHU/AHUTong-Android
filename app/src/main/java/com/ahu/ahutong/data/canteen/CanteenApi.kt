@@ -1,10 +1,10 @@
 package com.ahu.ahutong.data.canteen
 
+import android.util.Log
+import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.network.AhuHttp
 import com.google.gson.annotations.SerializedName
 import retrofit2.Response
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -34,15 +34,26 @@ interface CanteenApi {
     ): InsightsResponse
 
     companion object {
-        const val BASE_URL = "http://121.37.174.199:8000/"
+        /** 80 口（Caddy 反代）；8000 口安全组规则已删除，公网不可达（2026-10-07 服务端 v1.4.0）。 */
+        const val BASE_URL = "http://121.37.174.199/"
 
         val API: CanteenApi by lazy {
-            Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .client(AhuHttp.plain().build())
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(CanteenApi::class.java)
+            AhuHttp.retrofit(BASE_URL) {
+                // 只在本接口的客户端上加头；密钥构建期注入（local.properties，不落 git）
+                addInterceptor { chain ->
+                    val key = BuildConfig.CANTEEN_WRITE_KEY
+                    val request = chain.request()
+                    if (key.isBlank()) {
+                        // 没配 key 时不加头，让服务端返回 401——比静默失败好排查
+                        Log.w("CanteenApi", "CANTEEN_WRITE_KEY 未配置，写入请求会被服务端拒绝")
+                        chain.proceed(request)
+                    } else {
+                        chain.proceed(
+                            request.newBuilder().header("X-Api-Key", key).build()
+                        )
+                    }
+                }
+            }.create(CanteenApi::class.java)
         }
     }
 }

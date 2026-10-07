@@ -21,6 +21,16 @@ val buglyAppId = providers.gradleProperty("bugly.appId").orNull
     ?: providers.environmentVariable("BUGLY_APP_ID").orNull
     ?: "2c2ccadcad"
 
+// 必吃榜写入密钥：**不是公开标识**，所以这里**不写默认值**。
+// 来源优先级：-Pcanteen.writeKey=... → 环境变量 CANTEEN_WRITE_KEY → local.properties。
+// 三者都缺时为 ""，此时客户端不带该头（写接口会 401，日志会明确提示）。
+val canteenWriteKey: String = providers.gradleProperty("canteen.writeKey").orNull
+    ?: providers.environmentVariable("CANTEEN_WRITE_KEY").orNull
+    ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { f ->
+        Properties().apply { f.inputStream().use { load(it) } }.getProperty("canteen.writeKey")
+    }
+    ?: ""
+
 sentry {
     org.set("openahu")
     projectName.set("ahutong-android")
@@ -82,6 +92,7 @@ android {
         versionName = "3.4.0"
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
         buildConfigField("String", "BUGLY_APP_ID", "\"$buglyAppId\"")
+        buildConfigField("String", "CANTEEN_WRITE_KEY", "\"$canteenWriteKey\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters += listOf("arm64-v8a")

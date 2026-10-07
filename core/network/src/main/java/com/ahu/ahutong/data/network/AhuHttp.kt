@@ -1,6 +1,8 @@
 package com.ahu.ahutong.data.network
 
 import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -31,4 +33,24 @@ object AhuHttp {
         .followRedirects(followRedirects)
         .followSslRedirects(followSslRedirects)
         .apply { callTimeoutSeconds?.let { callTimeout(it, TimeUnit.SECONDS) } }
+
+    /**
+     * Retrofit 的唯一构造入口（约束见 docs/architecture/CONTEXT.md R9）。
+     *
+     * 业务方只声明「baseUrl + 客户端定制」（如加拦截器），装配细节收口在这里：
+     *
+     * ```kotlin
+     * AhuHttp.retrofit("https://example.com/") {
+     *     addInterceptor { chain -> chain.proceed(chain.request()) }
+     * }.create(MyApi::class.java)
+     * ```
+     */
+    fun retrofit(
+        baseUrl: String,
+        configureClient: OkHttpClient.Builder.() -> OkHttpClient.Builder = { this }
+    ): Retrofit = Retrofit.Builder()
+        .baseUrl(baseUrl)
+        .client(configureClient(plain()).build())
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
 }
