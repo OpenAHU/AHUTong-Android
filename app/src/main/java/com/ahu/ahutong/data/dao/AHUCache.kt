@@ -645,18 +645,6 @@ object AHUCache {
         userPutString("canteen_map_version", version.toString())
     }
 
-    /**
-     * 必吃榜后台上传的上次成功时间戳（毫秒）：上传窗口 = 该时刻到今天，
-     * 并向前重叠 1 天兜底上游入账延迟（服务端按 (POS,秒,金额) 幂等，重叠重传安全）。
-     * 首次无标记则回补 30 天。
-     */
-    fun getCanteenLastUploadTs(): Long? =
-        userGetStringOrMigrate("canteen_last_upload_ts") { null }?.toLongOrNull()
-
-    fun setCanteenLastUploadTs(ts: Long) {
-        userPutString("canteen_last_upload_ts", ts.toString())
-    }
-
     fun getJwxtStudentId() : String?{
         return userGetStringOrMigrate("jwxt_stu_id") {
             kv.getString(

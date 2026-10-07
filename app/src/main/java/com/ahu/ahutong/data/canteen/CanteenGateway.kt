@@ -30,8 +30,6 @@ object CanteenGateway {
     private const val BATCH_SIZE = 400
     private const val DAY_MS = 24 * 3600 * 1000L
     private const val BACKFILL_DAYS = 30L
-    /** 窗口向前重叠：兜上游入账延迟（迟到的记录带着原消费时间出现在账单里）。 */
-    private const val OVERLAP_MS = DAY_MS
     private const val SYNC_PAGE_SIZE = 100
     private const val MAX_SYNC_PAGES = 6
     private const val FETCH_MAX_ATTEMPTS = 3
@@ -54,15 +52,16 @@ object CanteenGateway {
     }
 
     /**
-     * 静默同步（冷启动一次 + 主页回前台节流触发，由 CanteenConsentGate 发起）：
-     * 后台拉取「上次成功上传时刻 → 现在」的账单流水并上传去标识交易。
+     * 静默同步（冷启动一次 + 主页回前台节流触发，由 CanteenConsentGate 发起）。
      *
-     * **目标是每次触发都成功上传最新数据**：
+     * **客户端是笨蛋**（2026-10-07 用户拍板定稿）：每次触发固定拉最近 30 天账单、
+     * 过滤后全量上传——没有增量窗口、没有上传标记、没有任何客户端侧去重。
+     * 新数据还是老数据由服务端 (POS,秒,金额) 幂等键判定（重传 dupes 是正常态）。
+     * 与热力图触发路径从此完全同构，不会再出现「两个入口两种包」。
+     *
      * - 拉取失败原地重试（最多 [FETCH_MAX_ATTEMPTS] 次、间隔 [FETCH_RETRY_DELAY_MS]），
-     *   兜住冷启动 token 未就绪/网络抖动；彻底失败才发空载心跳并返回 false，
-     *   由调用侧安排短间隔重触发
-     * - 窗口向前重叠 1 天（兜上游入账延迟）；首次回补 30 天、封顶 30 天
-     * - 时间戳级标记，只在全部成功后推进
+     *   兜住冷启动 token 未就绪/网络抖动
+     * - 拉取或上传彻底失败 → 返回 false，调用侧 5 分钟后允许重触发
      *
      * @return true = 拉取并上传成功（含窗口内本就零记录）
      */
@@ -70,16 +69,7 @@ object CanteenGateway {
         runCatching {
             val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
             val now = System.currentTimeMillis()
-
-            val lastTs = AHUCache.getCanteenLastUploadTs()
-            val backfillFrom = now - BACKFILL_DAYS * DAY_MS
-            // 起点 = 上次成功时刻 - 1 天重叠；无标记/窗口超 30 天则封顶到 30 天前
-            val fromTs = if (lastTs == null) {
-                backfillFrom
-            } else {
-                (lastTs - OVERLAP_MS).coerceAtLeast(backfillFrom)
-            }
-            val timeFrom = tsFmt.format(Date(fromTs))
+            val timeFrom = tsFmt.format(Date(now - BACKFILL_DAYS * DAY_MS))
             val timeTo = tsFmt.format(Date(now))
 
             // —— 拉取（原地重试：冷启动 token/网络未就绪是暂态，不是终态） ——
@@ -96,17 +86,15 @@ object CanteenGateway {
                 }
             }
             if (!fetchOk) {
-                Log.w(TAG, "bill fetch failed after $FETCH_MAX_ATTEMPTS attempts, heartbeat only")
-                uploadTxns(emptyList())   // 触发时间戳留在监控里
+                Log.w(TAG, "bill fetch failed after $FETCH_MAX_ATTEMPTS attempts")
                 return@withContext false
             }
 
-            // 上传（空列表也会发空载心跳，见 uploadTxns）
+            // 上传（30 天窗口内零记录时发空批，标记「查过了，没数据」）
             if (!uploadTxns(records)) {
-                Log.w(TAG, "upload incomplete, keep marker for retry")
+                Log.w(TAG, "upload incomplete")
                 return@withContext false
             }
-            AHUCache.setCanteenLastUploadTs(now)
             Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
             true
         }.getOrElse {
