@@ -320,7 +320,7 @@ private fun WindowRow(rank: Int, window: WindowStat) {
                     .background(CanteenPalette.accent)
                     .padding(horizontal = 10.dp, vertical = 3.dp)
             ) {
-                Text("擂主", style = CaptionText, color = Color.White)
+                Text("冠军", style = CaptionText, color = Color.White)
             }
         }
     }

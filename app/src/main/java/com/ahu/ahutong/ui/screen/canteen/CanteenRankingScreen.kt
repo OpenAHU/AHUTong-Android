@@ -201,9 +201,9 @@ private fun RankingContent(
 
         Spacer(Modifier.height(20.dp))
 
-        // —— 擂主海报卡 ——
+        // —— 冠军海报卡 ——
         data.superlatives?.topWindow?.let { top ->
-            ChampionCard(top, data)
+            ChampionCard(top, data, currentPeriod)
             Spacer(Modifier.height(16.dp))
         }
 
@@ -348,9 +348,18 @@ private fun RankingContent(
     }
 }
 
-/** 擂主海报卡：浅橙底 + 橙描边 + 「擂主」胶囊（点评榜手法）。 */
+/** 冠军海报卡：浅橙底 + 橙描边 + 「冠军」胶囊（点评榜手法）。 */
 @Composable
-private fun ChampionCard(top: InsightRankingItem, data: InsightsResponse) {
+private fun ChampionCard(
+    top: InsightRankingItem,
+    data: InsightsResponse,
+    period: CanteenRankingViewModel.Period
+) {
+    val championTitle = when (period) {
+        CanteenRankingViewModel.Period.WEEK -> "本周冠军"
+        CanteenRankingViewModel.Period.MONTH -> "本月冠军"
+        CanteenRankingViewModel.Period.ALL -> "总冠军"
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -365,7 +374,7 @@ private fun ChampionCard(top: InsightRankingItem, data: InsightsResponse) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                "本周擂主",
+                championTitle,
                 style = CaptionText,
                 color = CanteenPalette.accent
             )
@@ -375,7 +384,7 @@ private fun ChampionCard(top: InsightRankingItem, data: InsightsResponse) {
                     .background(CanteenPalette.accent)
                     .padding(horizontal = 10.dp, vertical = 3.dp)
             ) {
-                Text("擂主", style = CaptionText, color = Color.White)
+                Text("冠军", style = CaptionText, color = Color.White)
             }
         }
         Spacer(Modifier.height(8.dp))
