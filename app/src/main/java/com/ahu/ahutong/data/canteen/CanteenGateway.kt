@@ -75,6 +75,7 @@ object CanteenGateway {
             val timeTo = tsFmt.format(Date(now))
 
             val records = mutableListOf<TurnoverRecord>()
+            var fetchOk = true
             var page = 1
             while (page <= MAX_SYNC_PAGES) {
                 when (
@@ -91,10 +92,17 @@ object CanteenGateway {
                         page++
                     }
                     is AhuResult.Failure -> {
-                        Log.w(TAG, "background bill fetch failed at page $page")
-                        return@runCatching
+                        fetchOk = false
+                        break
                     }
                 }
+            }
+            if (!fetchOk) {
+                // 拉取失败（典型：冷启动时校园卡 token 未就绪）也发空载心跳——
+                // 触发时间戳必须出现在服务端监控里；标记不推进，下次触发原窗口重试
+                Log.w(TAG, "bill fetch failed, sending heartbeat only")
+                uploadTxns(emptyList())
+                return@runCatching
             }
             if (records.isNotEmpty()) {
                 // 上传失败不推进标记——窗口留在失败时刻，下次触发原窗口重传（不漏数据）
@@ -102,6 +110,9 @@ object CanteenGateway {
                     Log.w(TAG, "upload incomplete, keep marker for retry")
                     return@runCatching
                 }
+            } else {
+                // 窗口内零记录同样发心跳：触发可观测
+                uploadTxns(emptyList())
             }
             AHUCache.setCanteenLastUploadTs(now)
             Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
