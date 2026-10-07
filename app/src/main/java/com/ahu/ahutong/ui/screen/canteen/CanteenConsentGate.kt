@@ -7,11 +7,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.storage.SettingsStore
+import com.ahu.ahutong.data.canteen.CanteenGateway
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +22,9 @@ import kotlinx.coroutines.launch
 /**
  * 必吃榜匿名数据上传的同意弹窗（挂在主页）：consent 为 null（未表态）时弹一次。
  * 同意/拒绝都会落盘，之后不再弹；设置-偏好里随时可以改。
+ *
+ * 同时兼任「进 App 静默上传」触发点：已同意时，每个进程冷启动后第一次进主页
+ * 触发一次后台账单同步上传（CanteenGateway.uploadRecentBills），全程无 UI。
  */
 @HiltViewModel
 class CanteenConsentViewModel @Inject constructor(
@@ -34,12 +39,21 @@ class CanteenConsentViewModel @Inject constructor(
         viewModelScope.launch {
             settings.canteenUploadConsent.collect { consent ->
                 _shouldAsk.value = consent == null
+                // 已同意：每次进 App（进程级一次）静默拉取最近账单并上传去标识交易
+                if (consent == true && uploadTriggered.compareAndSet(false, true)) {
+                    launch(Dispatchers.IO) { CanteenGateway.uploadRecentBills() }
+                }
             }
         }
     }
 
     fun answer(consent: Boolean) {
         viewModelScope.launch { settings.setCanteenUploadConsent(consent) }
+    }
+
+    companion object {
+        /** 进程级防重：一次冷启动只触发一次后台上传（主页重组/导航往返不重复触发）。 */
+        private val uploadTriggered = java.util.concurrent.atomic.AtomicBoolean(false)
     }
 }
 

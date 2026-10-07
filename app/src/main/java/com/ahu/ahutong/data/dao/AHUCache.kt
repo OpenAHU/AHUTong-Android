@@ -637,6 +637,17 @@ object AHUCache {
         userPutString("canteen_map_version", version.toString())
     }
 
+    /**
+     * 必吃榜后台上传的上次完成日（YYYY-MM-DD）：上传窗口 = 该日到今天的差值，
+     * 首日无标记则回补 30 天。服务端按 (POS,秒,金额) 幂等，重叠窗口重传安全。
+     */
+    fun getCanteenLastUploadDay(): String? =
+        userGetStringOrMigrate("canteen_last_upload_day") { null }
+
+    fun setCanteenLastUploadDay(day: String) {
+        userPutString("canteen_last_upload_day", day)
+    }
+
     fun getJwxtStudentId() : String?{
         return userGetStringOrMigrate("jwxt_stu_id") {
             kv.getString(

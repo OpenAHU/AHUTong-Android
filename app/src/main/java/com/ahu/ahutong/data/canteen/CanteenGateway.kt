@@ -1,7 +1,9 @@
 package com.ahu.ahutong.data.canteen
 
 import android.util.Log
+import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.CanteenWindowStore
+import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.recharge.analytics.toDeidentifiedTxns
@@ -25,6 +27,10 @@ object CanteenGateway {
     private const val INSIGHTS_CACHE_MS = 5 * 60 * 1000L
     private const val UPLOAD_DAYS = 30L
     private const val BATCH_SIZE = 400
+    private const val DAY_MS = 24 * 3600 * 1000L
+    private const val BACKFILL_DAYS = 30
+    private const val SYNC_PAGE_SIZE = 100
+    private const val MAX_SYNC_PAGES = 3
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -40,6 +46,60 @@ object CanteenGateway {
             true
         }.onFailure { Log.w(TAG, "window map sync failed, keep local cache", it) }
             .getOrDefault(false)
+    }
+
+    /**
+     * 进 App 静默同步（每次冷启动一次，由 CanteenConsentGate 在已同意时触发）：
+     * 后台拉取「上次上传日 → 今天」的账单流水并上传去标识交易。
+     * 首次（无标记）回补 30 天；之后滚动增量，窗口与前一天重叠一天（服务端幂等去重）。
+     * 任何失败静默，不打扰用户。
+     */
+    suspend fun uploadRecentBills(): Unit = withContext(Dispatchers.IO) {
+        runCatching {
+            val dayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
+            val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
+            val now = System.currentTimeMillis()
+            val today = dayFmt.format(Date(now))
+
+            // 上传窗口天数：距上次上传的天数，钳制到 [1, BACKFILL_DAYS]；首传回补 30 天
+            val gapDays = AHUCache.getCanteenLastUploadDay()?.let {
+                val last = runCatching { dayFmt.parse(it)?.time }.getOrNull()
+                if (last == null) {
+                    BACKFILL_DAYS
+                } else {
+                    ((now - last) / DAY_MS).toInt().coerceIn(1, BACKFILL_DAYS)
+                }
+            } ?: BACKFILL_DAYS
+
+            val timeFrom = tsFmt.format(Date(now - (gapDays - 1L) * DAY_MS))
+            val timeTo = tsFmt.format(Date(now))
+
+            val records = mutableListOf<TurnoverRecord>()
+            val seen = HashSet<String>()
+            var page = 1
+            while (page <= MAX_SYNC_PAGES) {
+                when (
+                    val result = AHURepository.getBillPage(
+                        page = page, size = SYNC_PAGE_SIZE, timeFrom = timeFrom, timeTo = timeTo
+                    )
+                ) {
+                    is AhuResult.Success -> {
+                        val pageData = result.value
+                        val rows = pageData.records.orEmpty()
+                        records += rows.filter { seen.add(it.orderId) }
+                        if (rows.isEmpty() || page >= (pageData.pages ?: 1)) break
+                        page++
+                    }
+                    is AhuResult.Failure -> {
+                        Log.w(TAG, "background bill fetch failed at page $page")
+                        return@runCatching
+                    }
+                }
+            }
+            if (records.isNotEmpty()) uploadTxns(records)
+            AHUCache.setCanteenLastUploadDay(today)
+            Log.i(TAG, "background sync done: window=${gapDays}d, fetched=${records.size}")
+        }.onFailure { Log.w(TAG, "background bill sync failed", it) }
     }
 
     /** 上传最近 30 天去标识交易（调用侧已确认用户同意；幂等可重传；静默失败）。 */
