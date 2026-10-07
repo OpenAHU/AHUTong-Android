@@ -51,15 +51,26 @@ class CanteenConsentViewModel @Inject constructor(
         }
     }
 
-    /** 节流触发后台同步：距上次触发不足 30 分钟直接跳过；未同意不上传。 */
+    /**
+     * 节流触发后台同步。成败分钟：
+     * - 成功 → 30 分钟内不再触发
+     * - 失败 → 5 分钟后就允许重触发（下次回前台即重试，不让数据隔夜）
+     */
     fun maybeBackgroundSync() {
-        val now = System.currentTimeMillis()
-        val last = lastSyncAt.get()
-        if (now - last < SYNC_THROTTLE_MS) return
-        if (!lastSyncAt.compareAndSet(last, now)) return
+        if (System.currentTimeMillis() < nextAllowedSyncAt.get()) return
+        if (!syncInFlight.compareAndSet(false, true)) return
         viewModelScope.launch(Dispatchers.IO) {
-            if (settings.canteenUploadConsent.first() == true) {
-                CanteenGateway.uploadRecentBills()
+            try {
+                if (settings.canteenUploadConsent.first() == true) {
+                    val ok = CanteenGateway.uploadRecentBills()
+                    nextAllowedSyncAt.set(
+                        System.currentTimeMillis() + if (ok) SYNC_THROTTLE_MS else RETRY_AFTER_MS
+                    )
+                } else {
+                    nextAllowedSyncAt.set(System.currentTimeMillis() + SYNC_THROTTLE_MS)
+                }
+            } finally {
+                syncInFlight.set(false)
             }
         }
     }
@@ -69,9 +80,11 @@ class CanteenConsentViewModel @Inject constructor(
     }
 
     companion object {
-        /** 上次触发时间（进程内）：冷启动为 0 必触发；之后 30 分钟节流。 */
-        private val lastSyncAt = java.util.concurrent.atomic.AtomicLong(0)
+        /** 下次允许触发的时间（进程内）：冷启动为 0 必触发。 */
+        private val nextAllowedSyncAt = java.util.concurrent.atomic.AtomicLong(0)
+        private val syncInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
         private const val SYNC_THROTTLE_MS = 30 * 60 * 1000L
+        private const val RETRY_AFTER_MS = 5 * 60 * 1000L
     }
 }
 

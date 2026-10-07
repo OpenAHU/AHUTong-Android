@@ -8,6 +8,7 @@ import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.recharge.analytics.toDeidentifiedTxns
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -33,6 +34,8 @@ object CanteenGateway {
     private const val OVERLAP_MS = DAY_MS
     private const val SYNC_PAGE_SIZE = 100
     private const val MAX_SYNC_PAGES = 6
+    private const val FETCH_MAX_ATTEMPTS = 3
+    private const val FETCH_RETRY_DELAY_MS = 5000L
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -53,12 +56,17 @@ object CanteenGateway {
     /**
      * 静默同步（冷启动一次 + 主页回前台节流触发，由 CanteenConsentGate 发起）：
      * 后台拉取「上次成功上传时刻 → 现在」的账单流水并上传去标识交易。
-     * - 窗口向前重叠 1 天：兜住上游入账延迟（记录可能几小时后才带着原时间出现在账单里）
-     * - 首次（无标记）回补 30 天；长期未用也封顶 30 天（uploadTxns 本就只认近 30 天）
-     * - 时间戳级标记，只在全部批次上传成功后推进；失败则下次原窗口重试
-     * - 任何失败静默，不打扰用户
+     *
+     * **目标是每次触发都成功上传最新数据**：
+     * - 拉取失败原地重试（最多 [FETCH_MAX_ATTEMPTS] 次、间隔 [FETCH_RETRY_DELAY_MS]），
+     *   兜住冷启动 token 未就绪/网络抖动；彻底失败才发空载心跳并返回 false，
+     *   由调用侧安排短间隔重触发
+     * - 窗口向前重叠 1 天（兜上游入账延迟）；首次回补 30 天、封顶 30 天
+     * - 时间戳级标记，只在全部成功后推进
+     *
+     * @return true = 拉取并上传成功（含窗口内本就零记录）
      */
-    suspend fun uploadRecentBills(): Unit = withContext(Dispatchers.IO) {
+    suspend fun uploadRecentBills(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
             val now = System.currentTimeMillis()
@@ -74,49 +82,63 @@ object CanteenGateway {
             val timeFrom = tsFmt.format(Date(fromTs))
             val timeTo = tsFmt.format(Date(now))
 
+            // —— 拉取（原地重试：冷启动 token/网络未就绪是暂态，不是终态） ——
             val records = mutableListOf<TurnoverRecord>()
-            var fetchOk = true
-            var page = 1
-            while (page <= MAX_SYNC_PAGES) {
-                when (
-                    val result = AHURepository.getBillPage(
-                        page = page, size = SYNC_PAGE_SIZE, timeFrom = timeFrom, timeTo = timeTo
-                    )
-                ) {
-                    is AhuResult.Success -> {
-                        val pageData = result.value
-                        val rows = pageData.records.orEmpty()
-                        // 不做去重（用户拍板）：服务端 (POS,秒,金额) 幂等键单点负责
-                        records += rows
-                        if (rows.isEmpty() || page >= (pageData.pages ?: 1)) break
-                        page++
-                    }
-                    is AhuResult.Failure -> {
-                        fetchOk = false
-                        break
-                    }
+            var fetchOk = false
+            var attempt = 0
+            while (attempt < FETCH_MAX_ATTEMPTS && !fetchOk) {
+                attempt++
+                records.clear()
+                fetchOk = fetchAllPages(records, timeFrom, timeTo)
+                if (!fetchOk && attempt < FETCH_MAX_ATTEMPTS) {
+                    Log.w(TAG, "bill fetch attempt $attempt failed, retrying")
+                    delay(FETCH_RETRY_DELAY_MS)
                 }
             }
             if (!fetchOk) {
-                // 拉取失败（典型：冷启动时校园卡 token 未就绪）也发空载心跳——
-                // 触发时间戳必须出现在服务端监控里；标记不推进，下次触发原窗口重试
-                Log.w(TAG, "bill fetch failed, sending heartbeat only")
-                uploadTxns(emptyList())
-                return@runCatching
+                Log.w(TAG, "bill fetch failed after $FETCH_MAX_ATTEMPTS attempts, heartbeat only")
+                uploadTxns(emptyList())   // 触发时间戳留在监控里
+                return@withContext false
             }
-            if (records.isNotEmpty()) {
-                // 上传失败不推进标记——窗口留在失败时刻，下次触发原窗口重传（不漏数据）
-                if (!uploadTxns(records)) {
-                    Log.w(TAG, "upload incomplete, keep marker for retry")
-                    return@runCatching
-                }
-            } else {
-                // 窗口内零记录同样发心跳：触发可观测
-                uploadTxns(emptyList())
+
+            // 上传（空列表也会发空载心跳，见 uploadTxns）
+            if (!uploadTxns(records)) {
+                Log.w(TAG, "upload incomplete, keep marker for retry")
+                return@withContext false
             }
             AHUCache.setCanteenLastUploadTs(now)
             Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
-        }.onFailure { Log.w(TAG, "background bill sync failed", it) }
+            true
+        }.getOrElse {
+            Log.w(TAG, "background bill sync failed", it)
+            false
+        }
+    }
+
+    /** 分页拉取一个时间窗的账单（不去重：服务端幂等键单点负责）。false = 任一页失败。 */
+    private suspend fun fetchAllPages(
+        out: MutableList<TurnoverRecord>,
+        timeFrom: String,
+        timeTo: String
+    ): Boolean {
+        var page = 1
+        while (page <= MAX_SYNC_PAGES) {
+            when (
+                val result = AHURepository.getBillPage(
+                    page = page, size = SYNC_PAGE_SIZE, timeFrom = timeFrom, timeTo = timeTo
+                )
+            ) {
+                is AhuResult.Success -> {
+                    val pageData = result.value
+                    val rows = pageData.records.orEmpty()
+                    out += rows
+                    if (rows.isEmpty() || page >= (pageData.pages ?: 1)) return true
+                    page++
+                }
+                is AhuResult.Failure -> return false
+            }
+        }
+        return true
     }
 
     /**
