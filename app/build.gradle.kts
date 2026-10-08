@@ -78,8 +78,8 @@ android {
         applicationId = "com.ahu.ahutong"
         minSdk = 26
         targetSdk = 36
-        versionCode = 304000
-        versionName = "3.4.0"
+        versionCode = 304001
+        versionName = "3.4.1"
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
         buildConfigField("String", "BUGLY_APP_ID", "\"$buglyAppId\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
