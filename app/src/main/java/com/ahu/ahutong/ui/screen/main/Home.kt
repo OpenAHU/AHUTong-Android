@@ -519,7 +519,6 @@ fun Home(
                 isInSemester = isInSemester,
                 emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
                 enabled = !isEditingHome,
-                holiday = holidays[today],
                 trailingContent = trailingContent
             )
             Spacer(modifier = Modifier.height(12.dp))
