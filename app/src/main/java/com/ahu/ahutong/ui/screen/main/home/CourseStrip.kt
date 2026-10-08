@@ -146,9 +146,9 @@ fun CourseStrip(
                     }
             )
         }
-        if (isTomorrow && holiday != null) {
+        if (holiday != null) {
             Text(
-                text = "明日${scheduleHolidayNotice(holiday)}",
+                text = (if (isTomorrow) "明日" else "今日") + scheduleHolidayNotice(holiday),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodySmall,
