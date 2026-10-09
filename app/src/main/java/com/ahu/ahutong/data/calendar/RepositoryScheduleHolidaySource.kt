@@ -12,6 +12,7 @@ import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
 import com.ahu.ahutong.data.toAhuError
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import java.io.IOException
 import java.time.LocalDate
 import javax.inject.Inject
@@ -21,8 +22,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -38,11 +37,15 @@ class RepositoryScheduleHolidaySource @Inject constructor(
     private val client = AhuHttp.plain(callTimeoutSeconds = 8).build()
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val calendar = NetworkHolidayCalendar(::isOnline, ::fetchYear)
+    private val calendar = NetworkHolidayCalendar(
+        ::isOnline, ::fetchYear,
+        cache = HolidayCalendarDiskCache(File(context.cacheDir, "schedule_holidays")),
+        refreshScope = scope
+    )
     override val holidays = calendar.holidays
 
     init {
-        // 旧版本曾落盘日历；升级后清除，避免离线继续使用。
+        // 清理旧格式；新的按年缓存使用独立文件并重新校验。
         context.getSharedPreferences("schedule_holidays", Context.MODE_PRIVATE).edit().clear().apply()
         connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
             override fun onLost(network: Network) = checkConnectivity()
@@ -50,12 +53,6 @@ class RepositoryScheduleHolidaySource @Inject constructor(
                 checkConnectivity()
         })
         scope.launch { holidays.collect { WidgetUpdateScheduler.renderCached(context) } }
-        scope.launch {
-            while (isActive) {
-                delay(30_000L)
-                calendar.expire()
-            }
-        }
     }
 
     override suspend fun load(years: Set<Int>, refresh: Boolean) = withContext(Dispatchers.IO) {
@@ -63,7 +60,7 @@ class RepositoryScheduleHolidaySource @Inject constructor(
     }
 
     private fun checkConnectivity() {
-        if (!isOnline()) calendar.invalidate()
+        if (!isOnline()) calendar.onNetworkLost()
     }
 
     private fun isOnline(): Boolean {

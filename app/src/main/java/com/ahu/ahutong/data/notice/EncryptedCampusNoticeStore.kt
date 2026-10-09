@@ -22,7 +22,9 @@ internal class EncryptedCampusNoticeStore @Inject constructor() : CampusNoticeSt
                 snapshot.accountId == accountId &&
                     snapshot.notices.size <= MAX_NOTICES &&
                     snapshot.notices.all { it.sourceId.isNotBlank() && it.articleId.isNotBlank() && it.originalUrl.isNotBlank() } &&
-                    snapshot.sourceStatuses.keys.all(String::isNotBlank)
+                    snapshot.sourceStatuses.all { (sourceId, status) ->
+                        sourceId.isNotBlank() && status.sourceId == sourceId
+                    }
             }
         }.getOrNull() ?: CampusNoticeSnapshot(accountId)
     }

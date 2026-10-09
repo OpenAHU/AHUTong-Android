@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.calendar
 
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
+import com.google.gson.JsonArray
 import com.google.gson.JsonParser
 import java.time.LocalDate
 
@@ -9,7 +10,10 @@ internal fun parseHolidayCalendar(json: String, year: Int): Map<LocalDate, Sched
     val root = JsonParser.parseString(json).asJsonObject
     require(root.get("year").asInt == year)
     require(root.getAsJsonArray("papers").size() > 0)
-    val days = root.getAsJsonArray("days")
+    return parseHolidayCalendarDays(root.getAsJsonArray("days"), year)
+}
+
+internal fun parseHolidayCalendarDays(days: JsonArray, year: Int): Map<LocalDate, ScheduleHoliday> {
     require(days.size() > 0)
     return buildMap {
         days.forEach { element ->

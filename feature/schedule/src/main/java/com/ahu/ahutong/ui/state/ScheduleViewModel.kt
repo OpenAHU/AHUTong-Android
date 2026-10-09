@@ -84,7 +84,7 @@ class ScheduleViewModel @Inject constructor(
     fun loadHolidaysForDates(dates: Set<LocalDate>, refresh: Boolean = false) {
         if (dates.isEmpty()) return
         viewModelScope.launchSafe {
-            // 所有界面订阅同一在线状态；失败、断网与过期时由数据源统一撤销标注。
+            // 所有界面共享缓存；后台刷新取得不同的安排后由数据源统一更新。
             holidaySource.load(scheduleHolidayYears(listOf(dates.toList())), refresh)
         }
     }

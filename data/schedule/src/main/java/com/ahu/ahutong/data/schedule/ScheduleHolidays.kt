@@ -9,10 +9,10 @@ data class ScheduleHoliday(val name: String, val isOffDay: Boolean)
 
 /** 国家放假安排仅用于显示提示，不修改教务课表或课程提醒。 */
 interface ScheduleHolidaySource {
-    /** 仅包含当前联网有效的结果；断网、过期或请求失败时撤销对应标注。 */
+    /** 共享已校验的缓存；后台取得不同的新安排后统一更新标注。 */
     val holidays: StateFlow<Map<LocalDate, ScheduleHoliday>>
 
-    /** 普通读取允许短期内存共享；refresh=true 请求重新验证，仍有最小请求间隔。 */
+    /** 有缓存时立即返回并后台刷新；refresh=true 请求重新验证，仍有最小请求间隔。 */
     suspend fun load(
         years: Set<Int>,
         refresh: Boolean
