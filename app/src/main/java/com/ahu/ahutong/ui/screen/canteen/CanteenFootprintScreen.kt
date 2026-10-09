@@ -26,8 +26,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +46,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.recharge.analytics.CanteenFootprint
 import com.ahu.ahutong.data.recharge.analytics.WindowStat
 import com.ahu.ahutong.ui.state.CanteenFootprintViewModel
+import java.util.Calendar
+import java.util.Locale
 
 /*
  * 干饭足迹（必吃榜个人端）：H5 内容页，刻意不走三主题设计系统——
@@ -151,9 +155,9 @@ private fun FootprintContent(footprint: CanteenFootprint) {
 
         // —— GitHub 式热力格 ——
         if (footprint.weeks.isNotEmpty()) {
-            SectionHeader("干饭热力", tail = "一学期 · 每格一天")
+            SectionHeader("热力图")
             Spacer(Modifier.height(8.dp))
-            HeatGrid(footprint.weeks)
+            HeatGrid(footprint.weeks, footprint.weekStartDays)
             Spacer(Modifier.height(6.dp))
             HeatLegend()
         }
@@ -161,7 +165,7 @@ private fun FootprintContent(footprint: CanteenFootprint) {
         Spacer(Modifier.height(24.dp))
 
         // —— 我的窗口榜 ——
-        SectionHeader("我的窗口榜", tail = "本学期")
+        SectionHeader("我的窗口榜")
         Spacer(Modifier.height(8.dp))
         if (footprint.topWindows.isEmpty()) {
             Text(
@@ -191,29 +195,44 @@ private fun FootprintContent(footprint: CanteenFootprint) {
     }
 }
 
-/** 7 行（周一~周日）× N 周，一格一天，灰→橙五档。 */
+/** 7 行（周一~周日）× N 周，一格一天，灰→橙五档。初始定位到最右（最新），月份指示随图滚动。 */
 @Composable
-private fun HeatGrid(weeks: List<List<Int>>) {
+private fun HeatGrid(weeks: List<List<Int>>, weekStartDays: List<String>) {
+    val scrollState = rememberScrollState()
+    LaunchedEffect(weeks.size) {
+        if (weeks.isEmpty()) return@LaunchedEffect
+        // 等一帧让布局完成，maxValue 才有真实值；直接跳到最右端（最新一周）
+        withFrameNanos { }
+        scrollState.scrollTo(scrollState.maxValue)
+    }
     Row(verticalAlignment = Alignment.Top) {
         Column(
             modifier = Modifier.padding(end = 6.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
+            // 与右侧月份行对齐的占位
+            Spacer(Modifier.height(MonthSlotHeight))
             listOf("一", "", "", "四", "", "", "日").forEach {
                 Text(
                     it,
-                    style = CaptionText,
+                    style = CaptionText.copy(fontSize = 10.sp),
                     color = CanteenPalette.textSecondary,
                     modifier = Modifier.height(10.dp)
                 )
             }
         }
         Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            modifier = Modifier.horizontalScroll(scrollState),
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            for (week in weeks) {
+            for ((index, week) in weeks.withIndex()) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    // 月份指示：该周内含某月 1 号才标注（GitHub 式稀疏标注），与格子同列同滚
+                    Box(Modifier.width(10.dp).height(MonthSlotHeight)) {
+                        monthLabelForWeek(weekStartDays.getOrNull(index))?.let {
+                            Text(it, style = MonthLabel, color = CanteenPalette.textSecondary)
+                        }
+                    }
                     for (count in week) {
                         Box(
                             Modifier
@@ -226,6 +245,25 @@ private fun HeatGrid(weeks: List<List<Int>>) {
             }
         }
     }
+}
+
+/** 月份指示字号：比周几标签再小一档。 */
+private val MonthLabel = TextStyle(fontSize = 9.sp)
+private val MonthSlotHeight = 12.dp
+
+/** 该周（周一~周日）内若含某月 1 号，返回「N月」；否则 null。 */
+private fun monthLabelForWeek(weekStartDay: String?): String? {
+    if (weekStartDay == null) return null
+    val p = weekStartDay.split("-")
+    if (p.size < 3) return null
+    val cal = Calendar.getInstance(Locale.CHINA)
+    cal.clear()
+    cal.set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt())
+    for (i in 0 until 7) {
+        if (cal.get(Calendar.DAY_OF_MONTH) == 1) return "${cal.get(Calendar.MONTH) + 1}月"
+        cal.add(Calendar.DAY_OF_MONTH, 1)
+    }
+    return null
 }
 
 @Composable
