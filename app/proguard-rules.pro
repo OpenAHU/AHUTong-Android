@@ -47,6 +47,11 @@
 # These models are deserialized both from the native bridge and from local Gson caches. Field-only
 # rules do not prevent vertical class merging, which is unsafe for reflection-based construction.
 -keep class com.ahu.ahutong.data.model.** { *; }
+# Campus-notice snapshots are encrypted Gson caches. Preserve the complete contracts, including
+# generic Map/List element signatures, so cached source statuses cannot become LinkedTreeMap.
+-keep class com.ahu.ahutong.data.notice.CampusNotice { *; }
+-keep class com.ahu.ahutong.data.notice.CampusNoticeSnapshot { *; }
+-keep class com.ahu.ahutong.data.notice.CampusNoticeSourceStatus { *; }
 # The automatic electricity query/prompt dates must survive R8 and app upgrades as stable JSON.
 -keep class com.ahu.ahutong.electricity.ElectricityAlertMarker { *; }
 -keep class com.ahu.ahutong.electricity.ElectricityRoomForecast { *; }
