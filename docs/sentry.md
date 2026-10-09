@@ -20,6 +20,8 @@
 
 - `AndroidManifest.xml` 中关闭了 `io.sentry.auto-init`，SDK 在 `AHUApplication#onCreate` 中手动初始化。
 - Debug 包上报到 `debug` 环境，Release 包上报到 `release`；性能采样率分别为 `1.0` 与 `0.1`。
+- 主界面每次回到前台时按本地日期检查；每天首次恢复时发送一条 `AHUTong DAU` 消息，携带 `dau_id` tag。可在 Discover 过滤该消息并用 `count_unique(tags[dau_id])` 按日统计。
+- `dau_id` 是本地保存的随机安装标识，不含账号信息。同一安装跨天保持不变；清除应用数据后会重新生成。此统计按安装去重，同一人使用多个安装会被分别计数。
 
 ## 验证方式
 
