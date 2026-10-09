@@ -33,6 +33,8 @@ import com.ahu.ahutong.sdk.RustSDK
 import com.ahu.ahutong.ui.component.ApkMirrorSourceDialog
 import com.ahu.ahutong.ui.component.ApkUpdateDialog
 import com.ahu.ahutong.ui.screen.Main
+import com.ahu.ahutong.ui.screen.setup.canUseAuthenticatedPages
+import com.ahu.ahutong.ui.screen.setup.LoginNavigationGate
 import com.ahu.ahutong.ui.plugin.PluginHostLauncherHub
 import com.ahu.ahutong.ui.state.AboutViewModel
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
@@ -86,6 +88,37 @@ class MainActivity : ComponentActivity() {
     /** 最近一次确认的日期：常开跨过午夜时靠它发现「该按新的一天重算了」。 */
     @Volatile
     private var lastKnownDate: LocalDate? = null
+
+    private val accountLoginLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        lifecycleScope.launchSafe {
+            if (canUseAuthenticatedPages(
+                    SessionStore.isLoggedIn(), session.state.value,
+                    LoginNavigationGate.authenticationRequired.value
+                )
+            ) {
+                SessionStore.currentUser()?.xh?.let { behaviorRuntime.startProfile(it) }
+                if (AHUCache.canUseUndergraduateAcademics()) {
+                    scheduleViewModel.loadConfig()
+                    scheduleViewModel.refreshSchedule()
+                }
+            }
+        }
+    }
+
+    fun openAccountLogin(userId: String?) {
+        lifecycleScope.launchSafe {
+            behaviorRuntime.cancelPredictivePrefetch()
+            behaviorRuntime.stopSession("ACCOUNT_SWITCH")
+            com.ahu.ahutong.notification.CourseReminderScheduler.cancel(this@MainActivity).join()
+            scheduleViewModel.clear()
+            paymentQrCommands.clear()
+            accountLoginLauncher.launch(Intent(this@MainActivity, AccountLoginActivity::class.java).apply {
+                putExtra(AccountLoginActivity.EXTRA_ACCOUNT_ID, userId)
+            })
+        }
+    }
 
 
     @OptIn(ExperimentalAnimationApi::class)

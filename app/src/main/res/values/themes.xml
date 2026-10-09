@@ -9,4 +9,9 @@
         <item name="android:windowBackground">@drawable/splash_screen</item>
     </style>
 
+    <style name="Theme.AHUTong.AccountLogin" parent="Theme.AHUTong">
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
 </resources>
