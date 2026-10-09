@@ -65,7 +65,7 @@ internal object SuggestionPolicy {
     const val TARGETED_CHANGE_DEBOUNCE_MS = 250L
     const val TARGETED_MIN_INTERVAL_MS = 10_000L
     const val ORDINARY_MIN_INTERVAL_MS = 30_000L
-    const val ORDINARY_NEXT_ACTION_MIN_CONFIDENCE = 0.30f
+    const val ORDINARY_NEXT_ACTION_MIN_CONFIDENCE = 0.40f
     const val ORDINARY_NEXT_ACTION_MIN_MARGIN = 0.08f
     const val OCCUPIED_RETRY_DELAY_MS = 250L
 
