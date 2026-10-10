@@ -372,8 +372,8 @@ private fun RadiantHomeWidgetSlotLayout(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // 众包补标注：与校园卡同级。没有候选时卡片自己不渲染（不占位）；编辑态不出现。
-        if (!isEditing) CanteenAskCard()
+        // 众包补标注：与校园卡同级。壳负责"有没有候选"的显隐动画，编辑态不出现。
+        CanteenAskCardHost(enabled = !isEditing)
 
         Column(
             modifier = Modifier.fillMaxWidth(),

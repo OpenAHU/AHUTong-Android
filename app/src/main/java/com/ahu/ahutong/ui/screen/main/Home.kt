@@ -41,6 +41,15 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -116,6 +125,20 @@ private data class ActiveHomeWidgetDrag(
     val center: Offset
         get() = topLeft + Offset(size.width / 2f, size.height / 2f)
 }
+
+/**
+ * 条件卡片的进出动画：**纵向展开/收起 + 淡入淡出**。
+ *
+ * 卡片出现/消失时，父 Column 逐帧重测，所以上下内容是被"推着"平滑挪到位的；
+ * 时长统一 200ms，进出同长（不一样长手感会不一致）。
+ */
+private val HomeCardEnter: EnterTransition =
+    expandVertically(animationSpec = tween(200, easing = FastOutSlowInEasing)) +
+        fadeIn(tween(200, easing = FastOutSlowInEasing))
+
+private val HomeCardExit: ExitTransition =
+    shrinkVertically(animationSpec = tween(200, easing = FastOutSlowInEasing)) +
+        fadeOut(tween(200, easing = FastOutSlowInEasing))
 
 @Composable
 fun Home(
@@ -511,16 +534,22 @@ fun Home(
                 ),
             verticalArrangement = Arrangement.Center
         ) {
-            if (homeAcademicReady) AtAGlance(
-                todayCourses = todayCourses,
-                currentMinutes = currentMinutes,
-                currentDateText = currentDateText,
-                onOpenSchedule = onOpenSchedule,
-                isInSemester = isInSemester,
-                emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
-                enabled = !isEditingHome,
-                trailingContent = trailingContent
-            )
+            AnimatedVisibility(
+                visible = homeAcademicReady,
+                enter = HomeCardEnter,
+                exit = HomeCardExit
+            ) {
+                AtAGlance(
+                    todayCourses = todayCourses,
+                    currentMinutes = currentMinutes,
+                    currentDateText = currentDateText,
+                    onOpenSchedule = onOpenSchedule,
+                    isInSemester = isInSemester,
+                    emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
+                    enabled = !isEditingHome,
+                    trailingContent = trailingContent
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             // 今日课程全部结束 → 课程条切换为明日课程（Hero 大字仍按今日算，显示空闲）
             val stripCourses = remember(todayCourses, currentMinutes, schedule, effectiveScheduleConfig) {
@@ -550,16 +579,24 @@ fun Home(
                     tomorrow to true
                 }
             }
-            if (stripCourses.first.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                // 课程条（滚轮三区）替代原纵向列表——全主题生效
-                CourseStrip(
-                    todayCourses = stripCourses.first,
-                    currentMinutes = currentMinutes,
-                    onOpenSchedule = onOpenSchedule,
-                    isTomorrow = stripCourses.second,
-                    holiday = holidays[if (stripCourses.second) today.plusDays(1) else today]
-                )
+            AnimatedVisibility(
+                // 配置没就绪时 currentWeek/weekDay 只是兜底值，先别渲染——否则会"先出现一份周一的课，再缩回去"
+                visible = effectiveScheduleConfig != null && stripCourses.first.isNotEmpty(),
+                enter = HomeCardEnter,
+                exit = HomeCardExit
+            ) {
+                // Spacer 必须一起进动画，否则卡片滑进来了、间距却是瞬间跳的
+                Column {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    // 课程条（滚轮三区）替代原纵向列表——全主题生效
+                    CourseStrip(
+                        todayCourses = stripCourses.first,
+                        currentMinutes = currentMinutes,
+                        onOpenSchedule = onOpenSchedule,
+                        isTomorrow = stripCourses.second,
+                        holiday = holidays[if (stripCourses.second) today.plusDays(1) else today]
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             HomeWidgetSlotLayout(
