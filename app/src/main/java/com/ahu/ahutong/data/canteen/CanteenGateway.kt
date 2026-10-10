@@ -42,7 +42,19 @@ object CanteenGateway {
     const val WINDOW_NAME_MAX_LEN = 20
 
     /** 一次账单同步的结果：`ok` 供节流策略用，`ask` 为「要不要补标注」的候选（可为 null）。 */
-    data class BillsSync(val ok: Boolean, val ask: CanteenLabelCandidate? = null)
+    data class BillsSync(
+        val ok: Boolean,
+        val ask: CanteenLabelCandidate? = null,
+        /** 诊断用：本次拉到的原始流水条数（开发者自检卡片显示）。 */
+        val fetched: Int = 0,
+        /** 诊断用：正餐过滤后实际发出去的条数。 */
+        val uploaded: Int = 0,
+        /** 诊断用：上传 HTTP 是否全部成功（`ok` 已含此意，这里单列给自检看）。 */
+        val uploadOk: Boolean = false
+    )
+
+    /** 上传结果：`ok` 是否全部成功，`sent` 实发条数，`total` 应发条数（诊断用）。 */
+    data class UploadOutcome(val ok: Boolean, val sent: Int, val total: Int)
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -101,9 +113,15 @@ object CanteenGateway {
                 }
 
                 // 上传（30 天窗口内零记录时发空批，标记「查过了，没数据」）
-                if (!uploadTxns(records)) {
+                val outcome = uploadTxns(records)
+                if (!outcome.ok) {
                     Log.w(TAG, "upload incomplete")
-                    return@withContext BillsSync(ok = false)
+                    return@withContext BillsSync(
+                        ok = false,
+                        fetched = records.size,
+                        uploaded = outcome.sent,
+                        uploadOk = false
+                    )
                 }
 
                 // 顺手挑候选：映射表先补齐，否则新装/久未同步的机器会把已收录窗口也当成未收录
@@ -113,7 +131,13 @@ object CanteenGateway {
                     handled = handledMeals
                 )
                 Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
-                BillsSync(ok = true, ask = ask)
+                BillsSync(
+                    ok = true,
+                    ask = ask,
+                    fetched = records.size,
+                    uploaded = outcome.sent,
+                    uploadOk = true
+                )
             }.getOrElse {
                 Log.w(TAG, "background bill sync failed", it)
                 BillsSync(ok = false)
@@ -175,7 +199,7 @@ object CanteenGateway {
      * 上传最近 30 天去标识交易（调用侧已确认用户同意）。返回是否全部成功。
      * **空载也 POST 一个空批次**：服务端数据包监控需要看到每次触发的请求时间戳。
      */
-    suspend fun uploadTxns(records: List<TurnoverRecord>): Boolean = withContext(Dispatchers.IO) {
+    suspend fun uploadTxns(records: List<TurnoverRecord>): UploadOutcome = withContext(Dispatchers.IO) {
         runCatching {
             val cutoff = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
                 .format(Date(System.currentTimeMillis() - UPLOAD_DAYS * 24 * 3600 * 1000))
@@ -200,9 +224,9 @@ object CanteenGateway {
                     sent += batch.size
                 }
             Log.i(TAG, "txns uploaded: $sent/${txns.size}")
-            ok
+            UploadOutcome(ok = ok, sent = sent, total = txns.size)
         }.onFailure { Log.w(TAG, "txns upload failed", it) }
-            .getOrDefault(false)
+            .getOrDefault(UploadOutcome(ok = false, sent = 0, total = 0))
     }
 
     @Volatile

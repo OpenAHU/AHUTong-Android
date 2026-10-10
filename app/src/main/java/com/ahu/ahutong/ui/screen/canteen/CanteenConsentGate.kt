@@ -26,6 +26,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+/** 众包上报的提交状态：卡片据此禁用按钮 / 显示重试提示。 */
+enum class CanteenSubmitState { Idle, Submitting, Failed }
+
 /**
  * 必吃榜的两个「问一次」入口：
  *
@@ -49,6 +52,9 @@ class CanteenConsentViewModel @Inject constructor(
     /** 众包补标注候选；非空 = 主页卡片显示，回答（提交/不记得）后归空。 */
     private val _pendingAsk = MutableStateFlow<CanteenLabelCandidate?>(null)
     val pendingAsk: StateFlow<CanteenLabelCandidate?> = _pendingAsk.asStateFlow()
+
+    private val _submitState = MutableStateFlow(CanteenSubmitState.Idle)
+    val submitState: StateFlow<CanteenSubmitState> = _submitState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -74,6 +80,10 @@ class CanteenConsentViewModel @Inject constructor(
                     nextAllowedSyncAt.set(
                         System.currentTimeMillis() + if (sync.ok) SYNC_THROTTLE_MS else RETRY_AFTER_MS
                     )
+                    // 换题才重置提交态：同一个候选上失败过的提示要留着，别被后台静默同步清掉
+                    if (sync.ask?.mealKey != _pendingAsk.value?.mealKey) {
+                        _submitState.value = CanteenSubmitState.Idle
+                    }
                     _pendingAsk.value = sync.ask
                 } else {
                     nextAllowedSyncAt.set(System.currentTimeMillis() + SYNC_THROTTLE_MS)
@@ -84,14 +94,16 @@ class CanteenConsentViewModel @Inject constructor(
         }
     }
 
-    /** 提交窗口名：上报服务端待审队列 + 记「这一顿已处理」+ 收起卡片。 */
+    /** 提交窗口名：上报 → **成功才**记「这一顿已处理」；失败保留卡片与已输入内容，可重试。 */
     fun submitLabel(name: String) {
         val ask = _pendingAsk.value ?: return
+        if (_submitState.value == CanteenSubmitState.Submitting) return
         val trimmed = name.trim().take(CanteenGateway.WINDOW_NAME_MAX_LEN)
         if (trimmed.isEmpty()) return
+        _submitState.value = CanteenSubmitState.Submitting
         viewModelScope.launch(Dispatchers.IO) {
-            CanteenGateway.reportWindow(ask, trimmed, reporterToken())
-            markHandled(ask)
+            val ok = CanteenGateway.reportWindow(ask, trimmed, reporterToken())
+            if (ok) markHandled(ask) else _submitState.value = CanteenSubmitState.Failed
         }
     }
 
@@ -104,6 +116,7 @@ class CanteenConsentViewModel @Inject constructor(
     private suspend fun markHandled(ask: CanteenLabelCandidate) {
         settings.setCanteenHandledMeals(settings.canteenHandledMeals.first() + ask.mealKey)
         _pendingAsk.value = null
+        _submitState.value = CanteenSubmitState.Idle
     }
 
     /** 本机匿名 token：首次用到时生成并落盘（与任何身份无关，清 App 数据即失效）。 */

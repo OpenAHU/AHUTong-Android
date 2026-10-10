@@ -131,6 +131,14 @@ fun MoreWidgetsScreen(
                 com.ahu.ahutong.ui.plugin.PluginManagerSection()
             }
         }
+        // 必吃榜上传自检：仅 debug 构建挂出（上传是静默的，失败界面上看不见）
+        if (com.ahu.ahutong.BuildConfig.DEBUG) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "canteen_upload_diag") {
+                androidx.compose.foundation.layout.Box(Modifier.padding(top = 12.dp)) {
+                    com.ahu.ahutong.ui.screen.canteen.CanteenUploadDiagnosticsCard()
+                }
+            }
+        }
         // 桌面课表微件卡（研究生不显示，组件内部自判）
         item(span = { GridItemSpan(maxLineSpan) }, key = "desktop_widget") {
             androidx.compose.foundation.layout.Box(Modifier.padding(top = 12.dp)) {

@@ -21,6 +21,7 @@ import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppSectionCard
 import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.screen.canteen.CanteenConsentViewModel
+import com.ahu.ahutong.ui.screen.canteen.CanteenSubmitState
 import com.ahu.ahutong.ui.screen.canteen.money
 
 /**
@@ -38,10 +39,13 @@ import com.ahu.ahutong.ui.screen.canteen.money
 fun CanteenAskCard(modifier: Modifier = Modifier) {
     val viewModel: CanteenConsentViewModel = hiltViewModel()
     val ask by viewModel.pendingAsk.collectAsState()
+    val submitState by viewModel.submitState.collectAsState()
     val current = ask ?: return
 
     // 换一顿就重置输入框（mealKey 变了说明换题了）
     var input by remember(current.mealKey) { mutableStateOf("") }
+
+    val busy = submitState == CanteenSubmitState.Submitting
 
     AppSectionCard(modifier = modifier) {
         Text(
@@ -73,6 +77,7 @@ fun CanteenAskCard(modifier: Modifier = Modifier) {
                 if (it.length <= CanteenGateway.WINDOW_NAME_MAX_LEN) input = it
             },
             label = "这个窗口叫什么？（如 烤盘饭）",
+            enabled = !busy,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -82,6 +87,7 @@ fun CanteenAskCard(modifier: Modifier = Modifier) {
         ) {
             AppButton(
                 onClick = viewModel::skipLabel,
+                enabled = !busy,
                 variant = AppButtonVariant.Secondary,
                 modifier = Modifier.weight(1f)
             ) {
@@ -89,12 +95,21 @@ fun CanteenAskCard(modifier: Modifier = Modifier) {
             }
             AppButton(
                 onClick = { viewModel.submitLabel(input) },
-                enabled = input.isNotBlank(),
+                enabled = input.isNotBlank() && !busy,
                 variant = AppButtonVariant.Primary,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("提交")
+                Text(if (busy) "提交中…" else "提交")
             }
+        }
+
+        // 失败不丢贡献：卡片留着、输入留着，只多一句提示让用户再点一次
+        if (submitState == CanteenSubmitState.Failed) {
+            Text(
+                text = "提交失败，请检查网络后重试（内容已保留）",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
         }
 
         Text(
