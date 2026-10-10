@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.canteen.CanteenGateway
+import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppSectionCard
@@ -61,14 +62,14 @@ fun CanteenAskCard(modifier: Modifier = Modifier) {
             return@AppSectionCard
         }
 
+        // 回忆线索：真实交易时间（今天/昨天 + 中午/晚上 + 秒级时刻）+ 金额 + 食堂楼层
         Text(
-            text = "${current.dayLabel}${current.dayPart}${current.ts.take(16).drop(11)}" +
-                " · ${current.canteen}${current.floor.orEmpty()}",
+            text = current.recallLine(),
             style = MaterialTheme.typography.bodyMedium
         )
 
         Text(
-            text = "${current.terminal} 号窗口 · ${current.amountCents.money()}",
+            text = current.terminalLine(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -121,3 +122,15 @@ fun CanteenAskCard(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * 回忆线索行：`昨天中午12:09 · ¥5.7 · 榴园一楼`。
+ *
+ * **时间取的是账单里的真实交易时刻**（秒级截断到分），不是整点；`¥` 金额来自同一笔。
+ * 单点在函数里，卡片与开发者自检共用，避免两边文案跑偏。
+ */
+internal fun CanteenLabelCandidate.recallLine(): String =
+    "$dayLabel$dayPart${ts.take(16).drop(11)} · ${amountCents.money()} · $canteen${floor.orEmpty()}"
+
+/** 要用户去认的那个终端。 */
+internal fun CanteenLabelCandidate.terminalLine(): String = "$terminal 号窗口"

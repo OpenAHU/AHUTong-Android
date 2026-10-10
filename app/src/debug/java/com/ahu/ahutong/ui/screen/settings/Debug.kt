@@ -53,6 +53,8 @@ import com.ahu.ahutong.notification.CourseReminderScheduler
 import com.ahu.ahutong.ui.components.LiquidToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
+import com.ahu.ahutong.ui.screen.main.home.recallLine
+import com.ahu.ahutong.ui.screen.main.home.terminalLine
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
@@ -650,9 +652,9 @@ fun Debug(
                                     "② 正餐过滤后上传：${sync.uploaded} 笔，HTTP " +
                                         if (sync.uploadOk) "成功" else "失败（看 logcat 状态码）",
                                     "③ 补标注候选：" + (
-                                        sync.ask?.let {
-                                            "${it.terminal} · ${it.dayLabel}${it.dayPart} · ${it.canteen}"
-                                        } ?: "无（窗口都已收录，或 24h 内没有未收录正餐）"
+                                        // 复用卡片同一套文案，所见即卡片所示
+                                        sync.ask?.let { "${it.terminalLine()} — ${it.recallLine()}" }
+                                            ?: "无（窗口都已收录，或 24h 内没有未收录正餐）"
                                         ),
                                     "结论：链路通。服务端是否真落库，去后台「上传链路监控」看你这条出口 IP 的包",
                                 )
