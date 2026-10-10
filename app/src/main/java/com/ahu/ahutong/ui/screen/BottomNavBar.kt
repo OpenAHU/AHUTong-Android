@@ -109,19 +109,6 @@ fun BoxScope.BottomNavBar(
     selectedRoute: String?,
     onDestinationSelected: (String) -> Unit
 ) {
-    if (isRadiantUi) {
-        RadiantBottomNavBar(backdrop, selectedRoute, onDestinationSelected)
-    } else {
-        ClassicBottomNavBar(backdrop, selectedRoute, onDestinationSelected)
-    }
-}
-
-@Composable
-private fun BoxScope.RadiantBottomNavBar(
-    backdrop: Backdrop,
-    selectedRoute: String?,
-    onDestinationSelected: (String) -> Unit
-) {
     val context = LocalContext.current
     val guidePreferences = remember {
         context.getSharedPreferences("app_guide", Context.MODE_PRIVATE)
@@ -137,6 +124,48 @@ private fun BoxScope.RadiantBottomNavBar(
         }
     }
 
+    if (isRadiantUi) {
+        RadiantBottomNavBar(
+            backdrop = backdrop,
+            selectedRoute = selectedRoute,
+            onDestinationSelected = onDestinationSelected,
+            onTabsBounds = { tabsBounds = it },
+            onDismissGuide = { dismissGuide() }
+        )
+    } else {
+        ClassicBottomNavBar(
+            backdrop = backdrop,
+            selectedRoute = selectedRoute,
+            onDestinationSelected = onDestinationSelected,
+            onTabsBounds = { tabsBounds = it },
+            onDismissGuide = { dismissGuide() }
+        )
+    }
+
+    // 三个主题统一的「再次点击切换日程 / 课程」首次引导：气泡挂在导航栏上方。
+    if (!tabGuideShown && selectedRoute == "xuexiaotong") {
+        tabsBounds?.let { bounds ->
+            val visibleRoutes = classicDestinations.map { it.route }
+                .filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it) }
+            XuexiaotongTabGuide(
+                backdrop = backdrop,
+                bounds = bounds,
+                anchorIndex = visibleRoutes.indexOf("xuexiaotong").coerceAtLeast(0),
+                anchorCount = visibleRoutes.size,
+                onDismiss = { dismissGuide() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.RadiantBottomNavBar(
+    backdrop: Backdrop,
+    selectedRoute: String?,
+    onDestinationSelected: (String) -> Unit,
+    onTabsBounds: (Rect) -> Unit,
+    onDismissGuide: () -> Unit
+) {
     val showingSchedule = XuexiaotongDockState.tab == XuexiaotongSubTab.SCHEDULE
     val destinations = listOf(
         RadiantDestination("home", "主页", R.drawable.ic_nav_home),
@@ -153,7 +182,7 @@ private fun BoxScope.RadiantBottomNavBar(
 
     fun select(route: String) {
         if (route == "xuexiaotong" && route == selectedRoute) {
-            dismissGuide()
+            onDismissGuide()
             XuexiaotongDockState.toggle()
         } else {
             onDestinationSelected(route)
@@ -178,7 +207,7 @@ private fun BoxScope.RadiantBottomNavBar(
                 tabsCount = destinations.size,
                 modifier = Modifier
                     .padding(horizontal = 36.dp)
-                    .onGloballyPositioned { tabsBounds = it.boundsInWindow() }
+                    .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) }
             ) {
                 destinations.forEach { destination ->
                     val selected = selectedRoute == destination.route
@@ -200,7 +229,7 @@ private fun BoxScope.RadiantBottomNavBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .onGloballyPositioned { tabsBounds = it.boundsInWindow() },
+                .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) },
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 0.dp
         ) {
@@ -221,36 +250,43 @@ private fun BoxScope.RadiantBottomNavBar(
             }
         }
     }
+}
 
-    if (!tabGuideShown && selectedRoute == "xuexiaotong") {
-        tabsBounds?.let { bounds ->
-            var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
-            var guideVisible by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) {
-                delay(350)
-                guideVisible = true
-                // 6 秒后自动消失并记录已展示，避免气泡长期悬浮
-                delay(6000)
-                dismissGuide()
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .align(Alignment.TopStart)
-                    .onGloballyPositioned { overlayOrigin = it.boundsInWindow().topLeft }
-            ) {
-                AnimatedVisibility(
-                    visible = guideVisible,
-                    enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it / 3 }
-                ) {
-                    AnchoredGuideBubble(
-                        anchorCenterX = { bounds.left + bounds.width * ((destinations.indexOfFirst { it.route == "xuexiaotong" } + 0.5f) / destinations.size) - overlayOrigin.x },
-                        anchorTopY = { bounds.top - overlayOrigin.y },
-                        backdrop = backdrop,
-                        text = "再次点击可切换日程 / 课程页"
-                    )
-                }
-            }
+@Composable
+private fun BoxScope.XuexiaotongTabGuide(
+    backdrop: Backdrop,
+    bounds: Rect,
+    anchorIndex: Int,
+    anchorCount: Int,
+    onDismiss: () -> Unit
+) {
+    var overlayOrigin by remember { mutableStateOf(Offset.Zero) }
+    var guideVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(350)
+        guideVisible = true
+        // 6 秒后自动消失并记录已展示，避免气泡长期悬浮
+        delay(6000)
+        onDismiss()
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .align(Alignment.TopStart)
+            .onGloballyPositioned { overlayOrigin = it.boundsInWindow().topLeft }
+    ) {
+        AnimatedVisibility(
+            visible = guideVisible,
+            enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it / 3 }
+        ) {
+            AnchoredGuideBubble(
+                anchorCenterX = {
+                    bounds.left + bounds.width * ((anchorIndex + 0.5f) / anchorCount.coerceAtLeast(1)) - overlayOrigin.x
+                },
+                anchorTopY = { bounds.top - overlayOrigin.y },
+                backdrop = backdrop,
+                text = "再次点击可切换日程 / 课程页"
+            )
         }
     }
 }
@@ -341,7 +377,9 @@ private fun GuideBubbleCard(
 private fun BoxScope.ClassicBottomNavBar(
     backdrop: Backdrop,
     selectedRoute: String?,
-    onDestinationSelected: (String) -> Unit
+    onDestinationSelected: (String) -> Unit,
+    onTabsBounds: (Rect) -> Unit,
+    onDismissGuide: () -> Unit
 ) {
     val wallpaperEnabled = LocalAppBackground.current != null
     // 与曜光一致：第三 Tab 标签随子页态切换（日程/课程），再次点击轮换子页
@@ -356,6 +394,7 @@ private fun BoxScope.ClassicBottomNavBar(
 
     fun select(route: String) {
         if (route == "xuexiaotong" && route == selectedRoute) {
+            onDismissGuide()
             XuexiaotongDockState.toggle()
         } else {
             onDestinationSelected(route)
@@ -379,7 +418,9 @@ private fun BoxScope.ClassicBottomNavBar(
                 onTabSelected = { select(destinations[it].route) },
                 backdrop = backdrop,
                 tabsCount = destinations.size,
-                modifier = Modifier.padding(horizontal = 36.dp)
+                modifier = Modifier
+                    .padding(horizontal = 36.dp)
+                    .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) }
             ) {
                 destinations.forEach { destination ->
                     val selected = selectedRoute == destination.route
@@ -425,6 +466,7 @@ private fun BoxScope.ClassicBottomNavBar(
                     RectangleShape,
                     MiuixTheme.colorScheme.surface.copy(alpha = 0.66f)
                 ) else Modifier)
+                .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) }
         )
     } else {
         MaterialNavigationBar(
@@ -434,7 +476,8 @@ private fun BoxScope.ClassicBottomNavBar(
                 .then(if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
                     RectangleShape,
                     MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.66f)
-                ) else Modifier),
+                ) else Modifier)
+                .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) },
             containerColor = if (wallpaperEnabled) Color.Transparent else MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 0.dp
         ) {
