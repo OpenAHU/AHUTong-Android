@@ -372,6 +372,9 @@ private fun RadiantHomeWidgetSlotLayout(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // 众包补标注：与校园卡同级。没有候选时卡片自己不渲染（不占位）；编辑态不出现。
+        if (!isEditing) CanteenAskCard()
+
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(2.dp)

@@ -187,4 +187,66 @@ class CanteenFootprintTest {
         val txns = records.toDeidentifiedTxns()
         assertEquals("2026-10-05 12:00:00", txns[0].ts)
     }
+
+    /* ==================== 众包补标注：候选挑选 ==================== */
+
+    /** 固定「现在」：2026-10-09 20:00（与 record 的字符串同用默认时区解析）。 */
+    private val fixedNow: Long = Calendar.getInstance(Locale.CHINA).apply {
+        clear(); set(2026, 9, 9, 20, 0)
+    }.time.time
+
+    @Test
+    fun `label candidate skips mapped terminals and picks the newest unmapped meal`() {
+        val records = listOf(
+            record("2026-10-09 12:00:00", "77-139", 1300),   // 已收录：跳过
+            record("2026-10-09 12:30:00", "88-001", 1500)    // 未收录：命中
+        )
+        val ask = records.pickLabelCandidate(knownTerminals = setOf("77-139"), now = fixedNow)
+        assertNotNull(ask)
+        assertEquals("88-001", ask.terminal)
+        assertEquals("2026-10-09 12:30:00", ask.ts)
+        assertEquals("午餐", ask.slotLabel)
+        assertEquals(1500, ask.amountCents)
+    }
+
+    @Test
+    fun `label candidate skips meals already handled but keeps older ones`() {
+        val records = listOf(
+            record("2026-10-09 18:10:00", "88-001", 1500),   // 最新，但已处理过
+            record("2026-10-09 12:30:00", "88-001", 1400)    // 更早、未处理：命中
+        )
+        val ask = records.pickLabelCandidate(
+            knownTerminals = emptySet(),
+            handled = setOf("88-001@2026-10-09 18:10:00"),
+            now = fixedNow
+        )
+        assertNotNull(ask)
+        assertEquals("2026-10-09 12:30:00", ask.ts)
+    }
+
+    @Test
+    fun `label candidate ignores meals older than 24h`() {
+        val stale = listOf(record("2026-10-08 10:00:00", "88-001", 900))   // 34 小时前
+        assertNull(stale.pickLabelCandidate(knownTerminals = emptySet(), now = fixedNow))
+    }
+
+    @Test
+    fun `no candidate when every recent terminal is already mapped`() {
+        val records = listOf(record("2026-10-09 12:30:00", "88-001", 900))
+        assertNull(records.pickLabelCandidate(knownTerminals = setOf("88-001"), now = fixedNow))
+    }
+
+    @Test
+    fun `label candidate carries meal key and terminal sample count`() {
+        val records = listOf(
+            record("2026-10-08 12:00:00", "88-001", 900),   // 超出 24h 窗口，但仍计入笔数
+            record("2026-10-09 12:00:00", "88-001", 900),
+            record("2026-10-09 18:00:00", "88-001", 1000)   // 最新：命中
+        )
+        val ask = records.pickLabelCandidate(knownTerminals = emptySet(), now = fixedNow)
+        assertNotNull(ask)
+        assertEquals(3, ask.sampleCount)                        // 该终端在本次账单里的笔数
+        assertEquals("88-001@2026-10-09 18:00:00", ask.mealKey)
+        assertEquals("晚餐", ask.slotLabel)
+    }
 }

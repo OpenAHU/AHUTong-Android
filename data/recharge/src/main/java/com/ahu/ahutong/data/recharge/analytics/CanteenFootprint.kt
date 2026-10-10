@@ -245,7 +245,9 @@ data class DeidentifiedTxn(
     /** 食堂名（「榴园」）；楼层不进上传字段（服务端食堂榜按 canteen 分组，带楼层会拆碎分组）。 */
     val canteen: String,
     /** 楼层（「一楼」，可空）：不进服务端契约，由调用侧就地攒进本地「终端→楼层」学习表。 */
-    val floor: String? = null
+    val floor: String? = null,
+    /** 正餐餐段（午餐/晚餐）：**不进上传契约**，仅供本地「众包补标注」提问时显示。 */
+    val slot: MealSlot? = null
 )
 
 /**
@@ -263,16 +265,90 @@ fun List<TurnoverRecord>.toDeidentifiedTxns(): List<DeidentifiedTxn> =
         val raw = record.merchantText()
         val canteen = extractCanteenName(raw) ?: return@mapNotNull null
         val time = parseDateTime(record.effectdateStr) ?: return@mapNotNull null
-        mealSlotOf(time) ?: return@mapNotNull null   // 正餐过滤（客户端必做，用户拍板）
+        val slot = mealSlotOf(time) ?: return@mapNotNull null   // 正餐过滤（客户端必做，用户拍板）
         val ts = normalizeTs(record.effectdateStr) ?: return@mapNotNull null
         DeidentifiedTxn(
             terminal = terminal,
             ts = ts,
             amountCents = record.tranamt,
             canteen = canteen,
-            floor = extractFloor(raw)
+            floor = extractFloor(raw),
+            slot = slot
         )
     }
+
+/* ==================== 众包补标注：候选挑选 ==================== */
+
+/**
+ * 「你要不要告诉我们这家窗口叫什么」的候选。
+ *
+ * 只在本地拼装，**不含任何用户标识**；用户填的名字经 window-report 接口上报，
+ * 与「本机是谁」无关（服务端只按匿名 token 去重）。
+ */
+data class CanteenLabelCandidate(
+    val terminal: String,
+    /** 这一顿的规整时间（同上传口径），兼作「已处理」的幂等键之一。 */
+    val ts: String,
+    /** 「午餐」/「晚餐」。 */
+    val slotLabel: String,
+    val amountCents: Long,
+    /** 账单商户原文（如「北二区食堂一楼」）——给用户当回忆线索。 */
+    val merchant: String,
+    /** 该终端在本次账单里的笔数，上报给服务端做待审队列排序（佐证越强越靠前）。 */
+    val sampleCount: Int
+) {
+    /** 「已处理过的顿」的键：按顿去重，不是按终端封禁。 */
+    val mealKey: String get() = "$terminal@$ts"
+}
+
+private const val LABEL_WINDOW_MS = 24 * 3600 * 1000L
+
+/**
+ * 挑出**最近 24 小时内、最新的、终端码不在已知映射里**的正餐作为补标注候选。
+ *
+ * - 跳过已收录的终端（目标是补空缺，不是复述已知的）
+ * - 跳过 [handled] 里已处理过的顿（提交过或点过「不记得」）——**只静音这一顿**，
+ *   同一个窗口以后的新一顿照常问，不封禁终端、也不关闭功能
+ * - 无候选返回 null（调用侧据此完全不显示卡片）
+ */
+fun List<TurnoverRecord>.pickLabelCandidate(
+    knownTerminals: Set<String>,
+    handled: Set<String> = emptySet(),
+    now: Long = System.currentTimeMillis(),
+    windowMs: Long = LABEL_WINDOW_MS
+): CanteenLabelCandidate? {
+    val perTerminalCount = mutableMapOf<String, Int>()
+    val candidates = mutableListOf<Pair<Long, CanteenLabelCandidate>>()
+
+    forEach { record ->
+        if (!record.isExpenseRecord()) return@forEach
+        val terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+        val raw = record.merchantText()
+        if (extractCanteenName(raw) == null) return@forEach
+        val time = parseDateTime(record.effectdateStr) ?: return@forEach
+        val slot = mealSlotOf(time) ?: return@forEach
+
+        perTerminalCount[terminal] = (perTerminalCount[terminal] ?: 0) + 1
+
+        val at = time.time
+        if (at > now || now - at > windowMs) return@forEach
+        if (terminal in knownTerminals) return@forEach
+        val ts = normalizeTs(record.effectdateStr) ?: return@forEach
+        if ("$terminal@$ts" in handled) return@forEach
+
+        candidates += at to CanteenLabelCandidate(
+            terminal = terminal,
+            ts = ts,
+            slotLabel = slot.label,
+            amountCents = record.tranamt,
+            merchant = raw,
+            sampleCount = 0   // 先占位，选完再补（要等所有记录数完）
+        )
+    }
+
+    val best = candidates.maxByOrNull { it.first } ?: return null
+    return best.second.copy(sampleCount = perTerminalCount[best.second.terminal] ?: 1)
+}
 
 /** "yyyy-MM-dd HH:mm[:ss]" → 秒级补齐；无法解析返回 null。 */
 private fun normalizeTs(raw: String?): String? {

@@ -12,10 +12,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.data.canteen.CanteenGateway
+import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,12 +27,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * 必吃榜匿名数据上传的同意弹窗（挂在主页）：consent 为 null（未表态）时弹一次。
- * 同意/拒绝都会落盘，之后不再弹；设置-偏好里随时可以改。
+ * 必吃榜的两个「问一次」入口：
  *
- * 同时兼任「静默上传」触发点（已同意时）：
- * - 进程冷启动进主页触发一次
- * - 之后每次主页 ON_RESUME（回前台/从别的页返回）检查一次，距上次 ≥30 分钟才真跑
+ * 1. **匿名上传同意**（弹窗）：consent 为 null（未表态）时弹一次；同意/拒绝都落盘，之后不再弹。
+ *    设置-偏好里随时可以改。
+ * 2. **众包补标注**（主页卡片，不是弹窗）：见 [pendingAsk]。挑出「最近 24h 内最新的一顿未收录正餐」
+ *    后由主页卡片直接提问——不弹窗、不打断扫码，用户什么时候想填再填。
+ *
+ * 同时兼任「静默上传」触发点（已同意时）：冷启动一次 + 主页 ON_RESUME 检查，距上次 ≥30 分钟才真跑。
  * 全程无 UI，失败静默。
  */
 @HiltViewModel
@@ -41,6 +45,10 @@ class CanteenConsentViewModel @Inject constructor(
     /** null=加载中（不弹），true=需要弹，false=已表态。 */
     private val _shouldAsk = MutableStateFlow<Boolean?>(null)
     val shouldAsk: StateFlow<Boolean?> = _shouldAsk.asStateFlow()
+
+    /** 众包补标注候选；非空 = 主页卡片显示，回答（提交/不记得）后归空。 */
+    private val _pendingAsk = MutableStateFlow<CanteenLabelCandidate?>(null)
+    val pendingAsk: StateFlow<CanteenLabelCandidate?> = _pendingAsk.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -62,10 +70,11 @@ class CanteenConsentViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (settings.canteenUploadConsent.first() == true) {
-                    val ok = CanteenGateway.uploadRecentBills()
+                    val sync = CanteenGateway.uploadRecentBills(settings.canteenHandledMeals.first())
                     nextAllowedSyncAt.set(
-                        System.currentTimeMillis() + if (ok) SYNC_THROTTLE_MS else RETRY_AFTER_MS
+                        System.currentTimeMillis() + if (sync.ok) SYNC_THROTTLE_MS else RETRY_AFTER_MS
                     )
+                    _pendingAsk.value = sync.ask
                 } else {
                     nextAllowedSyncAt.set(System.currentTimeMillis() + SYNC_THROTTLE_MS)
                 }
@@ -73,6 +82,36 @@ class CanteenConsentViewModel @Inject constructor(
                 syncInFlight.set(false)
             }
         }
+    }
+
+    /** 提交窗口名：上报服务端待审队列 + 记「这一顿已处理」+ 收起卡片。 */
+    fun submitLabel(name: String) {
+        val ask = _pendingAsk.value ?: return
+        val trimmed = name.trim().take(CanteenGateway.WINDOW_NAME_MAX_LEN)
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            CanteenGateway.reportWindow(ask, trimmed, reporterToken())
+            markHandled(ask)
+        }
+    }
+
+    /** 「不记得」：**不上报**，只记「这一顿已处理」，卡片收起。只静音这一顿。 */
+    fun skipLabel() {
+        val ask = _pendingAsk.value ?: return
+        viewModelScope.launch(Dispatchers.IO) { markHandled(ask) }
+    }
+
+    private suspend fun markHandled(ask: CanteenLabelCandidate) {
+        settings.setCanteenHandledMeals(settings.canteenHandledMeals.first() + ask.mealKey)
+        _pendingAsk.value = null
+    }
+
+    /** 本机匿名 token：首次用到时生成并落盘（与任何身份无关，清 App 数据即失效）。 */
+    private suspend fun reporterToken(): String {
+        settings.canteenReporterToken.first()?.takeIf { it.isNotBlank() }?.let { return it }
+        val fresh = UUID.randomUUID().toString()
+        settings.setCanteenReporterToken(fresh)
+        return fresh
     }
 
     fun answer(consent: Boolean) {

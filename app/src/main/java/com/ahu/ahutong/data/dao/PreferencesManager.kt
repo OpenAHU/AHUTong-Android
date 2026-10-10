@@ -45,6 +45,12 @@ object PreferencesKeys {
     val REPOSITORY_ACCELERATION_SOURCE = stringPreferencesKey("repository_acceleration_source")
     val PERSONALIZATION_ENABLED = booleanPreferencesKey("personalization_enabled")
     val CANTEEN_UPLOAD_CONSENT = booleanPreferencesKey("canteen_upload_consent")
+
+    /** 众包补标注的匿名上报 token（随机 UUID，只用于同人去重）。 */
+    val CANTEEN_REPORTER_TOKEN = stringPreferencesKey("canteen_reporter_token")
+
+    /** 已处理过的顿（`终端码@时间`）：提交过或点过「不记得」的不再问。 */
+    val CANTEEN_HANDLED_MEALS = stringSetPreferencesKey("canteen_handled_meals")
     val PREDICTIVE_PREFETCH_ENABLED = booleanPreferencesKey("predictive_prefetch_enabled")
     val WIFI_ONLY_PREFETCH = booleanPreferencesKey("wifi_only_prefetch")
     val MODEL_QUALITY_TELEMETRY_PROFILES = stringSetPreferencesKey("model_quality_telemetry_profiles")
@@ -337,6 +343,26 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
     override suspend fun setCanteenUploadConsent(value: Boolean) {
         editPreferences { prefs ->
             prefs[PreferencesKeys.CANTEEN_UPLOAD_CONSENT] = value
+        }
+    }
+
+    override val canteenReporterToken: Flow<String?> = preferences { prefs ->
+        prefs[PreferencesKeys.CANTEEN_REPORTER_TOKEN]
+    }
+
+    override suspend fun setCanteenReporterToken(value: String) {
+        editPreferences { prefs ->
+            prefs[PreferencesKeys.CANTEEN_REPORTER_TOKEN] = value
+        }
+    }
+
+    override val canteenHandledMeals: Flow<Set<String>> = preferences { prefs ->
+        prefs[PreferencesKeys.CANTEEN_HANDLED_MEALS] ?: emptySet()
+    }
+
+    override suspend fun setCanteenHandledMeals(value: Set<String>) {
+        editPreferences { prefs ->
+            prefs[PreferencesKeys.CANTEEN_HANDLED_MEALS] = value
         }
     }
 

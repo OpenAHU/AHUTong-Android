@@ -76,6 +76,24 @@ interface SettingsStore {
 
     suspend fun setCanteenUploadConsent(value: Boolean) {}
 
+    /**
+     * 众包补标注用的本机匿名上报 token（随机 UUID）。
+     * 仅用于服务端「同一个人重复上报不重复计数」，与任何身份无关；清 App 数据即失效。
+     */
+    val canteenReporterToken: Flow<String?>
+        get() = kotlinx.coroutines.flow.flowOf(null)
+
+    suspend fun setCanteenReporterToken(value: String) {}
+
+    /**
+     * 已处理过的顿（键 `终端码@时间`）：提交过或点过「不记得」的这顿不再问。
+     * **只静音这一顿**——同一窗口以后的新一顿照常问，不封禁终端、也不关闭功能。
+     */
+    val canteenHandledMeals: Flow<Set<String>>
+        get() = kotlinx.coroutines.flow.flowOf(emptySet())
+
+    suspend fun setCanteenHandledMeals(value: Set<String>) {}
+
     val predictivePrefetchEnabled: Flow<Boolean>
     suspend fun setPredictivePrefetchEnabled(value: Boolean)
 

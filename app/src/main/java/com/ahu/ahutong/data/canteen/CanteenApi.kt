@@ -7,6 +7,7 @@ import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Query
 
@@ -32,6 +33,19 @@ interface CanteenApi {
         @Query("canteens") canteens: String? = null,
         @Query("minTxns") minTxns: Int = 20
     ): InsightsResponse
+
+    /**
+     * 众包补标注：上报「这个终端码其实是哪个窗口」。
+     *
+     * 进服务端待审队列，人工采纳 + 发布后才会出现在所有客户端的映射表里。
+     * `X-Reporter-Token` 是**本机随机 UUID**，只用于「同一个人重复上报不重复计数」，
+     * 与任何身份无关，清 App 数据即失效。
+     */
+    @POST("/api/canteen/window-report")
+    suspend fun windowReport(
+        @Body body: WindowReportBody,
+        @Header("X-Reporter-Token") reporterToken: String? = null
+    ): Response<Unit>
 
     companion object {
         /** 80 口（Caddy 反代）；8000 口安全组规则已删除，公网不可达（2026-10-07 服务端 v1.4.0）。 */
@@ -85,6 +99,20 @@ data class TxnEntry(
 )
 
 data class TxnsUpload(val txns: List<TxnEntry>)
+
+/* ---------------- 众包补标注：窗口名上报 ---------------- */
+
+/**
+ * 上报体。`merchant` 是账单商户原文（公共信息，如「北二区食堂一楼」），给审核人当佐证；
+ * `suggestedName` 会按服务端口径截断（`NAME_MAX_LEN`，当前 20 字）。
+ * **不含任何用户/设备标识**——去重靠请求头里的本机匿名 token。
+ */
+data class WindowReportBody(
+    val terminal: String,
+    val merchant: String,
+    val suggestedName: String,
+    val sampleCount: Int
+)
 
 /* ---------------- insights ---------------- */
 

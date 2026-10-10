@@ -6,6 +6,8 @@ import com.ahu.ahutong.data.CanteenWindowStore
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
+import com.ahu.ahutong.data.recharge.analytics.pickLabelCandidate
 import com.ahu.ahutong.data.recharge.analytics.toDeidentifiedTxns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -21,6 +23,7 @@ import java.util.Locale
  * - 上传内容：去标识逐笔交易（无用户/设备标识），分批 400 笔；服务端 (POS,秒,金额) 幂等，可放心重传。
  * - 映射表同步：sinceVersion 版本比对，变了全量替换本地缓存；失败沿用本地缓存（离线兜底）。
  * - insights：端侧 5 分钟缓存防筛选狂刷；forceRefresh=true 时绕过（进页面/手动刷新）。
+ * - 众包补标注：顺手从同一批账单里挑一个「未收录窗口」候选带回去给 UI（见 [uploadRecentBills]）。
  */
 object CanteenGateway {
 
@@ -34,6 +37,12 @@ object CanteenGateway {
     private const val MAX_SYNC_PAGES = 6
     private const val FETCH_MAX_ATTEMPTS = 3
     private const val FETCH_RETRY_DELAY_MS = 5000L
+
+    /** 窗口名长度上限，与服务端 `NAME_MAX_LEN`（config.py）对齐，超了服务端会截断。 */
+    const val WINDOW_NAME_MAX_LEN = 20
+
+    /** 一次账单同步的结果：`ok` 供节流策略用，`ask` 为「要不要补标注」的候选（可为 null）。 */
+    data class BillsSync(val ok: Boolean, val ask: CanteenLabelCandidate? = null)
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -63,44 +72,77 @@ object CanteenGateway {
      *   兜住冷启动 token 未就绪/网络抖动
      * - 拉取或上传彻底失败 → 返回 false，调用侧 5 分钟后允许重触发
      *
-     * @return true = 拉取并上传成功（含窗口内本就零记录）
+     * @return `ok` = 拉取并上传成功（含窗口内本就零记录）；`ask` = 顺带挑出的补标注候选
      */
-    suspend fun uploadRecentBills(): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
-            val now = System.currentTimeMillis()
-            val timeFrom = tsFmt.format(Date(now - BACKFILL_DAYS * DAY_MS))
-            val timeTo = tsFmt.format(Date(now))
+    suspend fun uploadRecentBills(handledMeals: Set<String> = emptySet()): BillsSync =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
+                val now = System.currentTimeMillis()
+                val timeFrom = tsFmt.format(Date(now - BACKFILL_DAYS * DAY_MS))
+                val timeTo = tsFmt.format(Date(now))
 
-            // —— 拉取（原地重试：冷启动 token/网络未就绪是暂态，不是终态） ——
-            val records = mutableListOf<TurnoverRecord>()
-            var fetchOk = false
-            var attempt = 0
-            while (attempt < FETCH_MAX_ATTEMPTS && !fetchOk) {
-                attempt++
-                records.clear()
-                fetchOk = fetchAllPages(records, timeFrom, timeTo)
-                if (!fetchOk && attempt < FETCH_MAX_ATTEMPTS) {
-                    Log.w(TAG, "bill fetch attempt $attempt failed, retrying")
-                    delay(FETCH_RETRY_DELAY_MS)
+                // —— 拉取（原地重试：冷启动 token/网络未就绪是暂态，不是终态） ——
+                val records = mutableListOf<TurnoverRecord>()
+                var fetchOk = false
+                var attempt = 0
+                while (attempt < FETCH_MAX_ATTEMPTS && !fetchOk) {
+                    attempt++
+                    records.clear()
+                    fetchOk = fetchAllPages(records, timeFrom, timeTo)
+                    if (!fetchOk && attempt < FETCH_MAX_ATTEMPTS) {
+                        Log.w(TAG, "bill fetch attempt $attempt failed, retrying")
+                        delay(FETCH_RETRY_DELAY_MS)
+                    }
                 }
-            }
-            if (!fetchOk) {
-                Log.w(TAG, "bill fetch failed after $FETCH_MAX_ATTEMPTS attempts")
-                return@withContext false
-            }
+                if (!fetchOk) {
+                    Log.w(TAG, "bill fetch failed after $FETCH_MAX_ATTEMPTS attempts")
+                    return@withContext BillsSync(ok = false)
+                }
 
-            // 上传（30 天窗口内零记录时发空批，标记「查过了，没数据」）
-            if (!uploadTxns(records)) {
-                Log.w(TAG, "upload incomplete")
-                return@withContext false
+                // 上传（30 天窗口内零记录时发空批，标记「查过了，没数据」）
+                if (!uploadTxns(records)) {
+                    Log.w(TAG, "upload incomplete")
+                    return@withContext BillsSync(ok = false)
+                }
+
+                // 顺手挑候选：映射表先补齐，否则新装/久未同步的机器会把已收录窗口也当成未收录
+                syncWindowMap()
+                val ask = records.pickLabelCandidate(
+                    knownTerminals = CanteenWindowStore.all().keys,
+                    handled = handledMeals
+                )
+                Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
+                BillsSync(ok = true, ask = ask)
+            }.getOrElse {
+                Log.w(TAG, "background bill sync failed", it)
+                BillsSync(ok = false)
             }
-            Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
-            true
-        }.getOrElse {
-            Log.w(TAG, "background bill sync failed", it)
-            false
         }
+
+    /**
+     * 众包补标注：上报窗口名。返回是否成功（失败仅影响这一顿，不改映射表）。
+     *
+     * 上报进服务端待审队列，**要人工采纳 + 发布**后才会同步回所有客户端。
+     */
+    suspend fun reportWindow(
+        candidate: CanteenLabelCandidate,
+        suggestedName: String,
+        reporterToken: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            CanteenApi.API.windowReport(
+                body = WindowReportBody(
+                    terminal = candidate.terminal,
+                    merchant = candidate.merchant,
+                    suggestedName = suggestedName.trim(),
+                    sampleCount = candidate.sampleCount
+                ),
+                reporterToken = reporterToken
+            ).isSuccessful
+        }
+            .onFailure { Log.w(TAG, "window report failed", it) }
+            .getOrDefault(false)
     }
 
     /** 分页拉取一个时间窗的账单（不去重：服务端幂等键单点负责）。false = 任一页失败。 */
