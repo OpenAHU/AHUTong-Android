@@ -1,6 +1,15 @@
 package com.ahu.ahutong.ui.screen
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.ahu.ahutong.MainActivity
+import com.ahu.ahutong.data.session.SavedAccounts
+import com.ahu.ahutong.ui.screen.setup.SavedAccountsDialog
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
@@ -24,8 +33,21 @@ fun SettingsHub(
     mainViewModel: MainViewModel,
     scheduleViewModel: ScheduleViewModel
 ) {
+    val context = LocalContext.current
+    var showAccounts by remember { mutableStateOf(false) }
+    var accounts by remember { mutableStateOf(SavedAccounts.accounts()) }
+    fun openAccounts() {
+        runCatching {
+            SavedAccounts.rememberCurrent()
+            accounts = SavedAccounts.accounts()
+            showAccounts = true
+        }.onFailure {
+            Toast.makeText(context, "无法安全读取账号，请重试", Toast.LENGTH_SHORT).show()
+        }
+    }
     Settings(
         onNavigateToLogin = { navController.navigate("login") },
+        onSwitchAccount = { openAccounts() },
         onNavigateToPreferences = { navController.navigate("preferences") },
         onNavigateToDebug = { navController.navigate("debug") },
         onNavigateToLicense = { navController.navigate("settings__license") },
@@ -45,4 +67,27 @@ fun SettingsHub(
         licenseTitle = stringResource(R.string.license),
         contributorsTitle = stringResource(R.string.contributors)
     )
+    if (showAccounts) {
+        SavedAccountsDialog(
+            accounts = accounts,
+            currentUserId = SessionStore.currentUser()?.xh,
+            onSelect = { userId ->
+                showAccounts = false
+                (context as? MainActivity)?.openAccountLogin(userId)
+            },
+            onForget = { userId ->
+                runCatching {
+                    SavedAccounts.forget(userId)
+                    accounts = SavedAccounts.accounts()
+                }.onFailure {
+                    Toast.makeText(context, "移除账号失败，请重试", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onAdd = {
+                showAccounts = false
+                (context as? MainActivity)?.openAccountLogin(null)
+            },
+            onDismiss = { showAccounts = false }
+        )
+    }
 }

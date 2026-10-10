@@ -92,6 +92,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".AccountLoginActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AHUTong.AccountLogin"
+            android:screenOrientation="portrait" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

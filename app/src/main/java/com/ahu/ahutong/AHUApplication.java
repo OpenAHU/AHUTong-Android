@@ -28,6 +28,7 @@ import com.ahu.ahutong.notification.CampusNoticeNotifier;
 import java.util.HashSet;
 import java.util.UUID;
 import java.io.File;
+import java.time.LocalDate;
 
 import coil.ImageLoader;
 import coil.ImageLoaderFactory;
@@ -117,6 +118,16 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
             preferences.edit().putString("dau_id", dauId).apply();
         }
         return dauId;
+    }
+
+    public void reportDauIfNeeded() {
+        SharedPreferences preferences = getSharedPreferences("sentry", MODE_PRIVATE);
+        String today = LocalDate.now().toString();
+        if (today.equals(preferences.getString("dau_last_report_date", null))) {
+            return;
+        }
+        Sentry.captureMessage("AHUTong DAU");
+        preferences.edit().putString("dau_last_report_date", today).apply();
     }
 
     @Override

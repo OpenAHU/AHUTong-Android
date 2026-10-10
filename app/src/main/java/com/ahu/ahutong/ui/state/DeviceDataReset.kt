@@ -48,6 +48,7 @@ class DeviceDataReset @Inject constructor(
         CourseReminderScheduler.clearDeliveryHistory(context)
         updateSkipStore.clear()
         behavior.logoutAndClear()
+        com.ahu.ahutong.data.session.SavedAccounts.clear()
         session.signOut()
         AHUCache.logout()
         android.webkit.CookieManager.getInstance().removeAllCookies(null)

@@ -82,6 +82,7 @@ import top.yukonga.miuix.kmp.icon.icons.useful.Update
 @Composable
 fun Settings(
     onNavigateToLogin: () -> Unit,
+    onSwitchAccount: () -> Unit,
     onNavigateToPreferences: () -> Unit,
     onNavigateToDebug: () -> Unit,
     onNavigateToLicense: () -> Unit,
@@ -192,8 +193,16 @@ fun Settings(
                         Icons.AutoMirrored.Outlined.Login
                     },
                     leadingPainter = if (isRadiant) painterResource(R.drawable.ic_logout) else null,
-                    showDivider = false,
                     onClick = onNavigateToLogin
+                )
+                SettingsActionRow(
+                    title = "切换账号",
+                    subtitle = "快速登录已保存的账号",
+                    leadingIcon = if (useMiuixIcons) MiuixIcons.Useful.Personal
+                        else if (isRadiant) null else Icons.Outlined.PeopleOutline,
+                    leadingPainter = if (isRadiant) painterResource(R.drawable.ic_peoples) else null,
+                    showDivider = false,
+                    onClick = onSwitchAccount
                 )
             }
         }
@@ -323,7 +332,7 @@ fun Settings(
     if (isClearDataDialogShown) {
         SettingsConfirmationDialog(
             title = "清除所有数据？",
-            message = "登录状态、课表及本机设置将被永久清除。",
+            message = "已保存账号、登录状态、课表及本机设置将被永久清除。",
             confirmLabel = "清除",
             destructive = true,
             onConfirm = {

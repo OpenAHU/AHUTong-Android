@@ -1,6 +1,8 @@
 package com.ahu.ahutong.ui.screen
 
 import android.graphics.BitmapFactory
+import android.widget.Toast
+import androidx.activity.compose.LocalActivity
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.BuildConfig
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -30,6 +32,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
@@ -39,6 +42,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.NavHostController
@@ -89,6 +95,9 @@ import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.settings.ThemeLab
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Login
+import com.ahu.ahutong.ui.screen.setup.canCancelLogin
+import com.ahu.ahutong.ui.screen.setup.canUseAuthenticatedPages
+import com.ahu.ahutong.ui.screen.setup.LoginNavigationGate
 import com.ahu.ahutong.ui.components.LiquidGlassAppHost
 import com.ahu.ahutong.ui.components.AppBackground
 import com.ahu.ahutong.ui.components.LocalAppBackground
@@ -124,6 +133,7 @@ import com.ahu.ahutong.personalization.recorder.BehaviorRecorder
 import com.ahu.ahutong.ui.suggestion.SmartSuggestionHost
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
@@ -170,6 +180,7 @@ fun Main(
     }
     var shouldEnterHomeEdit by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
     var homeEditGrayState by remember {
         mutableStateOf(GrayReleaseManager.localState(GrayFeatures.HomeEdit, context))
@@ -178,6 +189,30 @@ fun Main(
     var navigationObservationRevision by remember { mutableIntStateOf(0) }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
+    val sessionStatus by AhuSessionState.status.collectAsState()
+    val authenticationRequired by LoginNavigationGate.authenticationRequired.collectAsState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var sessionCheckRevision by remember { mutableIntStateOf(0) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) sessionCheckRevision++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val canUseBusinessPages = remember(sessionStatus, authenticationRequired, loginViewModel.state, sessionCheckRevision, currentRoute) {
+        canUseAuthenticatedPages(SessionStore.isLoggedIn(), sessionStatus, authenticationRequired)
+    }
+    val protectedRouteBlocked = currentRoute != null &&
+        currentRoute !in setOf("login", "splash") && !canUseBusinessPages
+    LaunchedEffect(protectedRouteBlocked, currentRoute) {
+        if (protectedRouteBlocked) {
+            navController.navigate("login") {
+                popUpTo(navController.graph.id) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
     val suggestionOverlayBlocked by behaviorRuntime.suggestionOverlayBlocked.collectAsState()
     val imeVisible = WindowInsets.isImeVisible
     val diagnosticsRouteVisible = diagnosticsContribution.isDiagnosticsRoute(currentRoute) ||
@@ -199,7 +234,12 @@ fun Main(
         route: String,
         source: ActionSource = ActionSource.ORGANIC
     ) {
-        if (!AHUCache.canOpenRoute(route)) return
+        if (!canUseAuthenticatedPages(
+                SessionStore.isLoggedIn(), AhuSessionState.status.value,
+                LoginNavigationGate.authenticationRequired.value
+            ) ||
+            !AHUCache.canOpenRoute(route)
+        ) return
         val target = if (route == "tools") "widgets" else route
         if (target == navController.currentBackStackEntry?.destination?.route) return
         val selectionToken = navigationPolicy.expectSelection(target, source)
@@ -299,6 +339,9 @@ fun Main(
             contentBackdrop
         }
         val backdrop = navBackdrop
+        if (protectedRouteBlocked) {
+            com.ahu.ahutong.ui.screen.setup.Splash()
+        } else {
         NavHost(
             navController = navController,
             startDestination = "splash",
@@ -346,8 +389,24 @@ fun Main(
                 )
             }
             animatedComposable("login") {
+                val originalAccountId = rememberSaveable { SessionStore.currentUser()?.xh.orEmpty() }
                 Login(
                     loginViewModel = loginViewModel,
+                    onBack = { attempted ->
+                        if (canCancelLogin(
+                                originalAccountId,
+                                SessionStore.currentUser()?.xh,
+                                AhuSessionState.status.value,
+                                attempted
+                            ) && navController.previousBackStackEntry?.destination?.route == "settings"
+                        ) {
+                            navController.popBackStack()
+                        } else if (navController.previousBackStackEntry != null) {
+                            Toast.makeText(context, "请先完成登录，再进入应用", Toast.LENGTH_SHORT).show()
+                        } else {
+                            activity?.finish()
+                        }
+                    },
                     onLoggedIn = {
                         scheduleViewModel.clear()
                         scope.launch {
@@ -659,6 +718,8 @@ fun Main(
             }
             diagnosticsContribution.installRoutes(this, navController, behaviorRuntime)
         }
+        }
+        if (!protectedRouteBlocked) {
         BottomNavBar(
             backdrop = backdrop,
             selectedRoute = currentRoute,
@@ -666,7 +727,8 @@ fun Main(
                 scope.launch { selectPrimaryDestination(route) }
             }
         )
-        val productUiBlocked = effectiveRoute == "login" || effectiveRoute == "setup" ||
+        }
+        val productUiBlocked = !canUseBusinessPages || effectiveRoute == "login" || effectiveRoute == "setup" ||
             effectiveRoute == "splash" || effectiveRoute?.contains("deposit") == true ||
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
@@ -711,7 +773,7 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
-        if (isReLoginShown) {
+        if (isReLoginShown && currentRoute != "login") {
             AppDialogSurface(
                 onDismissRequest = { onReLoginDismiss() },
                 properties = DialogProperties(

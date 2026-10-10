@@ -80,18 +80,32 @@ import kotlinx.coroutines.delay
 @Composable
 fun Login(
     loginViewModel: LoginViewModel = viewModel(),
+    initialUserId: String = "",
+    initialPassword: String = "",
+    autoLogin: Boolean = false,
+    onBack: ((Boolean) -> Unit)? = null,
     onLoggedIn: () -> Unit
 ) {
     var userID by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue())
+        mutableStateOf(TextFieldValue(initialUserId))
     }
     var password by rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue())
+        mutableStateOf(TextFieldValue(initialPassword))
     }
     var focusIndex by rememberSaveable { mutableStateOf(0) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var showWebLoginContent by rememberSaveable { mutableStateOf(false) }
     val activity = LocalActivity.current
+    var initialLoginStarted by rememberSaveable { mutableStateOf(false) }
+    var loginAttempted by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (autoLogin && !initialLoginStarted && loginViewModel.state == LoginState.Idle) {
+            initialLoginStarted = true
+            loginAttempted = true
+            LoginNavigationGate.beginAuthentication()
+            loginViewModel.loginWithCrawler(userID.text, password.text)
+        }
+    }
     LaunchedEffect(loginViewModel.state) {
         if (loginViewModel.state != LoginState.WebVerification) {
             showWebLoginContent = false
@@ -103,6 +117,7 @@ fun Login(
             delay(500)
             loginViewModel.state = LoginState.Idle
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            LoginNavigationGate.completeAuthentication()
             onLoggedIn()
         }
     }
@@ -120,6 +135,13 @@ fun Login(
     BackHandler {
         if (showWebLoginContent) {
             loginViewModel.failWebVerification("已取消教务安全验证")
+        } else if (loginViewModel.state == LoginState.InProgress ||
+            loginViewModel.state == LoginState.Succeeded
+        ) {
+            // 认证与身份落盘完成前，不能返回旧账号的页面。
+            return@BackHandler
+        } else if (onBack != null) {
+            onBack(loginAttempted)
         } else {
             activity?.finish()
         }
@@ -282,7 +304,8 @@ fun Login(
                     logIn(
                         loginViewModel = loginViewModel,
                         userID = userID.text,
-                        password = password.text
+                        password = password.text,
+                        onAuthenticationStarted = { loginAttempted = true }
                     )
                 }),
                 singleLine = true,
@@ -332,7 +355,8 @@ fun Login(
             logIn(
                 loginViewModel = loginViewModel,
                 userID = userID.text,
-                password = password.text
+                password = password.text,
+                onAuthenticationStarted = { loginAttempted = true }
             )
         }
         }
@@ -342,12 +366,15 @@ fun Login(
 private fun logIn(
     loginViewModel: LoginViewModel,
     userID: String,
-    password: String
+    password: String,
+    onAuthenticationStarted: () -> Unit
 ) {
     if (userID.isBlank() || password.isBlank()) {
         loginViewModel.state = LoginState.Failed
         loginViewModel.failureMessage = "请将信息填写完整"
     } else {
+        onAuthenticationStarted()
+        LoginNavigationGate.beginAuthentication()
 //        loginViewModel.loginWithServer(
 //            userID = userID,
 //            wisdomPassword = password
