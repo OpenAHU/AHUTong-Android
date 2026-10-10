@@ -79,6 +79,8 @@ import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.CourseProgress
 import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.Work
+import com.ahu.ahutong.ui.components.AppButton
+import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
@@ -351,7 +353,8 @@ fun XuexiaotongScreen() {
                                     isRadiant = isRadiant,
                                     pageBackdrop = pageBackdrop,
                                     headerTopPadding = headerTopPadding,
-                                    loggedIn = loggedIn
+                                    loggedIn = loggedIn,
+                                    onLogin = { showLogin = true }
                                 )
                             }
                             XuexiaotongSubTab.COURSE -> {
@@ -363,7 +366,8 @@ fun XuexiaotongScreen() {
                                     loggedIn = loggedIn,
                                     isRadiant = isRadiant,
                                     pageBackdrop = pageBackdrop,
-                                    headerTopPadding = headerTopPadding
+                                    headerTopPadding = headerTopPadding,
+                                    onLogin = { showLogin = true }
                                 )
                             }
                         }
@@ -514,7 +518,9 @@ fun XuexiaotongScreen() {
                                         year = y; month = m
                                     },
                                     onWorkClick = { selectedWork = it },
-                                    isRadiant = false
+                                    isRadiant = false,
+                                    loggedIn = loggedIn,
+                                    onLogin = { showLogin = true }
                                 )
                             }
                             XuexiaotongSubTab.COURSE -> {
@@ -524,7 +530,8 @@ fun XuexiaotongScreen() {
                                     syncMsg = courseSyncMsg,
                                     showEmptyCourses = showEmptyCourses,
                                     loggedIn = loggedIn,
-                                    isRadiant = false
+                                    isRadiant = false,
+                                    onLogin = { showLogin = true }
                                 )
                             }
                         }
@@ -848,7 +855,8 @@ private fun ScheduleTab(
     isRadiant: Boolean = false,
     pageBackdrop: Backdrop? = null,
     headerTopPadding: Dp = 102.dp,
-    loggedIn: Boolean = true
+    loggedIn: Boolean = true,
+    onLogin: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -890,7 +898,8 @@ private fun ScheduleTab(
                     month = month,
                     onChangeMonth = onChangeMonth,
                     onWorkClick = onWorkClick,
-                    loggedIn = loggedIn
+                    loggedIn = loggedIn,
+                    onLogin = onLogin
                 )
             }
         } else {
@@ -989,6 +998,13 @@ private fun ScheduleTab(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            if (!loggedIn) {
+                                Spacer(Modifier.height(10.dp))
+                                LoginToXuexiaotongButton(
+                                    onLogin = onLogin,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                            }
                         }
                         Spacer(Modifier.height(8.dp))
                     }
@@ -1010,7 +1026,8 @@ private fun ScheduleCalendarContent(
     month: Int,
     onChangeMonth: (Int) -> Unit,
     onWorkClick: (Work) -> Unit,
-    loggedIn: Boolean = true
+    loggedIn: Boolean = true,
+    onLogin: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1111,12 +1128,22 @@ private fun ScheduleCalendarContent(
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.height(12.dp))
+                            LoginToXuexiaotongButton(onLogin = onLogin)
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+}
+
+/** 空态里的显式登录入口：右上角图标太隐蔽，这里再放一个按钮。 */
+@Composable
+private fun LoginToXuexiaotongButton(onLogin: () -> Unit, modifier: Modifier = Modifier) {
+    AppButton(onClick = onLogin, modifier = modifier, variant = AppButtonVariant.Primary) {
+        Text("登录学习通")
     }
 }
 
@@ -1255,16 +1282,18 @@ private fun CourseTab(
     loggedIn: Boolean,
     isRadiant: Boolean = false,
     pageBackdrop: Backdrop? = null,
-    headerTopPadding: Dp = 102.dp
+    headerTopPadding: Dp = 102.dp,
+    onLogin: () -> Unit = {}
 ) {
     val filtered = (if (showEmptyCourses) progress
     else progress.filter { it.totalCount > 0 })
         .distinctBy { Triple(it.courseId, it.clazzId, it.cpi) }
 
     if (filtered.isEmpty()) {
-        Box(
+        Column(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
                 if (loggedIn) "暂无课程进度，点击右上角同步获取"
@@ -1272,6 +1301,10 @@ private fun CourseTab(
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (!loggedIn) {
+                Spacer(Modifier.height(12.dp))
+                LoginToXuexiaotongButton(onLogin = onLogin)
+            }
         }
     } else {
         LazyColumn(
