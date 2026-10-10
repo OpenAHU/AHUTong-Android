@@ -690,13 +690,19 @@ fun Debug(
                                 merchant = "开发者自检上报（可在后台拒绝）",
                                 sampleCount = 1
                             )
-                            // 固定 token：同一个人反复自检不会把上报人数刷上去
+                            // 每次点都换一个匿名 token：自检的意义就是"看得出这一次点到了"。
+                            // 固定 token 会被去重台账吞掉——后台一个字节都不会变，看着像没生效。
                             val ok = withContext(Dispatchers.IO) {
-                                CanteenGateway.reportWindow(probe, "自检窗口", "debug-selftest")
+                                CanteenGateway.reportWindow(
+                                    probe,
+                                    "自检窗口",
+                                    java.util.UUID.randomUUID().toString()
+                                )
                             }
                             lines = listOf(
                                 if (ok) {
-                                    "测试上报成功（204）：后台「待审上报」里应能看到 __DEV_SELFTEST__，看完拒绝掉即可"
+                                    "测试上报成功（204）：后台「上报」页签默认就显示全部，应能看到 __DEV_SELFTEST__" +
+                                        "（每点一次「上报人数」+1，看完拒绝或删掉即可）"
                                 } else {
                                     "测试上报失败：多半是写入 key 没配或网络不通（看 logcat 状态码）"
                                 }
