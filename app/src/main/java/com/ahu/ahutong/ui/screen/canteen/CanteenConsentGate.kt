@@ -20,14 +20,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-/** 众包上报的提交状态：卡片据此禁用按钮 / 显示重试提示。 */
-enum class CanteenSubmitState { Idle, Submitting, Failed }
+/** 众包上报的提交状态：卡片据此禁用按钮 / 显示重试提示 / 显示致谢。 */
+enum class CanteenSubmitState { Idle, Submitting, Failed, Done }
 
 /**
  * 必吃榜的两个「问一次」入口：
@@ -94,7 +95,11 @@ class CanteenConsentViewModel @Inject constructor(
         }
     }
 
-    /** 提交窗口名：上报 → **成功才**记「这一顿已处理」；失败保留卡片与已输入内容，可重试。 */
+    /**
+     * 提交窗口名：**成功才**记「这一顿已处理」。
+     * - 成功 → 先记已处理（避免以后再问），卡片**停留一会儿显示致谢**再收起，不要"水灵灵地消失"
+     * - 失败 → 保留卡片与已输入内容，可重试
+     */
     fun submitLabel(name: String) {
         val ask = _pendingAsk.value ?: return
         if (_submitState.value == CanteenSubmitState.Submitting) return
@@ -102,19 +107,31 @@ class CanteenConsentViewModel @Inject constructor(
         if (trimmed.isEmpty()) return
         _submitState.value = CanteenSubmitState.Submitting
         viewModelScope.launch(Dispatchers.IO) {
-            val ok = CanteenGateway.reportWindow(ask, trimmed, reporterToken())
-            if (ok) markHandled(ask) else _submitState.value = CanteenSubmitState.Failed
+            if (!CanteenGateway.reportWindow(ask, trimmed, reporterToken())) {
+                _submitState.value = CanteenSubmitState.Failed
+                return@launch
+            }
+            rememberHandled(ask)
+            _submitState.value = CanteenSubmitState.Done
+            delay(THANKS_LINGER_MS)
+            dismissAsk()
         }
     }
 
-    /** 「不记得」：**不上报**，只记「这一顿已处理」，卡片收起。只静音这一顿。 */
+    /** 「不记得」：**不上报**，只记「这一顿已处理」，卡片直接收起。只静音这一顿。 */
     fun skipLabel() {
         val ask = _pendingAsk.value ?: return
-        viewModelScope.launch(Dispatchers.IO) { markHandled(ask) }
+        viewModelScope.launch(Dispatchers.IO) {
+            rememberHandled(ask)
+            dismissAsk()
+        }
     }
 
-    private suspend fun markHandled(ask: CanteenLabelCandidate) {
+    private suspend fun rememberHandled(ask: CanteenLabelCandidate) {
         settings.setCanteenHandledMeals(settings.canteenHandledMeals.first() + ask.mealKey)
+    }
+
+    private fun dismissAsk() {
         _pendingAsk.value = null
         _submitState.value = CanteenSubmitState.Idle
     }
@@ -137,6 +154,9 @@ class CanteenConsentViewModel @Inject constructor(
         private val syncInFlight = java.util.concurrent.atomic.AtomicBoolean(false)
         private const val SYNC_THROTTLE_MS = 30 * 60 * 1000L
         private const val RETRY_AFTER_MS = 5 * 60 * 1000L
+
+        /** 提交成功后致谢停留多久再收起卡片。 */
+        private const val THANKS_LINGER_MS = 4000L
     }
 }
 

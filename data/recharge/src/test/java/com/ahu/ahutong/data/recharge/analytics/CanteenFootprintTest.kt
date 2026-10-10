@@ -205,7 +205,10 @@ class CanteenFootprintTest {
         assertNotNull(ask)
         assertEquals("88-001", ask.terminal)
         assertEquals("2026-10-09 12:30:00", ask.ts)
-        assertEquals("午餐", ask.slotLabel)
+        assertEquals("中午", ask.dayPart)
+        assertEquals("今天", ask.dayLabel)
+        assertEquals("榴园", ask.canteen)      // 账单原文「北二区食堂一楼-扫码支付」经硬映射表
+        assertEquals("一楼", ask.floor)
         assertEquals(1500, ask.amountCents)
     }
 
@@ -222,6 +225,15 @@ class CanteenFootprintTest {
         )
         assertNotNull(ask)
         assertEquals("2026-10-09 12:30:00", ask.ts)
+    }
+
+    @Test
+    fun `label candidate says 昨天 for a meal from the previous calendar day`() {
+        val records = listOf(record("2026-10-08 22:00:00", "88-001", 1200))   // 距 now 22 小时，且在晚餐时段内
+        val ask = records.pickLabelCandidate(knownTerminals = emptySet(), now = fixedNow)
+        assertNotNull(ask)
+        assertEquals("昨天", ask.dayLabel)
+        assertEquals("晚上", ask.dayPart)
     }
 
     @Test
@@ -247,6 +259,6 @@ class CanteenFootprintTest {
         assertNotNull(ask)
         assertEquals(3, ask.sampleCount)                        // 该终端在本次账单里的笔数
         assertEquals("88-001@2026-10-09 18:00:00", ask.mealKey)
-        assertEquals("晚餐", ask.slotLabel)
+        assertEquals("晚上", ask.dayPart)
     }
 }

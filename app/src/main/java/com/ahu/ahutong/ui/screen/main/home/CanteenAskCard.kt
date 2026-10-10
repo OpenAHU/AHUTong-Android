@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.canteen.CanteenGateway
@@ -46,29 +45,32 @@ fun CanteenAskCard(modifier: Modifier = Modifier) {
     var input by remember(current.mealKey) { mutableStateOf("") }
 
     val busy = submitState == CanteenSubmitState.Submitting
+    val done = submitState == CanteenSubmitState.Done
 
     AppSectionCard(modifier = modifier) {
         Text(
-            text = "帮我们认一个窗口",
+            text = if (done) "谢谢！" else "帮我们认一个窗口",
             style = MaterialTheme.typography.titleMedium
         )
 
+        if (done) {
+            Text(
+                text = "已经记下「${input}」了，审核通过后大家都能在榜单里看到。",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            return@AppSectionCard
+        }
+
         Text(
-            text = buildString {
-                append(current.ts.take(16).drop(5))          // MM-dd HH:mm
-                append(" · ").append(current.slotLabel)
-                append(" · ").append(current.terminal).append(" 号窗口")
-                append(" · ").append(current.amountCents.money())
-            },
+            text = "${current.dayLabel}${current.dayPart}${current.ts.take(16).drop(11)}" +
+                " · ${current.canteen}${current.floor.orEmpty()}",
             style = MaterialTheme.typography.bodyMedium
         )
 
         Text(
-            text = "账单上写的是：${current.merchant}",
+            text = "${current.terminal} 号窗口 · ${current.amountCents.money()}",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         AppTextField(

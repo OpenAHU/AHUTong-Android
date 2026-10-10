@@ -19,8 +19,9 @@ import java.util.Locale
  * 窗口名由映射表 windowNames 提供，未命中时 UI 层展示「XX 号窗 · 求认领」。
  */
 
-enum class MealSlot(val label: String) {
-    LUNCH("午餐"), DINNER("晚餐")
+/** [label] 是餐名（午餐/晚餐）；[dayPart] 是时刻说法（中午/晚上），用于「昨天中午12:00」这种口语描述。 */
+enum class MealSlot(val label: String, val dayPart: String) {
+    LUNCH("午餐", "中午"), DINNER("晚餐", "晚上")
 }
 
 /** 合并后的「一餐」。 */
@@ -289,10 +290,16 @@ data class CanteenLabelCandidate(
     val terminal: String,
     /** 这一顿的规整时间（同上传口径），兼作「已处理」的幂等键之一。 */
     val ts: String,
-    /** 「午餐」/「晚餐」。 */
-    val slotLabel: String,
+    /** 「今天」/「昨天」——24 小时窗口内只可能是这两个。 */
+    val dayLabel: String,
+    /** 「中午」/「晚上」。 */
+    val dayPart: String,
     val amountCents: Long,
-    /** 账单商户原文（如「北二区食堂一楼」）——给用户当回忆线索。 */
+    /** 食堂名（「榴园」）：走账单文本的硬映射表，比账单里写的「北二区食堂」直观得多。 */
+    val canteen: String,
+    /** 楼层（「一楼」，可空）：同样从账单文本提取，仅展示。 */
+    val floor: String?,
+    /** 账单商户原文（如「北二区食堂一楼-扫码支付」）——**发给服务端当审核佐证，不直接展示给用户**。 */
     val merchant: String,
     /** 该终端在本次账单里的笔数，上报给服务端做待审队列排序（佐证越强越靠前）。 */
     val sampleCount: Int
@@ -302,6 +309,15 @@ data class CanteenLabelCandidate(
 }
 
 private const val LABEL_WINDOW_MS = 24 * 3600 * 1000L
+
+/** 「今天」/「昨天」：24 小时窗口最多跨一个日历日，所以只会是这两个。 */
+private fun dayLabelOf(at: Long, now: Long): String {
+    val a = Calendar.getInstance(Locale.CHINA).apply { timeInMillis = at }
+    val t = Calendar.getInstance(Locale.CHINA).apply { timeInMillis = now }
+    val sameDay = a.get(Calendar.YEAR) == t.get(Calendar.YEAR) &&
+        a.get(Calendar.DAY_OF_YEAR) == t.get(Calendar.DAY_OF_YEAR)
+    return if (sameDay) "今天" else "昨天"
+}
 
 /**
  * 挑出**最近 24 小时内、最新的、终端码不在已知映射里**的正餐作为补标注候选。
@@ -324,7 +340,7 @@ fun List<TurnoverRecord>.pickLabelCandidate(
         if (!record.isExpenseRecord()) return@forEach
         val terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
         val raw = record.merchantText()
-        if (extractCanteenName(raw) == null) return@forEach
+        val canteen = extractCanteenName(raw) ?: return@forEach
         val time = parseDateTime(record.effectdateStr) ?: return@forEach
         val slot = mealSlotOf(time) ?: return@forEach
 
@@ -339,8 +355,11 @@ fun List<TurnoverRecord>.pickLabelCandidate(
         candidates += at to CanteenLabelCandidate(
             terminal = terminal,
             ts = ts,
-            slotLabel = slot.label,
+            dayLabel = dayLabelOf(at, now),
+            dayPart = slot.dayPart,
             amountCents = record.tranamt,
+            canteen = canteen,
+            floor = extractFloor(raw),
             merchant = raw,
             sampleCount = 0   // 先占位，选完再补（要等所有记录数完）
         )

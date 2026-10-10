@@ -39,6 +39,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.data.canteen.CanteenGateway
+import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
 import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.dao.AHUCache
@@ -58,11 +60,16 @@ import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun Debug(
@@ -612,6 +619,93 @@ fun Debug(
                     Toast.makeText(context, "已清除缓存", Toast.LENGTH_SHORT).show()
                 }
             )
+        }
+
+        DebugSection(
+            title = "必吃榜上传自检",
+            subtitle = "走与真实上传完全相同的链路（拉近 30 天账单 → 正餐过滤 → 分批上传 → 挑补标注候选）。" +
+                "上传是静默的，失败只写 logcat，所以需要这个按钮给答案。",
+            cardColor = cardColor
+        ) {
+            var running by remember { mutableStateOf(false) }
+            var lines by remember { mutableStateOf(emptyList<String>()) }
+
+            DebugActionButton(
+                text = if (running) "上传中…" else "跑一次上传",
+                modifier = Modifier.fillMaxWidth(),
+                primary = true,
+                containerColor = primaryButtonColor,
+                onClick = {
+                    if (!running) {
+                        running = true
+                        lines = emptyList()
+                        scope.launch {
+                            val sync = withContext(Dispatchers.IO) {
+                                // 自检忽略「已处理的顿」，好让同一个候选能反复跑
+                                CanteenGateway.uploadRecentBills(handledMeals = emptySet())
+                            }
+                            lines = if (sync.ok) {
+                                listOf(
+                                    "① 拉账单：成功，${sync.fetched} 笔原始流水",
+                                    "② 正餐过滤后上传：${sync.uploaded} 笔，HTTP " +
+                                        if (sync.uploadOk) "成功" else "失败（看 logcat 状态码）",
+                                    "③ 补标注候选：" + (
+                                        sync.ask?.let {
+                                            "${it.terminal} · ${it.dayLabel}${it.dayPart} · ${it.canteen}"
+                                        } ?: "无（窗口都已收录，或 24h 内没有未收录正餐）"
+                                        ),
+                                    "结论：链路通。服务端是否真落库，去后台「上传链路监控」看你这条出口 IP 的包",
+                                )
+                            } else {
+                                listOf(
+                                    "① 拉账单：失败（原地重试 3 次仍失败）",
+                                    "结论：链路断了。先确认学习通已登录、网络可用；细节看 logcat 的 CanteenGateway",
+                                )
+                            }
+                            running = false
+                        }
+                    }
+                }
+            )
+
+            DebugActionButton(
+                text = "发一条测试上报（进后台待审，可拒绝）",
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    if (!running) {
+                        running = true
+                        lines = emptyList()
+                        scope.launch {
+                            val ts = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date())
+                            val probe = CanteenLabelCandidate(
+                                terminal = "__DEV_SELFTEST__",
+                                ts = ts,
+                                dayLabel = "今天",
+                                dayPart = "自检",
+                                amountCents = 0,
+                                canteen = "自检",
+                                floor = null,
+                                merchant = "开发者自检上报（可在后台拒绝）",
+                                sampleCount = 1
+                            )
+                            // 固定 token：同一个人反复自检不会把上报人数刷上去
+                            val ok = withContext(Dispatchers.IO) {
+                                CanteenGateway.reportWindow(probe, "自检窗口", "debug-selftest")
+                            }
+                            lines = listOf(
+                                if (ok) {
+                                    "测试上报成功（204）：后台「待审上报」里应能看到 __DEV_SELFTEST__，看完拒绝掉即可"
+                                } else {
+                                    "测试上报失败：多半是写入 key 没配或网络不通（看 logcat 状态码）"
+                                }
+                            )
+                            running = false
+                        }
+                    }
+                }
+            )
+
+            lines.forEach { DebugInfoRow(text = it) }
         }
 
         DebugSection(
