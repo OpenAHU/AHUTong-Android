@@ -962,7 +962,8 @@ private fun readableSuggestionBlockReason(value: String): String = when (value) 
     "HIGHER_PRIORITY_OFFER_ACTIVE" -> "已有更高优先级的建议正在处理"
     "WAITING_FOR_MODEL_RANKING" -> "多个合法候选正在等待模型排序"
     "NO_ORGANICALLY_ELIGIBLE_ACTION" -> "没有具备自然使用历史的安全候选"
-    "BELOW_CONFIDENCE_THRESHOLD" -> "候选概率未达到 30%"
+    "BELOW_CONFIDENCE_THRESHOLD" ->
+        "候选概率未达到 ${(SuggestionPolicy.ORDINARY_NEXT_ACTION_MIN_CONFIDENCE * 100).roundToInt()}%"
     "INSUFFICIENT_PROBABILITY_MARGIN" -> "候选领先优势不足 8 个百分点"
     "NON_SUGGESTIBLE_OUTPUT_DOMINATES" -> "模型更倾向于不展示或不可推荐动作"
     "CENSORED_UNTRACKED_OR_DEBUG_ROUTE" -> "进入调试或未跟踪页面，当前建议已取消"
