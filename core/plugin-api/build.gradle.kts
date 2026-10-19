@@ -1,16 +1,19 @@
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
     // 版本由根 build.gradle.kts 的插件别名统一提供。
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
+    id("maven-publish")
 }
 
 /*
  * 插件契约（plugin-api）：插件与宿主之间的唯一词汇表。
  *
- * 插件（feature 模块）只许依赖本模块 + :core:designsystem + :core:common；
- * 不许直接碰 app 内部实现、各 data 域、会话与凭据。
- * 本模块是叶子：不依赖任何业务模块。
+ * 方案 A（插件静态自带全部依赖）要求本模块**零第三方依赖**：
+ * 契约签名只允许 JDK / Android framework / 契约自身类型。
+ * 一旦这里 `api(...)` 了 okhttp / compose，插件的 POM 就会把它们带进来，
+ * 而插件自带的那一份与宿主那一份是不同的 Class —— 运行时必然炸。
  */
 android {
     namespace = "com.ahu.ahutong.core.plugin"
@@ -18,10 +21,6 @@ android {
 
     defaultConfig {
         minSdk = 26
-    }
-
-    buildFeatures {
-        compose = true
     }
 
     compileOptions {
@@ -32,12 +31,23 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+
+    publishing {
+        singleVariant("release")
+    }
 }
 
-dependencies {
-    // 契约里出现 OkHttpClient 类型（HTTP 端口），只引 API 不构造（R8 规则：构造只在 :core:network）
-    api(libs.okhttp)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation("androidx.compose.runtime:runtime")
-    implementation(libs.androidx.ui)
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                groupId = "com.ahu.ahutong"
+                artifactId = "plugin-api"
+                // 与 PLUGIN_API_LEVEL 同步维护：minor 对应 apiLevel
+                version = "1.0.0"
+                from(components["release"])
+            }
+        }
+        // 仓库由发布方注入（自建静态 Maven / GitHub Packages），密钥一律不入库
+    }
 }

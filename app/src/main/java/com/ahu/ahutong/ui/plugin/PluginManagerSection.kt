@@ -255,9 +255,14 @@ fun PluginManagerSection() {
     candidate?.let { c ->
         val signatureText = when (c.signatureStatus) {
             AhupInstaller.SignatureStatus.TRUSTED -> "✅ 该插件由官方开发"
+            AhupInstaller.SignatureStatus.KNOWN ->
+                "✅ 同一作者（已信任）· 指纹 ${c.manifest.signerFingerprint.take(16)}"
+            AhupInstaller.SignatureStatus.UNKNOWN ->
+                "⚠️ 新作者 · 指纹 ${c.manifest.signerFingerprint.take(16)}"
             AhupInstaller.SignatureStatus.UNSIGNED -> "⚠️ 未签名——仅安装你信任来源的插件包"
             AhupInstaller.SignatureStatus.INVALID -> "🚫 签名无效——包可能被篡改"
         }
+        val installBlocked = c.signerChanged
         AppDialog(
             title = "安装插件",
             onDismiss = { candidate = null },
@@ -269,14 +274,17 @@ fun PluginManagerSection() {
                     style = AppDialogActionStyle.Neutral
                 ),
                 AppDialogAction(
-                    label = "安装",
+                    label = if (installBlocked) "请先卸载旧版本" else "安装",
+                    enabled = !installBlocked,
                     onClick = {
                         AhupInstaller.install(context, c)
                         PluginRegistry.reload(context)
                         candidate = null
                         listTick++
                     },
-                    style = if (c.signatureStatus == AhupInstaller.SignatureStatus.INVALID) {
+                    style = if (c.signatureStatus == AhupInstaller.SignatureStatus.INVALID ||
+                        installBlocked
+                    ) {
                         AppDialogActionStyle.Danger
                     } else {
                         AppDialogActionStyle.Primary
@@ -292,6 +300,20 @@ fun PluginManagerSection() {
             )
             Spacer(Modifier.height(8.dp))
             Text("作者：${c.manifest.author}", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "API ${c.manifest.apiLevel} · SDK ${c.manifest.sdkVersion.ifBlank { "未标注" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (installBlocked) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "该插件已安装，但签名指纹与当前包不一致。为防冒名，请先卸载旧版本。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 "声明能力：${c.manifest.capabilities.ifEmpty { setOf("无") }.joinToString("、") { capabilityLabel(it) }}",

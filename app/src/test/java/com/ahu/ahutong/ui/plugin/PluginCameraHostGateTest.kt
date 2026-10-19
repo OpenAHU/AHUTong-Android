@@ -114,16 +114,18 @@ class PluginCameraHostGateTest {
     }
 
     @Test
-    fun signaturePayloadV1WithoutLibsAndV2WithLibs() {
-        val dex = ByteArray(16) { 1 }
+    fun signaturePayloadV3BindsContentAndIdentity() {
+        val apk = ByteArray(16) { 1 }
         val icon = ByteArray(8) { 2 }
-        val so1 = ByteArray(4) { 3 }
-        val so2 = ByteArray(4) { 4 }
-        val v2Payload = signaturePayload(dex, icon, mapOf("lib/arm64-v8a/b.so" to so2, "lib/arm64-v8a/a.so" to so1))
-        val expected = dex + icon + so1 + so2 // 按相对路径排序：a.so 在前
-        assertTrue(v2Payload.contentEquals(expected), "v2 载荷须按相对路径排序拼接 so")
-        val v1Payload = signaturePayload(dex, icon, emptyMap())
-        assertTrue(v1Payload.contentEquals(dex + icon), "v1 载荷 = dex + icon")
+        val payload = signaturePayloadV3(apk, icon, "p1", "1.0.0", "com.x.P")
+        val expected = apk + icon + "p1\n1.0.0\ncom.x.P".toByteArray(Charsets.UTF_8)
+        assertTrue(payload.contentEquals(expected), "v3 载荷 = apk + icon + id/version/entryClass")
+
+        val otherId = signaturePayloadV3(apk, icon, "p2", "1.0.0", "com.x.P")
+        assertTrue(!payload.contentEquals(otherId), "改 id 必须改变载荷（防覆盖他人插件）")
+
+        val otherVersion = signaturePayloadV3(apk, icon, "p1", "1.0.1", "com.x.P")
+        assertTrue(!payload.contentEquals(otherVersion), "改版本必须改变载荷")
     }
 
     @Test

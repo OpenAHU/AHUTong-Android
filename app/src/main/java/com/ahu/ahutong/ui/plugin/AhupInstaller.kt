@@ -4,32 +4,37 @@ import android.content.Context
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import com.ahu.ahutong.core.plugin.PLUGIN_API_LEVEL
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.security.MessageDigest
 import java.security.Signature
 import java.util.zip.ZipInputStream
 
 /**
- * .ahup 包的安装/校验/装载。
+ * .ahup v3 包的安装/校验/装载。
  *
  * 包格式（ZIP）：
- *   v1：manifest.json + plugin.dex + icon.png
- *   v2：额外可选原生库，位于 lib 下各 abi 目录的 .so 文件（如 OpenCV；由 zip 内容判定，manifest 不参与）
+ *   manifest.json
+ *   plugin.apk        —— 插件的 unsigned release APK（自带 dex/resources/assets/native lib）
+ *   icon.png
  *
- * 安全模型：签名是唯一闸门，签的是可执行体。
- *   v1 载荷 = sha256(dex + icon)
- *   v2 载荷 = sha256(dex + icon + lib 内全部 .so 按相对路径排序后逐一拼接)
- *   （.so 是可执行代码，不纳入信任链 = 给改包注入留门）
- * manifest.json 只是展示元数据（不参与签名，篡改了也无害——能力门控读的是已签名的
- * 插件代码里的 capabilities 声明，弹窗展示的以代码声明为准）。
- * 未签名/签名不符的包给强警告，由用户自担风险确认。
+ * 安全模型：
+ * - 签名载荷 = SHA-256(plugin.apk 字节 + icon 字节 + "id\nversion\nentryClass")
+ *   —— manifest 参与绑定，堵住"改 id 覆盖他人插件、读对方存储"。
+ * - 验签需要公钥，因此 manifest 必须携带 `signerCert`（Base64 X.509）；
+ *   `signerFingerprint` 是证书的 SHA-256，用于 TOFU 展示与"同一作者"判定。
+ * - 同 id 覆盖安装时指纹必须一致，否则拒绝（防冒名）。
+ *
+ * v1/v2 包（裸 plugin.dex）不再支持：旧契约是 `@Composable Entry`，新加载模型下无法渲染。
  */
 object AhupInstaller {
 
-    private const val DEX_FILE = "plugin.dex"
     private const val APK_FILE = "plugin.apk"
     private const val MANIFEST_FILE = "manifest.json"
+    private const val SIGNER_FILE = "signer.sha256"
     private const val LIB_PREFIX = "lib/"
+    private const val MAX_APK_BYTES = 32 * 1024 * 1024
 
     private fun pluginDir(context: Context, id: String): File =
         File(context.filesDir, "ahup/$id")
@@ -46,10 +51,15 @@ object AhupInstaller {
         AhupManifest.parse(File(pluginDir(context, id), MANIFEST_FILE).readText())
     }.getOrNull()
 
-    fun dexFile(context: Context, id: String): File = File(pluginDir(context, id), DEX_FILE)
     fun iconFile(context: Context, id: String, name: String): File = File(pluginDir(context, id), name)
 
-    /** 安装目录下本机可用的原生库搜索目录（v2 包装载用）；v1 包返回 null。 */
+    /** 已安装插件的签名指纹（TOFU 台账）；没有则 null。 */
+    fun installedFingerprint(context: Context, id: String): String? =
+        File(pluginDir(context, id), SIGNER_FILE)
+            .takeIf { it.isFile }
+            ?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** 安装目录下本机可用的原生库搜索目录；APK 内的 .so 由 [install] 解出。 */
     fun nativeLibDir(context: Context, id: String, supportedAbis: Array<String>): File? {
         val libRoot = File(pluginDir(context, id), LIB_PREFIX)
         if (!libRoot.isDirectory) return null
@@ -64,34 +74,60 @@ object AhupInstaller {
     fun inspect(context: Context, uri: Uri): AhupCandidate {
         val entries = readZip(context, uri)
         val manifestRaw = entries[MANIFEST_FILE]
-            ?: throw AhupException("包内缺少 manifest.json")
+            ?: throw AhupException("E_FORMAT：包内缺少 manifest.json")
         val manifest = AhupManifest.parse(manifestRaw.decodeToString())
-        val dex = entries[DEX_FILE] ?: throw AhupException("包内缺少 plugin.dex")
-        val icon = entries[manifest.iconFile] ?: throw AhupException("包内缺少 ${manifest.iconFile}")
-        val libs = entries.filterKeys { it.startsWith(LIB_PREFIX) && it.endsWith(".so") }
-        val signatureStatus = verifySignature(manifest, dex, icon, libs)
-        return AhupCandidate(manifest, manifestRaw, dex, icon, libs, signatureStatus)
+
+        if (manifest.format != AhupManifest.CURRENT_FORMAT) {
+            throw AhupException(
+                "E_FORMAT：该插件是旧格式（v${manifest.format}），当前版本不再支持，请用新版 SDK 重新打包"
+            )
+        }
+        if (manifest.apiLevel > PLUGIN_API_LEVEL) {
+            throw AhupException(
+                "E_API_LEVEL：该插件需要更新版本的安大通（需 API ${manifest.apiLevel}，当前 $PLUGIN_API_LEVEL）"
+            )
+        }
+
+        val apk = entries[APK_FILE] ?: throw AhupException("E_FORMAT：包内缺少 plugin.apk")
+        if (apk.size > MAX_APK_BYTES) throw AhupException("E_FORMAT：plugin.apk 过大")
+        val icon = entries[manifest.iconFile]
+            ?: throw AhupException("E_FORMAT：包内缺少 ${manifest.iconFile}")
+
+        val existing = installedFingerprint(context, manifest.id)
+        val incoming = manifest.signerFingerprint.takeIf { it.isNotBlank() }
+        val signerChanged = existing != null && incoming != null &&
+            !existing.equals(incoming, ignoreCase = true)
+        val status = verifySignature(manifest, apk, icon, existing)
+        return AhupCandidate(manifest, manifestRaw, apk, icon, status, signerChanged)
     }
 
-    /** 落盘安装（先 inspect 再装）。覆盖同 id 旧版本。 */
+    /** 落盘安装（先 inspect 再装）。同 id 旧版本覆盖。 */
     fun install(context: Context, candidate: AhupCandidate) {
-        val dir = pluginDir(context, candidate.manifest.id)
+        val manifest = candidate.manifest
+        val existing = installedFingerprint(context, manifest.id)
+        val incoming = manifest.signerFingerprint.takeIf { it.isNotBlank() }
+        if (existing != null && incoming != null && !existing.equals(incoming, ignoreCase = true)) {
+            throw AhupException("E_SIGNER_CHANGED：该插件签名指纹已变化，请先卸载旧版本")
+        }
+
+        val dir = pluginDir(context, manifest.id)
         dir.deleteRecursively()
         dir.mkdirs()
         File(dir, MANIFEST_FILE).writeBytes(candidate.manifestRaw)
-        File(dir, DEX_FILE).writeBytes(candidate.dex)
-        File(dir, candidate.manifest.iconFile).writeBytes(candidate.icon)
-        // Android 14+：动态加载的 dex 必须只读，否则 ClassLoader 拒载
-        File(dir, DEX_FILE).setReadOnly()
-        // v2：原生库按相对路径落盘（lib 下各 abi 目录的 .so）
-        candidate.libs.forEach { (path, bytes) ->
-            val out = File(dir, path)
-            out.parentFile?.mkdirs()
-            out.writeBytes(bytes)
-            out.setReadOnly()
-        }
-        Log.i(TAG, "插件已安装：${candidate.manifest.id} v${candidate.manifest.version}" +
-            (if (candidate.libs.isEmpty()) "" else "（含 ${candidate.libs.size} 个原生库）"))
+        File(dir, manifest.iconFile).writeBytes(candidate.icon)
+        val apk = File(dir, APK_FILE).apply { writeBytes(candidate.apk) }
+
+        // DexClassLoader 不会自动解 APK 内的 .so，必须自己落到 lib/<abi>/
+        extractNativeLibs(candidate.apk, dir)
+
+        // Android 14+：动态加载的代码必须只读
+        apk.setReadOnly()
+        incoming?.let { File(dir, SIGNER_FILE).writeText(it) }
+
+        Log.i(
+            TAG,
+            "插件已安装：${manifest.id} v${manifest.version}（format 3，API ${manifest.apiLevel}）"
+        )
     }
 
     fun uninstall(context: Context, id: String) {
@@ -100,40 +136,86 @@ object AhupInstaller {
 
     /* ---------------- 签名 ---------------- */
 
-    enum class SignatureStatus { TRUSTED, UNSIGNED, INVALID }
+    enum class SignatureStatus { TRUSTED, KNOWN, UNKNOWN, UNSIGNED, INVALID }
 
+    /**
+     * @param knownFingerprint 已安装版本的指纹（TOFU 比对用）；用于把"签名合法但不认识"
+     *        细分为 KNOWN（同一作者）/ UNKNOWN（新作者）。
+     */
     internal fun verifySignature(
         manifest: AhupManifest,
-        dex: ByteArray,
+        apk: ByteArray,
         icon: ByteArray,
-        libs: Map<String, ByteArray> = emptyMap()
+        knownFingerprint: String? = null
     ): SignatureStatus {
-        if (manifest.signature.isBlank()) return SignatureStatus.UNSIGNED
-        val pubkey = trustedPublicKey() ?: return SignatureStatus.UNSIGNED
-        return runCatching {
-            // 载荷由 zip 内容确定性判定：有 lib 即 v2，无则 v1（构造与测试共用 signaturePayload）
-            val digest = MessageDigest.getInstance("SHA-256").digest(signaturePayload(dex, icon, libs))
-            val sig = Signature.getInstance("SHA256withRSA")
-            // assets 里钉的是 X.509 证书（keytool -exportcert 产物），先解证书再取公钥
+        if (manifest.signature.isBlank() || manifest.signerCert.isBlank()) {
+            return SignatureStatus.UNSIGNED
+        }
+        return try {
             val cert = java.security.cert.CertificateFactory.getInstance("X.509")
-                .generateCertificate(Base64.decode(pubkey, Base64.DEFAULT).inputStream())
+                .generateCertificate(Base64.decode(manifest.signerCert, Base64.DEFAULT).inputStream())
+            val actualFingerprint = sha256Hex(cert.encoded)
+            if (!actualFingerprint.equals(manifest.signerFingerprint, ignoreCase = true)) {
+                return SignatureStatus.INVALID
+            }
+
+            val digest = MessageDigest.getInstance("SHA-256").digest(
+                signaturePayloadV3(
+                    apk = apk,
+                    icon = icon,
+                    id = manifest.id,
+                    version = manifest.version,
+                    entryClass = manifest.entryClass
+                )
+            )
+            val sig = Signature.getInstance("SHA256withRSA")
             sig.initVerify(cert.publicKey)
             sig.update(digest)
-            if (sig.verify(Base64.decode(manifest.signature, Base64.DEFAULT))) {
-                SignatureStatus.TRUSTED
-            } else {
-                SignatureStatus.INVALID
+            if (!sig.verify(Base64.decode(manifest.signature, Base64.DEFAULT))) {
+                return SignatureStatus.INVALID
             }
-        }.getOrDefault(SignatureStatus.INVALID)
+
+            when {
+                actualFingerprint.equals(trustedFingerprint(), ignoreCase = true) -> SignatureStatus.TRUSTED
+                knownFingerprint != null && actualFingerprint.equals(knownFingerprint, ignoreCase = true) ->
+                    SignatureStatus.KNOWN
+                else -> SignatureStatus.UNKNOWN
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "验签失败", e)
+            SignatureStatus.INVALID
+        }
     }
 
-    /** 钉死的团队公钥（assets/ahup_trusted_pubkey.txt，Base64 X509）。缺失 = 全部按未签名处理。 */
-    private fun trustedPublicKey(): String? = runCatching {
+    /** 钉死的团队证书指纹（assets/ahup_trusted_fingerprint.txt，hex）。缺失 = 没有官方信任项。 */
+    private fun trustedFingerprint(): String? = runCatching {
         com.ahu.ahutong.core.common.AppEnvironmentHolder.context().assets
-            .open("ahup_trusted_pubkey.txt").bufferedReader().readText().trim()
-    }.getOrNull()
+            .open("ahup_trusted_fingerprint.txt").bufferedReader().readText().trim()
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
 
     /* ---------------- 工具 ---------------- */
+
+    private fun extractNativeLibs(apkBytes: ByteArray, dir: File) {
+        ZipInputStream(ByteArrayInputStream(apkBytes)).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (!entry.isDirectory &&
+                    entry.name.startsWith(LIB_PREFIX) &&
+                    entry.name.endsWith(".so")
+                ) {
+                    val out = File(dir, entry.name)
+                    out.parentFile?.mkdirs()
+                    out.writeBytes(zip.readBytes())
+                    out.setReadOnly()
+                }
+                zip.closeEntry()
+            }
+        }
+    }
 
     private fun readZip(context: Context, uri: Uri): Map<String, ByteArray> {
         val out = mutableMapOf<String, ByteArray>()
@@ -160,27 +242,27 @@ object AhupInstaller {
     private const val TAG = "AhupInstaller"
 }
 
-/** inspect 的产出：落盘前的一切。manifestRaw 是包内原文（签名状态展示的凭据）；
- *  libs 是 lib 下各 abi 目录 .so 的相对路径到字节映射（v2 包才有，参与签名与落盘）。 */
+/** inspect 的产出：落盘前的一切。manifestRaw 是包内原文（签名状态展示的凭据）。 */
 class AhupCandidate(
     val manifest: AhupManifest,
     val manifestRaw: ByteArray,
-    val dex: ByteArray,
+    val apk: ByteArray,
     val icon: ByteArray,
-    val libs: Map<String, ByteArray> = emptyMap(),
-    val signatureStatus: AhupInstaller.SignatureStatus
+    val signatureStatus: AhupInstaller.SignatureStatus,
+    /** 同 id 已安装版本的指纹与包内不一致 → 安装按钮必须禁用，先卸载。 */
+    val signerChanged: Boolean
 )
 
 class AhupException(message: String) : Exception(message)
 
 /**
- * .ahup 签名载荷构造（v1/v2 由 zip 内容确定性判定，两端共用同一语义）：
- * v1（无 so）= dex + icon；v2（有 so）= dex + icon + 全部 .so 按相对路径排序后逐一拼接。
- * internal 化以便 JVM 单测直接验证拼接顺序。
+ * .ahup v3 签名载荷：plugin.apk + icon + 规范化绑定串（id / version / entryClass）。
+ * 绑定 manifest 身份，防止改 id 覆盖他人插件。
  */
-internal fun signaturePayload(dex: ByteArray, icon: ByteArray, libs: Map<String, ByteArray>): ByteArray {
-    if (libs.isEmpty()) return dex + icon
-    var acc = dex + icon
-    libs.keys.sorted().forEach { rel -> acc += libs.getValue(rel) }
-    return acc
-}
+internal fun signaturePayloadV3(
+    apk: ByteArray,
+    icon: ByteArray,
+    id: String,
+    version: String,
+    entryClass: String
+): ByteArray = apk + icon + "$id\n$version\n$entryClass".toByteArray(Charsets.UTF_8)
