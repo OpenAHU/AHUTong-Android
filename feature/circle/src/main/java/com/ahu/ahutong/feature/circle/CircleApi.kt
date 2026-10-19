@@ -1,68 +1,114 @@
 package com.ahu.ahutong.feature.circle
 
+import android.util.LruCache
+import com.ahu.ahutong.core.plugin.PluginHttpClient
+import com.ahu.ahutong.core.plugin.PluginHttpRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 校园圈子只读客户端：直连 BBS 官方公开接口，全程零鉴权。
+ * 校园圈子数据客户端（v0.2 两段式架构）。
  *
- * 请求头沿用 AHU Plus 观察到的该服务对小程序客户端的期望形态
- * （Tenant 标识学校租户；该服务未提供其他第三方接入方式）。
+ * ```
+ * ① 索引服务 /market/readonly/feed ─▶ 帖子 id 序列 + 签名游标（无鉴权）
+ * ② zxs-bbs 只读口按 id 直连        ─▶ 详情 / 评论 / 十大热帖（无鉴权）
+ * ```
  *
- * HTTP 入口是宿主提供的裸客户端（[OkHttpClient] 经契约传入），
- * 本类只在它上面叠自己的 Header 拦截器——不碰主 App 的任何会话。
+ * 背景（2026-10 实测）：zxs-bbs 已把列表接口纳入鉴权（401 token 为空），
+ * 但「按 ID 读详情 / 评论 / 热榜」三个口保持开放；索引服务把要鉴权的列表
+ * 转成免鉴权的 ID 序列，客户端全程零凭证可读（纪律：低频只读、不批量抓全站）。
+ *
+ * 防御式解析：列表/评论包裹层多形态兼容，字段多别名兜底（沿用 v0.1 策略）。
  */
-class CircleApi(baseClient: OkHttpClient) {
+class CircleApi(private val client: PluginHttpClient) {
 
-    private val client = baseClient.newBuilder()
-        .addInterceptor { chain ->
-            chain.proceed(
-                chain.request().newBuilder()
-                    .header("Tenant", TENANT)
-                    .header("xweb_xhr", "1")
-                    .header("Referer", MINI_PROGRAM_REFERER)
-                    .header("User-Agent", DESKTOP_UA)
-                    .build()
-            )
-        }
-        .build()
+    /** 详情按 id 幂等，缓存命中直接返回（借鉴 AHU Plus MarketReadOnlyCacheEntry 的策略）。 */
+    private val topicCache = object : LruCache<String, CircleTopic>(64) {}
 
-    /** 帖子列表（分页，页码从 1 开始）。 */
-    suspend fun fetchTopics(page: Int): CircleTopicPage = withContext(Dispatchers.IO) {
-        val json = getJson("$BASE/api/client/topics?page=$page&pageSize=$PAGE_SIZE")
-        val topics = extractArray(json).let { arr ->
-            (0 until arr.length()).mapNotNull { parseTopic(arr.optJSONObject(it)) }
+    /* ---------------- ① 索引服务 ---------------- */
+
+    /** 拉一页索引（cursor 为空取第一页）。 */
+    suspend fun feed(cursor: String?): CircleIndexPage = withContext(Dispatchers.IO) {
+        val query = buildString {
+            append("limit=").append(FEED_PAGE_SIZE)
+            cursor?.takeIf { it.isNotBlank() }?.let {
+                append("&cursor=").append(java.net.URLEncoder.encode(it, "UTF-8"))
+            }
         }
-        CircleTopicPage(topics = topics, page = page, hasMore = topics.size >= PAGE_SIZE)
+        val root = getJson("$INDEX_BASE/market/readonly/feed?$query")
+        val data = root.optJSONObject("data")
+            ?: throw CircleApiException("索引服务响应异常")
+        val ids = data.optJSONArray("ids")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i -> arr.optString(i).takeIf(String::isNotBlank) }
+        } ?: emptyList()
+        CircleIndexPage(
+            ids = ids,
+            nextCursor = data.optString("nextCursor").takeIf { it.isNotBlank() },
+            hasMore = data.optBoolean("hasMore", false),
+            sourceStatus = data.optString("sourceStatus")
+        )
     }
 
-    /** 帖子详情（只读端点）。 */
+    /* ---------------- ② zxs-bbs 只读口 ---------------- */
+
+    /** 帖子详情（只读端点，免 token；带 64 条 LRU 缓存）。 */
     suspend fun fetchTopicDetail(id: String): CircleTopic = withContext(Dispatchers.IO) {
-        val json = getJson("$BASE/api/client/topics/read_only/$id")
+        topicCache.get(id)?.let { return@withContext it }
+        val json = getJson("$BBS_BASE/api/client/topics/read_only/$id")
         val obj = extractObject(json)
-        parseTopic(obj) ?: throw CircleApiException("帖子详情解析失败")
+        val topic = parseTopic(obj) ?: throw CircleApiException("帖子详情解析失败")
+        topicCache.put(id, topic)
+        topic
     }
 
-    /** 评论列表。 */
-    suspend fun fetchComments(topicId: String): List<CircleComment> = withContext(Dispatchers.IO) {
-        val json = getJson("$BASE/api/client/comments?topic_id=$topicId&page=1&pageSize=100")
-        val arr = extractArray(json)
-        (0 until arr.length()).mapNotNull { parseComment(arr.optJSONObject(it)) }
+    /** 十大热帖（免 token，直接含正文；客户端自行缓存 5-10 分钟）。 */
+    suspend fun fetchHotTopics(): List<CircleTopic> = withContext(Dispatchers.IO) {
+        val json = getJson("$BBS_BASE/api/client/topics/top?school_id=$SCHOOL_ID")
+        val arr = json.optJSONArray("data") ?: JSONArray()
+        (0 until arr.length()).mapNotNull { parseTopic(arr.optJSONObject(it)) }
     }
+
+    /** 评论列表。服务端会重写 pageSize（实测固定 6），分页以 page 递增。 */
+    suspend fun fetchComments(topicId: String, page: Int): List<CircleComment> =
+        withContext(Dispatchers.IO) {
+            val json = getJson(
+                "$BBS_BASE/api/client/comments?topic_id=$topicId&page=$page&pageSize=$COMMENT_PAGE_SIZE"
+            )
+            val arr = extractCommentsArray(json)
+            (0 until arr.length()).mapNotNull { parseComment(arr.optJSONObject(it)) }
+        }
+
+    /* ---------------- 传输与解析 ---------------- */
 
     private fun getJson(url: String): JSONObject {
-        val request = Request.Builder().url(url).get().build()
-        client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw CircleApiException("HTTP ${response.code}")
-            return runCatching { JSONObject(body) }.getOrElse {
-                // 有的端点直接返回数组
-                throw CircleApiException("响应不是 JSON")
-            }
+        // 小程序伪装头只加给 zxs-bbs；索引服务是普通公开 HTTP，不带这些头
+        val headers = if (url.startsWith(BBS_BASE)) {
+            mapOf(
+                "Tenant" to TENANT,
+                "xweb_xhr" to "1",
+                "Referer" to MINI_PROGRAM_REFERER,
+                "User-Agent" to DESKTOP_UA
+            )
+        } else {
+            emptyMap()
+        }
+        val response = client.execute(
+            PluginHttpRequest(
+                method = "GET",
+                url = url,
+                headers = headers,
+                body = null,
+                connectTimeoutMs = 15_000,
+                readTimeoutMs = 30_000
+            )
+        )
+        val body = response.bodyText()
+        if (response.code !in 200..299) throw CircleApiException("HTTP ${response.code}")
+        return runCatching { JSONObject(body) }.getOrElse {
+            // 有的端点直接返回数组
+            throw CircleApiException("响应不是 JSON")
         }
     }
 
@@ -81,6 +127,12 @@ class CircleApi(baseClient: OkHttpClient) {
         return JSONArray()
     }
 
+    /** 评论包裹层：实测主形态 {data:{rows:[...]}}，其余沿用旧容错链。 */
+    private fun extractCommentsArray(root: JSONObject): JSONArray {
+        root.optJSONObject("data")?.optJSONArray("rows")?.let { return it }
+        return extractArray(root)
+    }
+
     private fun extractObject(root: JSONObject): JSONObject =
         root.optJSONObject("data") ?: root
 
@@ -88,22 +140,43 @@ class CircleApi(baseClient: OkHttpClient) {
         obj ?: return null
         val id = obj.optFirstString("id", "topic_id", "topicId") ?: return null
         val user = obj.optJSONObject("userInfo") ?: obj.optJSONObject("user")
+        // node 在只读口是字符串（"话题"/"新鲜事"），在包裹形态里可能是对象
+        val nodeName = when (val node = obj.opt("node")) {
+            is JSONObject -> node.optFirstString("name")
+            is String -> node.takeIf { it.isNotBlank() }
+            else -> null
+        } ?: obj.optFirstString("node_name", "nodeName") ?: ""
+        // 上游无标题帖统一写 "none"，展示层当空处理
+        val rawTitle = obj.optFirstString("title", "name") ?: ""
+        val title = if (rawTitle.equals("none", ignoreCase = true)) "" else rawTitle
+        val imageUrls = buildList {
+            obj.optJSONArray("imgs")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    arr.optString(i).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+            if (isEmpty()) {
+                // 有的形态把图片塞在 data 数组里（AHU Plus 模型：imgs 详情在 data 或 imgs）
+                obj.optJSONArray("data")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        arr.optString(i).takeIf { it.startsWith("http") }?.let(::add)
+                    }
+                }
+            }
+        }
         return CircleTopic(
             id = id,
-            title = obj.optFirstString("title", "name") ?: "",
+            title = title,
             content = obj.optFirstString("content", "text") ?: "",
-            nodeName = obj.optJSONObject("node")?.optFirstString("name")
-                ?: obj.optFirstString("node_name", "nodeName") ?: "",
+            nodeName = nodeName,
             authorName = user?.optFirstString("nickname", "name") ?: "匿名",
             commentCount = obj.optFirstInt("commentCount", "comment_count", "comments"),
-            likeCount = obj.optFirstInt("likeCount", "like_count", "likes"),
+            likeCount = obj.optFirstInt("likeCount", "like_count", "likes", "like"),
             viewCount = obj.optFirstInt("viewCount", "view_count", "views"),
             isAnon = obj.optFirstInt("is_anon", "isAnon") == 1,
             isTop = obj.optFirstInt("is_top", "isTop") == 1,
             createTime = obj.optFirstString("createTime", "create_time", "created_at") ?: "",
-            imageUrls = obj.optJSONArray("imgs")?.let { arr ->
-                (0 until arr.length()).mapNotNull { arr.optString(it).takeIf(String::isNotBlank) }
-            } ?: emptyList()
+            imageUrls = imageUrls
         )
     }
 
@@ -130,14 +203,24 @@ class CircleApi(baseClient: OkHttpClient) {
         } ?: 0
 
     companion object {
-        private const val BASE = "https://api.zxs-bbs.cn"
+        /** zxs-bbs 官方接口（详情/评论/热榜，只读口免 token）。 */
+        private const val BBS_BASE = "https://api.zxs-bbs.cn"
+
+        /** 索引服务（第三方聚合源，无鉴权；自建服务备案完成后可切换）。 */
+        private const val INDEX_BASE = "https://api.ahuplus.online"
+
+        private const val ZXS_BBS_HOST = "api.zxs-bbs.cn"
         private const val TENANT = "7" // 安徽大学租户号
+        private const val SCHOOL_ID = "10681" // 热榜参数用的学校编号
         private const val MINI_PROGRAM_REFERER =
             "https://servicewechat.com/wxc56be16e96fc1df1/66/page-frame.html"
         private const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        private const val PAGE_SIZE = 20
+        private const val FEED_PAGE_SIZE = 20
+
+        /** 服务端会把 pageSize 重写为 6（实测）；分页判断以该值为准。 */
+        const val COMMENT_PAGE_SIZE = 6
     }
 }
 

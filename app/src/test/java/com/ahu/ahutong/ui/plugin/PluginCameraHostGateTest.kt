@@ -35,11 +35,13 @@ class PluginCameraHostGateTest {
     ) : AhuPlugin {
         override val capabilities: Set<PluginCapability> get() = declared
 
-        /** 门控测试不渲染 UI，空实现满足契约即可。 */
-        @androidx.compose.runtime.Composable
-        override fun Entry(host: com.ahu.ahutong.core.plugin.PluginHostServices) {
-            // no-op
-        }
+        /** 门控测试不渲染 UI，调用即抛（测试不会渲染）。 */
+        override fun createContentView(
+            context: android.content.Context,
+            host: com.ahu.ahutong.core.plugin.PluginHostServices
+        ): android.view.View = throw UnsupportedOperationException("门控测试不渲染 UI")
+
+        override fun onDestroy() {}
     }
 
     private fun fakeMeta(id: String) = PluginMeta(
@@ -58,8 +60,25 @@ class PluginCameraHostGateTest {
         android.content.ContextWrapper(null)
     }
 
-    private fun hostOf(plugin: AhuPlugin): PluginHostServicesImpl =
-        PluginHostServicesImpl(fakeContext, plugin)
+    private fun hostOf(plugin: AhuPlugin, onClose: () -> Unit = {}): PluginHostServicesImpl =
+        PluginHostServicesImpl(
+            pluginContext = fakeContext,
+            plugin = plugin,
+            onClose = onClose,
+            themeTokensProvider = {
+                com.ahu.ahutong.core.plugin.PluginThemeTokens(
+                    isDark = false,
+                    primary = 0L,
+                    onPrimary = 0L,
+                    background = 0L,
+                    surface = 0L,
+                    onSurface = 0L,
+                    onSurfaceVariant = 0L,
+                    cornerRadiusDp = 0f,
+                    bodyFontSizeSp = 0f
+                )
+            }
+        )
 
     /* ---------------- §8 五条 ---------------- */
 
@@ -75,7 +94,7 @@ class PluginCameraHostGateTest {
     @Test
     fun pluginFilesDirRequiresStorageCapability() {
         val host = hostOf(FakePlugin(setOf(PluginCapability.NETWORK), fakeMeta("p1")))
-        assertFailsWith<PluginCapabilityDeniedException> { host.pluginFilesDir() }
+        assertFailsWith<PluginCapabilityDeniedException> { host.filesDir() }
     }
 
     @Test
@@ -90,7 +109,7 @@ class PluginCameraHostGateTest {
         val host = hostOf(FakePlugin(setOf(PluginCapability.PLUGIN_STORAGE), fakeMeta("doc_scan")))
         // Android stub 的 filesDir 不可用——隔离语义由上面的路径规则断言覆盖；
         // 这里只验证门控不再抛 PluginCapabilityDeniedException
-        val e = runCatching { host.pluginFilesDir() }.exceptionOrNull()
+        val e = runCatching { host.filesDir() }.exceptionOrNull()
         assertTrue(e !is PluginCapabilityDeniedException)
     }
 
@@ -131,7 +150,7 @@ class PluginCameraHostGateTest {
     fun closeInvokesHostCallbackWithoutCapabilityGate() {
         // 无任何能力声明的插件也能关闭自己——close 不属于任何能力门控
         var invoked = 0
-        val host = PluginHostServicesImpl(fakeContext, FakePlugin(emptySet(), fakeMeta("p1")), onClose = { invoked++ })
+        val host = hostOf(FakePlugin(emptySet(), fakeMeta("p1")), onClose = { invoked++ })
         host.close()
         assertEquals(1, invoked, "close() 必须触发宿主 onClose 回调（popBackStack）")
         host.close()

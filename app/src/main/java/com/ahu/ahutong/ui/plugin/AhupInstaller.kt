@@ -27,15 +27,19 @@ import java.util.zip.ZipInputStream
 object AhupInstaller {
 
     private const val DEX_FILE = "plugin.dex"
+    private const val APK_FILE = "plugin.apk"
     private const val MANIFEST_FILE = "manifest.json"
     private const val LIB_PREFIX = "lib/"
 
     private fun pluginDir(context: Context, id: String): File =
         File(context.filesDir, "ahup/$id")
 
+    /** 方案 A 的载荷：插件自带的 unsigned release APK。 */
+    fun apkFile(context: Context, id: String): File = File(pluginDir(context, id), APK_FILE)
+
     fun installedIds(context: Context): List<String> =
         File(context.filesDir, "ahup").listFiles()?.filter {
-            File(it, DEX_FILE).exists() && File(it, MANIFEST_FILE).exists()
+            File(it, MANIFEST_FILE).exists()
         }?.map { it.name }.orEmpty()
 
     fun manifestOf(context: Context, id: String): AhupManifest? = runCatching {

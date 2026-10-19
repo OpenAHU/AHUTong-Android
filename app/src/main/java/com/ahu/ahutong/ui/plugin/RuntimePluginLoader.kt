@@ -6,22 +6,27 @@ import android.util.Log
 import com.ahu.ahutong.core.plugin.AhuPlugin
 import com.ahu.ahutong.core.plugin.PluginIcon
 import com.ahu.ahutong.core.plugin.PluginMeta
-import dalvik.system.DexClassLoader
-import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 运行期插件装载：DexClassLoader 载入 .ahup 的 dex，实例化入口类。
+ * 运行期插件装载（方案 A）。
  *
- * 类解析次序：插件自己的类 → 插件 dex；宿主类（Compose/设计系统/契约/okhttp）
- * → 父 ClassLoader（即宿主 APK）。插件 dex 只打自己的类，宿主侧类全部共享。
+ * 每个插件一个 [PluginClassLoader]（契约 parent-only，其余 child-first）+ 一个独立的
+ * [PluginResources] / [PluginContextWrapper]。插件 APK 里的资源、assets、原生库都指向它自己。
+ *
+ * v1/v2 包（裸 plugin.dex）不再支持：旧契约是 `@Composable Entry`，在新加载模型下无法渲染。
  */
 object RuntimePluginLoader {
 
-    /** 最近一次装载失败的「id: 原因」——给设置页/插件区排障展示（本机日志级别不可靠）。 */
+    /** 最近一次装载失败的「id: 原因」——给插件区排障展示（本机日志级别不可靠）。 */
     val lastErrors = mutableListOf<String>()
+
+    /** 已装载插件的上下文（路由渲染时要传给 createContentView）。 */
+    private val pluginContexts = ConcurrentHashMap<String, PluginContextWrapper>()
 
     fun loadAll(context: Context): List<AhuPlugin> {
         lastErrors.clear()
+        pluginContexts.clear()
         return AhupInstaller.installedIds(context).mapNotNull { id ->
             runCatching { load(context, id) }
                 .onFailure {
@@ -34,22 +39,42 @@ object RuntimePluginLoader {
         }
     }
 
+    /** 插件专属 Context；内置插件（无插件包）返回 null，由调用方回退到宿主 Context。 */
+    fun contextFor(id: String): Context? = pluginContexts[id]
+
     private fun load(context: Context, id: String): AhuPlugin {
         val manifest = AhupInstaller.manifestOf(context, id)
             ?: throw AhupException("插件 $id 缺少 manifest")
-        val dex = AhupInstaller.dexFile(context, id)
-        // v2 包：按 SUPPORTED_ABIS 顺序取第一个存在的 lib/<abi>/ 目录作原生库搜索路径，
-        // 插件内 System.loadLibrary("opencv_java4") / OpenCVLoader.initLocal() 才能找到库
+        val apk = AhupInstaller.apkFile(context, id)
+        if (!apk.isFile) {
+            throw AhupException("插件 $id 是旧格式（v1/v2），当前版本不再支持，请用新版 SDK 重新打包")
+        }
+
+        // 按 SUPPORTED_ABIS 顺序取第一个存在的 lib/<abi>/ 目录；APK 内的 .so 由安装器解出
         val libDir = AhupInstaller.nativeLibDir(context, id, Build.SUPPORTED_ABIS)
-        val loader = DexClassLoader(
-            dex.absolutePath,
-            null, // 优化目录由系统托管（Android 8+ 推荐 null）
-            libDir?.absolutePath,
-            context.classLoader
+        val classLoader = PluginClassLoader(
+            apkPath = apk.absolutePath,
+            nativeLibDir = libDir?.absolutePath,
+            parent = context.classLoader
         )
-        val clazz = loader.loadClass(manifest.entryClass)
+        val resources = PluginResources.create(
+            apkPath = apk.absolutePath,
+            metrics = context.resources.displayMetrics,
+            config = context.resources.configuration
+        )
+        val pluginContext = PluginContextWrapper(
+            base = context.applicationContext,
+            pluginId = id,
+            pluginResources = resources,
+            pluginClassLoader = classLoader
+        )
+        pluginContexts[id] = pluginContext
+
+        val clazz = classLoader.loadClass(manifest.entryClass)
         val instance = clazz.getDeclaredConstructor().newInstance()
-        require(instance is AhuPlugin) { "${manifest.entryClass} 未实现 AhuPlugin" }
+        if (instance !is AhuPlugin) {
+            throw AhupException("${manifest.entryClass} 未实现 AhuPlugin")
+        }
 
         val iconBytes = AhupInstaller.iconFile(context, id, manifest.iconFile).readBytes()
         // 用包内图标与清单元数据覆写插件自述（图标在运行期包里没有 R 资源可用）
@@ -72,7 +97,7 @@ object RuntimePluginLoader {
     private const val TAG = "RuntimePluginLoader"
 }
 
-/** 运行期插件包装：代码用 dex 里的，入口元数据以包内 manifest 为准（图标走字节流）。 */
+/** 运行期插件包装：代码用插件 APK 里的，入口元数据以包内 manifest 为准（图标走字节流）。 */
 private class RuntimePluginWrapper(
     private val delegate: AhuPlugin,
     private val metaOverride: PluginMeta

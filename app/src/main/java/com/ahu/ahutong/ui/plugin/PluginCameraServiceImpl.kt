@@ -45,8 +45,8 @@ class PluginCameraServiceImpl(
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
-    override fun requestPermission(onResult: (granted: Boolean) -> Unit) {
-        PluginHostLauncherHub.requestCameraPermission(onResult)
+    override fun requestPermission(callback: com.ahu.ahutong.core.plugin.PluginBooleanCallback) {
+        PluginHostLauncherHub.requestCameraPermission { granted -> callback.onResult(granted) }
     }
 
     override fun createPreviewView(): View = PreviewView(context).apply {
@@ -56,7 +56,7 @@ class PluginCameraServiceImpl(
 
     override fun startSession(
         previewView: View,
-        analyzer: ((Bitmap) -> Unit)?
+        analyzer: com.ahu.ahutong.core.plugin.PluginBitmapConsumer?
     ): PluginCameraService.CameraSession {
         val preview = Preview.Builder().build().apply {
             setSurfaceProvider((previewView as PreviewView).surfaceProvider)
@@ -64,7 +64,7 @@ class PluginCameraServiceImpl(
         val imageCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
             .build()
-        val imageAnalysis = analyzer?.let { callback ->
+        val imageAnalysis = analyzer?.let { consumer ->
             ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
@@ -72,7 +72,7 @@ class PluginCameraServiceImpl(
                     setAnalyzer(analysisExecutor) { proxy ->
                         try {
                             val bitmap = proxy.toBitmap()?.downsample(ANALYSIS_SHORT_SIDE)
-                            if (bitmap != null) callback(bitmap)
+                            if (bitmap != null) consumer.onBitmap(bitmap)
                         } finally {
                             proxy.close()
                         }
@@ -107,7 +107,7 @@ internal class CameraSessionImpl(
     private val imageAnalysis: ImageAnalysis?
 ) : PluginCameraService.CameraSession {
 
-    override fun capture(onResult: (Result<Bitmap>) -> Unit) {
+    override fun capture(callback: com.ahu.ahutong.core.plugin.PluginBitmapCallback) {
         val main = ContextCompat.getMainExecutor(context)
         imageCapture.takePicture(
             main,
@@ -116,12 +116,12 @@ internal class CameraSessionImpl(
                     try {
                         val bitmap = image.toBitmap()?.rotate(image.imageInfo.rotationDegrees)
                         if (bitmap != null) {
-                            onResult(Result.success(bitmap))
+                            callback.onSuccess(bitmap)
                         } else {
-                            onResult(Result.failure(IllegalStateException("拍照解码失败")))
+                            callback.onError("拍照解码失败")
                         }
                     } catch (t: Throwable) {
-                        onResult(Result.failure(t))
+                        callback.onError(t.message ?: t.javaClass.simpleName)
                     } finally {
                         image.close()
                     }
@@ -129,7 +129,7 @@ internal class CameraSessionImpl(
 
                 override fun onError(exception: ImageCaptureException) {
                     Log.w(TAG, "拍照失败", exception)
-                    onResult(Result.failure(exception))
+                    callback.onError(exception.message ?: "拍照失败")
                 }
             }
         )

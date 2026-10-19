@@ -36,7 +36,11 @@ object AhupGate {
  * 供 AhupGate.uninstallAll 与管理页单个卸载共用同一清理路径。
  */
 internal fun cleanupPluginData(context: Context, pluginId: String) {
-    context.getSharedPreferences("plugin_$pluginId", Context.MODE_PRIVATE)
-        .edit().clear().apply()
+    // 插件通过 PluginContextWrapper 拿到的偏好文件名为 plugin_<id>__<name>，
+    // 旧版则是单个 plugin_<id>.xml —— 两种前缀一起清，避免卸载后残留。
+    val prefsDir = File(context.filesDir.parentFile, "shared_prefs")
+    prefsDir.listFiles()
+        ?.filter { it.name.startsWith("plugin_${pluginId}") }
+        ?.forEach { it.delete() }
     File(context.filesDir, "ahup_plugins/$pluginId").deleteRecursively()
 }

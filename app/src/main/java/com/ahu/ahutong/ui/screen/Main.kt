@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -536,14 +537,60 @@ fun Main(
                 val pluginId = backStackEntry.arguments?.getString("pluginId").orEmpty()
                 val plugin = plugins.firstOrNull { it.meta.id == pluginId }
                 if (plugin != null) {
-                    val host = remember(pluginId) {
-                        com.ahu.ahutong.ui.plugin.PluginHostServicesImpl(
-                            context,
-                            plugin,
-                            onClose = { navController.popBackStack() }
+                    // 契约 v3：UI 边界是 View（插件自带 Compose 时 Composable 跨不了类加载器）
+                    val scheme = MaterialTheme.colorScheme
+                    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+                    val tokens = remember(scheme, dark) {
+                        com.ahu.ahutong.core.plugin.PluginThemeTokens(
+                            isDark = dark,
+                            primary = scheme.primary.toArgb().toLong() and 0xFFFFFFFFL,
+                            onPrimary = scheme.onPrimary.toArgb().toLong() and 0xFFFFFFFFL,
+                            background = scheme.background.toArgb().toLong() and 0xFFFFFFFFL,
+                            surface = scheme.surface.toArgb().toLong() and 0xFFFFFFFFL,
+                            onSurface = scheme.onSurface.toArgb().toLong() and 0xFFFFFFFFL,
+                            onSurfaceVariant = scheme.onSurfaceVariant.toArgb().toLong() and 0xFFFFFFFFL,
+                            cornerRadiusDp = 28f,
+                            bodyFontSizeSp = 14f
                         )
                     }
-                    plugin.Entry(host)
+                    val pluginContext = remember(pluginId) {
+                        com.ahu.ahutong.ui.plugin.RuntimePluginLoader.contextFor(pluginId) ?: context
+                    }
+                    val host = remember(pluginId, pluginContext) {
+                        com.ahu.ahutong.ui.plugin.PluginHostServicesImpl(
+                            pluginContext = pluginContext,
+                            plugin = plugin,
+                            onClose = { navController.popBackStack() },
+                            themeTokensProvider = { tokens }
+                        )
+                    }
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { viewContext ->
+                            runCatching {
+                                plugin.createContentView(pluginContext, host)
+                            }.onFailure {
+                                android.util.Log.e("PluginRoute", "创建插件视图失败：$pluginId", it)
+                            }.getOrElse {
+                                android.widget.TextView(viewContext).apply {
+                                    text = "插件渲染失败：$pluginId"
+                                    setPadding(72, 72, 72, 72)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        onRelease = { plugin.onDestroy() }
+                    )
+                    BackHandler(enabled = true) {
+                        if (!host.dispatchBack()) navController.popBackStack()
+                    }
+                    androidx.compose.runtime.DisposableEffect(pluginId) {
+                        host.dispatchStart()
+                        host.dispatchResume()
+                        onDispose {
+                            host.dispatchPause()
+                            host.dispatchStop()
+                        }
+                    }
                 } else {
                     Text(
                         text = "插件未安装或已卸载",

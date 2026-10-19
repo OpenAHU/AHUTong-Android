@@ -1,53 +1,79 @@
 package com.ahu.ahutong.ui.plugin
 
 import android.content.Context
-import android.net.Uri
 import com.ahu.ahutong.core.plugin.AhuPlugin
+import com.ahu.ahutong.core.plugin.PluginBitmapConsumer
 import com.ahu.ahutong.core.plugin.PluginCameraService
 import com.ahu.ahutong.core.plugin.PluginCapability
 import com.ahu.ahutong.core.plugin.PluginCapabilityDeniedException
 import com.ahu.ahutong.core.plugin.PluginHostServices
-import com.ahu.ahutong.core.plugin.PluginHostV2
+import com.ahu.ahutong.core.plugin.PluginHttpClient
+import com.ahu.ahutong.core.plugin.PluginHttpRequest
+import com.ahu.ahutong.core.plugin.PluginHttpResponse
+import com.ahu.ahutong.core.plugin.PluginLifecycle
+import com.ahu.ahutong.core.plugin.PluginLifecycleObserver
 import com.ahu.ahutong.core.plugin.PluginStorage
+import com.ahu.ahutong.core.plugin.PluginThemeTokens
+import com.ahu.ahutong.core.plugin.PluginUriCallback
 import com.ahu.ahutong.data.network.AhuHttp
-import okhttp3.OkHttpClient
 import java.io.File
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * 宿主能力实现：插件拿到的一切都经过这里。
+ * 宿主能力实现（契约 v3）：插件拿到的一切都经过这里。
  *
- * - HTTP：AhuHttp.plain() 的裸客户端——无 CookieJar、无自动登录、无全局拦截器，
- *   插件顺不走主 App 的任何登录态（教务/一卡通/学习通）。
- * - 存储：SharedPreferences 命名空间 plugin_<id>，插件间互不可见；
- *   未声明 PLUGIN_STORAGE 的插件调用即拒。
- * - 相机（PluginHostV2）：宿主持有 CAMERA 权限并统一处理运行时授权；
- *   未声明 CAMERA 的插件调用 camera() 即拒。插件用 `host is PluginHostV2` 探测旧宿主。
- * - 二进制文件目录（PluginHostV2）：filesDir/ahup_plugins/<id>/，卸载连带清理。
- * - Photo Picker（PluginHostV2）：零权限系统照片选择器，无门控。
+ * - HTTP：AhuHttp.plain() 的裸客户端——无 CookieJar、无自动登录、无全局拦截器。
+ * - 存储/文件：走 [PluginContextWrapper]（插件隔离目录 + `plugin_<id>__<name>` 偏好）。
+ * - 相机：宿主持有 CAMERA 权限并统一处理运行时授权；未声明 CAMERA 调用即拒。
+ * - 生命周期：宿主路由驱动 [dispatchStart] 等，插件只注册观察者。
  */
 class PluginHostServicesImpl(
-    override val appContext: Context,
+    override val pluginContext: Context,
     private val plugin: AhuPlugin,
-    private val onClose: () -> Unit = {}
-) : PluginHostServices, PluginHostV2 {
+    private val onClose: () -> Unit,
+    private val themeTokensProvider: () -> PluginThemeTokens
+) : PluginHostServices {
 
     private val httpClient: OkHttpClient by lazy {
-        ensure(PluginCapability.NETWORK)
         AhuHttp.plain().build()
     }
 
     private val pluginStorage: PluginStorage by lazy {
-        SharedPrefsPluginStorage(appContext, plugin.meta.id)
+        SharedPrefsPluginStorage(pluginContext)
     }
 
     private val cameraService: PluginCameraService by lazy {
-        ensure(PluginCapability.CAMERA)
-        PluginCameraServiceImpl(appContext)
+        PluginCameraServiceImpl(pluginContext)
     }
 
-    override fun http(): OkHttpClient {
+    private val lifecycleImpl = PluginLifecycleImpl()
+
+    override fun http(): PluginHttpClient {
         ensure(PluginCapability.NETWORK)
-        return httpClient
+        return object : PluginHttpClient {
+            override fun execute(request: PluginHttpRequest): PluginHttpResponse {
+                val body = request.body?.toRequestBody(JSON_MEDIA_TYPE)
+                val builder = Request.Builder().url(request.url)
+                request.headers.forEach { (k, v) -> builder.header(k, v) }
+                val response = httpClient
+                    .newBuilder()
+                    .connectTimeout(request.connectTimeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .readTimeout(request.readTimeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                    .build()
+                    .newCall(builder.method(request.method, body).build())
+                    .execute()
+                return response.use {
+                    PluginHttpResponse(
+                        code = it.code,
+                        headers = it.headers.toMultimap(),
+                        body = it.body?.bytes() ?: ByteArray(0)
+                    )
+                }
+            }
+        }
     }
 
     override fun storage(): PluginStorage {
@@ -55,37 +81,68 @@ class PluginHostServicesImpl(
         return pluginStorage
     }
 
-    /* ---------------- PluginHostV2 ---------------- */
+    override fun filesDir(): File {
+        ensure(PluginCapability.PLUGIN_STORAGE)
+        return pluginContext.filesDir
+    }
 
     override fun camera(): PluginCameraService {
         ensure(PluginCapability.CAMERA)
         return cameraService
     }
 
-    override fun pluginFilesDir(): File {
-        ensure(PluginCapability.PLUGIN_STORAGE)
-        return File(appContext.filesDir, "ahup_plugins/${plugin.meta.id}").apply { mkdirs() }
-    }
-
-    override fun pickImage(onResult: (Uri?) -> Unit) {
-        // Photo Picker 零权限，无门控
-        PluginHostLauncherHub.pickImage(onResult)
+    override fun pickImage(callback: PluginUriCallback) {
+        PluginHostLauncherHub.pickImage { uri -> callback.onResult(uri) }
     }
 
     override fun close() {
         onClose()
     }
 
+    override val lifecycle: PluginLifecycle get() = lifecycleImpl
+
+    override fun themeTokens(): PluginThemeTokens = themeTokensProvider()
+
+    /* ---------------- 路由驱动 ---------------- */
+
+    fun dispatchStart() = lifecycleImpl.dispatch { it.onStart() }
+    fun dispatchResume() = lifecycleImpl.dispatch { it.onResume() }
+    fun dispatchPause() = lifecycleImpl.dispatch { it.onPause() }
+    fun dispatchStop() = lifecycleImpl.dispatch { it.onStop() }
+
+    /** 返回 true 表示插件消费了返回键，宿主不再 pop。 */
+    fun dispatchBack(): Boolean = lifecycleImpl.observers.any { it.onBackPressed() }
+
     private fun ensure(capability: PluginCapability) {
         if (capability !in plugin.capabilities) {
             throw PluginCapabilityDeniedException(capability, plugin.meta.id)
         }
     }
+
+    private companion object {
+        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    }
 }
 
-/** SharedPreferences 实现的插件隔离存储。 */
-private class SharedPrefsPluginStorage(context: Context, pluginId: String) : PluginStorage {
-    private val prefs = context.getSharedPreferences("plugin_$pluginId", Context.MODE_PRIVATE)
+private class PluginLifecycleImpl : PluginLifecycle {
+    val observers = LinkedHashSet<PluginLifecycleObserver>()
+
+    override fun addObserver(observer: PluginLifecycleObserver) {
+        observers.add(observer)
+    }
+
+    override fun removeObserver(observer: PluginLifecycleObserver) {
+        observers.remove(observer)
+    }
+
+    fun dispatch(action: (PluginLifecycleObserver) -> Unit) {
+        observers.toList().forEach { runCatching { action(it) } }
+    }
+}
+
+/** 插件隔离 KV：文件由 PluginContextWrapper 命名空间化为 `plugin_<id>__storage`。 */
+private class SharedPrefsPluginStorage(context: Context) : PluginStorage {
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     override fun getString(key: String): String? = prefs.getString(key, null)
     override fun getLong(key: String): Long? = if (prefs.contains(key)) prefs.getLong(key, 0) else null
@@ -102,5 +159,9 @@ private class SharedPrefsPluginStorage(context: Context, pluginId: String) : Plu
 
     override fun clear() {
         prefs.edit().clear().apply()
+    }
+
+    private companion object {
+        const val PREFS_NAME = "storage"
     }
 }

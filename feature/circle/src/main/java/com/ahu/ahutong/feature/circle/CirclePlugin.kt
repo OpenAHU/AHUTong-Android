@@ -18,12 +18,12 @@ class CirclePlugin : AhuPlugin {
     override val meta = PluginMeta(
         id = "campus_circle",
         title = "校园圈子",
-        summary = "安大 BBS 只读浏览",
+        summary = "安大 BBS 信息流与热榜（只读）",
         // 运行期装载时图标以包内 icon.png 为准（装载器覆写）；R 资源不进 dex，
         // 这里只能给占位值——运行期插件严禁引用 R（AAR 的 classes.jar 不含 R.class）
         icon = PluginIcon.Resource(0),
         tint = 0xFF5C6BC0, // 靛蓝，与现有小工具配色同族
-        version = "0.1.0",
+        version = "0.2.0",
         author = "AHUTong"
     )
 
@@ -32,8 +32,14 @@ class CirclePlugin : AhuPlugin {
         PluginCapability.PLUGIN_STORAGE
     )
 
-    @Composable
-    override fun Entry(host: PluginHostServices) {
-        CircleRoot(host)
-    }
+    /**
+     * 契约 v3：UI 边界是 View。内置插件与宿主共用同一份 Compose（同一个类加载器），
+     * 所以这里直接用 ComposeView 承载；运行期插件则会拿到自己的 Compose。
+     */
+    override fun createContentView(context: android.content.Context, host: PluginHostServices): android.view.View =
+        androidx.compose.ui.platform.ComposeView(context).apply {
+            setContent { CircleRoot(host) }
+        }
+
+    override fun onDestroy() {}
 }
