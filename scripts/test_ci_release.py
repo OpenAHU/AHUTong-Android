@@ -17,6 +17,21 @@ def release(name, code):
     return {"version_name": name, "version_code": code}
 
 
+class DeployRootTest(unittest.TestCase):
+    def test_literal_absolute_directories_are_preserved(self):
+        for root in ("/srv/releases/static", "/opt/app-1.2/update_root", "/srv/.updates"):
+            with self.subTest(root=root):
+                self.assertEqual(root, ci_release.validate_deploy_root(root))
+
+    def test_root_traversal_shell_and_scp_metacharacters_are_rejected(self):
+        for root in (None, "", "/", "relative/path", "/srv/releases/", "/srv//releases", "/srv/./releases",
+                     "/srv/../releases", "/srv/a b", "/srv/a\nb", "/srv/a\r", "/srv/更新",
+                     "/srv/$(id)", "/srv/`id`", "/srv/a;id", "/srv/a'b", '/srv/a"b',
+                     "/srv/a:b", "/srv/*", "/srv/a\\b", "/srv/a\t"):
+            with self.subTest(root=root), self.assertRaisesRegex(ValueError, "DEPLOY_ROOT"):
+                ci_release.validate_deploy_root(root)
+
+
 class PlanningTest(unittest.TestCase):
     def test_version_table(self):
         cases = [

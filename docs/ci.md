@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `checks.yml` / Code checks | 提交、PR、手动；也供发布复用 | diff/凭据检查、发布脚本测试、Rust 测试与 Clippy、Android 单测、Release lint |
 | `build.yml` / Build APKs | 提交、PR、手动 | 编译固定 SDK 子模块的 Android SO，构建 Debug 与无签名 Release，核对 SO 来源和 R8 UUID，归档 APK/mapping |
-| `publish.yml` / Publish release | 仅手动 `workflow_dispatch` | 通过完整检查后，计算版本、签名、上传 mapping、发布服务器、记录 Sentry release/deploy |
+| `publish.yml` / 发布版本 | 仅手动 `workflow_dispatch` | 通过完整检查后，计算版本、签名、上传 mapping、发布服务器、记录 Sentry release/deploy |
 
 同仓库分支已有 PR 时，自动流程优先检查 PR merge commit，避免 push/PR 重复运行。新提交取消该分支旧的自动检查/构建；发布流程跨两个渠道串行，不取消正在发布的版本。工具链和缓存配置集中在 `.github/actions/setup-android/action.yml`，第三方 Actions 固定提交 SHA。PR 不读取发布 Secrets。外部 fork PR 缓存只读；同仓库 PR 可保存其隔离的缓存，便于后续提交复用编译结果。Gradle 启用 build cache；单测与 Release lint 按顺序执行，先取得测试结论，再进行 Release 分析。
 
@@ -14,19 +14,30 @@
 
 ## 发布输入和版本规则
 
-在 Actions → Publish release → Run workflow 选择源分支和以下输入。GitHub 要求此 workflow 文件先存在于仓库默认分支，才提供手动入口；仅放在 develop 时尚不能从默认分支界面启动。
+在 Actions → 发布版本 → Run workflow 选择源分支和以下输入。GitHub 要求此 workflow 文件先存在于仓库默认分支，才提供手动入口；仅放在 develop 时尚不能从默认分支界面启动。要显示中文表单和选项，默认分支也需要包含本次表单修改。
 
 | 输入 | 说明 |
 | --- | --- |
-| `change` | `major` / `minor` / `patch` / `test`；默认 `test` |
+| `change` | 中文下拉框显示版本号的递增规则，默认选中测试版；脚本仍接收 `major` / `minor` / `patch` / `test` |
 | `changelog` | 必填更新说明，支持实际换行，也可输入字面 `\n` 分行 |
 | `force` | 是否强制更新，默认 `false` |
+
+下拉框以正式版 `x.y.z` 为基准提示以下规则。若本地已预置更高目标版本，则使用该目标，不重复递增。
+
+| 选项 | 版本规则 | 正式版为 `3.4.2` 时的示例 |
+| --- | --- | --- |
+| `major` 主版本 | `x+1`，`y=0`，`z=0` | `4.0.0` |
+| `minor` 次版本 | `y+1`，`z=0` | `3.5.0` |
+| `patch` 修订版 | `z+1`；对应测试版转正式时不再加一次 | `3.4.3` |
+| `test` 测试版 | 下个修订版加 `-betaN`，首次 `N=1`，同一目标后续 `N+1` | `3.4.3-beta1`；已有 beta2 则为 beta3 |
+
+通过 GitHub API 手动触发时仍可传入裸值 `major` / `minor` / `patch` / `test`；表单值会在传给规划脚本前提取相同的英文前缀。版本计算、渠道与部署顺序不变。
 
 从本地 Gradle 默认版本、服务器正式与 preview 元数据计算 `versionCode=max(三个渠道/本地的值)+1`，不按版本字符串拼接数字，且不超过 Android 的 2100000000 上限。版本规划文件和实际 APK 身份均归档，不自动提交版本改动回 Git。
 
 以正式版 `3.4.2` 为例：major → `4.0.0`，minor → `3.5.0`，patch → `3.4.3`，test → `3.4.3-beta1`。相同目标已有 beta2 时，下一次 test 为 beta3；正式 patch 晋升为 `3.4.3`，不会跳到 `3.4.4`。本地版本若已高于服务器正式版，视为已准备的目标，避免重复递增。不同目标的 preview 仍参与版本码最大值计算。
 
-test 发布到 `/www/openahu.org/update/static/preview/`，其他三种发布到 `/www/openahu.org/update/static/`。两渠道均构建 Release，包名 `com.ahu.ahutong`、生产签名一致，以支持互相覆盖安装。不会用 `.debug` 包作为 preview，也不更改独立 SO 下载端点的 `libahutong_rs.so` / `so_version.txt`。
+服务器目录从 Secret `DEPLOY_ROOT` 读取：test 发布到 `$DEPLOY_ROOT/preview/`，其他三种发布到 `$DEPLOY_ROOT/`。只配置正式版根目录，不能把 preview 目录填作根目录；preview 子目录由脚本自动选择。两渠道均构建 Release，包名 `com.ahu.ahutong`、生产签名一致，以支持互相覆盖安装。不会用 `.debug` 包作为 preview，也不更改独立 SO 下载端点的 `libahutong_rs.so` / `so_version.txt`。
 
 历史服务器版本名 `X.Y.Z-debugN`、`X.Y.Z-release-betaN` 只作为规划输入，延续其测试序号；新计划一律输出 `X.Y.Z-betaN`。旧命名的计划不能直接改写元数据，须重新规划和构建，保证 APK 内嵌版本一致。2026-10-19 只读核对线上正式版为 `3.4.2/304003`、preview 为 `3.4.3-debug2/304005`；在这份状态下，test 规划为 `3.4.3-beta3/304006`，patch 为 `3.4.3/304006`。实际发布仍以构建前 SSH 读取的最新状态为准。
 
@@ -34,17 +45,23 @@ test 发布到 `/www/openahu.org/update/static/preview/`，其他三种发布到
 
 仓库 Settings → Secrets and variables → Actions → Repository secrets。不要把值写进 YAML、Git、更新说明或日志。
 
-| Secret | 内容 |
-| --- | --- |
-| `SENTRY_AUTH_TOKEN` | Sentry PAT：至少 `project:releases` + `org:read`，且用户可访问项目；也可使用 `org:ci` 组织构建令牌。诊断用只读令牌不能发布 |
-| `DEPLOY_SSH_TARGET` | `用户@实际可连接的主机名或IPv4`，例如 `www@<host>` |
-| `DEPLOY_SSH_PRIVATE_KEY` | 专用无口令 SSH 私钥完整内容，账号需可写上述 static 目录 |
-| `DEPLOY_SSH_KNOWN_HOSTS` | 已通过服务器可信渠道核对的 OpenSSH known_hosts 行；非默认端口使用对应 `[host]:port` 项 |
-| `ANDROID_KEYSTORE_B64` | 当前生产 APK 签名文件的完整 Base64，支持现有 JKS/PKCS12 文件 |
-| `ANDROID_KEYSTORE_PASSWORD` | 签名文件密码 |
-| `ANDROID_KEY_ALIAS` | 生产签名 alias |
-| `ANDROID_KEY_PASSWORD` | alias 私钥密码；与文件密码相同时填写相同值 |
-| `ANDROID_CERT_SHA256` | 现有生产 APK 的签名证书 SHA-256，支持带冒号格式，用于拒绝错误签名文件 |
+| 名称（Secret） | 用途 | 要求 | 是否必须 |
+| --- | --- | --- | --- |
+| `DEPLOY_ROOT` | 服务器正式版部署根目录 | 已存在且 SSH 用户可写的绝对路径；例如 `/srv/app-updates/static`；仅允许英文字母、数字、`_`、`-`、`.`、`/`，不能以 `/` 结尾、不能包含空段或 `.` / `..` 路径段，不能填 preview 子目录 | 是 |
+| `DEPLOY_SSH_TARGET` | SSH 登录目标 | `用户@主机名或IPv4`，必须可从发布 runner 连接，不能含 SSH 选项 | 是 |
+| `DEPLOY_SSH_PRIVATE_KEY` | SSH 登录私钥 | 完整、无口令的专用私钥，保留首尾标记和换行；对应公钥已安装到目标账号，账号可读写部署根目录 | 是 |
+| `DEPLOY_SSH_KNOWN_HOSTS` | 校验服务器身份 | 经可信渠道核对的 OpenSSH known_hosts 行；非默认端口使用 `[host]:port` 格式 | 是 |
+| `DEPLOY_SSH_PORT` | SSH 端口 | `1..65535`；优先读取 Secret，兼容原同名 Actions Variable，均未配置时使用 `22` | 否 |
+| `SENTRY_AUTH_TOKEN` | 创建版本、上传 mapping、记录部署 | PAT 至少含 `project:releases` + `org:read` 且可访问项目，或使用 `org:ci` 组织构建令牌；只读诊断令牌不可用 | 是 |
+| `SENTRY_ORG` | Sentry 组织 | 组织 slug，必须与应用 DSN 所属组织一致 | 是 |
+| `SENTRY_PROJECT` | Sentry 项目 | 项目 slug，不是数字 ID；必须与应用 DSN 对应同一项目 | 是 |
+| `ANDROID_KEYSTORE_B64` | APK 签名文件 | 现有生产 JKS/PKCS12 文件的完整 Base64，不能新建一个不同签名代替 | 是 |
+| `ANDROID_KEYSTORE_PASSWORD` | 解锁签名文件 | 对应签名文件密码 | 是 |
+| `ANDROID_KEY_ALIAS` | 选择签名私钥 | 已有生产签名的 alias | 是 |
+| `ANDROID_KEY_PASSWORD` | 解锁 alias 私钥 | 对应私钥密码；与签名文件密码相同时填相同值 | 是 |
+| `ANDROID_CERT_SHA256` | 拒绝错误签名 | 从现有正式 APK 取得的 SHA-256 证书指纹，64 位十六进制，允许带冒号 | 是 |
+
+以上共 12 项必填 Secrets、1 项可选 Secret。发布开始时会列出缺失的 Secret 名称并停止，不会使用仓库中的部署目录、主机或 Sentry 上传目标作为默认值。构建输出路径、产物名称与 preview 子目录属于固定构建/更新协议，不需要配置为 Secret。
 
 本地生成签名文件 Base64：
 
@@ -54,7 +71,13 @@ test 发布到 `/www/openahu.org/update/static/preview/`，其他三种发布到
 
 证书指纹使用 Android build-tools 的 `apksigner verify --print-certs existing-production.apk` 中 `Signer #1 certificate SHA-256 digest`。SSH 主机指纹须独立核对；流水线不使用自动接受未知主机或关闭校验。
 
-可选 Actions Variables：`DEPLOY_SSH_PORT` 默认 `22`；`RELEASE_RUNNER` 默认 `ubuntu-latest`。若 `10-7-103-101` 仅是服务器终端 hostname，不能直接当成 GitHub runner 可访问的地址；Secret 填实际可达地址。若服务器仅能由内网访问，将 `RELEASE_RUNNER` 设为可访问该网络的 `self-hosted` Linux x86_64 runner。它需要 Python 3.10+、OpenSSH，以及下载构建工具/依赖和访问 Sentry 的网络。服务器需要 Python 3.10+、OpenSSH 和 static 写权限。
+下面这项放在 Actions **Variables**，因为 job 的 `runs-on` 不能读取 Secrets：
+
+| 名称（Variable） | 用途 | 要求 | 是否必须 |
+| --- | --- | --- | --- |
+| `RELEASE_RUNNER` | 选择执行构建、签名与 SSH 部署的 runner | 默认 `ubuntu-latest`；服务器仅内网可达时，填写具备内网访问能力的 self-hosted Linux x86_64 runner 标签 | 否 |
+
+服务器终端显示的 hostname 不一定能从 GitHub runner 连接，`DEPLOY_SSH_TARGET` 必须填写实际可达的地址。自托管 runner 需要 Python 3.10+、OpenSSH，以及下载构建工具/依赖和访问 Sentry 的网络；服务器需要 Python 3.10+、OpenSSH 和部署根目录读写权限。
 
 ## 发布顺序、产物与失败处理
 

@@ -12,6 +12,14 @@ ANDROID_MAX_VERSION_CODE = 2_100_000_000
 _VERSION = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:(?:release-)?beta|debug)([1-9]\d*))?")
 
 
+def validate_deploy_root(value):
+    # SSH joins command arguments in a remote shell; allow only literal path characters.
+    if (not isinstance(value, str) or not re.fullmatch(r"/[A-Za-z0-9_./-]+", value)
+            or any(part in {"", ".", ".."} for part in value.split("/")[1:])):
+        raise ValueError("DEPLOY_ROOT 必须为非根目录的绝对路径，仅允许英文字母、数字、_、-、.、/，不能包含末尾 /、空段或 . / .. 路径段")
+    return value
+
+
 def _version(name):
     match = _VERSION.fullmatch(name) if isinstance(name, str) else None
     if match is None:
