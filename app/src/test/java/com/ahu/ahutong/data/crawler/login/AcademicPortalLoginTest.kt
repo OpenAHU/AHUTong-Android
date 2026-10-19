@@ -91,6 +91,175 @@ class AcademicPortalLoginTest {
         assertEquals(1, calls)
     }
 
+    private val phoneGuide = PortalPage(
+        "https://one.ahu.edu.cn/tp_tpass/h5?act=tpass/guide", 200, "<html>手机绑定</html>"
+    )
+    private val undergraduateHome = PortalPage("https://jw.ahu.edu.cn/student/home", 200, "")
+
+    @Test fun casFormWithoutQueryPreservesOriginalAcademicService() = runTest {
+        val casUrl = "https://one.ahu.edu.cn/cas/login?service=https%3A%2F%2Fjw.ahu.edu.cn%2Fstudent%2Fsso%2Flogin"
+        val calls = mutableListOf<Pair<String, Map<String, String>?>>()
+        val portal = AcademicPortalLogin { url, fields ->
+            calls += url to fields
+            when (calls.size) {
+                1 -> PortalPage(casUrl, 200, """<form id="loginForm" action="/cas/login"><input name="lt" value="LT-test"></form>""")
+                2 -> PortalPage(url, 200, "{}")
+                3 -> phoneGuide.copy(status = 302, casSessionIssued = true)
+                4 -> undergraduateHome
+                else -> error("Unexpected request")
+            }
+        }
+        assertEquals(PortalLoginStatus.SUCCESS, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(casUrl, calls[2].first)
+        assertEquals(AcademicPortalLogin.UNDERGRADUATE_ENTRY to null, calls.last())
+    }
+
+    @Test fun guideRedirectFromExistingCasSessionResumesOriginalPortal() = runTest {
+        var calls = 0
+        val portal = AcademicPortalLogin { _, fields ->
+            assertNull(fields)
+            if (++calls == 1) phoneGuide.copy(status = 302) else undergraduateHome
+        }
+        assertEquals(PortalLoginStatus.SUCCESS, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(2, calls)
+    }
+
+    @Test fun repeatedGuideRedirectRequiresVerificationWithoutFollowingWebVpn() = runTest {
+        var calls = 0
+        val portal = AcademicPortalLogin { _, fields ->
+            assertNull(fields)
+            calls++
+            phoneGuide.copy(status = 302, casSessionIssued = true)
+        }
+        assertEquals(PortalLoginStatus.VERIFICATION_REQUIRED, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(2, calls)
+    }
+
+    @Test fun phoneGuideAfterPasswordSubmissionReusesTheCasSessionForUndergraduateSso() = runTest {
+        val casUrl = "https://one.ahu.edu.cn/cas/login?service=https%3A%2F%2Fjw.ahu.edu.cn%2Fstudent%2Fsso%2Flogin"
+        val calls = mutableListOf<Pair<String, Map<String, String>?>>()
+        val portal = AcademicPortalLogin { url, fields ->
+            calls += url to fields
+            when (calls.size) {
+                1 -> PortalPage(casUrl, 200, """
+                    <form id="loginForm" action="$casUrl">
+                    <input name="lt" value="LT-test"><input name="execution" value="e2s3"></form>
+                """.trimIndent())
+                2 -> PortalPage(url, 200, """{"info":"ok"}""")
+                3 -> phoneGuide.copy(casSessionIssued = true)
+                4 -> undergraduateHome
+                else -> error("SSO retry must be bounded")
+            }
+        }
+
+        val result = portal.login(AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student)
+
+        assertEquals(PortalLoginStatus.SUCCESS, result.status)
+        assertEquals(undergraduateHome.url, result.sessionPageUrl)
+        assertEquals(4, calls.size)
+        assertEquals("e2s3", calls[2].second?.get("execution"))
+        assertEquals(1, calls.count { it.second?.containsKey("_eventId") == true })
+        assertEquals(AcademicPortalLogin.UNDERGRADUATE_ENTRY to null, calls.last())
+    }
+
+    @Test fun existingCasSessionCanResumeWithoutAnotherPasswordSubmission() = runTest {
+        val calls = mutableListOf<String>()
+        val portal = AcademicPortalLogin { url, fields ->
+            assertNull(fields)
+            calls += url
+            if (calls.size == 1) phoneGuide else undergraduateHome
+        }
+
+        assertEquals(PortalLoginStatus.SUCCESS, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(List(2) { AcademicPortalLogin.UNDERGRADUATE_ENTRY }, calls)
+    }
+
+    @Test fun mandatoryPhoneSetupRequestsVerificationAfterOneRetry() = runTest {
+        var calls = 0
+        val portal = AcademicPortalLogin { _, fields ->
+            assertNull(fields)
+            calls++
+            phoneGuide
+        }
+        assertEquals(PortalLoginStatus.VERIFICATION_REQUIRED, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(2, calls)
+    }
+
+    @Test fun casCredentialAloneDoesNotProveAnAcademicSession() = runTest {
+        var calls = 0
+        val portal = AcademicPortalLogin { _, _ ->
+            calls++
+            PortalPage("https://one.ahu.edu.cn/cas/notice", 200, "", casSessionIssued = true)
+        }
+        assertEquals(PortalLoginStatus.VERIFICATION_REQUIRED, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(2, calls)
+    }
+
+    @Test fun unauthenticatedUnexpectedPageDoesNotTriggerSsoRetries() = runTest {
+        var calls = 0
+        val portal = AcademicPortalLogin { _, _ ->
+            calls++
+            PortalPage("https://one.ahu.edu.cn/cas/notice", 200, "")
+        }
+        assertEquals(PortalLoginStatus.REJECTED, portal.login(
+            AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "wrong", student
+        ).status)
+        assertEquals(1, calls)
+    }
+
+    @Test fun resumedSsoPreservesBrowserChallengeAndServerFailure() = runTest {
+        for ((httpCode, expected) in listOf(
+            412 to PortalLoginStatus.VERIFICATION_REQUIRED,
+            503 to PortalLoginStatus.UNAVAILABLE
+        )) {
+            var calls = 0
+            val portal = AcademicPortalLogin { url, _ ->
+                if (++calls == 1) phoneGuide else PortalPage(url, httpCode, "")
+            }
+            assertEquals(expected, portal.login(
+                AcademicPortalLogin.UNDERGRADUATE_ENTRY, student.xh, "secret", student
+            ).status)
+            assertEquals(2, calls)
+        }
+    }
+
+    @Test fun phoneGuideResumesTheOriginalGraduateServiceAndVerifiesItsStudentSession() = runTest {
+        val calls = mutableListOf<String>()
+        val portal = AcademicPortalLogin { url, fields ->
+            assertNull(fields)
+            calls += url
+            if (calls.size == 1) phoneGuide else graduateHome
+        }
+        val result = portal.login(AcademicPortalLogin.GMIS_ENTRY, student.xh, "secret", student)
+        assertEquals(PortalLoginStatus.SUCCESS, result.status)
+        assertEquals(graduateHome.url, result.sessionPageUrl)
+        assertEquals(List(2) { AcademicPortalLogin.GMIS_ENTRY }, calls)
+    }
+
+    @Test fun graduateResumptionStillRejectsUnverifiedPortalPages() = runTest {
+        var calls = 0
+        val portal = AcademicPortalLogin { _, _ ->
+            if (++calls == 1) phoneGuide
+            else graduateHome.copy(html = "<title>请选择角色</title><input type=password>")
+        }
+        assertEquals(PortalLoginStatus.VERIFICATION_REQUIRED, portal.login(
+            AcademicPortalLogin.GMIS_ENTRY, student.xh, "secret", student
+        ).status)
+        assertEquals(2, calls)
+    }
+
     @Test fun gmisTicketTransportIsHttpsWithoutRewritingServiceParameter() {
         val url = AcademicPortalHttp.securePortalUrl("http://gmis.ahu.edu.cn/gmis5/oauthLogin/ahdx?ticket=ST-test")
         assertEquals("https", url.scheme)
