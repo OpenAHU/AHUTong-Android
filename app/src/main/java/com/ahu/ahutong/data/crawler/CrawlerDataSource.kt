@@ -13,6 +13,7 @@ import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundPublishRequest
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundResponse
 import com.ahu.ahutong.data.crawler.model.jwxt.CourseTable
 import com.ahu.ahutong.data.crawler.model.jwxt.CurrentSemester
+import com.ahu.ahutong.data.crawler.model.jwxt.GradeResponse
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomPaymentRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomCurrentTimeRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomPayInfoRequest
@@ -30,6 +31,8 @@ import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
+import com.ahu.ahutong.data.schedule.ScheduleSemester
+import kotlinx.coroutines.CancellationException
 import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import com.google.gson.Gson
@@ -60,8 +63,11 @@ internal suspend fun fetchCurrentSemester(jwxt: JwxtApi): CurrentSemester {
     )
 }
 
-internal fun extractCurrentSemesterJson(script: String): String? {
-    val assignment = Regex("(?:var|let|const)\\s+currentSemester\\s*=\\s*")
+internal fun extractCurrentSemesterJson(script: String): String? =
+    extractAssignedSemesterJson(script, "currentSemester")?.takeIf { it.trimStart().startsWith('{') }
+
+internal fun extractAssignedSemesterJson(script: String, variable: String): String? {
+    val assignment = Regex("(?:var|let|const)\\s+${Regex.escape(variable)}\\s*=\\s*")
         .find(script)
         ?: return null
     var cursor = assignment.range.last + 1
@@ -83,7 +89,7 @@ internal fun extractCurrentSemesterJson(script: String): String? {
 }
 
 private fun extractBalancedJsonObject(source: String, startIndex: Int): String? {
-    if (startIndex >= source.length || source[startIndex] != '{') return null
+    if (startIndex >= source.length || source[startIndex] !in charArrayOf('{', '[')) return null
     var depth = 0
     var quote: Char? = null
     var escaped = false
@@ -99,8 +105,8 @@ private fun extractBalancedJsonObject(source: String, startIndex: Int): String? 
         }
         when (character) {
             '\'', '"' -> quote = character
-            '{' -> depth += 1
-            '}' -> {
+            '{', '[' -> depth += 1
+            '}', ']' -> {
                 depth -= 1
                 if (depth == 0) return source.substring(startIndex, index + 1)
                 if (depth < 0) return null
@@ -156,7 +162,9 @@ class CrawlerDataSource(
     /** 教务系统协议客户端；默认生产实例，契约测试可注入指向本地 fixture 服务的实例。 */
     private val jwxt: JwxtApi = JwxtApi.API,
     /** 安大智慧协议客户端；同上。 */
-    private val adwmh: AdwmhApi = AdwmhApi.API
+    private val adwmh: AdwmhApi = AdwmhApi.API,
+    /** 测试可注入原始教务响应；生产只从共享协议接口提取学期元数据。 */
+    private val semesterResponseProvider: (suspend () -> List<GradeResponse>)? = null
 ) : BaseDataSource {
 
     val TAG = this::class.java.simpleName
@@ -183,6 +191,60 @@ class CrawlerDataSource(
         val nextCourseTable = jwxt.getCourse(currentSemesterJson.id + 20, currentSemesterJson.id)
 
         return AhuResult.Success(nextCourseTable.toCourseList())
+    }
+
+    override suspend fun getScheduleSemesters(): AhuResult<List<ScheduleSemester>> {
+        val response = jwxt.fetchCourseTableBasicInfo()
+        if (!response.isSuccessful) {
+            response.errorBody()?.close()
+            response.body()?.close()
+            return AhuResult.Failure(AhuError.Server(response.code(), "获取学期目录失败"))
+        }
+        val html = response.body()?.string()
+            ?: return AhuResult.Failure(AhuError.ProtocolChanged("教务学期目录为空"))
+        val catalog = ScheduleSemesterParser.parse(html)
+        val semesters = catalog.semesters.associateByTo(linkedMapOf()) { it.id }
+
+        // 共享教务协议响应含真实学期目录，只解析 ID/名称，不经过成绩业务或缓存。
+        // 读取全部已知培养方案，不能因课表页已有一个历史选项而跳过。
+        readSemesterDirectoryResponses().flatMap(ScheduleSemesterParser::fromGrades).forEach { semester ->
+            val existing = semesters[semester.id]
+            if (existing == null || existing.name == "学期 ${semester.id}") {
+                semesters[semester.id] = semester
+            }
+        }
+
+        // 当前学期来自课表页，覆盖补充目录的名字和 current 标记。
+        semesters[catalog.current.id] = catalog.current
+        return AhuResult.Success(ScheduleSemesterParser.sort(semesters.values.toList()))
+    }
+
+    private suspend fun readSemesterDirectoryResponses(): List<GradeResponse> {
+        semesterResponseProvider?.let { provider ->
+            return optionalSemesterLookup { provider() }.orEmpty()
+        }
+        return optionalSemesterLookup { getGradeStudentProfiles() }.orEmpty().mapNotNull { profile ->
+            // 某个培养方案失败时仍保留其余方案返回的真实学期 ID。
+            optionalSemesterLookup { jwxt.getGrade(profile.id) }
+        }
+    }
+
+    override suspend fun getSemesterSchedule(semesterId: Int): AhuResult<List<Course>> {
+        if (semesterId <= 0) {
+            return AhuResult.Failure(AhuError.ProtocolChanged("无效的学期 ID"))
+        }
+        val currentSemester = fetchCurrentSemester(jwxt)
+        // 与既有下学期入口保持一致：路径指定目标学期，查询参数保留当前学期上下文。
+        // 已用真实账号验证历史课表请求；可用历史 ID 仍只取服务端目录，不由参数关系推算。
+        return AhuResult.Success(jwxt.getCourse(semesterId, currentSemester.id).toCourseList())
+    }
+
+    private suspend fun <T> optionalSemesterLookup(block: suspend () -> T): T? = try {
+        block()
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        Log.w(TAG, "Supplementary semester directory unavailable")
+        null
     }
 
     private fun CourseTable.toCourseList(): List<Course> {

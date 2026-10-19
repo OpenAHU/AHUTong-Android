@@ -4,24 +4,35 @@ import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 
+/** Tag before OkHttp's BridgeInterceptor, which restores the caller's request on responses. */
+class SessionRequestTaggingInterceptor(
+    private val scope: SessionRefreshCoordinator.Scope
+) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response =
+        chain.proceed(SessionRefreshCoordinator.tagRequest(chain.request(), scope))
+}
+
 /**
  * 识别"被重定向回校内登录页"，把它翻译成一个明确的 401。
  *
  * 只有自动续期最终失败，认证器才通过 [SessionExpiryHook] 通知会话层过期。
  */
-class AutoLoginInterceptor : Interceptor {
+class AutoLoginInterceptor(
+    private val scope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC
+) : Interceptor {
 
     val TAG = "AutoLoginInterceptor"
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        val originalRequest = SessionRefreshCoordinator.tagRequest(chain.request())
+        val originalRequest = SessionRefreshCoordinator.tagRequest(chain.request(), scope)
         val response = chain.proceed(originalRequest)
         Log.d(TAG, "first-party request completed with status=${response.code}")
 
         val location = response.header("Location")
         if (
-            response.code in 300..399 &&
-            SessionRefreshPolicy.isFirstPartyLoginRedirect(originalRequest.url, location)
+            (response.code in 300..399 &&
+                SessionRefreshPolicy.isFirstPartyLoginRedirect(originalRequest.url, location)) ||
+            (scope == SessionRefreshCoordinator.Scope.WISDOM && response.code == 401)
         ) {
             Log.i(TAG, "First-party session redirect detected")
             return response.newBuilder()

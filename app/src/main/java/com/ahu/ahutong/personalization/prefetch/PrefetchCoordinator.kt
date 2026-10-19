@@ -1,6 +1,7 @@
 package com.ahu.ahutong.personalization.prefetch
 
 import android.os.SystemClock
+import com.ahu.ahutong.data.payment.PaymentQrRepository
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
@@ -101,7 +102,6 @@ class PrefetchCoordinator @Inject constructor(
     suspend fun cancelAll() = mutex.withLock {
         inFlight.values.forEach { it.cancel() }
         inFlight.clear()
-        paymentQrRepository.clearSensitive()
         _diagnostics.value = _diagnostics.value.mapValues { (_, value) ->
             if (value.state == PrefetchState.RUNNING) value.copy(state = PrefetchState.CANCELLED, finishedAtElapsedMs = SystemClock.elapsedRealtime()) else value
         }

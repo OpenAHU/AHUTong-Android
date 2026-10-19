@@ -23,7 +23,7 @@ class RepositorySessionExpiryHook(
         if (SessionRefreshCoordinator.failureKindOf(observedGeneration, scope) !=
             SessionRefreshCoordinator.FailureKind.REJECTED
         ) return
-        SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
+        SessionRefreshCoordinator.commitIfCurrent(observedGeneration, scope) {
             if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
                 AhuSessionState.markExpired()
             }

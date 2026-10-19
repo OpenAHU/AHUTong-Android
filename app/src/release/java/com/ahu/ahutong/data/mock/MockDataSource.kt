@@ -20,6 +20,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -33,6 +34,10 @@ class MockDataSource : BaseDataSource {
     override suspend fun getSchedule(): AhuResult<List<Course>> = unavailable()
 
     override suspend fun getNextSchedule(): AhuResult<List<Course>> = unavailable()
+
+    override suspend fun getScheduleSemesters(): AhuResult<List<ScheduleSemester>> = unavailable()
+
+    override suspend fun getSemesterSchedule(semesterId: Int): AhuResult<List<Course>> = unavailable()
 
     override suspend fun getGrade(): AhuResult<Grade> = unavailable()
 

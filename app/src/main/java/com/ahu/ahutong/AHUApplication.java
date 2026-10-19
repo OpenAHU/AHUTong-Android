@@ -11,6 +11,11 @@ import com.ahu.ahutong.sdk.LocalServiceClient;
 import com.ahu.ahutong.sdk.RustSDK;
 import com.tencent.bugly.crashreport.CrashReport;
 import io.sentry.Sentry;
+import io.sentry.ITransaction;
+import io.sentry.SpanStatus;
+import io.sentry.TracesSamplingDecision;
+import io.sentry.TransactionContext;
+import io.sentry.TransactionOptions;
 import io.sentry.android.core.SentryAndroid;
 import com.ahu.ahutong.data.AHURepository;
 import com.ahu.ahutong.data.dao.AHUCache;
@@ -61,7 +66,7 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
         AppEnvironmentHolder.INSTANCE.install(new AndroidAppEnvironment(this));
 
         // 插件注册表兜底初始化（不依赖页面组合时序；进程内幂等）
-        com.ahu.ahutong.ui.plugin.PluginRegistry.INSTANCE.init(this);
+        com.ahu.ahutong.ui.plugin.PluginRegistry.INSTANCE.initAsync(this);
         DebugTimeSourceHolder.INSTANCE.install(CacheDebugTimeSource.INSTANCE);
         UserNoticeHolder.INSTANCE.install(ToastUserNotice.INSTANCE);
 
@@ -70,6 +75,7 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
         SentryAndroid.init(this, options -> {
             options.setDsn(BuildConfig.SENTRY_DSN);
             options.setEnvironment(BuildConfig.DEBUG ? "debug" : "release");
+            options.setTombstoneEnabled(true);
             // 线上按比例采样，避免性能数据占满额度；Debug 全量便于排查。
             options.setTracesSampleRate(BuildConfig.DEBUG ? 1.0 : 0.1);
             options.setDebug(BuildConfig.DEBUG);
@@ -120,14 +126,26 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
         return dauId;
     }
 
-    public void reportDauIfNeeded() {
+    public synchronized void reportDauIfNeeded() {
+        if (!Sentry.isEnabled()) return;
         SharedPreferences preferences = getSharedPreferences("sentry", MODE_PRIVATE);
         String today = LocalDate.now().toString();
-        if (today.equals(preferences.getString("dau_last_report_date", null))) {
+        if (today.equals(preferences.getString("dau_last_span_report_date", null))) {
             return;
         }
-        Sentry.captureMessage("AHUTong DAU");
-        preferences.edit().putString("dau_last_report_date", today).apply();
+        // A separate, fully sampled root span keeps DAU independent of the screen's 10% sample.
+        TransactionContext context = new TransactionContext(
+                "AHUTong DAU", "app.dau", new TracesSamplingDecision(true, 1.0));
+        TransactionOptions options = new TransactionOptions();
+        options.setBindToScope(false);
+        ITransaction transaction = Sentry.startTransaction(context, options);
+        if (transaction.isNoOp()) return;
+        String dauId = getDauId();
+        transaction.setTag("dau_id", dauId);
+        transaction.setData("dau_id", dauId);
+        transaction.setData("dau_date", today);
+        transaction.finish(SpanStatus.OK);
+        preferences.edit().putString("dau_last_span_report_date", today).apply();
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.ahu.ahutong
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -53,6 +54,7 @@ import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.action.ActionSource
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.ahu.ahutong.data.session.SessionStore
@@ -66,6 +68,14 @@ import java.time.LocalDate
 private const val DEBUG_BUILD_NOTICE_DURATION_MS = 3_000L
 private const val STARTUP_BACKGROUND_WORK_DELAY_MS = 250L
 private const val DAY_WATCH_INTERVAL_MS = 60_000L
+
+/** All successful login entries replace the previous account's Activity and ViewModels. */
+internal fun Activity.restartMainAfterLogin() {
+    startActivity(Intent(this, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    })
+    finish()
+}
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -247,14 +257,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun init() {
+        if (AHUCache.isPrivacyAccepted() && SessionStore.isLoggedIn()) {
+            discoveryViewModel.preparePaymentQr()
+        }
         lifecycleScope.launchSafe {
             // Let Compose draw the cached first screen before starting native services,
             // widget scheduling and network refreshes.
             delay(STARTUP_BACKGROUND_WORK_DELAY_MS)
-            if (AHUCache.isPrivacyAccepted()) {
-                SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }?.let { behaviorRuntime.startProfile(it) }
-            }
-
             val storageInitialized = withContext(Dispatchers.IO) {
                 WidgetUpdateScheduler.scheduleNext(this@MainActivity)
                 RustSDK.loadLibrary(context = applicationContext)
@@ -262,6 +271,11 @@ class MainActivity : ComponentActivity() {
             }
             if (!storageInitialized) {
                 restoreRustCookies()
+            }
+
+            discoveryViewModel.awaitPaymentQrPreparation()
+            if (AHUCache.isPrivacyAccepted()) {
+                SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }?.let { behaviorRuntime.startProfile(it) }
             }
 
             if (SessionStore.isLoggedIn() || AHUCache.getMockData()) {
@@ -294,7 +308,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        (application as AHUApplication).reportDauIfNeeded()
+        lifecycleScope.launch(Dispatchers.IO) {
+            (application as AHUApplication).reportDauIfNeeded()
+        }
         // 回到前台立即对一次日期：后台挂过午夜的用户回来的第一眼就该是新的一天。
         checkDayRollover()
     }

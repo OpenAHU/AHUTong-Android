@@ -1,6 +1,9 @@
 package com.ahu.ahutong.ui.screen
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.ahu.ahutong.data.preview.EarlyAccessManager
+import com.ahu.ahutong.ui.screen.settings.earlyAccessSummary
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +37,7 @@ fun SettingsHub(
     scheduleViewModel: ScheduleViewModel
 ) {
     val context = LocalContext.current
+    val earlyAccess by EarlyAccessManager.state.collectAsState()
     var showAccounts by remember { mutableStateOf(false) }
     var accounts by remember { mutableStateOf(SavedAccounts.accounts()) }
     fun openAccounts() {
@@ -49,6 +53,8 @@ fun SettingsHub(
         onNavigateToLogin = { navController.navigate("login") },
         onSwitchAccount = { openAccounts() },
         onNavigateToPreferences = { navController.navigate("preferences") },
+        onNavigateToEarlyAccess = { navController.navigate("settings__early_access") },
+        earlyAccessSummary = earlyAccessSummary(earlyAccess),
         onNavigateToDebug = { navController.navigate("debug") },
         onNavigateToLicense = { navController.navigate("settings__license") },
         onNavigateToPrivacyPolicy = { navController.navigate("settings__privacy_policy") },

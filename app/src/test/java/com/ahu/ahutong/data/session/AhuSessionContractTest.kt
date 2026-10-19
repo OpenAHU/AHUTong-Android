@@ -200,6 +200,72 @@ class AhuSessionContractTest {
     }
 
     @Test
+    fun `a persisted session becomes authenticated after cold start recovery`() = runBlocking {
+        val subject = session(
+            login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user))),
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+
+        assertTrue(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+
+        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+    }
+
+    @Test
+    fun `a rejected persisted session requires login after cold start`() = runBlocking {
+        val subject = session(
+            login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("密码错误"))),
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+
+        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+
+        assertEquals(AhuSessionState.Status.Expired, subject.state.value)
+    }
+
+    @Test
+    fun `a cold start network failure preserves the persisted session`() = runBlocking {
+        val subject = session(
+            login = FakeSessionSignIn(AhuResult.Failure(AhuError.Network)),
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+
+        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+
+        assertEquals(AhuSessionState.Status.Anonymous, subject.state.value)
+    }
+
+    @Test
+    fun `an anonymous installation without an account does not request login`() = runBlocking {
+        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
+        val subject = session(login = login, credentials = FakeCredentialVault("stored-secret"))
+
+        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+
+        assertTrue(login.calls.isEmpty())
+        assertEquals(AhuSessionState.Status.Anonymous, subject.state.value)
+    }
+
+    @Test
+    fun `an explicit sign out cannot restore a retained persisted account`() = runBlocking {
+        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
+        val subject = session(
+            login = login,
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+        subject.signOut()
+
+        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+
+        assertTrue(login.calls.isEmpty())
+        assertEquals(AhuSessionState.Status.Anonymous, subject.state.value)
+    }
+
+    @Test
     fun `a transient refresh failure does not expire the session`() = runBlocking {
         val subject = session(
             login = FakeSessionSignIn(AhuResult.Failure(AhuError.Network)),
@@ -371,6 +437,29 @@ class SessionExpiryHookContractTest {
         }
         assertEquals(1, login.calls.size)
         assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `wisdom 401 renews its own generation after an unrelated academic refresh`() = runBlocking {
+        SessionRefreshCoordinator.refreshIfNeeded(SessionRefreshCoordinator.currentGeneration()) {
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        }
+        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(User("student", "20210001"))))
+        val session = RepositoryAhuSession(
+            login, FakeCredentialVault("stored-secret"), FakeSessionAccount(User("student", "20210001")),
+            FakeSessionResidue(), refreshScope = SessionRefreshCoordinator.Scope.WISDOM
+        )
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(401))
+            server.enqueue(MockResponse().setBody("""{"code":10000,"msg":"ok","object":"qr"}"""))
+            server.start()
+            val client = AhuHttp.plain().campusAutoLogin(SessionRefreshCoordinator.Scope.WISDOM)
+                .campusSessionRefresh(RepositorySessionExpiryHook(session, SessionRefreshCoordinator.Scope.WISDOM))
+                .build()
+            assertEquals("qr", createAdwmhApi(client, server.url("/").toString()).getQrcode().`object`)
+            assertEquals(2, server.requestCount)
+        }
+        assertEquals(1, login.calls.size)
     }
 
     @Test

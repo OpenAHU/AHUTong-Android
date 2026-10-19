@@ -18,20 +18,23 @@ import java.io.File
 object RuntimePluginLoader {
 
     /** 最近一次装载失败的「id: 原因」——给设置页/插件区排障展示（本机日志级别不可靠）。 */
-    val lastErrors = mutableListOf<String>()
+    @Volatile var lastErrors: List<String> = emptyList()
+        private set
 
     fun loadAll(context: Context): List<AhuPlugin> {
-        lastErrors.clear()
-        return AhupInstaller.installedIds(context).mapNotNull { id ->
+        val errors = mutableListOf<String>()
+        val plugins = AhupInstaller.installedIds(context).mapNotNull { id ->
             runCatching { load(context, id) }
                 .onFailure {
                     // 反射包装的异常剥到根因（InvocationTargetException 的 message 恒为 null）
                     val root = generateSequence(it) { e -> e.cause }.last()
-                    lastErrors.add("$id: ${root.javaClass.simpleName}: ${root.message}")
+                    errors.add("$id: ${root.javaClass.simpleName}: ${root.message}")
                     Log.e(TAG, "插件 $id 装载失败", it)
                 }
                 .getOrNull()
         }
+        lastErrors = errors.toList()
+        return plugins
     }
 
     private fun load(context: Context, id: String): AhuPlugin {

@@ -18,6 +18,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -46,6 +47,12 @@ interface BaseDataSource {
      * getSchedule (auto get schedule of next semester)
      */
     suspend fun getNextSchedule() : AhuResult<List<Course>>
+
+    suspend fun getScheduleSemesters(): AhuResult<List<ScheduleSemester>> =
+        AhuResult.Failure(AhuError.Server(-1, "当前数据源不支持学期目录"))
+
+    suspend fun getSemesterSchedule(semesterId: Int): AhuResult<List<Course>> =
+        AhuResult.Failure(AhuError.Server(-1, "当前数据源不支持按学期浏览课表"))
 
     suspend fun getGrade(): AhuResult<Grade>
 

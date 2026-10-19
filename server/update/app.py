@@ -4,6 +4,8 @@ import base64
 import json
 import ipaddress
 import re
+import sqlite3
+from contextlib import closing, contextmanager
 from flask import Flask, abort, jsonify, send_from_directory, request
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -11,6 +13,10 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app.config["DB_PATH"] = os.environ.get(
+    "AHUTONG_EARLY_ACCESS_DB_PATH", os.path.join(BASE_DIR, "early_access.sqlite3")
+)
+ACCOUNT_SUBJECT_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 # Keys
 PRIVATE_KEY_PATH = os.path.join(BASE_DIR, "AHUTong_ed25519_private.pem")
@@ -43,6 +49,7 @@ ALLOWED_ENDPOINTS = {
     "check_update_so": {"GET"},
     "check_update_apk": {"GET"},
     "check_gray_feature": {"GET"},
+    "early_access": {"GET", "POST", "DELETE"},
     "list_school_calendars": {"GET"},
     "get_school_calendar": {"GET"},
     "download_file": {"GET"},
@@ -186,6 +193,71 @@ def string_set(value) -> set:
     return {str(item).strip() for item in value if str(item).strip()}
 
 
+def valid_account_subject(value) -> bool:
+    return isinstance(value, str) and ACCOUNT_SUBJECT_PATTERN.fullmatch(value) is not None
+
+
+@contextmanager
+def early_access_database():
+    with closing(sqlite3.connect(app.config["DB_PATH"])) as database:
+        with database:
+            database.execute(
+                "CREATE TABLE IF NOT EXISTS early_access_members "
+                "(subject TEXT PRIMARY KEY NOT NULL)"
+            )
+            yield database
+
+
+def is_early_access_member(subject: str) -> bool:
+    with early_access_database() as database:
+        return database.execute(
+            "SELECT 1 FROM early_access_members WHERE subject = ?", (subject,)
+        ).fetchone() is not None
+
+
+def apk_candidate(channel: str):
+    directory = FILE_DIR if channel == "stable" else os.path.join(FILE_DIR, "preview")
+    apk_path = os.path.join(directory, APK_FILENAME)
+    version_path = os.path.join(directory, APK_VERSION_FILENAME)
+    if not os.path.isfile(apk_path) or not os.path.isfile(version_path):
+        return None
+    return {
+        "channel": channel,
+        "directory": directory,
+        "apk_path": apk_path,
+        "version_code": read_int_file(version_path),
+    }
+
+
+def apk_update_config(candidate):
+    channel = candidate["channel"]
+    directory = candidate["directory"]
+    version_code = candidate["version_code"]
+    apk_path = candidate["apk_path"]
+    version_name = read_text_file(
+        os.path.join(directory, APK_VERSION_NAME_FILENAME), default=str(version_code)
+    )
+    changelog = read_text_file(
+        os.path.join(directory, APK_CHANGELOG_FILENAME), default="New version available."
+    )
+    force = read_bool_file(os.path.join(directory, APK_FORCE_FILENAME), default=False)
+    sha256_hex = sha256_hex_file(apk_path)
+    signature = sign_file_sha256_digest(apk_path)
+    return {
+        "versionCode": version_code,
+        "versionName": version_name,
+        "force": force,
+        "url": f"{HOST_URL}/download/"
+               f"{'preview/' if channel == 'preview' else ''}{APK_FILENAME}",
+        "sha256": sha256_hex,
+        "signature": signature,
+        "alg": "ed25519",
+        "changelog": changelog,
+        "channel": channel,
+        "note": "Latest APK update",
+    }
+
+
 def parse_calendar_year(value: str):
     match = CALENDAR_YEAR_PATTERN.fullmatch(value)
     if not match:
@@ -251,44 +323,94 @@ def check_update_so():
 
 @app.route("/api/check_apk_update", methods=["GET"])
 def check_update_apk():
-    apk_path = os.path.join(FILE_DIR, APK_FILENAME)
-    version_path = os.path.join(FILE_DIR, APK_VERSION_FILENAME)
+    subject = request.args.get("subject")
+    if subject is not None and (
+        len(request.args.getlist("subject")) != 1 or not valid_account_subject(subject)
+    ):
+        return jsonify({"error": "subject must be a 64-character lowercase SHA-256 hash"}), 400
 
-    if not os.path.exists(apk_path) or not os.path.exists(version_path):
-        return jsonify({"error": "Server files missing"}), 404
+    joined = False
+    if subject is not None:
+        try:
+            joined = is_early_access_member(subject)
+        except sqlite3.Error:
+            # An unavailable membership store must not prevent stable updates.
+            app.logger.exception("Failed to read early access membership")
 
     try:
-        version_code = read_int_file(version_path)
+        candidates = []
+        for channel in ("stable", "preview") if joined else ("stable",):
+            try:
+                candidate = apk_candidate(channel)
+            except (OSError, ValueError):
+                if not joined:
+                    raise
+                app.logger.warning("Ignoring unavailable %s APK metadata", channel)
+                continue
+            if candidate is not None:
+                candidates.append(candidate)
+        if not candidates:
+            return jsonify({"error": "Server files missing"}), 404
 
-        version_name_path = os.path.join(FILE_DIR, APK_VERSION_NAME_FILENAME)
-        changelog_path = os.path.join(FILE_DIR, APK_CHANGELOG_FILENAME)
-        force_path = os.path.join(FILE_DIR, APK_FORCE_FILENAME)
-
-        version_name = read_text_file(version_name_path, default=str(version_code))
-        changelog = read_text_file(changelog_path, default="New version available.")
-        force = read_bool_file(force_path, default=False)
-
-        sha256_hex = sha256_hex_file(apk_path)
-        signature = sign_file_sha256_digest(apk_path)
+        ordered = sorted(
+            candidates,
+            key=lambda candidate: (candidate["version_code"], candidate["channel"] == "stable"),
+            reverse=True,
+        )
+        for index, candidate in enumerate(ordered):
+            try:
+                return jsonify(apk_update_config(candidate))
+            except Exception:
+                if index == len(ordered) - 1:
+                    raise
+                # A selected candidate can fail after discovery, including while hashing or signing.
+                app.logger.warning(
+                    "Unable to build %s APK update config; trying another channel",
+                    candidate["channel"], exc_info=True,
+                )
     except Exception as e:
         return jsonify({"error": f"Failed to build apk update config: {e}"}), 500
 
-    return jsonify({
-        # 你 Kotlin/Rust 侧可以直接用 versionCode 做比较
-        "versionCode": version_code,
-        "versionName": version_name,
 
-        # 可选：强更开关（你也可以后续加 minSupportedCode）
-        "force": force,
+# -------------------------
+# API: early access membership
+# -------------------------
 
-        "url": f"{HOST_URL}/download/{APK_FILENAME}",
-        "sha256": sha256_hex,
-        "signature": signature,
-        "alg": "ed25519",
+@app.route("/api/early-access", methods=["GET", "POST", "DELETE"])
+def early_access():
+    if request.method == "GET":
+        if set(request.args) != {"subject"} or len(request.args.getlist("subject")) != 1:
+            return jsonify({"error": "exactly one subject query parameter is required"}), 400
+        subject = request.args.get("subject")
+    else:
+        body = request.get_json(silent=True)
+        if request.args or not isinstance(body, dict) or set(body) != {"subject"}:
+            return jsonify({"error": "a JSON object containing only subject is required"}), 400
+        subject = body["subject"]
 
-        "changelog": changelog,
-        "note": "Latest APK update"
-    })
+    if not valid_account_subject(subject):
+        return jsonify({"error": "subject must be a 64-character lowercase SHA-256 hash"}), 400
+
+    try:
+        if request.method == "GET":
+            joined = is_early_access_member(subject)
+        else:
+            with early_access_database() as database:
+                if request.method == "POST":
+                    database.execute(
+                        "INSERT OR IGNORE INTO early_access_members (subject) VALUES (?)",
+                        (subject,),
+                    )
+                else:
+                    database.execute(
+                        "DELETE FROM early_access_members WHERE subject = ?", (subject,)
+                    )
+            joined = request.method == "POST"
+    except sqlite3.Error:
+        app.logger.exception("Failed to access early access membership")
+        return jsonify({"error": "Early access membership is temporarily unavailable"}), 503
+
+    return jsonify({"joined": joined})
 
 
 # -------------------------
@@ -400,6 +522,7 @@ if __name__ == "__main__":
     print("SO  check:  /api/check_update")
     print("APK check:  /api/check_apk_update")
     print("Gray check: /api/gray/check")
+    print("Early access: /api/early-access")
     print("Calendars:  /api/school_calendars")
     print("Download:   /download/<filename>")
     app.run(host="127.0.0.1", port=5000)

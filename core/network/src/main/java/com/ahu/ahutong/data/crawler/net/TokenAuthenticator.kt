@@ -14,6 +14,7 @@ class TokenAuthenticator(private val sessionExpiryHook: SessionExpiryHook) : Aut
         ) return null
 
         val observedGeneration = SessionRefreshCoordinator.observedGeneration(response.request)
+        val scope = SessionRefreshCoordinator.observedScope(response.request)
         return runBlocking {
             if (responseCount(response) >= MAX_ATTEMPTS) {
                 sessionExpiryHook.onExpired(observedGeneration)
@@ -29,7 +30,7 @@ class TokenAuthenticator(private val sessionExpiryHook: SessionExpiryHook) : Aut
                 .removeHeader("Cookie")
                 .tag(
                     SessionRequestGeneration::class.java,
-                    SessionRequestGeneration(SessionRefreshCoordinator.currentGeneration())
+                    SessionRequestGeneration(SessionRefreshCoordinator.currentGeneration(scope), scope)
                 )
                 .build()
         }

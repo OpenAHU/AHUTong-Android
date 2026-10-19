@@ -22,6 +22,7 @@ import com.ahu.ahutong.data.model.BathRoom
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.Card
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
@@ -98,6 +99,13 @@ class SdkDataSource : BaseDataSource {
     override suspend fun getNextSchedule(): AhuResult<List<Course>> {
         return CrawlerDataSource().getNextSchedule()
     }
+
+    // SDK 暂无真实学期目录和按 ID 课表端口，沿用 Android 教务协议客户端。
+    override suspend fun getScheduleSemesters(): AhuResult<List<ScheduleSemester>> =
+        crawlerFallback.getScheduleSemesters()
+
+    override suspend fun getSemesterSchedule(semesterId: Int): AhuResult<List<Course>> =
+        crawlerFallback.getSemesterSchedule(semesterId)
 
     override suspend fun getGrade(): AhuResult<Grade> {
         val profiles = resolveGradeProfiles()

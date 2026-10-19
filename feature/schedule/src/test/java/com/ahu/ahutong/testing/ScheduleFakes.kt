@@ -9,6 +9,7 @@ import com.ahu.ahutong.data.schedule.ConfigSource
 import com.ahu.ahutong.data.schedule.ResolvedConfig
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
 import com.ahu.ahutong.data.schedule.ScheduleSource
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.data.schedule.SemesterKey
 import com.ahu.ahutong.data.session.SessionIdentity
@@ -30,6 +31,12 @@ class FakeScheduleSource : ScheduleSource {
             ScheduleRefreshResult(schedule = emptyList(), changed = false, fetchedAt = 0L)
         )
     var nextResult: AhuResult<List<Course>> = AhuResult.Success(emptyList())
+    var semestersResult: AhuResult<List<ScheduleSemester>> = AhuResult.Success(emptyList())
+    var semesterResult: AhuResult<List<Course>> = AhuResult.Success(emptyList())
+    var semesterLoader: (suspend (Int) -> AhuResult<List<Course>>)? = null
+    val semesterRequests = mutableListOf<Int>()
+    var semestersCount = 0
+        private set
 
     var fetchCount = 0
         private set
@@ -57,6 +64,16 @@ class FakeScheduleSource : ScheduleSource {
     override suspend fun next(isRefresh: Boolean): AhuResult<List<Course>> {
         nextCount++
         return nextResult
+    }
+
+    override suspend fun semesters(): AhuResult<List<ScheduleSemester>> {
+        semestersCount++
+        return semestersResult
+    }
+
+    override suspend fun semester(semesterId: Int): AhuResult<List<Course>> {
+        semesterRequests += semesterId
+        return semesterLoader?.invoke(semesterId) ?: semesterResult
     }
 }
 

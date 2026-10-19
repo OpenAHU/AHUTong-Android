@@ -24,6 +24,9 @@ import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -110,7 +113,7 @@ class LostFoundViewModel @Inject constructor(
             // 非强制刷新先读缓存
             if (!forceRefresh && !AHUCache.getMockData()) {
                 val cache =
-                    AHUCache.getLostFoundCampus()
+                    withContext(Dispatchers.IO) { AHUCache.getLostFoundCampus() }
 
                 if (cache.isNotEmpty()) {
                     allCampus = AllCampus(
@@ -129,15 +132,14 @@ class LostFoundViewModel @Inject constructor(
             if (campusPayload != null) {
                 allCampus = campusPayload
 
-                AHUCache.saveLostFoundCampus(
-                    campusPayload.`object`
-                )
+                withContext(Dispatchers.IO) { AHUCache.saveLostFoundCampus(campusPayload.`object`) }
 
                 errorMessage = null
             } else {
                 errorMessage = result.errorOrNull()?.toUserMessage()
             }
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             // 没缓存时才报错
             if (allCampus == null) {
                 errorMessage =
@@ -160,7 +162,7 @@ class LostFoundViewModel @Inject constructor(
             // 非强制刷新先读缓存
             if (!forceRefresh && !AHUCache.getMockData()) {
                 val cache =
-                    AHUCache.getLostFoundType()
+                    withContext(Dispatchers.IO) { AHUCache.getLostFoundType() }
 
                 if (cache.isNotEmpty()) {
                     allLostFoundType =
@@ -180,15 +182,14 @@ class LostFoundViewModel @Inject constructor(
             if (typePayload != null) {
                 allLostFoundType = typePayload
 
-                AHUCache.saveLostFoundType(
-                    typePayload.`object`
-                )
+                withContext(Dispatchers.IO) { AHUCache.saveLostFoundType(typePayload.`object`) }
 
                 errorMessage = null
             } else {
                 errorMessage = result.errorOrNull()?.toUserMessage()
             }
         } catch (t: Throwable) {
+            if (t is CancellationException) throw t
             if (allLostFoundType == null) {
                 errorMessage =
                     t.message ?: "获取类型失败"
@@ -208,14 +209,8 @@ class LostFoundViewModel @Inject constructor(
         currentPage = 1
         totalPages = 1
 
-        // 先读缓存
-        lostFoundList = if (AHUCache.getMockData()) {
-            emptyList()
-        } else {
-            AHUCache.getLostFoundList(state)
-        }
-
-        fetchFirstPage(commitPresetOnDispatch = true)
+        lostFoundList = emptyList()
+        fetchFirstPage(commitPresetOnDispatch = true, restoreCache = true)
     }
 
     fun selectCampusFilter(campusId: String?) {
@@ -233,12 +228,19 @@ class LostFoundViewModel @Inject constructor(
     /**
      * 获取第一页（覆盖）
      */
-    fun fetchFirstPage(commitPresetOnDispatch: Boolean = false) {
+    fun fetchFirstPage(commitPresetOnDispatch: Boolean = false, restoreCache: Boolean = false) {
         listRequestJob?.cancel()
         val requestedState = currentState
         listRequestJob = viewModelScope.launch {
             listLoading = true
             try {
+                if (restoreCache) {
+                    val cached = withContext(Dispatchers.IO) {
+                        if (AHUCache.getMockData()) emptyList() else AHUCache.getLostFoundList(requestedState)
+                    }
+                    if (currentState != requestedState) return@launch
+                    lostFoundList = cached
+                }
                 if (commitPresetOnDispatch) recordCurrentPresetDispatch()
                 val result = AHURepository.getLostFoundList(
                     pageNo = 1,
@@ -252,7 +254,7 @@ class LostFoundViewModel @Inject constructor(
                     currentPage = pageData.pageNum
                     totalPages = pageData.pages
                     lostFoundList = pageData.list
-                    AHUCache.saveLostFoundList(requestedState, pageData.list)
+                    withContext(Dispatchers.IO) { AHUCache.saveLostFoundList(requestedState, pageData.list) }
                     errorMessage = null
                     reportListContent(pageData.list.size, fresh = true)
                 } else {
@@ -260,6 +262,7 @@ class LostFoundViewModel @Inject constructor(
                     reportListError()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 if (currentState == requestedState) {
                     errorMessage = t.message ?: "获取列表失败"
                     reportListError()
@@ -305,14 +308,10 @@ class LostFoundViewModel @Inject constructor(
                     lostFoundList =
                         pageData.list
 
-                    AHUCache.clearLostFoundList(
-                        requestedState
-                    )
-
-                    AHUCache.saveLostFoundList(
-                        requestedState,
-                        pageData.list
-                    )
+                    withContext(Dispatchers.IO) {
+                        AHUCache.clearLostFoundList(requestedState)
+                        AHUCache.saveLostFoundList(requestedState, pageData.list)
+                    }
 
                     errorMessage = null
                     reportListContent(pageData.list.size, fresh = true)
@@ -321,6 +320,7 @@ class LostFoundViewModel @Inject constructor(
                     reportListError()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 errorMessage =
                     t.message ?: "刷新失败"
                 reportListError()
@@ -360,16 +360,14 @@ class LostFoundViewModel @Inject constructor(
 
                     lostFoundList = lostFoundList + newList
 
-                    AHUCache.appendLostFoundList(
-                        requestedState,
-                        newList
-                    )
+                    withContext(Dispatchers.IO) { AHUCache.appendLostFoundList(requestedState, newList) }
 
                     errorMessage = null
                 } else {
                     errorMessage = result.errorOrNull()?.toUserMessage()
                 }
             } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 errorMessage = t.message ?: "加载更多失败"
             } finally {
                 isLoadingMore = false
@@ -576,13 +574,7 @@ class LostFoundViewModel @Inject constructor(
         getAllCampus()
         getAllLostFoundType()
 
-        lostFoundList = if (AHUCache.getMockData()) {
-            emptyList()
-        } else {
-            AHUCache.getLostFoundList(currentState)
-        }
-
-        fetchFirstPage()
+        fetchFirstPage(restoreCache = true)
         viewModelScope.launch {
             presetCandidates = behaviorRuntime.rankLocalPresets(SemanticDomain.LOST_FOUND)
         }

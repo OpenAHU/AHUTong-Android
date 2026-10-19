@@ -13,5 +13,6 @@ data class ApkUpdateInfo(
     val sha256: String? = null,
     val signature: String? = null,
     val alg: String? = null,
-    val note: String? = null
+    val note: String? = null,
+    val channel: String = "stable"
 )

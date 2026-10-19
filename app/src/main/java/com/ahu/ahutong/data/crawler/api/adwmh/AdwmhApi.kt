@@ -14,6 +14,7 @@ import com.ahu.ahutong.data.network.campusAutoLogin
 import com.ahu.ahutong.data.network.campusCookies
 import com.ahu.ahutong.data.network.campusSessionRefresh
 import com.ahu.ahutong.data.network.withoutCampusSessionRefresh
+import com.ahu.ahutong.data.network.foregroundPaymentQueue
 import com.ahu.ahutong.data.session.RepositorySessionExpiryHook
 import com.ahu.ahutong.data.session.DefaultWisdomSession
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
@@ -110,7 +111,7 @@ interface AdwmhApi {
                     .build()
                 chain.proceed(request)
             }
-            .campusAutoLogin()
+            .campusAutoLogin(SessionRefreshCoordinator.Scope.WISDOM)
             .campusSessionRefresh(RepositorySessionExpiryHook(
                 DefaultWisdomSession, SessionRefreshCoordinator.Scope.WISDOM
             ))
@@ -122,12 +123,13 @@ interface AdwmhApi {
 
         private val loginOkHttpClient by lazy { okHttpClient.newBuilder()
             .withoutCampusSessionRefresh()
+            .foregroundPaymentQueue()
             .build() }
 
         val API by lazy { createAdwmhApi(okHttpClient, BASE_URL) }
 
         val QR_API by lazy { createAdwmhApi(
-            okHttpClient.newBuilder().callTimeout(12, TimeUnit.SECONDS).build(), BASE_URL
+            okHttpClient.newBuilder().foregroundPaymentQueue().callTimeout(12, TimeUnit.SECONDS).build(), BASE_URL
         ) }
 
         val LOGIN_API by lazy { createAdwmhApi(loginOkHttpClient, BASE_URL) }

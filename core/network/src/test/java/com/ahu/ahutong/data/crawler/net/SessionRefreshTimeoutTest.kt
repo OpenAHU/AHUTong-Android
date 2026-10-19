@@ -7,6 +7,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 
 /**
  * ADR 0002 的「有界刷新」：一次续期带总超时，超时即失败——不重试，也不推进代号。
@@ -249,5 +253,70 @@ class SessionRefreshTimeoutTest {
         assertFalse(SessionRefreshCoordinator.refreshIfNeeded(generation, scope = SessionRefreshCoordinator.Scope.WISDOM) {
             error("Wisdom must still observe its own cooldown")
         })
+    }
+
+    @Test
+    fun aHangingAcademicRefreshCannotBlockWisdomQrRecovery() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val academicGeneration = SessionRefreshCoordinator.currentGeneration()
+        val wisdomGeneration = SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM)
+        val academic = async {
+            SessionRefreshCoordinator.refreshIfNeeded(academicGeneration) {
+                started.complete(Unit)
+                finish.await()
+                SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+            }
+        }
+        started.await()
+        try {
+            assertTrue(withTimeout(1_000) {
+                SessionRefreshCoordinator.refreshIfNeeded(wisdomGeneration, scope = SessionRefreshCoordinator.Scope.WISDOM) {
+                    SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+                }
+            })
+            assertFalse(academic.isCompleted)
+        } finally { finish.complete(Unit) }
+        assertTrue(academic.await())
+        assertEquals(academicGeneration + 1, SessionRefreshCoordinator.currentGeneration())
+        assertEquals(wisdomGeneration + 1,
+            SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM))
+    }
+
+    @Test
+    fun signingOutKeepsTheAccountTransitionBarrierAndInvalidatesOldCommits() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        val refresh = async {
+            SessionRefreshCoordinator.refreshIfNeeded(generation) {
+                started.complete(Unit)
+                finish.await()
+                SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+            }
+        }
+        started.await()
+        val signOut = async { SessionRefreshCoordinator.onSignedOut() }
+        yield()
+        assertFalse(signOut.isCompleted)
+        finish.complete(Unit)
+        assertTrue(refresh.await())
+        withTimeout(1_000) { signOut.await() }
+        assertTrue(SessionRefreshCoordinator.isExplicitlySignedOut())
+        assertFalse(SessionRefreshCoordinator.commitIfCurrent(generation + 1) { error("stale account commit") })
+    }
+
+    @Test
+    fun anotherServicesSuccessCannotPretendToHaveRefreshedWisdom() = runBlocking {
+        val wisdomGeneration = SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM)
+        SessionRefreshCoordinator.refreshIfNeeded(SessionRefreshCoordinator.currentGeneration()) {
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        }
+        var calls = 0
+        assertTrue(SessionRefreshCoordinator.refreshIfNeeded(wisdomGeneration, scope = SessionRefreshCoordinator.Scope.WISDOM) {
+            calls++
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        })
+        assertEquals(1, calls)
     }
 }

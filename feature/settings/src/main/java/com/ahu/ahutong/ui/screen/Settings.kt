@@ -84,6 +84,8 @@ fun Settings(
     onNavigateToLogin: () -> Unit,
     onSwitchAccount: () -> Unit,
     onNavigateToPreferences: () -> Unit,
+    onNavigateToEarlyAccess: () -> Unit,
+    earlyAccessSummary: String,
     onNavigateToDebug: () -> Unit,
     onNavigateToLicense: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit = {},
@@ -234,12 +236,23 @@ fun Settings(
                     else -> Icons.Outlined.Update
                 },
                 leadingPainter = if (isRadiant) painterResource(R.drawable.ic_update) else null,
-                showDivider = false,
                 onClick = {
                     onCheckUpdate { message ->
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                     }
                 }
+            )
+            SettingsActionRow(
+                title = "抢先体验",
+                subtitle = earlyAccessSummary,
+                leadingIcon = when {
+                    useMiuixIcons -> MiuixIcons.Useful.Personal
+                    isRadiant -> null
+                    else -> Icons.Outlined.PeopleOutline
+                },
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_peoples) else null,
+                showDivider = false,
+                onClick = onNavigateToEarlyAccess
             )
         }
 

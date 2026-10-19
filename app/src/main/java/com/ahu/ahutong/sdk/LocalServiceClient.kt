@@ -23,6 +23,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 import com.ahu.ahutong.data.network.AhuHttp
+import com.ahu.ahutong.data.network.foregroundPaymentQueue
 
 /**
  * @Author Yukon
@@ -73,6 +74,7 @@ class LocalServiceClient(
     ).build()
 
     private val qrClient = client.newBuilder()
+        .foregroundPaymentQueue()
         .callTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()

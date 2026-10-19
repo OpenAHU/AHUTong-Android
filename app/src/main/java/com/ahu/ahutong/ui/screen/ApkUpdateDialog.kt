@@ -72,7 +72,7 @@ fun ApkUpdateDialog(
     }
 
     AppDialog(
-        title = "发现新版本 ${info.versionName ?: info.versionCode}",
+        title = "发现${if (info.channel == "preview") "抢先" else "正式"}版本 ${info.versionName ?: info.versionCode}",
         titleStyle = MaterialTheme.typography.headlineSmall,
         titleFontWeight = FontWeight.Bold,
         onDismiss = { if (dismissible) onDismiss() },

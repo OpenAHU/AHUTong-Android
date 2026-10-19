@@ -2,8 +2,7 @@ package com.ahu.ahutong.data.crawler.net
 
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl
 import okhttp3.Request
 
@@ -33,10 +32,9 @@ object SessionRefreshCoordinator {
     // A failed academic login must not suppress Wisdom QR or campus-card CAS recovery.
     enum class Scope { ACADEMIC, WISDOM, CENTRAL_CAS }
 
-    private val refreshMutex = Mutex()
-
-    @Volatile
-    private var generation = 0L
+    private val stateMutex = Mutex()
+    private val refreshLocks = Scope.entries.associateWith { Mutex() }
+    @Volatile private var generations = Scope.entries.associateWith { 0L }
 
     // Service sessions survive routine CAS refreshes, but never a manual login/logout.
     @Volatile private var identityGeneration = 0L
@@ -54,7 +52,7 @@ object SessionRefreshCoordinator {
     @Volatile
     private var refreshDisabled = false
 
-    fun currentGeneration(): Long = generation
+    fun currentGeneration(scope: Scope = Scope.ACADEMIC): Long = generations.getValue(scope)
 
     /** Unlike the unhydrated UI status at cold start, this flag represents an explicit sign-out. */
     fun isExplicitlySignedOut(): Boolean = refreshDisabled
@@ -64,8 +62,9 @@ object SessionRefreshCoordinator {
      * 推进代号会让登录前发出的慢响应变成旧响应，避免它在新会话上再次触发自动续期。
      * 与自动续期共用同一把锁，防止较早启动的失败续期在新登录之后重新写回失败记忆。
      */
-    suspend fun onAuthenticated(action: () -> Unit = {}) = refreshMutex.withLock {
-        generation += 1
+    suspend fun onAuthenticated(action: () -> Unit = {}) = identityBarrier {
+        val nextGeneration = generations.values.max() + 1
+        generations = generations.mapValues { nextGeneration }
         identityGeneration += 1
         failures.clear()
         refreshDisabled = false
@@ -73,8 +72,9 @@ object SessionRefreshCoordinator {
     }
 
     /** 主动登出同样推进代号，使所有已发出的请求与在途续期立即失去提交资格。 */
-    suspend fun onSignedOut(action: () -> Unit = {}) = refreshMutex.withLock {
-        generation += 1
+    suspend fun onSignedOut(action: () -> Unit = {}) = identityBarrier {
+        val nextGeneration = generations.values.max() + 1
+        generations = generations.mapValues { nextGeneration }
         identityGeneration += 1
         // 退出后的匿名代号禁止自动续期；否则残留清理完成前的新请求还能拿旧凭据重登。
         // 下一次真实登录会由 onAuthenticated 推进代号并解除这道闸。
@@ -83,10 +83,27 @@ object SessionRefreshCoordinator {
         action()
     }
 
+    // Manual account transitions retain the original barrier against old login
+    // operations writing cookies into a new account. Ordinary service refreshes
+    // never acquire another service's network lock.
+    private suspend fun identityBarrier(action: () -> Unit) {
+        refreshLocks.getValue(Scope.ACADEMIC).withLock {
+            refreshLocks.getValue(Scope.WISDOM).withLock {
+                refreshLocks.getValue(Scope.CENTRAL_CAS).withLock {
+                    stateMutex.withLock { action() }
+                }
+            }
+        }
+    }
+
     /** 只让仍属于当前会话代号的结果提交副作用；与手动登录的代号推进原子互斥。 */
-    suspend fun commitIfCurrent(observedGeneration: Long, action: suspend () -> Unit): Boolean =
-        refreshMutex.withLock {
-            if (generation != observedGeneration) return@withLock false
+    suspend fun commitIfCurrent(
+        observedGeneration: Long,
+        scope: Scope = Scope.ACADEMIC,
+        action: suspend () -> Unit
+    ): Boolean =
+        stateMutex.withLock {
+            if (currentGeneration(scope) != observedGeneration) return@withLock false
             action()
             true
         }
@@ -96,15 +113,18 @@ object SessionRefreshCoordinator {
      * A slow response from the old session can otherwise arrive just after a successful refresh
      * and incorrectly start another full login.
      */
-    fun tagRequest(request: Request): Request {
+    fun tagRequest(request: Request, scope: Scope = Scope.ACADEMIC): Request {
         if (request.tag(SessionRequestGeneration::class.java) != null) return request
         return request.newBuilder()
-            .tag(SessionRequestGeneration::class.java, SessionRequestGeneration(generation))
+            .tag(SessionRequestGeneration::class.java, SessionRequestGeneration(currentGeneration(scope), scope))
             .build()
     }
 
     fun observedGeneration(request: Request): Long =
-        request.tag(SessionRequestGeneration::class.java)?.value ?: generation
+        request.tag(SessionRequestGeneration::class.java)?.value ?: currentGeneration()
+
+    fun observedScope(request: Request): Scope =
+        request.tag(SessionRequestGeneration::class.java)?.scope ?: Scope.ACADEMIC
 
     suspend fun refreshIfNeeded(
         observedGeneration: Long,
@@ -113,35 +133,36 @@ object SessionRefreshCoordinator {
         nowMillis: Long = System.currentTimeMillis(),
         scope: Scope = Scope.ACADEMIC,
         refresh: suspend () -> RefreshOutcome
-    ): Boolean = refreshMutex.withLock {
-        if (refreshDisabled) return@withLock false
-        if (generation != observedGeneration) return@withLock true
-
-        failures[scope]?.let { failure ->
-            // 凭据被拒：封到人工重登；瞬时失败：冷却窗内快速失败（防惊群），窗外放行一次再试。
-            if (failure.kind == FailureKind.REJECTED) return@withLock false
-            if (nowMillis - failure.atMillis < transientCooldownMillis) return@withLock false
+    ): Boolean = refreshLocks.getValue(scope).withLock serviceLock@{
+        val expectedIdentity = stateMutex.withLock {
+            if (refreshDisabled) return@serviceLock false
+            if (currentGeneration(scope) != observedGeneration) return@serviceLock true
+            failures[scope]?.let { failure ->
+                if (failure.kind == FailureKind.REJECTED) return@serviceLock false
+                if (nowMillis - failure.atMillis < transientCooldownMillis) return@serviceLock false
+            }
+            identityGeneration
         }
 
-        // ADR 0002 的有界刷新：单次续期带总超时；超时按瞬时失败处理（可冷却重试），不推进代号。
-        val outcome = try {
-            withTimeout(timeoutMillis) { refresh() }
-        } catch (e: TimeoutCancellationException) {
-            RefreshOutcome.TRANSIENT
-        }
-        when (outcome) {
-            RefreshOutcome.SUCCESS -> {
-                generation += 1
-                failures.clear()
-                true
-            }
-            RefreshOutcome.TRANSIENT -> {
-                failures[scope] = Failure(FailureKind.TRANSIENT, nowMillis)
-                false
-            }
-            RefreshOutcome.REJECTED -> {
-                failures[scope] = Failure(FailureKind.REJECTED, nowMillis)
-                false
+        // Network work holds only this service's lock. Slow academic/CAS recovery
+        // cannot occupy the Wisdom QR lane.
+        val outcome = withTimeoutOrNull(timeoutMillis) { refresh() } ?: RefreshOutcome.TRANSIENT
+        stateMutex.withLock {
+            if (identityGeneration != expectedIdentity || refreshDisabled) return@withLock false
+            when (outcome) {
+                RefreshOutcome.SUCCESS -> {
+                    generations = generations + (scope to (currentGeneration(scope) + 1))
+                    failures.remove(scope)
+                    true
+                }
+                RefreshOutcome.TRANSIENT -> {
+                    failures[scope] = Failure(FailureKind.TRANSIENT, nowMillis)
+                    false
+                }
+                RefreshOutcome.REJECTED -> {
+                    failures[scope] = Failure(FailureKind.REJECTED, nowMillis)
+                    false
+                }
             }
         }
     }
@@ -150,8 +171,8 @@ object SessionRefreshCoordinator {
     suspend fun failureKindOf(
         observedGeneration: Long,
         scope: Scope = Scope.ACADEMIC
-    ): FailureKind? = refreshMutex.withLock {
-        if (generation == observedGeneration) failures[scope]?.kind else null
+    ): FailureKind? = stateMutex.withLock {
+        if (currentGeneration(scope) == observedGeneration) failures[scope]?.kind else null
     }
 
     /** 单次续期的总预算：一次完整登录的合理上限，超了就不再等（ADR 0002）。 */
@@ -161,7 +182,10 @@ object SessionRefreshCoordinator {
     const val TRANSIENT_COOLDOWN_MS = 15_000L
 }
 
-internal data class SessionRequestGeneration(val value: Long)
+internal data class SessionRequestGeneration(
+    val value: Long,
+    val scope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC
+)
 
 internal object SessionRefreshPolicy {
     const val EXPIRED_RESPONSE_HEADER = "X-AHUTong-Session-Expired"

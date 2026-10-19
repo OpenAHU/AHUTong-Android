@@ -2,6 +2,8 @@ package com.ahu.ahutong.ui.plugin
 
 import android.content.Context
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 插件总开关（开发者选项）：关 = 全部门禁——卸载全部运行期插件并清空其存储。
@@ -15,19 +17,18 @@ object AhupGate {
     fun isDevMode(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DEV_MODE, false)
 
-    fun setDevMode(context: Context, enabled: Boolean) {
+    suspend fun setDevMode(context: Context, enabled: Boolean) = withContext(Dispatchers.IO) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_DEV_MODE, enabled).apply()
         if (!enabled) uninstallAll(context)
     }
 
     /** 卸载全部运行期插件 + 清空每个插件的隔离存储（KV + 二进制目录）。 */
-    fun uninstallAll(context: Context) {
+    suspend fun uninstallAll(context: Context) = PluginRegistry.update(context) {
         AhupInstaller.installedIds(context).forEach { id ->
             AhupInstaller.uninstall(context, id)
             cleanupPluginData(context, id)
         }
-        PluginRegistry.reload(context)
     }
 }
 

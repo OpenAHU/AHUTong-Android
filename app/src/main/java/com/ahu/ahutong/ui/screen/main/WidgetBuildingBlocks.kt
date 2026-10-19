@@ -88,6 +88,8 @@ import kotlinx.coroutines.launch
 import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
 import java.io.File
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.icons.useful.Edit
@@ -170,10 +172,12 @@ internal fun CategorizedToolCard(
     ) {
         val iconBytes = spec.iconBytes
         val bitmap = if (iconBytes != null) {
-            remember(iconBytes) {
-                android.graphics.BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.size)
-                    ?.asImageBitmap()
+            val decoded by produceState<ImageBitmap?>(null, iconBytes) {
+                value = withContext(Dispatchers.Default) {
+                    android.graphics.BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.size)?.asImageBitmap()
+                }
             }
+            decoded
         } else {
             null
         }

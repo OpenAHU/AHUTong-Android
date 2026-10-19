@@ -48,7 +48,6 @@ import com.ahu.ahutong.personalization.inference.TimeBucketFrequencyBaselinePred
 import com.ahu.ahutong.personalization.inference.TinyMlpPredictor
 import com.ahu.ahutong.personalization.model.ModelStateStore
 import com.ahu.ahutong.personalization.profile.ProfileKeyManager
-import com.ahu.ahutong.personalization.prefetch.PaymentQrRepository
 import com.ahu.ahutong.personalization.prefetch.PaymentQrOpenCommandStore
 import com.ahu.ahutong.personalization.prefetch.PrefetchCoordinator
 import com.ahu.ahutong.personalization.promotion.LocalPromotionManager
@@ -217,7 +216,6 @@ class BehaviorPredictionRuntime @Inject constructor(
     private val modelStateStore: ModelStateStore,
     private val preferencesManager: PreferencesManager,
     private val prefetchCoordinator: PrefetchCoordinator,
-    private val paymentQrRepository: PaymentQrRepository,
     private val paymentQrCommands: PaymentQrOpenCommandStore,
     private val bootstrapTrainingDataManager: BootstrapTrainingDataManager,
     private val telemetryManager: ModelQualityTelemetryManager,
@@ -308,7 +306,6 @@ class BehaviorPredictionRuntime @Inject constructor(
         val nextProfile = profileKeyManager.profileKey(accountIdentifier)
         if (profileReady && profileKey == nextProfile && sessionId != null) {
             val refreshedLoginGeneration = loginGeneration.incrementAndGet()
-            paymentQrRepository.activateProfile(nextProfile, profileGeneration.get(), refreshedLoginGeneration)
             paymentQrCommands.activate(profileGeneration.get(), refreshedLoginGeneration)
             return
         }
@@ -381,7 +378,6 @@ class BehaviorPredictionRuntime @Inject constructor(
         )
         val activeProfileGeneration = profileGeneration.incrementAndGet()
         val activeLoginGeneration = loginGeneration.incrementAndGet()
-        paymentQrRepository.activateProfile(nextProfile, activeProfileGeneration, activeLoginGeneration)
         paymentQrCommands.activate(activeProfileGeneration, activeLoginGeneration)
         prefetchCoordinator.beginSession()
         profileReady = true
@@ -1884,7 +1880,6 @@ class BehaviorPredictionRuntime @Inject constructor(
             executionEpoch.incrementAndGet()
         dao.cancelProfileLeases(activeProfile)
         prefetchCoordinator.cancelAll()
-        paymentQrRepository.clearSensitive()
         }
     }
 

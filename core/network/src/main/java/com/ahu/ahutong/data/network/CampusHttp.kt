@@ -3,6 +3,9 @@ package com.ahu.ahutong.data.network
 import com.ahu.ahutong.data.crawler.net.AutoLoginInterceptor
 import com.ahu.ahutong.data.crawler.net.SessionExpiryHook
 import com.ahu.ahutong.data.crawler.net.TokenAuthenticator
+import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
+import com.ahu.ahutong.data.crawler.net.SessionRequestTaggingInterceptor
+import okhttp3.Dispatcher
 import okhttp3.Authenticator
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
@@ -31,8 +34,16 @@ fun OkHttpClient.Builder.campusCookies(
 }
 
 /** 将登录页重定向标记为需续期的 401，由认证器决定最终登录态。 */
-fun OkHttpClient.Builder.campusAutoLogin(): OkHttpClient.Builder = apply {
-    addNetworkInterceptor(AutoLoginInterceptor())
+fun OkHttpClient.Builder.campusAutoLogin(
+    scope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC
+): OkHttpClient.Builder = apply {
+    addInterceptor(SessionRequestTaggingInterceptor(scope))
+    addNetworkInterceptor(AutoLoginInterceptor(scope))
+}
+
+/** Reserve an execution queue for foreground QR and its authentication requests. */
+fun OkHttpClient.Builder.foregroundPaymentQueue(): OkHttpClient.Builder = apply {
+    dispatcher(Dispatcher().apply { maxRequests = 4; maxRequestsPerHost = 4 })
 }
 
 /** 会话失效时用存储凭据续期；实现由调用方注入（生产实现见 data/session/RepositorySessionExpiryHook）。 */
@@ -48,5 +59,6 @@ fun OkHttpClient.Builder.campusSessionRefresh(
  */
 fun OkHttpClient.Builder.withoutCampusSessionRefresh(): OkHttpClient.Builder = apply {
     authenticator(Authenticator.NONE)
+    interceptors().removeAll { it is SessionRequestTaggingInterceptor }
     networkInterceptors().removeAll { it is AutoLoginInterceptor }
 }

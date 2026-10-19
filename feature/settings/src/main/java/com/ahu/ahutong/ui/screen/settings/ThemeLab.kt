@@ -556,8 +556,10 @@ private fun BackgroundControls(viewModel: PreferencesViewModel) {
                 }
                 AppButton(
                     onClick = {
-                        com.ahu.ahutong.core.storage.HomeBackgroundStore
-                            .dominantColorHex(context)?.let { viewModel.setThemeColor(it) }
+                        scope.launch {
+                            com.ahu.ahutong.core.storage.HomeBackgroundStore
+                                .dominantColorHex(context)?.let { viewModel.setThemeColor(it) }
+                        }
                     },
                     variant = AppButtonVariant.Secondary,
                     modifier = Modifier.fillMaxWidth()

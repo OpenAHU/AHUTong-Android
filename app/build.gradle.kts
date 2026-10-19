@@ -7,7 +7,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
-    id("io.sentry.jvm.gradle")
+    id("io.sentry.android.gradle")
 }
 
 // DSN 是客户端公开标识，默认值随仓库提供；可用 -Psentry.dsn=... 或环境变量 SENTRY_DSN 覆盖。
@@ -21,11 +21,21 @@ val buglyAppId = providers.gradleProperty("bugly.appId").orNull
     ?: providers.environmentVariable("BUGLY_APP_ID").orNull
     ?: "2c2ccadcad"
 
+val sentryToken = providers.environmentVariable("SENTRY_AUTH_TOKEN")
+    .map { it.trim() }
+    .orElse("")
+
 sentry {
     org.set("openahu")
     projectName.set("ahutong-android")
-    // 上传混淆映射需要认证令牌，只从环境变量读取，不写入仓库；缺失时插件会跳过上传任务。
-    authToken.set(providers.environmentVariable("SENTRY_AUTH_TOKEN").orNull)
+    authToken.set(sentryToken)
+    includeProguardMapping.set(true)
+    // 无令牌仍生成并嵌入 UUID，保留同一次构建的 mapping 供后续补传。
+    autoUploadProguardMapping.set(sentryToken.map { it.isNotEmpty() })
+    // 这里只接入 mapping，不改变已有 SDK 依赖与运行时插桩。
+    autoInstallation.enabled.set(false)
+    tracingInstrumentation.enabled.set(false)
+    runtimeOptimizations.enabled.set(false)
     // 关闭构建期遥测，避免构建信息被上报。
     telemetry.set(false)
 }
@@ -78,8 +88,10 @@ android {
         applicationId = "com.ahu.ahutong"
         minSdk = 26
         targetSdk = 36
-        versionCode = 304002
-        versionName = "3.4.1"
+        versionCode = 304003
+        versionName = "3.4.2"
+        providers.gradleProperty("release.versionCode").orNull?.let { versionCode = it.toInt() }
+        providers.gradleProperty("release.versionName").orNull?.let { versionName = it }
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
         buildConfigField("String", "BUGLY_APP_ID", "\"$buglyAppId\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

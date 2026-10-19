@@ -1,6 +1,5 @@
 package com.ahu.ahutong
 
-import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -92,10 +91,7 @@ class AccountLoginActivity : ComponentActivity() {
                             runCatching { SavedAccounts.rememberCurrent() }.onFailure {
                                 notice("登录成功，但无法保存快速切换信息，请稍后重试")
                             }
-                            startActivity(Intent(this, MainActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                            })
-                            finish()
+                            restartMainAfterLogin()
                         }
                     )
                 } else {

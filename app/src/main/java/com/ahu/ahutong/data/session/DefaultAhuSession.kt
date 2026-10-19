@@ -40,6 +40,12 @@ private fun createSession(wisdomOnly: Boolean) = RepositoryAhuSession(
         }
 
         override suspend fun clear() {
+            try {
+                SessionStore.currentUser()?.xh?.let { com.ahu.ahutong.data.payment.EncryptedPaymentQrCache.clear(it) }
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                android.util.Log.w("AhuSession", "Unable to clear retained payment QR")
+            }
             com.ahu.ahutong.data.mail.StudentMailSession.clear()
             EvaluationRepository.clearSession()
             TokenManager.clear()

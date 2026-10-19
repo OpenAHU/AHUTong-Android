@@ -2,14 +2,20 @@ package com.ahu.ahutong.data.mail
 
 import java.util.Base64
 import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.ResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
+import okio.BufferedSource
+import okio.ForwardingSource
+import okio.buffer
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -230,13 +236,39 @@ class StudentMailBodyImagesTest {
 
     @Test fun closingLoaderCancelsSocketDuringBodyAndPreventsFurtherRequests() {
         server.enqueue(image().throttleBody(1, 500, TimeUnit.MILLISECONDS))
+        val reading = CountDownLatch(1)
+        val closingThreads = CopyOnWriteArrayList<Thread>()
+        val cancellingThread = Thread.currentThread()
+        client = client.newBuilder().addNetworkInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            val body = response.body!!
+            val observed = object : ResponseBody() {
+                private val source = object : ForwardingSource(body.source()) {
+                    override fun read(sink: Buffer, byteCount: Long): Long {
+                        reading.countDown()
+                        return super.read(sink, byteCount)
+                    }
+                    override fun close() {
+                        closingThreads.add(Thread.currentThread())
+                        super.close()
+                    }
+                }.buffer()
+                override fun contentType() = body.contentType()
+                override fun contentLength() = body.contentLength()
+                override fun source(): BufferedSource = source
+            }
+            response.newBuilder().body(observed).build()
+        }.build()
         val images = loader(allowExternal = true)
         val executor = Executors.newSingleThreadExecutor()
         try {
             val future = executor.submit<MailBodyImage?> { images.load(server.url("/slow.gif").toString()) }
             assertNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+            assertTrue(reading.await(2, TimeUnit.SECONDS))
             images.close()
             assertNull(future.get(2, TimeUnit.SECONDS))
+            assertTrue(closingThreads.isNotEmpty())
+            assertTrue("Only the image reader may close its body", closingThreads.none { it === cancellingThread })
             assertNull(images.load(server.url("/after-close.gif").toString()))
             assertEquals(1, server.requestCount)
         } finally { images.close(); executor.shutdownNow() }

@@ -46,6 +46,7 @@ object MockFixtureFactory {
     ): MockAcademicProfile =
         when (variant) {
             AcademicVariant.Standard -> standardAcademic(today)
+            AcademicVariant.ScheduleConflict -> scheduleConflictAcademic(today)
             AcademicVariant.ExamWeek -> examWeekAcademic(today)
             AcademicVariant.NewStudent -> newStudentAcademic(today)
             AcademicVariant.Empty -> emptyAcademic()
@@ -135,6 +136,22 @@ object MockFixtureFactory {
                 activeType = "owner"
             )
         }
+
+    private fun scheduleConflictAcademic(today: LocalDate): MockAcademicProfile =
+        standardAcademic(today).copy(
+            currentSchedule = listOf(
+                course("CONFLICT-001", "高等数学", "张老师", "博学南楼 A301", 1, 1, 2, 1..20),
+                course("CONFLICT-002", "大学英语", "李老师", "博学北楼 B205", 1, 1, 2, 1..20),
+                course("CONFLICT-003", "计算机网络", "王老师", "笃行北楼 B402", 2, 3, 3, 1..20),
+                course("CONFLICT-004", "操作系统", "陈老师", "博学南楼 A210", 2, 3, 3, 1..20),
+                course("CONFLICT-005", "数据库系统", "刘老师", "文典阁 205", 2, 3, 3, 1..20),
+                course("CONFLICT-006", "软件工程", "刘老师", "实验中心 503", 3, 1, 3, 1..20),
+                course("CONFLICT-007", "线性代数", "张老师", "博学南楼 A302", 3, 3, 2, 1..20),
+                course("CONFLICT-008", "大学物理", "赵老师", "博学北楼 B101", 4, 1, 2, (1..20 step 2).toList()),
+                course("CONFLICT-009", "物理实验", "孙老师", "实验中心 201", 4, 1, 2, (2..20 step 2).toList()),
+                course("CONFLICT-010", "大学体育", "赵老师", "磬苑操场", 5, 3, 2, 1..20)
+            )
+        )
 
     private fun standardAcademic(today: LocalDate): MockAcademicProfile =
         MockAcademicProfile(
@@ -923,6 +940,7 @@ object MockFixtureFactory {
 
 enum class AcademicVariant {
     Standard,
+    ScheduleConflict,
     ExamWeek,
     NewStudent,
     Empty,

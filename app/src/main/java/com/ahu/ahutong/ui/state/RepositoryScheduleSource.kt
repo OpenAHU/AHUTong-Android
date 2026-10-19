@@ -9,6 +9,7 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
 import com.ahu.ahutong.data.schedule.ScheduleSource
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,5 +40,11 @@ class RepositoryScheduleSource @Inject constructor() : ScheduleSource {
 
     override suspend fun next(isRefresh: Boolean): AhuResult<List<Course>> =
         AHURepository.getNextSchedule(isRefresh = isRefresh)
+
+    override suspend fun semesters(): AhuResult<List<ScheduleSemester>> =
+        AHURepository.getScheduleSemesters()
+
+    override suspend fun semester(semesterId: Int): AhuResult<List<Course>> =
+        AHURepository.getSemesterSchedule(semesterId)
 }
 

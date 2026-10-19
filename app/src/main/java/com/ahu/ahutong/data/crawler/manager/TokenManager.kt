@@ -21,11 +21,16 @@ object TokenManager {
     val TAG = "TokenManager"
 
     @Volatile
-    private var token: String? = null
+    private var token: CachedToken? = null
+    private val tokenLock = Any()
+    private var tokenVersion = 0L
     private val refreshMutex = Mutex()
 
-    /** Returns the current in-memory snapshot and never performs network I/O. */
-    fun getToken(): String? = token
+    /** Returns the current identity's in-memory snapshot and never performs network I/O. */
+    fun getToken(): String? = token?.takeIf {
+        it.identityGeneration == SessionRefreshCoordinator.currentIdentityGeneration() &&
+            !SessionRefreshCoordinator.isExplicitlySignedOut()
+    }?.value
 
     private fun fetchToken(): TokenFetchResult {
         return try {
@@ -39,11 +44,10 @@ object TokenManager {
 
             val ticket = extractCampusCardCredential(loginResult.ticketUrl)
                 ?: return TokenFetchResult()
-            val decodedUsername = URLDecoder.decode(URLDecoder.decode(ticket, "UTF-8"), "UTF-8")
 
             val tokenResponse = YcardApi.API.getToken(
-                username = decodedUsername,
-                password = decodedUsername
+                username = ticket,
+                password = ticket
             ).execute()
 
             if (tokenResponse.isSuccessful) {
@@ -98,9 +102,9 @@ object TokenManager {
     }
 
     suspend fun awaitToken(): String? {
-        token?.takeIf { it.isNotBlank() }?.let { return it }
+        getToken()?.let { return it }
         return refreshMutex.withLock {
-            token?.takeIf { it.isNotBlank() }?.let { return@withLock it }
+            getToken()?.let { return@withLock it }
             fetchUsableToken()
         }
     }
@@ -111,16 +115,19 @@ object TokenManager {
      */
     suspend fun refreshAfterUnauthorized(rejectedToken: String?): String? =
         refreshMutex.withLock {
-            token?.takeIf { current ->
+            getToken()?.takeIf { current ->
                 current.isNotBlank() && rejectedToken != null && current != rejectedToken
             }?.let { return@withLock it }
 
-            token = null
+            clear()
             fetchUsableToken()
         }
 
     private suspend fun fetchUsableToken(): String? {
-        val observedGeneration = SessionRefreshCoordinator.currentGeneration()
+        if (SessionRefreshCoordinator.isExplicitlySignedOut()) return null
+        val observedIdentity = SessionRefreshCoordinator.currentIdentityGeneration()
+        val observedTokenVersion = synchronized(tokenLock) { tokenVersion }
+        val observedGeneration = SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.CENTRAL_CAS)
         val firstAttempt = withContext(Dispatchers.IO) { fetchToken() }
         val result = if (firstAttempt.requiresSessionRefresh &&
             refreshStoredSession(observedGeneration, firstAttempt.casLoginUrl)
@@ -129,7 +136,19 @@ object TokenManager {
         } else {
             firstAttempt
         }
-        return result.token?.takeIf { it.isNotBlank() }?.also { token = it }
+        val refreshedToken = result.token?.takeIf { it.isNotBlank() } ?: return null
+        return synchronized(tokenLock) {
+            // A blocking exchange can finish after clear(), sign-out, or an account change.
+            if (tokenVersion != observedTokenVersion ||
+                SessionRefreshCoordinator.currentIdentityGeneration() != observedIdentity ||
+                SessionRefreshCoordinator.isExplicitlySignedOut()
+            ) {
+                null
+            } else {
+                token = CachedToken(refreshedToken, observedIdentity)
+                refreshedToken
+            }
+        }
     }
 
     private suspend fun refreshStoredSession(
@@ -162,8 +181,10 @@ object TokenManager {
         }
         // 与 RepositoryAhuSession 同一约定：续期成功由会话层写登录态。
         if (refreshed) {
-            SessionRefreshCoordinator.commitIfCurrent(observedGeneration + 1) {
-                if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
+            SessionRefreshCoordinator.commitIfCurrent(observedGeneration + 1, SessionRefreshCoordinator.Scope.CENTRAL_CAS) {
+                if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
+                    SessionStore.currentUser() != null
+                ) {
                     AhuSessionState.markAuthenticated()
                 }
             }
@@ -171,10 +192,13 @@ object TokenManager {
             val rejected = SessionRefreshCoordinator.failureKindOf(
                 observedGeneration, SessionRefreshCoordinator.Scope.CENTRAL_CAS
             ) == SessionRefreshCoordinator.FailureKind.REJECTED
-            SessionRefreshCoordinator.commitIfCurrent(observedGeneration) {
+            SessionRefreshCoordinator.commitIfCurrent(observedGeneration, SessionRefreshCoordinator.Scope.CENTRAL_CAS) {
                 // 只有凭据被明确拒绝才宣告过期；瞬时失败保持静默，冷却窗外自愈。
                 // 若手动登录已推进代号，这个旧失败不会进入提交块，也就不能覆盖新会话。
-                if (rejected && AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
+                if (rejected &&
+                    (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
+                        SessionStore.currentUser() != null)
+                ) {
                     AhuSessionState.markExpired()
                 }
             }
@@ -192,24 +216,31 @@ object TokenManager {
     private fun hasCampusCardCredential(url: String): Boolean =
         extractCampusCardCredential(url) != null
 
-    private fun extractCampusCardCredential(url: String): String? {
-        val rawTicket = Regex("[?&]ticket=([^&]+)")
+    internal fun extractCampusCardCredential(url: String): String? {
+        val rawTicket = Regex("[?&]ticket=([^&#]+)")
             .find(url)
             ?.groupValues
             ?.getOrNull(1)
             ?: return null
-        val decodedOnce = runCatching { URLDecoder.decode(rawTicket, "UTF-8") }
-            .getOrDefault(rawTicket)
-        return rawTicket.takeUnless {
-            decodedOnce.startsWith("ST-", ignoreCase = true) ||
-                decodedOnce.startsWith("PT-", ignoreCase = true)
+        // A ticket is an opaque URI component: decode once and preserve literal plus signs.
+        val credential = runCatching {
+            URLDecoder.decode(rawTicket.replace("+", "%2B"), "UTF-8")
+        }.getOrNull() ?: return null
+        return credential.takeUnless {
+            it.startsWith("ST-", ignoreCase = true) ||
+                it.startsWith("PT-", ignoreCase = true)
         }
     }
 
     fun clear() {
         Log.e(TAG, "clear: Token", )
-        token = null
+        synchronized(tokenLock) {
+            tokenVersion += 1
+            token = null
+        }
     }
+
+    private class CachedToken(val value: String, val identityGeneration: Long)
 
     private data class TokenFetchResult(
         val token: String? = null,

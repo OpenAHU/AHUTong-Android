@@ -1,11 +1,11 @@
 package com.ahu.ahutong.ui.state
 
-import com.ahu.ahutong.core.designsystem.RefreshState
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.core.designsystem.RefreshState
 import com.ahu.ahutong.data.model.Exam
+import com.ahu.ahutong.data.grade.ExamSource
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.context.ExamDistanceBucket
 import com.ahu.ahutong.testing.FakeExamSource
@@ -55,7 +55,25 @@ class ExamViewModelTest {
         source: FakeExamSource = FakeExamSource(),
         session: FakeGradeSession = FakeGradeSession(),
         behavior: FakeGradeBehavior = FakeGradeBehavior()
-    ) = ExamViewModel(source, session, behavior)
+    ) = ExamViewModel(source, session, behavior, dispatcher)
+
+    @Test
+    fun `logout during cache restore does not publish the old account exams`() = runTest(dispatcher) {
+        val session = FakeGradeSession()
+        val fake = FakeExamSource(cachedAtMillis = System.currentTimeMillis())
+        val source = object : ExamSource by fake {
+            override fun cachedExams(): List<Exam> {
+                session.user = null
+                session.loggedIn = false
+                return listOf(examOf("旧账号考试"))
+            }
+        }
+        val subject = ExamViewModel(source, session, FakeGradeBehavior(), dispatcher)
+        subject.loadExam()
+        advanceUntilIdle()
+        assertNull(subject.data.value)
+        assertEquals(0, fake.fetchCount)
+    }
 
     @Test
     fun `a fresh cache is served without touching the network`() = runTest(dispatcher) {

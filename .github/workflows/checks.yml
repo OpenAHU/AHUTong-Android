@@ -1,0 +1,136 @@
+name: Code checks
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      concurrency-key:
+        description: Distinguish reusable checks from automatic checks or another caller.
+        type: string
+        required: false
+        default: reusable
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ inputs.concurrency-key || 'automatic' }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Automatic checks never upload Sentry artifacts or use publishing credentials.
+  SENTRY_AUTH_TOKEN: ''
+
+jobs:
+  select-run:
+    name: Select push or PR check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.select.outputs.run }}
+    steps:
+      - name: Prefer the PR merge commit when a branch has an open PR
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=true
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            open=$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" \
+              -f per_page=100 \
+              --jq 'length')
+            if [[ "$open" -gt 0 ]]; then run=false; fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  checks:
+    name: Source, Rust tests, Android tests and lint
+    needs: select-run
+    if: needs.select-run.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Check changed whitespace and tracked credentials
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          base="$PR_BASE"
+          if [[ -z "$base" && -n "$PUSH_BEFORE" && "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]] && git cat-file -e "$PUSH_BEFORE^{commit}"; then
+            base="$PUSH_BEFORE"
+          fi
+          if [[ -n "$base" ]]; then
+            git -c core.whitespace=cr-at-eol diff --check "$base" HEAD
+          else
+            git -c core.whitespace=cr-at-eol show --format= --check HEAD
+          fi
+          python3 - <<'PY'
+          import pathlib, re, subprocess
+          paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          credentials = re.compile(r'(?:sntry[su]_[A-Za-z0-9]{40,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)')
+          failed = False
+          for name in filter(None, paths):
+              path = pathlib.Path(name)
+              if path.name in {'keystore.properties', 'local.properties'} or path.suffix in {'.jks', '.keystore'}:
+                  print(f'::error file={name}::Local credentials must not be tracked')
+                  failed = True
+              if not path.is_file():
+                  continue
+              try:
+                  content = path.read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  continue
+              if credentials.search(content):
+                  print(f'::error file={name}::Possible committed credential; remove and rotate it')
+                  failed = True
+              if path.suffix in {'.kt', '.java'} and '2c2ccadcad' in content:
+                  print(f'::error file={name}::Use BuildConfig.BUGLY_APP_ID instead of a source literal')
+                  failed = True
+          raise SystemExit(1 if failed else 0)
+          PY
+
+      - name: Test release planning and deployment helpers
+        run: python3 -B -m unittest discover -s scripts -p 'test_ci_*.py' -v
+
+      - name: Set up project toolchain
+        uses: ./.github/actions/setup-android
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Test Rust libraries
+        run: |
+          cargo test --manifest-path sdk/Cargo.toml
+          cargo test --manifest-path GuiXu-Rust/Cargo.toml
+          # The pinned SDK contains an unsupported look-ahead regex; retain the existing exception.
+          cargo clippy --manifest-path sdk/Cargo.toml --all-targets -- --allow clippy::invalid_regex
+          cargo clippy --manifest-path GuiXu-Rust/Cargo.toml --all-targets
+
+      - name: Android unit tests
+        run: ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process testDebugUnitTest :app:compileDebugAndroidTestKotlin --stacktrace
+
+      - name: Release lint after unit tests pass
+        run: ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process :app:lintRelease --stacktrace
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AHUTong-check-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+            app/build/reports/lint-results-release.*
+          if-no-files-found: ignore
+          retention-days: 14

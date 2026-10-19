@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import com.ahu.ahutong.personalization.model.withModelIoLock
 
 data class PresetCheckpoint(val id: String, val checksum: String, val revision: Long, val parameters: TinyMlpParameters)
 data class PresetModelState(
@@ -33,11 +33,11 @@ data class PresetModelState(
 
 @Singleton
 class PresetModelStateStore @Inject constructor(@ApplicationContext context: Context) {
-    private val directory = File(context.noBackupFilesDir, "behavior_models").apply { mkdirs() }
+    private val directory by lazy { File(context.noBackupFilesDir, "behavior_models").apply { mkdirs() } }
     private val locks = ConcurrentHashMap<String, Mutex>()
     private val random = SecureRandom()
 
-    suspend fun state(profileKey: String): PresetModelState = locks.getOrPut(profileKey) { Mutex() }.withLock {
+    suspend fun state(profileKey: String): PresetModelState = locks.getOrPut(profileKey) { Mutex() }.withModelIoLock {
         (read(profileKey) ?: create(profileKey).also { write(profileKey, it) }).deepCopy()
     }
 
@@ -47,9 +47,9 @@ class PresetModelStateStore @Inject constructor(@ApplicationContext context: Con
         batchId: String,
         parameters: TinyMlpParameters,
         optimizer: AdamWState
-    ): PresetModelState = locks.getOrPut(profileKey) { Mutex() }.withLock {
+    ): PresetModelState = locks.getOrPut(profileKey) { Mutex() }.withModelIoLock {
         val current = read(profileKey) ?: create(profileKey)
-        if (current.lastBatchId == batchId) return@withLock current.deepCopy()
+        if (current.lastBatchId == batchId) return@withModelIoLock current.deepCopy()
         check(current.training.revision == expectedRevision)
         validate(parameters, optimizer)
         val training = checkpoint(parameters.deepCopy(optimizer.step), expectedRevision + 1)
@@ -66,18 +66,18 @@ class PresetModelStateStore @Inject constructor(@ApplicationContext context: Con
         ).also { write(profileKey, it) }.deepCopy()
     }
 
-    suspend fun activateCandidate(profileKey: String): PresetModelState = locks.getOrPut(profileKey) { Mutex() }.withLock {
+    suspend fun activateCandidate(profileKey: String): PresetModelState = locks.getOrPut(profileKey) { Mutex() }.withModelIoLock {
         val current = requireNotNull(read(profileKey))
         val candidate = requireNotNull(current.candidate)
         current.copy(active = candidate.deepCopy(), lastGood = candidate.deepCopy(), candidate = null, updatedAtEpochMs = System.currentTimeMillis())
             .also { write(profileKey, it) }.deepCopy()
     }
 
-    suspend fun discardCandidate(profileKey: String) = locks.getOrPut(profileKey) { Mutex() }.withLock {
+    suspend fun discardCandidate(profileKey: String) = locks.getOrPut(profileKey) { Mutex() }.withModelIoLock {
         read(profileKey)?.copy(candidate = null, updatedAtEpochMs = System.currentTimeMillis())?.let { write(profileKey, it) }
     }
 
-    suspend fun reset(profileKey: String) = locks.getOrPut(profileKey) { Mutex() }.withLock { AtomicFile(file(profileKey)).delete() }
+    suspend fun reset(profileKey: String) = locks.getOrPut(profileKey) { Mutex() }.withModelIoLock { AtomicFile(file(profileKey)).delete() }
 
     private fun create(profileKey: String): PresetModelState {
         val parameters = TinyMlpParameters.initialize(INPUT_SIZE, 8, 4, 2, random.nextLong())

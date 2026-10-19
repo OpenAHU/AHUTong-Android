@@ -1,5 +1,8 @@
 package com.ahu.ahutong.ui.screen.main
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -844,7 +847,20 @@ private fun RepositoryFooter() {
                     data = android.net.Uri.parse("mailto:1793838025@qq.com")
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                context.startActivity(intent)
+                try {
+                    context.startActivity(intent)
+                } catch (_: ActivityNotFoundException) {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    val message = if (clipboard != null) {
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText("联系邮箱", intent.data?.schemeSpecificPart.orEmpty())
+                        )
+                        "未找到邮件应用，联系邮箱已复制"
+                    } else {
+                        "未找到邮件应用，请通过 GitHub 仓库联系开发者"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
             }
         )
     }

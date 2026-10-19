@@ -30,6 +30,7 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.schedule.ScheduleSnapshotComparator
 import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
@@ -187,6 +188,34 @@ object AHURepository {
                     result
                 }
             }
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            AhuResult.Failure(e.toAhuError())
+        }
+    }
+
+    /** 浏览目录和历史课表只读，不写入当前学期、课表缓存或下学期缓存。 */
+    suspend fun getScheduleSemesters(): AhuResult<List<ScheduleSemester>> = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科课表"))
+        }
+        try {
+            dataSource.getScheduleSemesters()
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            AhuResult.Failure(e.toAhuError())
+        }
+    }
+
+    suspend fun getSemesterSchedule(semesterId: Int): AhuResult<List<Course>> = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科课表"))
+        }
+        if (semesterId <= 0) {
+            return@withContext AhuResult.Failure(AhuError.ProtocolChanged("无效的学期 ID"))
+        }
+        try {
+            dataSource.getSemesterSchedule(semesterId)
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
             AhuResult.Failure(e.toAhuError())
@@ -764,7 +793,7 @@ object AHURepository {
                         // API-level rejection may arrive as HTTP 200 and bypass the
                         // redirect authenticator. Try Wisdom recovery once per display.
                         wisdomRefreshAttempted = true
-                        if (DefaultWisdomSession.ensureFresh(SessionRefreshCoordinator.currentGeneration())) {
+                        if (DefaultWisdomSession.ensureFresh(SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM))) {
                             response = AdwmhApi.QR_API.getQrcode()
                         }
                     }

@@ -10,11 +10,15 @@ import com.ahu.ahutong.ui.state.CacheScheduleReadModel
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.ui.state.RepositoryScheduleSource
 import com.ahu.ahutong.ui.state.RepositoryScheduleWeekConfig
+import com.ahu.ahutong.ui.state.ScheduleDispatcher
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 
 /**
  * 课表 feature 的接线：端口在 :data:schedule，实现留在 :app（仓库、教务协议、缓存）。
@@ -49,4 +53,10 @@ abstract class ScheduleWiringModule {
     @Binds
     @Singleton
     abstract fun bindWidgetScheduleReadModel(implementation: AppWidgetScheduleReadModel): WidgetScheduleReadModel
+
+    companion object {
+        @Provides
+        @ScheduleDispatcher
+        fun provideScheduleDispatcher(): CoroutineDispatcher = Dispatchers.IO
+    }
 }

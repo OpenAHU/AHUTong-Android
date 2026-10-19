@@ -6,6 +6,7 @@ object MockScenarioRegistry {
     val scenarios: List<MockScenario> by lazy {
         listOf(
             standardStudent,
+            scheduleConflict,
             examWeek,
             newStudent,
             lowBalance,
@@ -48,6 +49,16 @@ object MockScenarioRegistry {
             campus = MockFixtureFactory.campus(CampusVariant.Standard),
             payment = MockFixtureFactory.payment(PaymentVariant.Standard),
             discovery = MockFixtureFactory.discovery(DiscoveryVariant.Standard)
+        )
+    }
+
+    private val scheduleConflict: MockScenario by lazy {
+        standardStudent.copy(
+            id = "schedule_conflict",
+            title = "课表冲突",
+            subtitle = "周一两门同节次、周二三门同节次、周三部分重叠，周四单双周课程不冲突。",
+            badge = "冲突",
+            academic = MockFixtureFactory.academic(AcademicVariant.ScheduleConflict)
         )
     }
 

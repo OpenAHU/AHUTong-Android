@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import com.ahu.ahutong.personalization.model.withModelIoLock
 
 data class ModelCheckpoint(
     val checkpointId: String,
@@ -55,11 +55,11 @@ internal const val TRAINING_CONFIG_VERSION = 1
 class ModelStateStore @Inject constructor(
     @ApplicationContext context: Context
 ) {
-    private val directory = File(context.noBackupFilesDir, "behavior_models").apply { mkdirs() }
+    private val directory by lazy { File(context.noBackupFilesDir, "behavior_models").apply { mkdirs() } }
     private val locks = ConcurrentHashMap<String, Mutex>()
     private val secureRandom = SecureRandom()
 
-    suspend fun loadOrCreate(profileKey: String): StoredModelState = lock(profileKey).withLock {
+    suspend fun loadOrCreate(profileKey: String): StoredModelState = lock(profileKey).withModelIoLock {
         read(profileKey) ?: create(profileKey).also { write(profileKey, it) }
     }
 
@@ -74,9 +74,9 @@ class ModelStateStore @Inject constructor(
         batchId: String,
         parameters: TinyMlpParameters,
         optimizer: AdamWState
-    ): StoredModelState = lock(profileKey).withLock {
+    ): StoredModelState = lock(profileKey).withModelIoLock {
         val current = read(profileKey) ?: create(profileKey)
-        if (current.lastAppliedBatchId == batchId) return@withLock current.deepCopy()
+        if (current.lastAppliedBatchId == batchId) return@withModelIoLock current.deepCopy()
         check(current.training.trainingRevision == expectedRevision) { "stale training revision" }
         validate(parameters, optimizer)
         val nextRevision = expectedRevision + 1
@@ -96,7 +96,7 @@ class ModelStateStore @Inject constructor(
         expectedTrainingRevision: Long,
         sourceSampleCount: Int
     ): StoredModelState =
-        lock(profileKey).withLock {
+        lock(profileKey).withModelIoLock {
             val current = requireNotNull(read(profileKey))
             check(current.candidate == null) { "candidate already exists" }
             check(current.training.trainingRevision == expectedTrainingRevision) { "stale training revision" }
@@ -117,7 +117,7 @@ class ModelStateStore @Inject constructor(
         }
 
     suspend fun activateCandidate(profileKey: String, candidateId: String): StoredModelState =
-        lock(profileKey).withLock {
+        lock(profileKey).withModelIoLock {
             val current = requireNotNull(read(profileKey))
             val candidate = requireNotNull(current.candidate).also {
                 check(it.checkpointId == candidateId)
@@ -137,7 +137,7 @@ class ModelStateStore @Inject constructor(
             updated.deepCopy()
         }
 
-    suspend fun discardCandidate(profileKey: String) = lock(profileKey).withLock {
+    suspend fun discardCandidate(profileKey: String) = lock(profileKey).withModelIoLock {
         read(profileKey)?.let { current ->
             val candidate = current.candidate
             write(
@@ -156,7 +156,7 @@ class ModelStateStore @Inject constructor(
         }
     }
 
-    suspend fun recoverLastGood(profileKey: String): StoredModelState = lock(profileKey).withLock {
+    suspend fun recoverLastGood(profileKey: String): StoredModelState = lock(profileKey).withModelIoLock {
         val current = requireNotNull(read(profileKey))
         val rejectedCandidate = current.candidate
         val updated = current.copy(
@@ -174,7 +174,7 @@ class ModelStateStore @Inject constructor(
         updated.deepCopy()
     }
 
-    suspend fun reset(profileKey: String): Unit = lock(profileKey).withLock {
+    suspend fun reset(profileKey: String): Unit = lock(profileKey).withModelIoLock {
         val target = file(profileKey)
         AtomicFile(target).delete()
         AtomicFile(migrationJournal(profileKey)).delete()
@@ -183,7 +183,9 @@ class ModelStateStore @Inject constructor(
         Unit
     }
 
-    fun modelSizeBytes(profileKey: String): Long = file(profileKey).takeIf(File::exists)?.length() ?: 0L
+    suspend fun modelSizeBytes(profileKey: String): Long = lock(profileKey).withModelIoLock {
+        file(profileKey).takeIf(File::exists)?.length() ?: 0L
+    }
 
     private fun create(profileKey: String): StoredModelState {
         val seed = secureRandom.nextLong()

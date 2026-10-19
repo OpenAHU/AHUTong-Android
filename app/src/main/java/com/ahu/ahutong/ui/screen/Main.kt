@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.BuildConfig
+import com.ahu.ahutong.restartMainAfterLogin
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -84,6 +86,9 @@ import com.ahu.ahutong.ui.screen.main.RepositorySettings
 import com.ahu.ahutong.ui.screen.main.Weather
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongScreen
 import com.ahu.ahutong.ui.screen.settings.Contributors
+import com.ahu.ahutong.ui.screen.settings.EarlyAccessScreen
+import com.ahu.ahutong.ui.screen.settings.EarlyAccessInvitationHost
+import com.ahu.ahutong.data.preview.EarlyAccessManager
 import com.ahu.ahutong.ui.screen.settings.Debug
 import com.ahu.ahutong.ui.screen.settings.PrivacyPolicyScreen
 import com.ahu.ahutong.ui.screen.settings.License
@@ -188,6 +193,11 @@ fun Main(
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     val sessionStatus by AhuSessionState.status.collectAsState()
+    val paymentQrVisible by paymentQrCommands.visible.collectAsState()
+    val earlyAccessState by EarlyAccessManager.state.collectAsState()
+    LaunchedEffect(earlyAccessState.subject, earlyAccessState.joined) {
+        mainViewModel.onUpdateChannelChanged()
+    }
     val authenticationRequired by LoginNavigationGate.authenticationRequired.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     var sessionCheckRevision by remember { mutableIntStateOf(0) }
@@ -310,12 +320,17 @@ fun Main(
     }
 
     val backgroundRevision by HomeBackgroundStore.revision.collectAsState()
-    val appBackground = remember(backgroundRevision) {
-        if (HomeBackgroundStore.isEnabled) {
-            HomeBackgroundStore.blurredFile(context).takeIf { it.exists() }
-                ?.let { BitmapFactory.decodeFile(it.absolutePath)?.asImageBitmap() }
-                ?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
-        } else null
+    val backgroundImageRevision by HomeBackgroundStore.imageRevision.collectAsState()
+    val backgroundBitmap by produceState<ImageBitmap?>(null, context, backgroundImageRevision) {
+        value = withContext(Dispatchers.IO) {
+            if (HomeBackgroundStore.isEnabled) {
+                HomeBackgroundStore.blurredFile(context).takeIf { it.exists() }
+                    ?.let { BitmapFactory.decodeFile(it.absolutePath)?.asImageBitmap() }
+            } else null
+        }
+    }
+    val appBackground = remember(backgroundBitmap, backgroundRevision) {
+        backgroundBitmap?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
     }
     CompositionLocalProvider(
         LocalAppBackground provides appBackground,
@@ -355,6 +370,8 @@ fun Main(
                     navController = navController,
                     behaviorRuntime = behaviorRuntime,
                     isActive = isHomeActive,
+                    undergraduateEnabled = undergraduateEnabled,
+                    accountId = SessionStore.currentUser()?.xh,
                     onOpenSchedule = {
                         scope.launch { selectPrimaryDestination("schedule") }
                     },
@@ -404,24 +421,7 @@ fun Main(
                         }
                     },
                     onLoggedIn = {
-                        scheduleViewModel.clear()
-                        scope.launch {
-                            navController.navigate("home") {
-                                popUpTo(navController.graph.id) { inclusive = true }
-                            }
-                            com.ahu.ahutong.data.session.SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }?.let {
-                                behaviorRuntime.startProfile(it)
-                            }
-                            homeEditGrayState = GrayReleaseManager.state(
-                                GrayFeatures.HomeEdit,
-                                context
-                            )
-                        }
-                        discoveryViewModel.loadActivityBean()
-                        if (AHUCache.canUseUndergraduateAcademics()) {
-                            scheduleViewModel.loadConfig()
-                            scheduleViewModel.refreshSchedule()
-                        }
+                        activity?.restartMainAfterLogin()
                     }
                 )
             }
@@ -585,6 +585,9 @@ fun Main(
                     scheduleViewModel = scheduleViewModel
                 )
             }
+            animatedComposable("settings__early_access") {
+                EarlyAccessScreen(onBack = { navController.popBackStack() })
+            }
             animatedComposable("settings__privacy_policy") {
                 val res = LocalContext.current.resources
                 val policyMarkdown by produceState<String?>(null) {
@@ -720,6 +723,13 @@ fun Main(
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
             isReLoginShown || suggestionOverlayBlocked || imeVisible
+        EarlyAccessInvitationHost(
+            eligible = canUseBusinessPages && currentRoute == "home" &&
+                AHUCache.isPrivacyAccepted() && AHUCache.isAgreementAccepted() &&
+                AHUCache.isBusinessAccepted() && !productUiBlocked &&
+                !mainViewModel.showApkUpdateDialog.value,
+            accountRevision = sessionCheckRevision
+        )
         SmartSuggestionHost(
             runtime = behaviorRuntime,
             backdrop = backdrop,
@@ -760,7 +770,7 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
-        if (isReLoginShown && currentRoute != "login") {
+        if (isReLoginShown && currentRoute != "login" && !paymentQrVisible) {
             AppDialogSurface(
                 onDismissRequest = { onReLoginDismiss() },
                 properties = DialogProperties(

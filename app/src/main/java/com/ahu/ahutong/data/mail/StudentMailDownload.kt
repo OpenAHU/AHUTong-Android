@@ -4,7 +4,6 @@ import com.google.gson.JsonParser
 import java.io.IOException
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -59,11 +58,8 @@ class StudentMailDownload internal constructor(
         // Reading on OkHttp's worker keeps cancellation attached to the socket for the entire body.
         return suspendCancellableCoroutine { continuation ->
             val call = client.newCall(request)
-            val activeResponse = AtomicReference<Response?>()
-            continuation.invokeOnCancellation {
-                call.cancel()
-                activeResponse.getAndSet(null)?.close()
-            }
+            // Cancel the socket; only its reader may close the response body.
+            continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     if (continuation.isActive) continuation.resumeWithException(
@@ -72,9 +68,8 @@ class StudentMailDownload internal constructor(
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    activeResponse.set(response)
                     if (!continuation.isActive) {
-                        activeResponse.getAndSet(null)?.close()
+                        response.close()
                         return
                     }
                     try {
@@ -116,8 +111,6 @@ class StudentMailDownload internal constructor(
                                 else -> MailServiceFailure("附件下载失败，请检查网络和保存位置后重试")
                             }
                         )
-                    } finally {
-                        activeResponse.getAndSet(null)?.close()
                     }
                 }
             })

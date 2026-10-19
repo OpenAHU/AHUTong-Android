@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 static/calendars/*.jpg
+early_access.sqlite3
+early_access.sqlite3-journal
+early_access.sqlite3-wal
+early_access.sqlite3-shm

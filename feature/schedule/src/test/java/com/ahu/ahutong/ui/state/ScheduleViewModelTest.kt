@@ -11,6 +11,7 @@ import com.ahu.ahutong.data.schedule.ConfigSource
 import com.ahu.ahutong.data.schedule.ResolvedConfig
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
 import com.ahu.ahutong.data.schedule.ScheduleSource
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
 import java.time.LocalDate
@@ -25,8 +26,10 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -70,7 +73,7 @@ class ScheduleViewModelTest {
             override suspend fun load(years: Set<Int>, refresh: Boolean) =
                 AhuResult.Success(emptyMap<LocalDate, ScheduleHoliday>())
         }
-    ) = ScheduleViewModel(source, config, session, reminders, holidays)
+    ) = ScheduleViewModel(source, config, session, reminders, holidays, Dispatchers.Main)
 
     @Test
     fun `holiday refresh failure removes markings and does not change reminders`() {
@@ -216,7 +219,7 @@ class ScheduleViewModelTest {
 
         subject.onScheduleEntered()
 
-        assertEquals(cached, subject.schedule.value?.valueOrNull())
+        assertNull(subject.schedule.value)
         assertEquals(0, source.refreshCount)
         runCurrent()
         assertEquals(1, source.refreshCount)
@@ -331,5 +334,86 @@ class ScheduleViewModelTest {
         config.semesterKey = SemesterKey("2024-2025-2", "2024-2025", "2")
         assertEquals("2024-2025", subject.schoolYear)
         assertEquals("2", subject.schoolTerm)
+    }
+
+    @Test
+    fun `historical preview keeps current timetable and reminders and reuses its own cache`() {
+        val current = listOf(Course().apply { name = "当前课程" })
+        val historical = listOf(Course().apply { name = "历史课程" })
+        val source = FakeScheduleSource().apply { semesterResult = AhuResult.Success(historical) }
+        val reminders = FakeCourseReminderControl()
+        val subject = viewModel(source = source, reminders = reminders)
+        subject.schedule.value = AhuResult.Success(current)
+
+        subject.loadSemester(100)
+        assertEquals(historical, subject.semesterSchedule.value?.valueOrNull())
+        assertEquals(current, subject.schedule.value?.valueOrNull())
+        assertEquals(0, reminders.rescheduleCount)
+        subject.closeSemesterPreview()
+        subject.loadSemester(100)
+        assertEquals(listOf(100), source.semesterRequests)
+        subject.loadSemester(100, isRefresh = true)
+        assertEquals(listOf(100, 100), source.semesterRequests)
+    }
+
+    @Test
+    fun `changing preview cancels an older semester response`() {
+        val first = CompletableDeferred<AhuResult<List<Course>>>()
+        val second = CompletableDeferred<AhuResult<List<Course>>>()
+        val source = FakeScheduleSource().apply {
+            semesterLoader = { if (it == 100) first.await() else second.await() }
+        }
+        val subject = viewModel(source = source)
+        subject.loadSemester(100)
+        subject.loadSemester(200)
+        val latest = listOf(Course().apply { name = "另一个学期" })
+        second.complete(AhuResult.Success(latest))
+        first.complete(AhuResult.Success(listOf(Course())))
+
+        assertEquals(200, subject.previewedSemesterId.value)
+        assertEquals(latest, subject.semesterSchedule.value?.valueOrNull())
+        assertEquals(false, subject.isSemesterScheduleLoading.value)
+    }
+
+    @Test
+    fun `semester catalogue retries failures and clearing discards all preview state`() {
+        val source = FakeScheduleSource().apply {
+            semestersResult = AhuResult.Failure(AhuError.Network)
+        }
+        val subject = viewModel(source = source)
+        subject.loadSemesters()
+        assertTrue(subject.semesters.value?.isFailure == true)
+        source.semestersResult = AhuResult.Success(listOf(ScheduleSemester(100, "2024-2025-1")))
+        subject.loadSemesters()
+        subject.loadSemesters()
+        assertEquals(2, source.semestersCount)
+        subject.loadSemester(100)
+        subject.clear()
+
+        assertEquals(null, subject.semesters.value)
+        assertEquals(null, subject.previewedSemesterId.value)
+        assertEquals(null, subject.semesterSchedule.value)
+        subject.loadSemester(100)
+        assertEquals(listOf(100, 100), source.semesterRequests)
+    }
+
+    @Test
+    fun `signed out session cannot reuse historical timetable or catalogue cache`() {
+        val session = FakeSessionIdentity()
+        val source = FakeScheduleSource().apply {
+            semestersResult = AhuResult.Success(listOf(ScheduleSemester(100, "2024-2025-1")))
+            semesterResult = AhuResult.Success(listOf(Course()))
+        }
+        val subject = viewModel(source = source, session = session)
+        subject.loadSemesters()
+        subject.loadSemester(100)
+        session.loggedIn = false
+        subject.loadSemesters()
+        subject.loadSemester(100)
+
+        assertTrue(subject.semesters.value?.isFailure == true)
+        assertTrue(subject.semesterSchedule.value?.isFailure == true)
+        assertEquals(1, source.semestersCount)
+        assertEquals(listOf(100), source.semesterRequests)
     }
 }

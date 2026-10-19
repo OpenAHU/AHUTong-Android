@@ -31,5 +31,11 @@ interface ScheduleSource {
 
     /** 下一学期的课表。 */
     suspend fun next(isRefresh: Boolean): AhuResult<List<Course>>
+
+    /** 可浏览的真实学期目录；上游未提供完整目录时可能只有部分历史学期。 */
+    suspend fun semesters(): AhuResult<List<ScheduleSemester>>
+
+    /** 按真实学期 ID 浏览课表，不改变当前课表、学期及提醒使用的缓存。 */
+    suspend fun semester(semesterId: Int): AhuResult<List<Course>>
 }
 

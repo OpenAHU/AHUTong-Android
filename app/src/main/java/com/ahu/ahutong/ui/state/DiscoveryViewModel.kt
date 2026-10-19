@@ -11,7 +11,10 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ext.launchSafe
-import com.ahu.ahutong.personalization.prefetch.PaymentQrRepository
+import com.ahu.ahutong.data.payment.PaymentQrRepository
+import com.ahu.ahutong.data.payment.PaymentQrOwner
+import com.ahu.ahutong.data.session.AhuSession
+import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.context.BalanceBucket
 import com.google.zxing.BarcodeFormat
@@ -25,7 +28,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import com.ahu.ahutong.core.common.onSuccess
@@ -40,7 +44,8 @@ import com.ahu.ahutong.core.common.onSuccess
 @HiltViewModel
 class DiscoveryViewModel @Inject constructor(
     private val paymentQrRepository: PaymentQrRepository,
-    private val behaviorRuntime: BehaviorPredictionRuntime
+    private val behaviorRuntime: BehaviorPredictionRuntime,
+    private val session: AhuSession
 ) : ViewModel() {
 
     val TAG = DiscoveryViewModel::class.java.simpleName
@@ -51,9 +56,68 @@ class DiscoveryViewModel @Inject constructor(
 
     val qrcode = MutableStateFlow<Bitmap?>(null)
     val state = MutableStateFlow(false)
-    private var qrLoadJob: Job? = null
+    val qrStatusText = MutableStateFlow("")
+    val qrRefreshing = MutableStateFlow(false)
+    private val qrLoader = PaymentQrLoader(paymentQrRepository, viewModelScope, ::refreshCardBalance)
+    private var qrWarmJob: Job? = null
+    private var warmOwner: PaymentQrOwner? = null
+    private var renderedQrKey: Pair<String, Long>? = null
+    private var qrRenderFailed = false
+
+    init {
+        viewModelScope.launch {
+            session.state.collectLatest { status ->
+                if (status == AhuSessionState.Status.Anonymous && paymentQrRepository.currentOwner() == null) {
+                    clearQrCode()
+                    qrWarmJob?.cancel()
+                    warmOwner = null
+                }
+            }
+        }
+        viewModelScope.launch {
+            qrLoader.state.collectLatest { value ->
+                val snapshot = value.snapshot
+                val key = snapshot?.let { it.payload to it.fetchedAtEpochMs }
+                if (key != renderedQrKey) {
+                    qrRenderFailed = false
+                    val bitmap = try {
+                        snapshot?.let {
+                            withContext(Dispatchers.IO) {
+                                BarcodeEncoder().encodeBitmap(
+                                    it.payload, BarcodeFormat.QR_CODE, 400, 400,
+                                    mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L, EncodeHintType.MARGIN to 1)
+                                )
+                            }
+                        }
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        qrRenderFailed = true
+                        Log.w("QR", "Unable to render payment QR")
+                        null
+                    }
+                    qrcode.value = bitmap
+                    renderedQrKey = key
+                }
+                qrStatusText.value = if (qrRenderFailed) "二维码数据暂不可用，请重试" else value.statusText
+                qrRefreshing.value = value.loading
+                state.value = value.attempted || snapshot != null
+            }
+        }
+    }
+
+    /** Start before profile/native initialization and let the ordinary balance work wait. */
+    fun preparePaymentQr() {
+        if (AHUCache.getMockData()) return
+        val owner = paymentQrRepository.currentOwner() ?: return
+        if (warmOwner == owner) return
+        warmOwner = owner
+        qrWarmJob = viewModelScope.launchSafe { paymentQrRepository.prepareForForeground() }
+    }
+
+    suspend fun awaitPaymentQrPreparation() { qrWarmJob?.join() }
 
     fun loadActivityBean() {
+        preparePaymentQr()
         // 优先加载缓存
         if (!AHUCache.getMockData()) {
             AHUCache.getCardBalance()?.let {
@@ -62,6 +126,7 @@ class DiscoveryViewModel @Inject constructor(
         }
 
         viewModelScope.launchSafe {
+            qrWarmJob?.join()
             val (cardResult, bathroomResult) = coroutineScope {
                 val card = async { AHURepository.getCardMoney() }
                 val bathrooms = async { AHURepository.getBathRooms() }
@@ -87,6 +152,7 @@ class DiscoveryViewModel @Inject constructor(
         }
 
         viewModelScope.launchSafe {
+            qrWarmJob?.join()
             AHURepository.getCardMoney().onSuccess {
                 applyCardBalance(it.balance, it.transitionBalance)
             }
@@ -111,45 +177,17 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun loadQrCode(forceRefresh: Boolean = false) {
-        if (!forceRefresh && qrLoadJob?.isActive == true) return
-
-        qrLoadJob?.cancel()
-        state.value = false
-        qrLoadJob = viewModelScope.launchSafe {
-            try {
-                val bitmap = withContext(Dispatchers.IO) {
-                    val response = paymentQrRepository.getForDisplay(forceRefresh = forceRefresh)
-                    val hints = hashMapOf<EncodeHintType, Any>(
-                        EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L,
-                        EncodeHintType.MARGIN to 1
-                    )
-                    BarcodeEncoder().encodeBitmap(
-                        response.getOrThrow(),
-                        BarcodeFormat.QR_CODE,
-                        400,
-                        400,
-                        hints
-                    )
-                }
-                if (!isActive) return@launchSafe
-                qrcode.value = bitmap
-                state.value = true
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                if (!isActive) return@launchSafe
-                Log.e("QR", "付款码加载异常")
-                qrcode.value = null
-                state.value = true
-            }
-        }
+        qrLoader.start(forceRefresh)
     }
 
     fun clearQrCode() {
-        qrLoadJob?.cancel()
-        qrLoadJob = null
+        qrLoader.stop()
+        renderedQrKey = null
+        qrRenderFailed = false
         qrcode.value = null
         state.value = false
+        qrStatusText.value = ""
+        qrRefreshing.value = false
     }
 
 }

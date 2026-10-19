@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -88,7 +87,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -103,6 +101,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.schedule.ScheduleUiPrefs
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.hasHolidayCourses
@@ -111,6 +110,8 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.AppSelectField
+import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
@@ -133,6 +134,9 @@ import com.ahu.ahutong.ui.screen.main.schedule.scheduleDayDescription
 import com.ahu.ahutong.ui.screen.main.schedule.schedulePeriodDescription
 import com.ahu.ahutong.ui.screen.main.schedule.shortScheduleLocation
 import com.ahu.ahutong.ui.screen.main.schedule.weekRangeText
+import com.ahu.ahutong.ui.screen.main.schedule.weeklyCourseGroups
+import com.ahu.ahutong.ui.screen.main.schedule.overlappingCourseGroups
+import com.ahu.ahutong.ui.screen.main.schedule.hasCourseConflict
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
@@ -151,6 +155,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.time.LocalDate
+import java.time.DayOfWeek
+import java.time.temporal.TemporalAdjusters
 
 import android.widget.Toast
 import com.ahu.ahutong.ui.screen.main.schedule.CourseCardSpec.cellSpacing
@@ -163,6 +170,9 @@ import com.ahu.ahutong.personalization.semantic.ResultCountBucket
 import com.ahu.ahutong.personalization.semantic.SemanticDomain
 import com.ahu.ahutong.core.common.toUserMessage
 import com.ahu.ahutong.core.designsystem.R as DesignSystemR
+
+private const val CURRENT_SEMESTER = "current"
+private const val NEXT_SEMESTER = "next"
 
 @Composable
 fun Schedule(
@@ -234,21 +244,47 @@ fun Schedule(
     val scheduleResult = if (isGraduate) graduateResult else undergraduateResult
     val undergraduateNextResult = scheduleViewModel.nextSchedule.observeAsState().value
     val nextScheduleResult = if (isGraduate) null else undergraduateNextResult
+    val isNextScheduleLoading by scheduleViewModel.isNextScheduleLoading.observeAsState(false)
+    val semestersResult by scheduleViewModel.semesters.observeAsState()
+    val isSemestersLoading by scheduleViewModel.isSemestersLoading.observeAsState(false)
+    val semesterScheduleResult by scheduleViewModel.semesterSchedule.observeAsState()
+    val previewedSemesterId by scheduleViewModel.previewedSemesterId.observeAsState()
+    val isSemesterScheduleLoading by scheduleViewModel.isSemesterScheduleLoading.observeAsState(false)
     val scheduleFetchedAt by scheduleViewModel.scheduleFetchedAt.observeAsState()
     val isScheduleRefreshing by scheduleViewModel.isScheduleRefreshing.observeAsState(false)
     val scheduleRefreshError by scheduleViewModel.scheduleRefreshError.observeAsState()
     val scheduleHolidays by scheduleViewModel.scheduleHolidays.observeAsState(emptyMap())
-    var isPreviewNextSemester by rememberSaveable(graduateAccountId, isGraduate) { mutableStateOf(false) }
+    var selectedSemesterKey by rememberSaveable(graduateAccountId, isGraduate, scheduleViewModel.currentAccountId) {
+        mutableStateOf(CURRENT_SEMESTER)
+    }
+    val isSemesterPreview = !isGraduate && selectedSemesterKey != CURRENT_SEMESTER
+    val selectedSemesterId = selectedSemesterKey.toIntOrNull()
+    val availableSemesters = semestersResult?.valueOrNull().orEmpty()
+    val selectedSemester = availableSemesters.firstOrNull { it.id == selectedSemesterId }
+    val selectedSemesterLabel = when (selectedSemesterKey) {
+        CURRENT_SEMESTER -> "当前学期"
+        NEXT_SEMESTER -> "下学期（预览）"
+        else -> selectedSemester?.name ?: "所选学期"
+    }
     var isOverviewSchedule by rememberSaveable(graduateAccountId, isGraduate) { mutableStateOf(false) }
     var isSettingsVisible by rememberSaveable { mutableStateOf(false) }
     var renderCourseCards by remember { mutableStateOf(true) }
     var hasRenderedCards by remember { mutableStateOf(false) }
-    val activeScheduleResult = if (!isGraduate && isPreviewNextSemester) nextScheduleResult else scheduleResult
+    val activeScheduleResult = when {
+        !isSemesterPreview -> scheduleResult
+        selectedSemesterKey == NEXT_SEMESTER -> nextScheduleResult
+        previewedSemesterId == selectedSemesterId -> semesterScheduleResult
+        else -> null
+    }
     val schedule = activeScheduleResult?.valueOrNull() ?: emptyList()
     val context = LocalContext.current
 
     LaunchedEffect(isActive) {
         if (isActive && !isGraduate) scheduleViewModel.onScheduleEntered()
+    }
+
+    LaunchedEffect(isSettingsVisible, isGraduate, scheduleViewModel.currentAccountId) {
+        if (isSettingsVisible && !isGraduate) scheduleViewModel.loadSemesters()
     }
 
     // 当前时间指示线开关（持久化，默认关）：课表设置弹窗里可打开。
@@ -288,8 +324,8 @@ fun Schedule(
         )
     }
 
-    LaunchedEffect(scheduleConfig?.week, isPreviewNextSemester, graduateState?.selectedTerm?.code) {
-        if (!isPreviewNextSemester) {
+    LaunchedEffect(scheduleConfig?.week, selectedSemesterKey, graduateState?.selectedTerm?.code) {
+        if (!isSemesterPreview) {
             (scheduleConfig?.week ?: if (isGraduate) 1 else null)?.let { resolvedWeek ->
                 currentWeek = resolvedWeek
                 val targetPage = (resolvedWeek - 1).coerceIn(0, weekCount - 1)
@@ -316,7 +352,15 @@ fun Schedule(
         }
     }
 
-    LaunchedEffect(activeScheduleResult, isPreviewNextSemester) {
+    LaunchedEffect(semesterScheduleResult, selectedSemesterKey) {
+        if (selectedSemesterId != null && previewedSemesterId == selectedSemesterId) {
+            semesterScheduleResult?.errorOrNull()?.let {
+                Toast.makeText(context, "加载学期课表失败: ${it.toUserMessage()}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    LaunchedEffect(activeScheduleResult, isSemesterPreview) {
         when {
             activeScheduleResult == null -> Unit
             activeScheduleResult.isFailure -> behaviorRecorder.recordContentState(
@@ -336,11 +380,21 @@ fun Schedule(
         }
     }
 
-    LaunchedEffect(isPreviewNextSemester) {
-        if (!isGraduate && isPreviewNextSemester && nextScheduleResult == null) {
-            scheduleViewModel.refreshNextSchedule()
+    LaunchedEffect(selectedSemesterKey, isGraduate) {
+        if (!isGraduate) {
+            when (selectedSemesterKey) {
+                CURRENT_SEMESTER -> scheduleViewModel.closeSemesterPreview()
+                NEXT_SEMESTER -> {
+                    scheduleViewModel.closeSemesterPreview()
+                    if (nextScheduleResult == null) scheduleViewModel.refreshNextSchedule()
+                }
+                else -> selectedSemesterId?.let {
+                    scheduleViewModel.loadSemesters()
+                    scheduleViewModel.loadSemester(it)
+                }
+            }
         }
-        val targetWeek = if (isPreviewNextSemester) 1 else scheduleConfig?.week ?: 1
+        val targetWeek = if (isSemesterPreview) 1 else scheduleConfig?.week ?: 1
         currentWeek = targetWeek
         pagerState.animateScrollToPage((targetWeek - 1).coerceAtLeast(0))
     }
@@ -348,26 +402,32 @@ fun Schedule(
     val radiant = isRadiantUi
     // 课程配色：调色盘组件（schedule/ScheduleColors.kt），各主题保留各自实现
     val courseColors = rememberCourseColors(schedule)
-    val coursesByWeek = remember(schedule, weekCount) {
+    val courseGroupsByWeek = remember(schedule, weekCount) {
         List(weekCount) { pageIndex ->
-            val week = pageIndex + 1
-            schedule.filter { week in it.weekIndexes }
+            weeklyCourseGroups(schedule, pageIndex + 1)
         }
     }
     val overviewCourseGroups = remember(schedule) {
-        schedule
-            .groupBy { Triple(it.weekday, it.startTime, it.length) }
-            .values
-            .toList()
+        overlappingCourseGroups(schedule)
     }
-    val weekDateLabels = remember(scheduleConfig?.startTime, isGraduate, weekCount) {
-        if (isGraduate && scheduleConfig?.startTime == null) {
+    val previewStart = remember(selectedSemester?.startDate) {
+        selectedSemester?.startDate?.let {
+            runCatching {
+                LocalDate.parse(it).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            }.getOrNull()
+        }
+    }
+    val displayStartTime = if (isSemesterPreview) {
+        previewStart?.let { Date.from(it.atStartOfDay(ZoneId.systemDefault()).toInstant()) }
+    } else scheduleConfig?.startTime
+    val weekDateLabels = remember(displayStartTime, isGraduate, isSemesterPreview, weekCount) {
+        if ((isGraduate || isSemesterPreview) && displayStartTime == null) {
             return@remember List(weekCount) { List(7) { "" } }
         }
         val fallbackStart = requireNotNull(
             SimpleDateFormat("MM-dd", Locale.CHINA).parse("09-01")
         )
-        val startTime = scheduleConfig?.startTime ?: fallbackStart
+        val startTime = displayStartTime ?: fallbackStart
         val formatter = SimpleDateFormat("MM-dd", Locale.CHINA)
         List(weekCount) { pageIndex ->
             List(7) { dayIndex ->
@@ -379,8 +439,8 @@ fun Schedule(
         }
     }
 
-    val semesterStart = remember(scheduleConfig?.startTime) {
-        scheduleConfig?.startTime?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+    val semesterStart = remember(displayStartTime) {
+        displayStartTime?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
     }
     val fullWeekDates = remember(semesterStart, weekCount) {
         semesterStart?.let { scheduleWeekDates(it, weekCount) }.orEmpty()
@@ -393,15 +453,15 @@ fun Schedule(
             }
         }
     }
-    val weekHolidays = remember(fullWeekDates, scheduleHolidays, isPreviewNextSemester) {
+    val weekHolidays = remember(fullWeekDates, scheduleHolidays, isSemesterPreview) {
         fullWeekDates.map { dates ->
             dates.map { date ->
-                if (isPreviewNextSemester) null
+                if (isSemesterPreview) null
                 else scheduleHolidays[date]
             }
         }
     }
-    val showHolidayNotice = !isPreviewNextSemester && (
+    val showHolidayNotice = !isSemesterPreview && (
         hasHolidayCourses(
             schedule,
             currentWeek,
@@ -508,14 +568,14 @@ fun Schedule(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
                     enabled = !isGraduate || scheduleConfig?.isInSemester == true,
                     onClick = {
-                        if (isPreviewNextSemester) {
+                        if (isSemesterPreview) {
                             behaviorRecorder.reportCommittedMutation(
                                 MutationId.SCHEDULE_SEMESTER_PREVIEW_CHANGED,
                                 true,
                                 false,
                                 coarseValueBucket = "CURRENT_SEMESTER"
                             )
-                            isPreviewNextSemester = false
+                            selectedSemesterKey = CURRENT_SEMESTER
                         }
                         scope.launch {
                             state.animateScrollToItem((currentWeek - 3).coerceAtLeast(0))
@@ -563,8 +623,10 @@ fun Schedule(
                         if (isGraduate) {
                             scheduleViewModel.loadHolidays(semesterStart, refresh = true, weekCount = weekCount)
                             graduateController?.refresh()
-                        } else if (isPreviewNextSemester) {
-                            scheduleViewModel.refreshNextSchedule(true)
+                        } else if (isSemesterPreview) {
+                            if (selectedSemesterKey == NEXT_SEMESTER) {
+                                scheduleViewModel.refreshNextSchedule(true)
+                            } else selectedSemesterId?.let { scheduleViewModel.loadSemester(it, true) }
                         } else {
                             behaviorRecorder.recordOrganicAction(AppActionId.MANUAL_REFRESH_SCHEDULE)
                             scheduleViewModel.refreshSchedule(true)
@@ -642,7 +704,7 @@ fun Schedule(
                 val nowIndicatorPosition = if (!showNowTimeline) {
                     null
                 } else if (
-                    !isPreviewNextSemester &&
+                    !isSemesterPreview &&
                     !isOverviewSchedule &&
                     scheduleConfig?.isInSemester == true &&
                     pageWeek == scheduleConfig?.week &&
@@ -650,7 +712,7 @@ fun Schedule(
                 ) {
                     nowIndicatorPosition(nowMinutes, ScheduleSectionTimes.timetable)
                 } else if (
-                    !isPreviewNextSemester &&
+                    !isSemesterPreview &&
                     !isOverviewSchedule &&
                     graduateConfig?.isInSemester == true &&
                     pageWeek == graduateConfig?.week
@@ -673,7 +735,7 @@ fun Schedule(
                     currentWeek = scheduleConfig?.week,
                     currentWeekday = currentWeekday,
                     isInSemester = scheduleConfig?.isInSemester == true,
-                    isPreviewNextSemester = isPreviewNextSemester,
+                    isSemesterPreview = isSemesterPreview,
                     timetable = sectionTimetable
                 )
                 // courses
@@ -682,7 +744,7 @@ fun Schedule(
                 } else if (isOverviewSchedule) {
                     overviewCourseGroups.forEach { sameTimeCourses ->
                         key(sameTimeCourses.joinToString("-") { it.hashCode().toString() }) {
-                            OverviewCourseGroupCard(
+                            GroupedCourseCard(
                                 courses = sameTimeCourses,
                                 colors = courseColors,
                                 cellWidth = cellWidth,
@@ -699,22 +761,43 @@ fun Schedule(
                         }
                     }
                 } else {
-                    coursesByWeek.getOrElse(page) { emptyList() }.forEach { course ->
-                        key(course.hashCode()) {
-                            CourseCard(
-                                course = course,
-                                color = courseColors.getOrElse(course.name) { 50.a1 },
-                                cellWidth = cellWidth,
-                                cellHeight = cellHeight,
-                                isCurrentWeek = true,
-                                date = weekDates.getOrNull(course.weekday - 1),
-                                timetable = sectionTimetable,
-                                holidayName = holidays.getOrNull(course.weekday - 1)?.takeIf { it.isOffDay }?.name,
-                                onClick = {
-                                    behaviorRecorder.recordOrganicAction(AppActionId.OPEN_COURSE_DETAIL)
-                                    detailedCourse = it
-                                }
-                            )
+                    courseGroupsByWeek.getOrElse(page) { emptyList() }.forEach { courses ->
+                        key(courses.joinToString("-") { it.hashCode().toString() }) {
+                            if (courses.size > 1) {
+                                GroupedCourseCard(
+                                    courses = courses,
+                                    colors = courseColors,
+                                    cellWidth = cellWidth,
+                                    cellHeight = cellHeight,
+                                    currentWeek = pageWeek,
+                                    includeWeeks = false,
+                                    date = weekDates.getOrNull(courses.first().weekday - 1),
+                                    timetable = sectionTimetable,
+                                    holidayName = holidays.getOrNull(courses.first().weekday - 1)
+                                        ?.takeIf { it.isOffDay }?.name,
+                                    onClick = {
+                                        behaviorRecorder.recordOrganicAction(AppActionId.OPEN_COURSE_DETAIL)
+                                        detailedCourse = it
+                                    }
+                                )
+                            } else {
+                                val course = courses.first()
+                                CourseCard(
+                                    course = course,
+                                    color = courseColors.getOrElse(course.name) { 50.a1 },
+                                    cellWidth = cellWidth,
+                                    cellHeight = cellHeight,
+                                    isCurrentWeek = true,
+                                    date = weekDates.getOrNull(course.weekday - 1),
+                                    timetable = sectionTimetable,
+                                    holidayName = holidays.getOrNull(course.weekday - 1)
+                                        ?.takeIf { it.isOffDay }?.name,
+                                    onClick = {
+                                        behaviorRecorder.recordOrganicAction(AppActionId.OPEN_COURSE_DETAIL)
+                                        detailedCourse = it
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -734,7 +817,30 @@ fun Schedule(
 
     @Composable
     fun ScheduleFreshnessLabel() {
-        if (isGraduate || isPreviewNextSemester) return
+        if (isGraduate) return
+        if (isSemesterPreview) {
+            val loading = if (selectedSemesterKey == NEXT_SEMESTER) {
+                isNextScheduleLoading
+            } else isSemesterScheduleLoading || previewedSemesterId != selectedSemesterId
+            val status = when {
+                loading || activeScheduleResult == null -> "正在加载课表…"
+                activeScheduleResult.isFailure -> "加载失败，点击刷新重试"
+                schedule.isEmpty() -> "本学期暂无课程"
+                else -> "第 ${currentWeek} 周"
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "$selectedSemesterLabel · $status",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            return
+        }
         val fetchedText = remember(scheduleFetchedAt) {
             scheduleFetchedAt?.let {
                 SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(it))
@@ -785,7 +891,12 @@ fun Schedule(
     if (isSettingsVisible) {
         ScheduleSettingsDialog(
             isOverviewSchedule = isOverviewSchedule,
-            isPreviewNextSemester = isPreviewNextSemester,
+            semesterKey = selectedSemesterKey,
+            semesterLabel = selectedSemesterLabel,
+            semesters = availableSemesters,
+            isSemestersLoading = isSemestersLoading,
+            semesterError = semestersResult?.errorOrNull()?.toUserMessage(),
+            onReloadSemesters = { scheduleViewModel.loadSemesters(true) },
             showNowTimeline = showNowTimeline,
             onShowNowTimelineChange = { enabled ->
                 val oldValue = showNowTimeline
@@ -797,7 +908,7 @@ fun Schedule(
                     enabled
                 )
             },
-            showNextSemester = !isGraduate,
+            showSemesterBrowser = !isGraduate,
             extraSettings = {
                 if (isGraduate) {
                     var expanded by remember { mutableStateOf(false) }
@@ -854,14 +965,19 @@ fun Schedule(
                     enabled
                 )
             },
-            onPreviewNextSemesterChange = { enabled ->
-                val oldValue = isPreviewNextSemester
-                isPreviewNextSemester = enabled
+            onSemesterChange = { semesterKey ->
+                val oldValue = isSemesterPreview
+                selectedSemesterKey = semesterKey
+                val enabled = semesterKey != CURRENT_SEMESTER
                 behaviorRecorder.reportCommittedMutation(
                     MutationId.SCHEDULE_SEMESTER_PREVIEW_CHANGED,
                     oldValue,
                     enabled,
-                    coarseValueBucket = if (enabled) "NEXT_SEMESTER" else "CURRENT_SEMESTER"
+                    coarseValueBucket = when (semesterKey) {
+                        CURRENT_SEMESTER -> "CURRENT_SEMESTER"
+                        NEXT_SEMESTER -> "NEXT_SEMESTER"
+                        else -> "OTHER_SEMESTER"
+                    }
                 )
             },
             onDismiss = { isSettingsVisible = false }
@@ -960,8 +1076,9 @@ fun Schedule(
                             )
                         )
                         GraduateScheduleStatus()
+                        if (isSemesterPreview) ScheduleFreshnessLabel()
                         ScheduleGrid()
-                        ScheduleFreshnessLabel()
+                        if (!isSemesterPreview) ScheduleFreshnessLabel()
                     }
                 }
             }
@@ -979,7 +1096,7 @@ private fun BoxScope.ScheduleGridLabels(
     currentWeek: Int?,
     currentWeekday: Int,
     isInSemester: Boolean,
-    isPreviewNextSemester: Boolean,
+    isSemesterPreview: Boolean,
     timetable: Map<Int, String>
 ) {
     val radiant = isRadiantUi
@@ -1042,7 +1159,7 @@ private fun BoxScope.ScheduleGridLabels(
 
         weekDates.forEachIndexed { index, date ->
             val left = mainColumnWidthPx + (cellWidthPx + spacingPx) * index + spacingPx
-            val isCurrentWeekday = !isPreviewNextSemester &&
+            val isCurrentWeekday = !isSemesterPreview &&
                 isInSemester &&
                 pageWeek == currentWeek &&
                 index + 1 == currentWeekday
@@ -1137,13 +1254,18 @@ private fun scheduleResultBucket(count: Int): ResultCountBucket = when (count) {
 @Composable
 private fun ScheduleSettingsDialog(
         isOverviewSchedule: Boolean,
-        isPreviewNextSemester: Boolean,
+        semesterKey: String,
+        semesterLabel: String,
+        semesters: List<ScheduleSemester>,
+        isSemestersLoading: Boolean,
+        semesterError: String?,
+        onReloadSemesters: () -> Unit,
         showNowTimeline: Boolean,
         onShowNowTimelineChange: (Boolean) -> Unit,
         onOverviewChange: (Boolean) -> Unit,
-        onPreviewNextSemesterChange: (Boolean) -> Unit,
+        onSemesterChange: (String) -> Unit,
         onDismiss: () -> Unit,
-        showNextSemester: Boolean = true,
+        showSemesterBrowser: Boolean = true,
         extraSettings: @Composable () -> Unit = {}
     ) {
         AppDialog(
@@ -1173,12 +1295,40 @@ private fun ScheduleSettingsDialog(
                     selected = isOverviewSchedule,
                     onSelect = onOverviewChange
                 )
-                if (showNextSemester) ScheduleSettingRow(
-                    title = "预览下学期课表",
-                    description = "切换到教务系统中的下学期课表",
-                    selected = isPreviewNextSemester,
-                    onSelect = onPreviewNextSemesterChange
-                )
+                if (showSemesterBrowser) {
+                    AppSelectField(
+                        label = "浏览学期课表",
+                        selected = semesterKey,
+                        placeholder = semesterLabel,
+                        options = listOf(
+                            AppSelectOption(CURRENT_SEMESTER, "当前学期"),
+                            AppSelectOption(NEXT_SEMESTER, "下学期（预览）")
+                        ) + semesters.filterNot { it.isCurrent }.map {
+                            AppSelectOption(it.id.toString(), it.name)
+                        },
+                        onSelected = onSemesterChange,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (isSemestersLoading) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text("正在读取可浏览的学期…", style = MaterialTheme.typography.bodySmall)
+                    } else if (semesterError != null) {
+                        Text(
+                            "学期列表加载失败：$semesterError",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        TextButton(onClick = onReloadSemesters) { Text("重新加载学期") }
+                    } else if (semesters.none { !it.isCurrent }) {
+                        Text("暂无其他可浏览的学期", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = onReloadSemesters) { Text("重新加载学期") }
+                    } else {
+                        Text(
+                            "可查看历史学期；选择当前学期或点击回到本周即可返回。",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             }
         )
     }
@@ -1226,7 +1376,7 @@ private fun ScheduleSettingsDialog(
     }
 
 @Composable
-private fun OverviewCourseGroupCard(
+private fun GroupedCourseCard(
     courses: List<Course>,
     colors: Map<String, Color>,
     cellWidth: Dp,
@@ -1234,13 +1384,23 @@ private fun OverviewCourseGroupCard(
     currentWeek: Int,
     timetable: Map<Int, String>,
     holidayName: String?,
+    includeWeeks: Boolean = true,
+    date: String? = null,
     onClick: (Course) -> Unit
 ) {
     val course = courses.firstOrNull() ?: return
-    val fullHeight = cellHeight * course.length + cellSpacing * (course.length - 1)
+    val startPeriod = courses.minOf { it.startTime }
+    val periodCount = courses.maxOf { it.startTime + it.length } - startPeriod
+    val fullHeight = cellHeight * periodCount + cellSpacing * (periodCount - 1)
+    val isConflict = remember(courses) { hasCourseConflict(courses) }
+    val conflictHeaderHeight = if (isConflict) 12.dp else 0.dp
+    val slotHeight = (fullHeight - conflictHeaderHeight - (courses.size - 1).dp) / courses.size
+    val contentPadding = if (slotHeight < 28.dp) 2.dp else 4.dp
+    val showPeriods = courses.any { it.startTime != startPeriod || it.length != periodCount }
     val sortedCourses = remember(courses) {
         courses.sortedWith(
-            compareBy<Course> { it.startWeek }
+            compareBy<Course> { it.startTime }
+                .thenBy { it.startWeek }
                 .thenBy { it.endWeek }
                 .thenBy { it.name ?: "" }
         )
@@ -1257,14 +1417,14 @@ private fun OverviewCourseGroupCard(
                                 (cellWidth + cellSpacing) * (course.weekday - 1) +
                                 cellSpacing,
                     y = mainRowHeight +
-                            (cellHeight + cellSpacing) * (course.startTime - 1) +
+                            (cellHeight + cellSpacing) * (startPeriod - 1) +
                                 cellSpacing
                 )
                 .clip(SmoothRoundedCornerShape(8.dp))
                 .background(95.a1 withNight 30.n1)
         }
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = conflictHeaderHeight)) {
             sortedCourses.forEachIndexed { index, item ->
                 val isCurrentWeek = currentWeek in item.weekIndexes
                 val color = colors.getOrElse(item.name) { 50.a1 }
@@ -1284,17 +1444,21 @@ private fun OverviewCourseGroupCard(
                             .semantics(mergeDescendants = true) {
                                 contentDescription = courseScheduleDescription(
                                     item,
-                                    ScheduleSectionTimes.timetable,
-                                    includeWeeks = true
-                                ) + (holidayName?.takeIf { isCurrentWeek }
-                                    ?.let { "，$it 放假日期，是否上课请自行确认" } ?: "")
+                                    timetable,
+                                    date = date,
+                                    includeWeeks = includeWeeks
+                                ) + (if (isConflict) "，时间冲突" else "") +
+                                    (holidayName?.takeIf { isCurrentWeek }
+                                        ?.let { "，$it 放假日期，是否上课请自行确认" } ?: "")
                             }
-                            .padding(4.dp)
+                            .padding(contentPadding)
                     ) {
                         OverviewCourseContent(
                             course = item,
                             stackedCount = sortedCourses.size,
-                            slotHeightDp = fullHeight / sortedCourses.size
+                            slotHeightDp = slotHeight - contentPadding * 2,
+                            includeWeeks = includeWeeks,
+                            showPeriods = showPeriods
                         )
                     }
                 }
@@ -1308,6 +1472,14 @@ private fun OverviewCourseGroupCard(
                 }
             }
         }
+        if (isConflict) {
+            Text(
+                text = "冲突",
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp),
+                color = MaterialTheme.colorScheme.error,
+                style = TextStyle(fontSize = 9.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold)
+            )
+        }
     }
 }
 
@@ -1315,117 +1487,51 @@ private fun OverviewCourseGroupCard(
 private fun BoxScope.OverviewCourseContent(
     course: Course,
     stackedCount: Int,
-    slotHeightDp: Dp
+    slotHeightDp: Dp,
+    includeWeeks: Boolean,
+    showPeriods: Boolean
 ) {
-    if (isRadiantUi) {
-        RadiantOverviewCourseContent(course, stackedCount, slotHeightDp)
-        return
+    // Small conflict slices must keep a readable course name; details remain available on tap.
+    val compact = slotHeightDp < 24.dp
+    val showLocation = slotHeightDp >= 48.dp
+    val detailText = if (slotHeightDp < 64.dp) null else when {
+        includeWeeks -> course.weekRangeText()
+        showPeriods -> "${course.startTime}-${course.startTime + course.length - 1}节"
+        else -> null
     }
-    Text(
-        text = course.name ?: "",
-        modifier = Modifier.padding(bottom = 38.dp),
-        color = 100.n1,
-        fontWeight = FontWeight.Bold,
-        maxLines = if (stackedCount <= 1) 3 else 2,
-        overflow = TextOverflow.Ellipsis,
-        style = MaterialTheme.typography.labelMedium
-    )
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .align(Alignment.BottomCenter),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
-            text = course.weekRangeText(),
+            text = course.name.orEmpty(),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
             color = 100.n1,
-            maxLines = 1,
+            fontWeight = FontWeight.Bold,
+            maxLines = if (compact) 1 else 8,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
             style = TextStyle(
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = if (compact) 9.sp else 12.sp,
+                lineHeight = if (compact) 11.sp else 15.sp
             )
         )
-        OverviewLocationPill(
-            text = course.location.shortScheduleLocation(),
-            maxLines = if (stackedCount <= 1) 2 else 1
-        )
-    }
-}
-
-@Composable
-private fun BoxScope.RadiantOverviewCourseContent(
-    course: Course,
-    stackedCount: Int,
-    slotHeightDp: Dp
-) {
-    val locationText = course.location.shortScheduleLocation()
-    val weekText = course.weekRangeText()
-    val density = LocalDensity.current
-    val textMeasurer = rememberTextMeasurer()
-    val maxLines = remember(
-        course.name,
-        locationText,
-        weekText,
-        stackedCount,
-        slotHeightDp,
-        density
-    ) {
-        val pillHeight = with(density) {
-            textMeasurer.measure(
-                text = AnnotatedString(locationText),
+        if (detailText != null) {
+            Text(
+                text = detailText,
+                modifier = Modifier.fillMaxWidth(),
+                color = 100.n1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
                 style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            ).size.height.toDp() + 8.dp
+            )
         }
-        val weekHeight = with(density) {
-            textMeasurer.measure(
-                text = AnnotatedString(weekText),
-                style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold)
-            ).size.height.toDp()
+        if (showLocation) {
+            OverviewLocationPill(
+                text = course.location.shortScheduleLocation(),
+                maxLines = if (stackedCount <= 1) 2 else 1
+            )
         }
-        val nameLineHeight = with(density) {
-            textMeasurer.measure(
-                text = AnnotatedString("测试"),
-                style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            ).size.height.toDp()
-        }
-        val usableHeight = slotHeightDp - 8.dp - weekHeight - pillHeight - 4.dp
-        (usableHeight / nameLineHeight).toInt().coerceIn(1, 8)
-    }
-
-    Text(
-        text = course.name ?: "",
-        modifier = Modifier
-            .fillMaxSize()
-            .wrapContentHeight(Alignment.Top)
-            .padding(bottom = 42.dp),
-        color = 100.n1,
-        fontWeight = FontWeight.Bold,
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
-        style = TextStyle(fontSize = 12.sp)
-    )
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .align(Alignment.BottomCenter),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = weekText,
-            color = 100.n1,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        )
-        OverviewLocationPill(
-            text = locationText,
-            maxLines = if (stackedCount <= 1) 2 else 1
-        )
     }
 }
 

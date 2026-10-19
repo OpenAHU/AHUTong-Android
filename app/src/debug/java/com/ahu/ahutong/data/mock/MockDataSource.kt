@@ -23,6 +23,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
+import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -58,6 +59,23 @@ class MockDataSource : BaseDataSource {
             endpoint = MockEditableEndpoint.NextSchedule,
             type = object : TypeToken<List<Course>>() {}.type
         ) { it.academic.nextSchedule }
+
+    override suspend fun getScheduleSemesters(): AhuResult<List<ScheduleSemester>> =
+        scenarioResponse { MockSemesterFixtures.semesters }
+
+    override suspend fun getSemesterSchedule(semesterId: Int): AhuResult<List<Course>> {
+        return when (semesterId) {
+            MockSemesterFixtures.currentId -> getSchedule()
+            in MockSemesterFixtures.historyIds -> scenarioResponse { scenario ->
+                if (scenario.academic.currentSchedule.isEmpty() && scenario.academic.nextSchedule.isEmpty()) {
+                    emptyList()
+                } else {
+                    MockSemesterFixtures.courses(semesterId)
+                }
+            }
+            else -> failure("Mock 中没有该学期：$semesterId")
+        }
+    }
 
     override suspend fun getGrade(): AhuResult<Grade> =
         scenarioResponse(MockEditableEndpoint.Grade, Grade::class.java) { it.academic.grade }
