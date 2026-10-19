@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import com.ahu.ahutong.personalization.model.withModelIoLock
 
 data class JourneyModelCheckpoint(
     val checkpointId: String,
@@ -46,11 +46,11 @@ data class JourneyStoredModelState(
 
 @Singleton
 class JourneyModelStateStore @Inject constructor(@ApplicationContext context: Context) {
-    private val directory = File(context.noBackupFilesDir, "behavior_models").apply { mkdirs() }
+    private val directory by lazy { File(context.noBackupFilesDir, "behavior_models").apply { mkdirs() } }
     private val locks = ConcurrentHashMap<String, Mutex>()
     private val random = SecureRandom()
 
-    suspend fun loadOrCreate(profileKey: String): JourneyStoredModelState = lock(profileKey).withLock {
+    suspend fun loadOrCreate(profileKey: String): JourneyStoredModelState = lock(profileKey).withModelIoLock {
         read(profileKey) ?: create(profileKey).also { write(profileKey, it) }
     }
 
@@ -62,9 +62,9 @@ class JourneyModelStateStore @Inject constructor(@ApplicationContext context: Co
         batchId: String,
         parameters: TinyMlpParameters,
         optimizer: AdamWState
-    ): JourneyStoredModelState = lock(profileKey).withLock {
+    ): JourneyStoredModelState = lock(profileKey).withModelIoLock {
         val current = read(profileKey) ?: create(profileKey)
-        if (current.lastAppliedBatchId == batchId) return@withLock current.deepCopy()
+        if (current.lastAppliedBatchId == batchId) return@withModelIoLock current.deepCopy()
         check(current.training.trainingRevision == expectedRevision)
         validate(parameters, optimizer)
         val trained = checkpoint(parameters.deepCopy(optimizer.step), expectedRevision + 1)
@@ -77,12 +77,12 @@ class JourneyModelStateStore @Inject constructor(@ApplicationContext context: Co
     }
 
     suspend fun maybeCreateCandidate(profileKey: String, sourceSampleCount: Int): JourneyStoredModelState =
-        lock(profileKey).withLock {
+        lock(profileKey).withModelIoLock {
             val current = read(profileKey) ?: create(profileKey)
             if (current.candidate != null ||
                 current.training.trainingRevision - current.lastConsumedCandidateRevision < 32 ||
                 sourceSampleCount - current.lastConsumedCandidateSampleCount < 64
-            ) return@withLock current.deepCopy()
+            ) return@withModelIoLock current.deepCopy()
             current.copy(
                 candidate = checkpoint(current.training.parameters.deepCopy(), current.training.trainingRevision),
                 candidateSourceSampleCount = sourceSampleCount,
@@ -91,7 +91,7 @@ class JourneyModelStateStore @Inject constructor(@ApplicationContext context: Co
         }
 
     suspend fun activateCandidate(profileKey: String, checkpointId: String): JourneyStoredModelState =
-        lock(profileKey).withLock {
+        lock(profileKey).withModelIoLock {
             val current = requireNotNull(read(profileKey))
             val candidate = requireNotNull(current.candidate).also { check(it.checkpointId == checkpointId) }
             current.copy(
@@ -105,8 +105,8 @@ class JourneyModelStateStore @Inject constructor(@ApplicationContext context: Co
             ).also { write(profileKey, it) }.deepCopy()
         }
 
-    suspend fun discardCandidate(profileKey: String) = lock(profileKey).withLock {
-        val current = read(profileKey) ?: return@withLock
+    suspend fun discardCandidate(profileKey: String) = lock(profileKey).withModelIoLock {
+        val current = read(profileKey) ?: return@withModelIoLock
         current.copy(
             candidate = null,
             lastConsumedCandidateSampleCount = current.candidateSourceSampleCount ?: current.lastConsumedCandidateSampleCount,
@@ -116,9 +116,11 @@ class JourneyModelStateStore @Inject constructor(@ApplicationContext context: Co
         ).also { write(profileKey, it) }
     }
 
-    suspend fun reset(profileKey: String) = lock(profileKey).withLock { AtomicFile(file(profileKey)).delete() }
+    suspend fun reset(profileKey: String) = lock(profileKey).withModelIoLock { AtomicFile(file(profileKey)).delete() }
 
-    fun modelSizeBytes(profileKey: String): Long = file(profileKey).takeIf(File::exists)?.length() ?: 0L
+    suspend fun modelSizeBytes(profileKey: String): Long = lock(profileKey).withModelIoLock {
+        file(profileKey).takeIf(File::exists)?.length() ?: 0L
+    }
 
     private fun create(profileKey: String): JourneyStoredModelState {
         val parameters = TinyMlpParameters.initialize(

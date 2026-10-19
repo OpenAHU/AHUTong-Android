@@ -23,6 +23,7 @@ import retrofit2.http.Query
 import retrofit2.http.Streaming
 import java.util.concurrent.TimeUnit
 import com.ahu.ahutong.data.network.AhuHttp
+import com.ahu.ahutong.data.network.asciiUserAgent
 
 interface AhuTong {
 
@@ -75,7 +76,7 @@ interface AhuTong {
         )
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .header("User-Agent", "AHUTong/${BuildConfig.VERSION_NAME} (Android)")
+                    .header("User-Agent", asciiUserAgent("AHUTong/${BuildConfig.VERSION_NAME} (Android)"))
                     .header("Accept", "*/*")
                     .build()
                 chain.proceed(request)

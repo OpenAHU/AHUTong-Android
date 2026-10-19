@@ -28,9 +28,15 @@ import java.util.Locale
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
+import javax.inject.Qualifier
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class ScheduleDispatcher
 
 /**
  * 课表页的状态。
@@ -45,7 +51,8 @@ class ScheduleViewModel @Inject constructor(
     private val weekConfig: ScheduleWeekConfig,
     private val session: SessionIdentity,
     private val reminders: CourseReminderControl,
-    private val holidaySource: ScheduleHolidaySource
+    private val holidaySource: ScheduleHolidaySource,
+    @ScheduleDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     val TAG = "ScheduleViewModel"
@@ -104,6 +111,8 @@ class ScheduleViewModel @Inject constructor(
     /** 最近一次后台刷新失败的原因；界面只判断有没有失败（文案由界面自己写，见 ADR 0001 规则 3）。 */
     val scheduleRefreshError = MutableLiveData<AhuError?>(null)
     private var backgroundRefreshJob: Job? = null
+    private var cacheLoadJob: Job? = null
+    private var cacheLoadIdentity: Triple<Boolean, String?, Boolean>? = null
     val scheduleHolidays = MutableLiveData<Map<LocalDate, ScheduleHoliday>>(emptyMap())
     private var holidayStartDate: LocalDate? = null
     private var holidayWeekCount: Int = 20
@@ -180,17 +189,26 @@ class ScheduleViewModel @Inject constructor(
     }
 
     private fun showCachedSchedule() {
-        scheduleSource.cached()?.let { cached ->
-            if (schedule.value?.valueOrNull() != cached) {
+        val owner = previewIdentity()
+        if (cacheLoadJob?.isActive == true && cacheLoadIdentity == owner) return
+        cacheLoadJob?.cancel()
+        cacheLoadIdentity = owner
+        cacheLoadJob = viewModelScope.launchSafe {
+            val (cached, fetchedAt) = withContext(ioDispatcher) {
+                scheduleSource.cached() to scheduleSource.fetchedAt()
+            }
+            if (owner != previewIdentity()) return@launchSafe
+            if (cached != null && schedule.value?.valueOrNull() != cached) {
                 schedule.value = AhuResult.Success(cached)
             }
+            scheduleFetchedAt.value = fetchedAt
         }
-        scheduleFetchedAt.value = scheduleSource.fetchedAt()
     }
 
     private fun refreshLatestSchedule() {
         if (backgroundRefreshJob?.isActive == true) return
         backgroundRefreshJob = viewModelScope.launchSafe {
+            cacheLoadJob?.join()
             isScheduleRefreshing.value = true
             scheduleRefreshError.value = null
             try {
@@ -346,6 +364,8 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun clear() {
+        cacheLoadJob?.cancel()
+        cacheLoadIdentity = null
         backgroundRefreshJob?.cancel()
         catalogueRequestRevision++
         nextRequestRevision++

@@ -97,23 +97,24 @@ fun SchoolCalendar(navController: NavHostController) {
         val requestKey = year ?: LEGACY_CALENDAR_KEY
         val fileName = year?.let(SchoolCalendarYearPolicy::cacheFileName) ?: LEGACY_CALENDAR_FILE
         val cached = FileUtils.getImageFile(context, fileName)
-        val keepCurrentImage = FileUtils.isValidImage(cached) &&
-            calendarFile?.absolutePath == cached.absolutePath
         activeRequestKey = requestKey
 
-        if (!forceRefresh && FileUtils.isValidImage(cached)) {
-            calendarFile = cached
-            isLoading = false
+        scope.launch {
+            val validCache = withContext(Dispatchers.IO) { FileUtils.isValidImage(cached) }
+            if (activeRequestKey != requestKey) return@launch
+            if (!forceRefresh && validCache) {
+                calendarFile = cached
+                isLoading = false
+                errorMessage = null
+                return@launch
+            }
+            val keepCurrentImage = validCache && calendarFile?.absolutePath == cached.absolutePath
+            isLoading = true
+            progress = 0f
             errorMessage = null
-        } else {
-            scope.launch(Dispatchers.IO) {
-                withContext(Dispatchers.Main) {
-                    isLoading = true
-                    progress = 0f
-                    errorMessage = null
-                    if (!keepCurrentImage) calendarFile = null
-                }
+            if (!keepCurrentImage) calendarFile = null
 
+            val (file, fallback) = withContext(Dispatchers.IO) {
                 val file = runCatching {
                     val result = if (year == null) {
                         AHURepository.getSchoolCalendar()
@@ -127,21 +128,19 @@ fun SchoolCalendar(navController: NavHostController) {
                         progress = it
                     }
                 }.getOrNull()
-
-                withContext(Dispatchers.Main) {
-                    if (activeRequestKey == requestKey) {
-                        isLoading = false
-                        if (file != null && FileUtils.isValidImage(file)) {
-                            calendarFile = file
-                            errorMessage = null
-                        } else if (FileUtils.isValidImage(cached)) {
-                            calendarFile = cached
-                            errorMessage = "刷新失败，已显示本地缓存"
-                        } else {
-                            calendarFile = null
-                            errorMessage = "获取校历失败，请检查网络后重试"
-                        }
-                    }
+                file?.takeIf { FileUtils.isValidImage(it) } to cached.takeIf { FileUtils.isValidImage(it) }
+            }
+            if (activeRequestKey == requestKey) {
+                isLoading = false
+                if (file != null) {
+                    calendarFile = file
+                    errorMessage = null
+                } else if (fallback != null) {
+                    calendarFile = fallback
+                    errorMessage = "刷新失败，已显示本地缓存"
+                } else {
+                    calendarFile = null
+                    errorMessage = "获取校历失败，请检查网络后重试"
                 }
             }
         }
@@ -223,10 +222,11 @@ fun SchoolCalendar(navController: NavHostController) {
     }
 
     LaunchedEffect(Unit) {
-        val legacyCache = FileUtils.getImageFile(context, LEGACY_CALENDAR_FILE)
-        if (!AHUCache.getMockData() && FileUtils.isValidImage(legacyCache)) {
-            calendarFile = legacyCache
+        val legacyCache = withContext(Dispatchers.IO) {
+            FileUtils.getImageFile(context, LEGACY_CALENDAR_FILE)
+                .takeIf { !AHUCache.getMockData() && FileUtils.isValidImage(it) }
         }
+        if (legacyCache != null) calendarFile = legacyCache
         fetchCatalog(false)
     }
 

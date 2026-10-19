@@ -174,6 +174,8 @@ data class AppActionSpec(
 - 当前 catalog 中所有已知、合格的语义动作都有独立输出，不得落入 `OTHER`。`OTHER` 只作为 schema 保留类，承接旧输出 schema 明确定义的前向兼容映射；`labelEligible=false` 或无法验证来源的动作必须使机会失效，不能改标为 OTHER。`NONE` 表示完整标签窗口内没有后续合格自然动作；两者均不可执行。
 - 动作目录随 APK 发布并由 `actionCatalogVersion` 与 `outputSchemaVersion` 固定。服务端不能增加动作或重排输出索引。
 
+当前路由完整性修复只登记 `campus_notices`、`student_mail`、`program_completion`、`identity_code`、`plugin/{pluginId}`、`settings__early_access`、`settings__privacy_policy`、`settings__theme_lab`、`billing`、`billing_stats` 的稳定语义映射。这些入口仍保持此前不参与学习、预测、建议或预取的行为（`labelEligible=false`、`predictable=false`、`suggestible=false`、`prefetchPolicy=NONE`）。模型输出列表及全部索引（包括 `OTHER`、`NONE`）、catalog/output schema 版本均保持 1，无需模型或服务端协议迁移。插件参数只用于导航，不进入动作 ID。若后续开放这些动作的学习或建议，需要独立审计并显式升级输出 schema。
+
 ### 4.2 当前工程的完整目录基线
 
 当前代码中已识别的 route、首页内部动作和关键页面命令统一为下列完整基线。表中的资源通配动作必须在实现时展开为逐项稳定 ID，并由构建生成不可变 `ActionCatalogManifest`；全仓扫描和注册测试必须证明没有语义处理器游离在 manifest 之外。

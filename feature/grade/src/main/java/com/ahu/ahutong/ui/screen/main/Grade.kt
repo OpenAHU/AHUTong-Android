@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -150,7 +152,7 @@ fun Grade(
         }
     } ?: "选择学期"
 
-    val pageContent: @Composable ColumnScope.() -> Unit = {
+    val pageHeader: @Composable ColumnScope.() -> Unit = {
         // Profile selector - shown when student has multiple profiles (micro-major/minor)
         if (!searchExpanded && gradeViewModel.studentProfiles.size > 1) {
                 Row(
@@ -230,50 +232,47 @@ fun Grade(
                 )
             }
 
-            if (searchExpanded && trimmedQuery.isNotBlank()) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    searchResultsByTerm.forEach { (term, items) ->
-                        Text(
-                            text = "${term.schoolYear} 第${term.term}学期",
-                            color = 0.n1 withNight 100.n1,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+    }
 
-                        items.forEach { item ->
-                            GradeCard(
-                                item = item,
-                                onNavigateToEvaluation = onNavigateToEvaluation
-                            )
-                        }
-                    }
-                }
-            } else if (!searchExpanded && gradeViewModel.isLoading && gradeViewModel.grade == null) {
-                AppStateCard.Loading()
-            } else if (!searchExpanded && gradeData != null && gradeData.gradeList.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    gradeData.gradeList.forEach {
-                        GradeCard(
-                            item = it,
-                            onNavigateToEvaluation = onNavigateToEvaluation
-                        )
-                    }
-                }
-            } else if (!searchExpanded) {
-                // Show empty message specific to selected profile
-                val emptyMsg = if (gradeViewModel.studentProfiles.size > 1) {
-                    val p = gradeViewModel.studentProfiles.getOrNull(gradeViewModel.selectedProfileIndex)
-                    if (p != null) "「${p.displayName}」暂无成绩" else "该学期目前没有任何成绩"
-                } else {
-                    "该学期目前没有任何成绩"
-                }
-                AppStateCard.Empty(message = emptyMsg)
+    val pageContent: LazyListScope.() -> Unit = {
+        if (!searchExpanded) {
+            item(key = "header") {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp), content = pageHeader)
             }
+        }
+        if (searchExpanded && trimmedQuery.isNotBlank()) {
+            searchResultsByTerm.forEachIndexed { termIndex, (term, matches) ->
+                item(key = "search-term-$termIndex") {
+                    Text(
+                        text = "${term.schoolYear} 第${term.term}学期",
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = 0.n1 withNight 100.n1,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                itemsIndexed(matches, key = { index, _ -> "search-grade-$termIndex-$index" }) { _, item ->
+                    Box(Modifier.padding(horizontal = 16.dp)) {
+                        GradeCard(item = item, onNavigateToEvaluation = onNavigateToEvaluation)
+                    }
+                }
+            }
+        } else if (!searchExpanded && gradeViewModel.isLoading && gradeViewModel.grade == null) {
+            item(key = "loading") { AppStateCard.Loading() }
+        } else if (!searchExpanded && gradeData != null && gradeData.gradeList.isNotEmpty()) {
+            itemsIndexed(gradeData.gradeList, key = { index, _ -> "grade-$selectedTermText-$index" }) { _, item ->
+                Box(Modifier.padding(horizontal = 16.dp)) {
+                    GradeCard(item = item, onNavigateToEvaluation = onNavigateToEvaluation)
+                }
+            }
+        } else if (!searchExpanded) {
+            item(key = "empty") {
+                val profile = gradeViewModel.studentProfiles.getOrNull(gradeViewModel.selectedProfileIndex)
+                val message = if (gradeViewModel.studentProfiles.size > 1 && profile != null) {
+                    "「${profile.displayName}」暂无成绩"
+                } else "该学期目前没有任何成绩"
+                AppStateCard.Empty(message = message)
+            }
+        }
     }
 
     val refreshGrades = {
@@ -319,7 +318,7 @@ fun Grade(
             )
         },
         bottomPadding = 48.dp,
-        content = pageContent
+        lazyContent = pageContent
     )
 }
 

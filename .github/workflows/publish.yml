@@ -1,0 +1,280 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      change:
+        description: 'Version change (test publishes the next betaN to preview)'
+        type: choice
+        required: true
+        default: test
+        options: [major, minor, patch, test]
+      changelog:
+        description: 'Update notes (actual newlines or literal \n are supported)'
+        type: string
+        required: true
+      force:
+        description: 'Require users to install this update'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# Both channels share Android version codes; never overlap two publications.
+concurrency:
+  group: ahutong-publish
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/checks.yml
+    with:
+      concurrency-key: publish
+
+  publish:
+    name: Build, sign, upload mapping and publish channel
+    needs: verify
+    runs-on: ${{ vars.RELEASE_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    outputs:
+      artifact_name: ${{ steps.identity.outputs.artifact_name }}
+      release_id: ${{ steps.identity.outputs.release_id }}
+    env:
+      SENTRY_AUTH_TOKEN: ''
+    steps:
+      - name: Checkout the exact source with full commit history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Validate credentials and prepare pinned SSH identity
+        env:
+          DEPLOY_SSH_TARGET: ${{ secrets.DEPLOY_SSH_TARGET }}
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, tempfile
+          required = ('DEPLOY_SSH_TARGET', 'DEPLOY_SSH_PRIVATE_KEY', 'DEPLOY_SSH_KNOWN_HOSTS',
+                      'ANDROID_KEYSTORE_B64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS',
+                      'ANDROID_KEY_PASSWORD', 'ANDROID_CERT_SHA256', 'SENTRY_AUTH_TOKEN')
+          missing = [key for key in required if not os.environ.get(key, '').strip()]
+          if missing:
+              raise SystemExit('Missing Actions Secrets: ' + ', '.join(missing))
+          if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9_.-]*', os.environ['DEPLOY_SSH_TARGET']):
+              raise SystemExit('DEPLOY_SSH_TARGET must be user@hostname-or-IPv4, without SSH options')
+          if not 1 <= int(os.environ['DEPLOY_SSH_PORT']) <= 65535:
+              raise SystemExit('Invalid SSH port')
+          directory = pathlib.Path(tempfile.mkdtemp(prefix='ahutong-ssh-', dir=os.environ['RUNNER_TEMP']))
+          directory.chmod(0o700)
+          for name, source in (('key', 'DEPLOY_SSH_PRIVATE_KEY'), ('known_hosts', 'DEPLOY_SSH_KNOWN_HOSTS')):
+              path = directory / name
+              path.write_text(os.environ[source].replace('\r\n', '\n').rstrip() + '\n')
+              path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'RELEASE_SSH_DIR={directory}\n')
+          PY
+
+      - name: Read both channel versions without changing the server
+        env:
+          DEPLOY_SSH_TARGET: ${{ secrets.DEPLOY_SSH_TARGET }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          ssh -i "$RELEASE_SSH_DIR/key" -p "$DEPLOY_SSH_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RELEASE_SSH_DIR/known_hosts" \
+            "$DEPLOY_SSH_TARGET" \
+            'python3 - state --root /www/openahu.org/update/static' \
+            < scripts/ci_remote_release.py > "$RUNNER_TEMP/release-state.json"
+
+      - name: Calculate the next version and channel
+        id: plan
+        env:
+          CHANGE: ${{ inputs.change }}
+          CHANGELOG: ${{ inputs.changelog }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'changelog.txt').write_text(os.environ['CHANGELOG'], encoding='utf-8')
+          PY
+          python3 scripts/ci_release.py plan --state "$RUNNER_TEMP/release-state.json" \
+            --gradle app/build.gradle.kts --change "$CHANGE" \
+            --changelog-file "$RUNNER_TEMP/changelog.txt" --force "$FORCE" \
+            --output build/release-plan.json
+          python3 - <<'PY'
+          import json, os, pathlib
+          plan = json.loads(pathlib.Path('build/release-plan.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"version_code={plan['version_code']}\nversion_name={plan['version_name']}\nchannel={plan['channel']}\n")
+          PY
+
+      - name: Set up project toolchain
+        uses: ./.github/actions/setup-android
+        with:
+          native-build: 'true'
+          cache-read-only: 'false'
+
+      - name: Compile the pinned Android Rust SDK
+        working-directory: sdk
+        run: cargo ndk -t arm64-v8a --platform 26 -o "$GITHUB_WORKSPACE/app/src/main/jniLibs" build --release
+
+      - name: Build this version and generate its R8 mapping UUID
+        env:
+          VERSION_CODE: ${{ steps.plan.outputs.version_code }}
+          VERSION_NAME: ${{ steps.plan.outputs.version_name }}
+        run: |
+          ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Prelease.versionCode="$VERSION_CODE" -Prelease.versionName="$VERSION_NAME" \
+            :app:assembleRelease --stacktrace
+
+      - name: Sign with the production APK certificate and package channel metadata
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64, os, pathlib, subprocess
+          unsigned = list(pathlib.Path('app/build/outputs/apk/release').glob('*-unsigned.apk'))
+          if len(unsigned) != 1:
+              raise SystemExit('Expected exactly one unsigned release APK')
+          tools = pathlib.Path(os.environ['ANDROID_HOME'], 'build-tools/37.0.0')
+          key = pathlib.Path(os.environ['RELEASE_SSH_DIR'], 'apk.keystore')
+          key.write_bytes(base64.b64decode(''.join(os.environ['ANDROID_KEYSTORE_B64'].split()), validate=True))
+          key.chmod(0o600)
+          output = pathlib.Path('build/release-sign')
+          output.mkdir(parents=True, exist_ok=True)
+          aligned, signed = output / 'aligned.apk', output / 'ahutong.apk'
+          subprocess.run([str(tools / 'zipalign'), '-f', '-P', '16', '4', str(unsigned[0]), str(aligned)], check=True)
+          subprocess.run([str(tools / 'apksigner'), 'sign', '--ks', str(key),
+                          '--ks-key-alias', os.environ['ANDROID_KEY_ALIAS'],
+                          '--ks-pass', 'env:ANDROID_KEYSTORE_PASSWORD', '--key-pass', 'env:ANDROID_KEY_PASSWORD',
+                          '--out', str(signed), str(aligned)], check=True)
+          subprocess.run([str(tools / 'zipalign'), '-c', '-P', '16', '4', str(signed)], check=True)
+          PY
+          python3 scripts/ci_release.py write --plan build/release-plan.json \
+            --apk build/release-sign/ahutong.apk --output-dir build/release-payload
+          cp "$RUNNER_TEMP/release-state.json" build/release-payload/expected-state.json
+
+      - name: Verify signed APK identity, mapping UUID and embedded Sentry CLI
+        id: identity
+        env:
+          ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
+        run: |
+          python3 scripts/ci_sentry.py prepare --apk build/release-payload/ahutong.apk \
+            --mapping app/build/outputs/mapping/release/mapping.txt \
+            --uuid-file app/build/intermediates/sentry/release/proguard-uuid/sentry-proguard-uuid.properties \
+            --plan build/release-plan.json --output-dir build/release-payload
+          python3 - <<'PY'
+          import json, os, pathlib
+          manifest = json.loads(pathlib.Path('build/release-payload/sentry.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f"release_id={manifest['release']}\nartifact_name=AHUTong-release-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}\n")
+          PY
+
+      - name: Preserve this exact signed APK, mapping and UUID before publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.identity.outputs.artifact_name }}
+          path: build/release-payload/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Create Sentry release, associate commits and upload mapping once
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: openahu
+          SENTRY_PROJECT: ahutong-android
+          SENTRY_RELEASE: ${{ steps.identity.outputs.release_id }}
+        run: |
+          cli="$GITHUB_WORKSPACE/build/release-payload/sentry-cli"
+          uuid=$(python3 -c 'import json; print(json.load(open("build/release-payload/sentry.json"))["uuid"])')
+          "$cli" releases new "$SENTRY_RELEASE"
+          "$cli" releases set-commits "$SENTRY_RELEASE" --local --ignore-missing
+          "$cli" upload-proguard --uuid "$uuid" --require-one build/release-payload/mapping.txt
+          python3 scripts/ci_sentry.py verify-mapping --manifest build/release-payload/sentry.json
+
+      - name: Stage and publish only the selected channel with rollback
+        env:
+          DEPLOY_SSH_TARGET: ${{ secrets.DEPLOY_SSH_TARGET }}
+          DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '22' }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, zipfile
+          names = ('ahutong.apk', 'apk_version.txt', 'apk_version_name.txt', 'apk_changelog.txt',
+                   'apk_force.txt', 'release.json', 'expected-state.json')
+          with zipfile.ZipFile(pathlib.Path(os.environ['RUNNER_TEMP'], 'release.zip'), 'w', compression=zipfile.ZIP_STORED) as archive:
+              for name in names:
+                  archive.write(pathlib.Path('build/release-payload', name), name)
+          PY
+          ssh_options=(-i "$RELEASE_SSH_DIR/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$RELEASE_SSH_DIR/known_hosts")
+          remote=$(ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$DEPLOY_SSH_TARGET" \
+            'mktemp -d /www/openahu.org/update/static/.ci-upload-XXXXXXXX')
+          if [[ ! "$remote" =~ ^/www/openahu.org/update/static/\.ci-upload-[A-Za-z0-9]+$ ]]; then
+            echo 'Unexpected remote staging path' >&2
+            exit 1
+          fi
+          scp "${ssh_options[@]}" -P "$DEPLOY_SSH_PORT" "$RUNNER_TEMP/release.zip" "$DEPLOY_SSH_TARGET:$remote/release.zip"
+          ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$DEPLOY_SSH_TARGET" \
+            "python3 - publish --root /www/openahu.org/update/static --bundle $remote/release.zip" \
+            < scripts/ci_remote_release.py > build/release-result.json
+          if ! ssh "${ssh_options[@]}" -p "$DEPLOY_SSH_PORT" "$DEPLOY_SSH_TARGET" \
+            "rm -- $remote/release.zip && rmdir -- $remote"; then
+            echo "::warning::Published successfully; remote staging cleanup needs attention"
+          fi
+          python3 - <<'PY'
+          import json, os, pathlib
+          result = json.loads(pathlib.Path('build/release-result.json').read_text())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+              output.write('Published ' + json.dumps(result, ensure_ascii=False) + '\n')
+          PY
+
+      - name: Remove temporary SSH and signing keys
+        if: always()
+        run: |
+          if [[ -n "${RELEASE_SSH_DIR:-}" && "$RELEASE_SSH_DIR" == "$RUNNER_TEMP"/ahutong-ssh-* ]]; then
+            rm -rf -- "$RELEASE_SSH_DIR"
+          fi
+
+  record-sentry-deployment:
+    name: Finalize Sentry only after server publication succeeds
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the matching workflow helpers
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download the immutable publication identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.publish.outputs.artifact_name }}
+          path: release-artifact
+
+      - name: Finalize release and record one deployment
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: openahu
+          SENTRY_PROJECT: ahutong-android
+        run: |
+          python3 scripts/ci_sentry.py record --manifest release-artifact/sentry.json \
+            --release-info release-artifact/release.json --cli release-artifact/sentry-cli

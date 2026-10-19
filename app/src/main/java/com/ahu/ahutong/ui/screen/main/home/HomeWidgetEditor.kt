@@ -1,5 +1,10 @@
 package com.ahu.ahutong.ui.screen.main.home
 
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -735,10 +740,12 @@ private fun Modifier.dashedBorder(color: Color): Modifier {
 @Composable
 private fun EditorWidgetIcon(iconId: Int, iconBytes: ByteArray?, tint: Color, size: androidx.compose.ui.unit.Dp) {
     if (iconBytes != null) {
-        val bitmap = remember(iconBytes) {
-            android.graphics.BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.size)
-                ?.asImageBitmap()
+        val decodedBitmap by produceState<ImageBitmap?>(null, iconBytes) {
+            value = withContext(Dispatchers.Default) {
+                android.graphics.BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.size)?.asImageBitmap()
+            }
         }
+        val bitmap = decodedBitmap
         if (bitmap != null) {
             androidx.compose.foundation.Image(
                 bitmap = bitmap,

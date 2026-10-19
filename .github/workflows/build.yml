@@ -1,0 +1,137 @@
+name: Build APKs
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CI release APKs are unsigned; publishing credentials belong only to the manual workflow.
+  SENTRY_AUTH_TOKEN: ''
+
+jobs:
+  select-run:
+    name: Select push or PR build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.select.outputs.run }}
+    steps:
+      - name: Prefer the PR merge commit when a branch has an open PR
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run=true
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            open=$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+              -f state=open -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" \
+              -f per_page=100 \
+              --jq 'length')
+            if [[ "$open" -gt 0 ]]; then run=false; fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build debug and unsigned release APKs
+    needs: select-run
+    if: needs.select-run.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up project toolchain
+        uses: ./.github/actions/setup-android
+        with:
+          native-build: 'true'
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Compile the pinned Rust SDK for Android
+        working-directory: sdk
+        run: cargo ndk -t arm64-v8a --platform 26 -o "$GITHUB_WORKSPACE/app/src/main/jniLibs" build --release
+
+      - name: Build APKs without signing or uploading mappings
+        run: ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process :app:assembleDebug :app:assembleRelease --stacktrace
+
+      - name: Verify APK contents and archive build identity
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess, uuid, zipfile
+          root = pathlib.Path('.')
+          native = root / 'app/src/main/jniLibs/arm64-v8a/libahutong_rs.so'
+          mapping = root / 'app/build/outputs/mapping/release/mapping.txt'
+          uuid_file = root / 'app/build/intermediates/sentry/release/proguard-uuid/sentry-proguard-uuid.properties'
+          for path in (native, mapping, uuid_file):
+              assert path.is_file() and path.stat().st_size, f'Missing build output: {path}'
+          identity = uuid.UUID(re.search(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', uuid_file.read_text()).group())
+          native_hash = hashlib.sha256(native.read_bytes()).hexdigest()
+          artifacts = []
+          for variant in ('debug', 'release'):
+              intermediates = root / 'app/build/intermediates'
+              merged = list((intermediates / 'merged_native_libs' / variant).glob('**/out/lib/arm64-v8a/libahutong_rs.so'))
+              assert len(merged) == 1, f'Missing or ambiguous {variant} merged native SDK'
+              assert hashlib.sha256(merged[0].read_bytes()).hexdigest() == native_hash, f'{variant}: stale merged native SDK'
+              stripped = list((intermediates / 'stripped_native_libs' / variant).glob('**/out/lib/arm64-v8a/libahutong_rs.so'))
+              assert len(stripped) <= 1, f'Ambiguous {variant} stripped native SDK'
+              packaged_native = stripped[0] if stripped else merged[0]
+              packaged_native_hash = hashlib.sha256(packaged_native.read_bytes()).hexdigest()
+              apks = sorted((root / f'app/build/outputs/apk/{variant}').glob('*.apk'))
+              assert apks, f'Missing {variant} APK'
+              for apk in apks:
+                  with zipfile.ZipFile(apk) as archive:
+                      assert hashlib.sha256(archive.read('lib/arm64-v8a/libahutong_rs.so')).hexdigest() == packaged_native_hash, f'{apk}: stale packaged native SDK'
+                      if variant == 'release':
+                          metadata = archive.read('assets/sentry-debug-meta.properties').decode()
+                          assert str(identity) in metadata, f'{apk}: mapping UUID mismatch'
+                          assert apk.name.endswith('-unsigned.apk'), f'{apk}: automatic release build must be unsigned'
+                  artifacts.append({'path': str(apk), 'sha256': hashlib.sha256(apk.read_bytes()).hexdigest()})
+          metadata = {
+              'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'submodules': subprocess.check_output(['git', 'submodule', 'status', '--recursive'], text=True).splitlines(),
+              'event': os.environ['GITHUB_EVENT_NAME'],
+              'native_sha256': native_hash,
+              'mapping_sha256': hashlib.sha256(mapping.read_bytes()).hexdigest(),
+              'proguard_uuid': str(identity),
+              'apks': artifacts,
+              'purpose': 'CI validation; debug is debug-signed and release is unsigned',
+          }
+          target = root / 'build/ci-build.json'
+          target.parent.mkdir(exist_ok=True)
+          target.write_text(json.dumps(metadata, indent=2) + '\n')
+          PY
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AHUTong-ci-debug-apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            build/ci-build.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned release APK and matching mapping
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: AHUTong-ci-unsigned-release-with-mapping
+          path: |
+            app/build/outputs/apk/release/*-unsigned.apk
+            app/build/outputs/mapping/release/mapping.txt
+            app/build/intermediates/sentry/release/proguard-uuid/sentry-proguard-uuid.properties
+            build/ci-build.json
+          if-no-files-found: error
+          retention-days: 14

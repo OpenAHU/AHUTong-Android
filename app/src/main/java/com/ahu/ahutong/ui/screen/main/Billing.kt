@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.QueryStats
@@ -74,6 +76,7 @@ fun Billing(
         title = "账单",
         onBack = onBack,
         modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
         actions = listOf(
             TrailingAction(painterResource(R.drawable.ic_billing_analysis), "统计") { onOpenStats() },
             TrailingAction(painterResource(R.drawable.ic_billing_filter), "筛选") { showFilter = true },
@@ -82,10 +85,12 @@ fun Billing(
         lazyContent = {
             // 汇总头
             item(key = "summary") {
+                Column(Modifier.padding(bottom = 16.dp)) {
                 BillingSummaryCard(
                     expensesFen = summary?.expenses,
                     incomeFen = summary?.income
                 )
+                }
             }
 
             when (val state = listState) {
@@ -111,13 +116,18 @@ fun Billing(
                             )
                         }
                     } else {
-                        // 细则收进同一张卡片，条目间分隔线（不再一条一卡）
-                        item(key = "list") {
+                        // Each row must be its own lazy item; a single Column composes the entire history.
+                        itemsIndexed(records, key = { index, record -> "record-${record.orderId}-$index" }) { index, record ->
                             AppCard(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                shape = RoundedCornerShape(
+                                    topStart = if (index == 0) 16.dp else 0.dp,
+                                    topEnd = if (index == 0) 16.dp else 0.dp,
+                                    bottomStart = if (index == records.lastIndex) 16.dp else 0.dp,
+                                    bottomEnd = if (index == records.lastIndex) 16.dp else 0.dp
+                                ),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                             ) {
-                                records.forEachIndexed { index, record ->
                                     BillingRecordItem(
                                         record = record,
                                         onClick = { detailRecord = record }
@@ -128,7 +138,6 @@ fun Billing(
                                             color = 92.n1 withNight 22.n1
                                         )
                                     }
-                                }
                             }
                         }
                         item(key = "footer") {

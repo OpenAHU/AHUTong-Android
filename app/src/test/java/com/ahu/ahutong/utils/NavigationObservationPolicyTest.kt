@@ -22,30 +22,30 @@ class NavigationObservationPolicyTest {
     }
 
     @Test
-    fun `pager animation does not label intermediate pages`() {
+    fun `observing the current NavHost entry does not consume the selected destination source`() {
         val policy = NavigationObservationPolicy()
         policy.observe(page("home"))
         policy.expectSelection("settings", ActionSource.ORGANIC)
-        assertNull(policy.observe(page("schedule", settled = false)))
-        assertNull(policy.observe(page("tools", settled = false)))
+        assertNull(policy.observe(page("home")))
         assertEquals(
             NavigationObservation("settings", ActionSource.ORGANIC),
-            policy.observe(page("settings"))
+            policy.observe(page("settings", stack = listOf("home-entry", "settings-1")))
         )
+        assertNull(policy.observe(page("settings", stack = listOf("home-entry", "settings-1"))))
     }
 
     @Test
-    fun `returning to a hidden pager waits for the requested page and keeps suggestion source`() {
+    fun `returning from a secondary destination preserves the requested primary source`() {
         val policy = NavigationObservationPolicy()
-        policy.observe(page("settings"))
-        policy.observe(page("weather", stack = listOf("home-entry", "weather-1")))
+        policy.observe(page("settings", stack = listOf("home-entry", "settings-1")))
+        policy.observe(page("weather", stack = listOf("home-entry", "settings-1", "weather-1")))
         policy.expectSelection("schedule", ActionSource.SUGGESTION)
-        assertNull(policy.observe(page("settings")))
-        assertNull(policy.observe(page("tools", settled = false)))
+        assertNull(policy.observe(page("weather", stack = listOf("home-entry", "settings-1", "weather-1"))))
         assertEquals(
             NavigationObservation("schedule", ActionSource.SUGGESTION),
-            policy.observe(page("schedule"))
+            policy.observe(page("schedule", stack = listOf("home-entry", "schedule-1")))
         )
+        assertNull(policy.observe(page("schedule", stack = listOf("home-entry", "schedule-1"))))
     }
 
     @Test
@@ -152,35 +152,38 @@ class NavigationObservationPolicyTest {
     }
 
     @Test
-    fun `cancelled animation unlocks the actual settled page in the same entry`() {
+    fun `cancelled selection releases the next actual NavHost destination`() {
         val policy = NavigationObservationPolicy()
         policy.observe(page("home"))
         val token = policy.expectSelection("settings", ActionSource.ORGANIC)
-        assertNull(policy.observe(page("schedule", settled = false)))
-        assertNull(policy.observe(page("schedule")))
+        assertNull(policy.observe(page("home")))
 
         assertTrue(policy.cancelSelection(token))
         assertEquals(
             NavigationObservation("schedule", ActionSource.ORGANIC),
-            policy.observe(page("schedule"))
+            policy.observe(page("schedule", stack = listOf("home-entry", "schedule-1")))
         )
-        policy.expectSelection("tools", ActionSource.ORGANIC)
-        assertEquals(ActionSource.ORGANIC, policy.observe(page("tools"))?.source)
+        policy.expectSelection("widgets", ActionSource.ORGANIC)
+        assertEquals(
+            ActionSource.ORGANIC,
+            policy.observe(page("widgets", stack = listOf("home-entry", "widgets-1")))?.source
+        )
     }
 
     @Test
-    fun `cancelling an old animation does not clear the newer selection`() {
+    fun `cancelling an old selection does not clear the newer NavHost selection`() {
         val policy = NavigationObservationPolicy()
-        policy.observe(page("settings"))
+        policy.observe(page("settings", stack = listOf("home-entry", "settings-1")))
         val oldToken = policy.expectSelection("home", ActionSource.RESTORE)
-        policy.expectSelection("tools", ActionSource.SUGGESTION)
+        val newToken = policy.expectSelection("schedule", ActionSource.SUGGESTION)
 
         assertFalse(policy.cancelSelection(oldToken))
-        assertNull(policy.observe(page("schedule")))
+        assertNull(policy.observe(page("settings", stack = listOf("home-entry", "settings-1"))))
         assertEquals(
-            NavigationObservation("tools", ActionSource.SUGGESTION),
-            policy.observe(page("tools"))
+            NavigationObservation("schedule", ActionSource.SUGGESTION),
+            policy.observe(page("schedule", stack = listOf("home-entry", "schedule-1")))
         )
+        assertFalse(policy.cancelSelection(newToken))
     }
 
     @Test
@@ -209,8 +212,7 @@ class NavigationObservationPolicyTest {
     private fun page(
         route: String,
         stack: List<String> = listOf("home-entry"),
-        theme: AppUiTheme = AppUiTheme.MATERIAL,
-        settled: Boolean = true
+        theme: AppUiTheme = AppUiTheme.MATERIAL
     ) = NavigationSnapshot(
         route,
         stack.last(),

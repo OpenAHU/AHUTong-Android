@@ -45,23 +45,37 @@ dependencies {
     implementation(libs.coil.compose)
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    testImplementation(kotlin("test-junit"))
+    // Android's org.json classes are stubs in local JVM tests.
+    testImplementation("org.json:json:20240303")
 }
 
 
 /*
  * .ahup 打包：assembleRelease → AAR classes.jar → D8 → 签名 → zip。
  * 运行：gradlew :feature:circle:packageAhup
- * 签名密钥在仓库外（Documents/ahutong-plugin-signing/），不存在时产未签名包。
+ * 配置 AHUP_KEYSTORE 时要求完整签名环境；未配置时产未签名包。
  */
 tasks.register("packageAhup", Exec::class) {
     group = "ahup"
     description = "打包运行期插件（.ahup）"
     dependsOn("assembleRelease")
-    val ks = File(System.getProperty("user.home") +
-        "/Documents/ahutong-plugin-signing/plugin-signing.jks")
-    commandLine(
-        "C:/Users/InChange_Jiang/AppData/Local/Programs/Python/Python313/python.exe",
-        rootProject.file("scripts/package_ahup.py"),
+    val keystore = providers.environmentVariable("AHUP_KEYSTORE").orNull?.let(::File)
+    val signing = if (keystore == null) emptyList() else {
+        require(keystore.isFile) { "AHUP_KEYSTORE must point to a signing file" }
+        fun credential(name: String) = providers.environmentVariable(name).orNull
+            ?.takeIf { it.isNotEmpty() } ?: error("Missing signing environment: $name")
+        listOf(
+            "--keystore", keystore.absolutePath,
+            "--storepass", credential("AHUP_STORE_PASSWORD"),
+            "--alias", credential("AHUP_KEY_ALIAS"),
+            "--keypass", credential("AHUP_KEY_PASSWORD")
+        )
+    }
+    commandLine(listOf(
+        providers.environmentVariable("AHUP_PYTHON").getOrElse("python3"),
+        rootProject.file("scripts/package_ahup.py").absolutePath,
         projectDir.absolutePath,
         layout.buildDirectory.file("outputs/aar/circle-release.aar").get().asFile.absolutePath,
         rootProject.file("dist/ahup/campus_circle.ahup").absolutePath,
@@ -72,12 +86,6 @@ tasks.register("packageAhup", Exec::class) {
         "--version", "0.1.0",
         "--author", "AHUTong",
         "--entry", "com.ahu.ahutong.feature.circle.CirclePlugin",
-        "--capabilities", "NETWORK,PLUGIN_STORAGE",
-        *(if (ks.exists()) arrayOf(
-            "--keystore", ks.absolutePath,
-            "--storepass", "ahutong-plugin-2026",
-            "--alias", "ahup",
-            "--keypass", "ahutong-plugin-2026"
-        ) else arrayOf())
-    )
+        "--capabilities", "NETWORK,PLUGIN_STORAGE"
+    ) + signing)
 }

@@ -26,6 +26,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
@@ -72,7 +73,7 @@ class ScheduleViewModelTest {
             override suspend fun load(years: Set<Int>, refresh: Boolean) =
                 AhuResult.Success(emptyMap<LocalDate, ScheduleHoliday>())
         }
-    ) = ScheduleViewModel(source, config, session, reminders, holidays)
+    ) = ScheduleViewModel(source, config, session, reminders, holidays, Dispatchers.Main)
 
     @Test
     fun `holiday refresh failure removes markings and does not change reminders`() {
@@ -218,7 +219,7 @@ class ScheduleViewModelTest {
 
         subject.onScheduleEntered()
 
-        assertEquals(cached, subject.schedule.value?.valueOrNull())
+        assertNull(subject.schedule.value)
         assertEquals(0, source.refreshCount)
         runCurrent()
         assertEquals(1, source.refreshCount)
