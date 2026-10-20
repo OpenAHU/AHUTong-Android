@@ -50,6 +50,7 @@ dependencies {
     // 课表页把 ViewModel 的 LiveData 读成 Compose 状态。
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.activity.compose)
     implementation("androidx.lifecycle:lifecycle-livedata-core:2.9.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 

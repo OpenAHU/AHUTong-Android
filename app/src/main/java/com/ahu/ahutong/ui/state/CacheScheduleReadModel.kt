@@ -4,6 +4,8 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
+import com.ahu.ahutong.data.schedule.CustomCourseMapper
+import com.ahu.ahutong.data.schedule.CustomCourseStore
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
 import com.ahu.ahutong.data.schedule.SemesterKey
 import javax.inject.Inject
@@ -16,7 +18,9 @@ import javax.inject.Singleton
  * 而不是靠约定。
  */
 @Singleton
-class CacheScheduleReadModel @Inject constructor() : ScheduleReadModel {
+class CacheScheduleReadModel @Inject constructor(
+    private val customCourses: CustomCourseStore
+) : ScheduleReadModel {
 
     override fun canUseUndergraduateAcademics(): Boolean = AHUCache.canUseUndergraduateAcademics()
 
@@ -25,7 +29,10 @@ class CacheScheduleReadModel @Inject constructor() : ScheduleReadModel {
             ?: "mock".takeIf { AHUCache.getMockData() }
 
     override fun cachedSchedule(schoolTerm: String): List<Course>? =
-        AHUCache.getSchedule(schoolTerm)
+        CustomCourseMapper.merge(
+            AHUCache.getSchedule(schoolTerm),
+            customCourses.coursesFor(schoolTerm)
+        )
 
     override fun cachedScheduleFetchedAt(): Long? =
         AHUCache.getSchoolTerm()?.let(AHUCache::getScheduleFetchedAt)

@@ -8,6 +8,8 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.schedule.ConfigSource
+import com.ahu.ahutong.data.schedule.CustomCourse
+import com.ahu.ahutong.data.schedule.CustomCourseStore
 import com.ahu.ahutong.data.schedule.ResolvedConfig
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
 import com.ahu.ahutong.data.schedule.ScheduleSource
@@ -68,12 +70,24 @@ class ScheduleViewModelTest {
         config: FakeScheduleWeekConfig = FakeScheduleWeekConfig(),
         session: FakeSessionIdentity = FakeSessionIdentity(),
         reminders: FakeCourseReminderControl = FakeCourseReminderControl(),
+        customCourses: CustomCourseStore = FakeCustomCourseStore(),
         holidays: ScheduleHolidaySource = object : ScheduleHolidaySource {
             override val holidays = MutableStateFlow(emptyMap<LocalDate, ScheduleHoliday>())
             override suspend fun load(years: Set<Int>, refresh: Boolean) =
                 AhuResult.Success(emptyMap<LocalDate, ScheduleHoliday>())
         }
-    ) = ScheduleViewModel(source, config, session, reminders, holidays, Dispatchers.Main)
+    ) = ScheduleViewModel(source, config, session, reminders, holidays, customCourses, Dispatchers.Main)
+
+    private class FakeCustomCourseStore : CustomCourseStore {
+        private val revisions = MutableStateFlow(0L)
+        override val revision: MutableStateFlow<Long> = revisions
+        override fun currentSemesterKey(): String? = "2024-2025-1"
+        override fun currentCourses(): List<CustomCourse> = emptyList()
+        override fun coursesFor(semesterKey: String): List<CustomCourse> = emptyList()
+        override suspend fun saveCurrent(courses: List<CustomCourse>) {
+            revisions.value += 1
+        }
+    }
 
     @Test
     fun `holiday refresh failure removes markings and does not change reminders`() {

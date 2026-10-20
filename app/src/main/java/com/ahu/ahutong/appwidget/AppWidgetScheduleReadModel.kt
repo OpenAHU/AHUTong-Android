@@ -4,6 +4,7 @@ import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.AcademicAccountType
+import com.ahu.ahutong.data.schedule.CustomCourseStore
 import com.ahu.ahutong.data.schedule.WidgetScheduleReadModel
 import com.ahu.ahutong.data.schedule.WidgetScheduleSnapshot
 import com.ahu.ahutong.data.session.SessionStore
@@ -19,20 +20,22 @@ import kotlinx.coroutines.launch
 
 @Singleton
 class AppWidgetScheduleReadModel @Inject constructor(
-    private val undergraduate: CacheScheduleReadModel
+    private val undergraduate: CacheScheduleReadModel,
+    private val customCourses: CustomCourseStore
 ) : WidgetScheduleReadModel {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
         // Foreground page refreshes and teaching-week edits only request a cached widget redraw.
         scope.launch {
-            combine(PostgraduateScheduleRepository.instance.revision,
-                AHUCache.postgraduateWeekUpdates()) { schedule, week -> schedule to week }
+            combine(
+                PostgraduateScheduleRepository.instance.revision,
+                AHUCache.postgraduateWeekUpdates(),
+                customCourses.revision
+            ) { schedule, week, custom -> Triple(schedule, week, custom) }
                 .drop(1)
                 .collect {
-                    if (SessionStore.currentUser()?.academicAccountType == AcademicAccountType.POSTGRADUATE) {
-                        WidgetUpdateScheduler.renderCached(AppEnvironmentHolder.context())
-                    }
+                    WidgetUpdateScheduler.renderCached(AppEnvironmentHolder.context())
                 }
         }
     }

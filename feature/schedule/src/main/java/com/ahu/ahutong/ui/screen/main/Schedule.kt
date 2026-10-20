@@ -100,6 +100,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
+import com.ahu.ahutong.data.schedule.customCourseId
 import com.ahu.ahutong.data.schedule.ScheduleUiPrefs
 import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.debug.DebugClock
@@ -180,7 +181,9 @@ fun Schedule(
     behaviorRecorder: BehaviorRecorder,
     graduateController: PostgraduateScheduleController? = null,
     graduateAccountId: String? = null,
-    isActive: Boolean = true
+    isActive: Boolean = true,
+    onOpenCustomCourses: () -> Unit = {},
+    onEditCustomCourse: (String) -> Unit = {}
 ) {
     val isGraduate = graduateController != null
     val graduateState = graduateController?.state?.collectAsState()?.value
@@ -277,6 +280,7 @@ fun Schedule(
         else -> null
     }
     val schedule = activeScheduleResult?.valueOrNull() ?: emptyList()
+    val customCourseList by scheduleViewModel.customCourses.observeAsState(emptyList())
     val context = LocalContext.current
 
     LaunchedEffect(isActive) {
@@ -400,8 +404,14 @@ fun Schedule(
     }
 
     val radiant = isRadiantUi
-    // 课程配色：调色盘组件（schedule/ScheduleColors.kt），各主题保留各自实现
-    val courseColors = rememberCourseColors(schedule)
+    // 课程配色：调色盘组件（schedule/ScheduleColors.kt），各主题保留各自实现；
+    // 自定义课程允许用户选色，这里把用户选择叠加到自动配色上。
+    val customCourseColors = remember(customCourseList) {
+        customCourseList.mapNotNull { custom ->
+            custom.colorArgb?.let { argb -> custom.name to Color(argb) }
+        }.toMap()
+    }
+    val courseColors = rememberCourseColors(schedule, customCourseColors)
     val courseGroupsByWeek = remember(schedule, weekCount) {
         List(weekCount) { pageIndex ->
             weeklyCourseGroups(schedule, pageIndex + 1)
@@ -910,6 +920,24 @@ fun Schedule(
             },
             showSemesterBrowser = !isGraduate,
             extraSettings = {
+                if (!isGraduate) {
+                    if (isSemesterPreview) {
+                        Text(
+                            "自定义课程只在当前学期维护，切回当前学期后可添加。",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else {
+                        ScheduleSettingEntryRow(
+                            title = "自定义课程",
+                            description = "添加教务课表里没有的加课、晚自习；只保存在本机",
+                            value = if (customCourseList.isEmpty()) "添加" else "${customCourseList.size} 门",
+                            onClick = {
+                                isSettingsVisible = false
+                                onOpenCustomCourses()
+                            }
+                        )
+                    }
+                }
                 if (isGraduate) {
                     var expanded by remember { mutableStateOf(false) }
                     val savedWeek = graduateConfig?.week
@@ -1018,10 +1046,17 @@ fun Schedule(
         }
     }
     // course dialog
-    detailedCourse?.let {
+    detailedCourse?.let { course ->
+        val editCustomAction: (() -> Unit)? = course.customCourseId()?.let { id ->
+            {
+                detailedCourse = null
+                onEditCustomCourse(id)
+            }
+        }
         CourseDetailDialog(
-            course = it,
-            onDismiss = { detailedCourse = null }
+            course = course,
+            onDismiss = { detailedCourse = null },
+            onEditCustom = editCustomAction
         )
     }
 
@@ -1371,6 +1406,47 @@ private fun ScheduleSettingsDialog(
                 onCheckedChange = onSelect,
                 modifier = Modifier.padding(start = 16.dp),
                 contentDescription = title
+            )
+        }
+    }
+
+    @Composable
+    private fun ScheduleSettingEntryRow(
+        title: String,
+        description: String,
+        value: String,
+        onClick: () -> Unit
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(SmoothRoundedCornerShape(12.dp))
+                .clickable(onClick = onClick)
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = description,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Text(
+                text = value,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
             )
         }
     }

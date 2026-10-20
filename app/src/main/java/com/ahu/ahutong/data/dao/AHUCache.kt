@@ -6,6 +6,7 @@ import com.ahu.ahutong.data.crawler.model.adwnh.CampusItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundTypeItem
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.schedule.CustomCourse
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityController
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
@@ -272,6 +273,22 @@ object AHUCache {
             kv.getString("next.schedule", "")
         } ?: ""
         return data.fromJson(object : TypeToken<List<Course>>() {}.type)
+    }
+
+    /**
+     * 用户手动添加的课程，按学期单独存。
+     * 与教务课表缓存分开，刷新课表时不会被远端结果覆盖。
+     */
+    fun getCustomCourses(semesterKey: String): List<CustomCourse> {
+        val key = "$semesterKey.customCourses"
+        val data = userGetStringOrMigrate(key) { kv.getString(key, "") } ?: ""
+        return data.fromJson<List<CustomCourse>>(
+            object : TypeToken<List<CustomCourse>>() {}.type
+        ).orEmpty()
+    }
+
+    fun saveCustomCourses(semesterKey: String, courses: List<CustomCourse>) {
+        userPutString("$semesterKey.customCourses", Gson().toJson(courses))
     }
 
     /**

@@ -18,61 +18,74 @@ import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
+import com.ahu.ahutong.data.schedule.isCustomCourse
 import com.ahu.ahutong.ui.components.AppDialogSurface
-import com.ahu.ahutong.ui.components.appLiquidGlassSurface
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
-import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 
 @Composable
 fun CourseDetailDialog(
     course: Course,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onEditCustom: (() -> Unit)? = null
 ) {
-
-   val courses = course.weekIndexes.last() - course.weekIndexes.first()
-
-    val numToChinese = mapOf(
-        1 to "一",
-        2 to "二",
-        3 to "三",
-        4 to "四",
-        5 to "五",
-        6 to "六",
-        7 to "七"
-    )
+    val isCustom = course.isCustomCourse()
+    val firstSection = course.startTime
+    val lastSection = firstSection + course.length - 1
+    val sectionText = if (firstSection == lastSection) {
+        "第${firstSection}节"
+    } else {
+        "第${firstSection}-${lastSection}节"
+    }
     AppDialogSurface(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
                     text = course.name,
                     style = MaterialTheme.typography.headlineMedium
                 )
+                if (isCustom) {
+                    Text(
+                        text = "自定义课程 · 仅保存在本机",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Text(
-                    text = "第${
-                        when {
-                            courses  == course.weekIndexes.size - 1 -> "${course.weekIndexes.first()} - ${course.weekIndexes.last()} "   //[1,2,3,4,5,6]
-                            courses == (course.weekIndexes.size - 1) * 2 && course.weekIndexes.first()%2==0 -> "${course.weekIndexes.first()} - ${course.weekIndexes.last()} (双周)"    // [1,3,5,7]  [5,7,9,11,13] 
-                            courses == (course.weekIndexes.size - 1) * 2 && course.weekIndexes.first()%2==0 -> "${course.weekIndexes.first()} - ${course.weekIndexes.last()} (单周)"    // [2,4,6,8]
-                            else -> course.weekIndexes.toString()  //[1,2,3,5,6,7,11]
-                        }
-                    }周的周${numToChinese[course.weekday]}，第 ${course.startTime}-${course.startTime + course.length - 1} 节课",
+                    text = "${course.weekRangeText()} · ${scheduleWeekdayLabel(course.weekday)} · $sectionText",
                     style = MaterialTheme.typography.titleMedium
                 )
+                val hasCustomTime = isCustom && !course.clockRange.isNullOrBlank()
                 ScheduleSectionTimes.getCourseClockRange(course)?.let { clockRange ->
                     Text(
-                        text = clockRange,
+                        text = if (hasCustomTime) "自定义时间 $clockRange" else clockRange,
                         style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                if (hasCustomTime) {
+                    Text(
+                        text = "课表网格按最近节次吸附显示",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                course.extra?.takeIf(String::isNotBlank)?.let { note ->
+                    Text(
+                        text = "备注：$note",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -100,7 +113,7 @@ fun CourseDetailDialog(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = course.location,
+                        text = course.location?.takeIf(String::isNotBlank) ?: "地点未填写",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
@@ -123,9 +136,25 @@ fun CourseDetailDialog(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = course.teacher,
+                        text = course.teacher?.takeIf(String::isNotBlank) ?: "教师未填写",
                         style = MaterialTheme.typography.titleMedium
                     )
+                }
+            }
+            if (isCustom && onEditCustom != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                )
+                TextButton(
+                    onClick = onEditCustom,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("编辑自定义课程")
                 }
             }
         }

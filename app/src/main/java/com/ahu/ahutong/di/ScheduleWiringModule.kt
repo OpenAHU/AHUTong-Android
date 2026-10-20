@@ -3,10 +3,12 @@ package com.ahu.ahutong.di
 import com.ahu.ahutong.data.schedule.ScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
 import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
+import com.ahu.ahutong.data.schedule.CustomCourseStore
 import com.ahu.ahutong.data.calendar.RepositoryScheduleHolidaySource
 import com.ahu.ahutong.data.schedule.WidgetScheduleReadModel
 import com.ahu.ahutong.appwidget.AppWidgetScheduleReadModel
 import com.ahu.ahutong.ui.state.CacheScheduleReadModel
+import com.ahu.ahutong.ui.state.RepositoryCustomCourseStore
 import com.ahu.ahutong.data.schedule.ScheduleWeekConfig
 import com.ahu.ahutong.ui.state.RepositoryScheduleSource
 import com.ahu.ahutong.ui.state.RepositoryScheduleWeekConfig
@@ -44,6 +46,12 @@ abstract class ScheduleWiringModule {
     abstract fun bindScheduleWeekConfig(
         implementation: RepositoryScheduleWeekConfig
     ): ScheduleWeekConfig
+
+    @Binds
+    @Singleton
+    abstract fun bindCustomCourseStore(
+        implementation: RepositoryCustomCourseStore
+    ): CustomCourseStore
 
     /** 课前提醒继续使用原有本科只读事实。 */
     @Binds

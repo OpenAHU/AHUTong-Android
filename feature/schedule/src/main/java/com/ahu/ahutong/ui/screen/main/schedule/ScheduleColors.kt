@@ -14,9 +14,14 @@ import com.kyant.monet.toSrgb
  * 课表课程配色方案（主题感知组件）：
  * 曜光 = 马卡龙 11 色板（按课名次序取用，溢出回退 hash）；其余 = 主题基色 HCT 色环均分。
  * 各主题保留自己的调色盘实现，这里只是把它们收敛为一个取值入口。
+ *
+ * [customColors] 是用户在自定义课程里亲手选的颜色（按课名索引），优先于自动配色。
  */
 @Composable
-fun rememberCourseColors(schedule: List<Course>): Map<String, Color> {
+fun rememberCourseColors(
+    schedule: List<Course>,
+    customColors: Map<String, Color> = emptyMap()
+): Map<String, Color> {
     val radiant = isRadiantUi
     val baseColor = 50.a1.toSrgb().toHct()
     val macaronPalette = remember {
@@ -27,9 +32,9 @@ fun rememberCourseColors(schedule: List<Course>): Map<String, Color> {
             Color(0xFFA8E4A0), Color(0xFFFF8A80)
         )
     }
-    return remember(schedule, radiant) {
+    return remember(schedule, radiant, customColors) {
         val courseNames = schedule.asSequence().map { it.name }.distinct().toList()
-        if (radiant) {
+        val generated = if (radiant) {
             courseNames.mapIndexed { index, name ->
                 val paletteIndex = if (index < macaronPalette.size) {
                     index
@@ -45,5 +50,6 @@ fun rememberCourseColors(schedule: List<Course>): Map<String, Color> {
                 ).toSrgb().toColor()
             }.toMap()
         }
+        generated + customColors
     }
 }

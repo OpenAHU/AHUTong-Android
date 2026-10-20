@@ -12,6 +12,8 @@ import com.ahu.ahutong.core.common.onSuccess
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.schedule.ConfigSource
+import com.ahu.ahutong.data.schedule.CustomCourse
+import com.ahu.ahutong.data.schedule.CustomCourseStore
 import com.ahu.ahutong.data.schedule.ScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
@@ -34,6 +36,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 
+import kotlinx.coroutines.flow.drop
+
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ScheduleDispatcher
@@ -52,11 +56,14 @@ class ScheduleViewModel @Inject constructor(
     private val session: SessionIdentity,
     private val reminders: CourseReminderControl,
     private val holidaySource: ScheduleHolidaySource,
+    private val customCourseStore: CustomCourseStore,
     @ScheduleDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     val TAG = "ScheduleViewModel"
     val schedule = MutableLiveData<AhuResult<List<Course>>>()
+    /** 自定义课程列表：课表配色需要它拿到用户选的颜色。 */
+    val customCourses = MutableLiveData<List<CustomCourse>>(emptyList())
     val nextSchedule = MutableLiveData<AhuResult<List<Course>>>()
     val isNextScheduleLoading = MutableLiveData(false)
     private var nextScheduleJob: Job? = null
@@ -120,6 +127,12 @@ class ScheduleViewModel @Inject constructor(
     init {
         viewModelScope.launchSafe {
             holidaySource.holidays.collect { scheduleHolidays.value = it }
+        }
+        // 自定义课程在别的页面增删后，课表页只重读一次缓存（含合并）即可，不必打扰教务。
+        viewModelScope.launchSafe {
+            customCourseStore.revision.drop(1).collect {
+                showCachedSchedule(force = true)
+            }
         }
     }
 
@@ -188,16 +201,21 @@ class ScheduleViewModel @Inject constructor(
         showCachedSchedule()
     }
 
-    private fun showCachedSchedule() {
+    private fun showCachedSchedule(force: Boolean = false) {
         val owner = previewIdentity()
-        if (cacheLoadJob?.isActive == true && cacheLoadIdentity == owner) return
+        if (!force && cacheLoadJob?.isActive == true && cacheLoadIdentity == owner) return
         cacheLoadJob?.cancel()
         cacheLoadIdentity = owner
         cacheLoadJob = viewModelScope.launchSafe {
-            val (cached, fetchedAt) = withContext(ioDispatcher) {
-                scheduleSource.cached() to scheduleSource.fetchedAt()
+            val (cached, fetchedAt, custom) = withContext(ioDispatcher) {
+                Triple(
+                    scheduleSource.cached(),
+                    scheduleSource.fetchedAt(),
+                    customCourseStore.currentCourses()
+                )
             }
             if (owner != previewIdentity()) return@launchSafe
+            customCourses.value = custom
             if (cached != null && schedule.value?.valueOrNull() != cached) {
                 schedule.value = AhuResult.Success(cached)
             }
@@ -382,6 +400,7 @@ class ScheduleViewModel @Inject constructor(
         holidayWeekCount = 20
         scheduleHolidays.value = emptyMap()
         schedule.value = AhuResult.Success(emptyList())
+        customCourses.value = emptyList()
         scheduleConfig.value = null
         scheduleFetchedAt.value = null
         scheduleRefreshError.value = null

@@ -69,17 +69,13 @@ fun CourseCard(
     onClick: (Course) -> Unit
 ) {
     val tonalPalettes = remember(color) { courseTonalPalettes(color) }
+    val capsuleText = course.cardCapsuleText(isCurrentWeek)
     CompositionLocalProvider(
         LocalTonalPalettes provides tonalPalettes
     ) {
         val nameMaxLines = if (isRadiantUi) {
             val density = LocalDensity.current
             val textMeasurer = rememberTextMeasurer()
-            val capsuleText = if (isCurrentWeek) {
-                course.location.shortScheduleLocation()
-            } else {
-                "非本周"
-            }
             remember(course.name, course.length, capsuleText, cellWidth, cellHeight, density) {
                 val capsuleLayout = textMeasurer.measure(
                     text = capsuleText,
@@ -146,11 +142,7 @@ fun CourseCard(
 
             Text(
                 // TODO: more shortenings
-                text = if (isCurrentWeek) {
-                    course.location.shortScheduleLocation()
-                } else {
-                    "非本周"
-                },
+                text = capsuleText,
 
                 modifier = Modifier
                     .fillMaxWidth()

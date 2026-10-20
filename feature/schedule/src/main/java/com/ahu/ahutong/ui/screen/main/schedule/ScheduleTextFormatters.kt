@@ -1,6 +1,19 @@
 package com.ahu.ahutong.ui.screen.main.schedule
 
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.schedule.isCustomCourse
+
+private val weekdayLabels = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+fun scheduleWeekdayLabel(weekday: Int): String =
+    weekdayLabels.getOrNull(weekday - 1) ?: "周?"
+
+/** 卡片底部胶囊：自定义课程优先显示自定义钟点，其余仍是地点。 */
+fun Course.cardCapsuleText(isCurrentWeek: Boolean): String = when {
+    !isCurrentWeek -> "非本周"
+    isCustomCourse() && !clockRange.isNullOrBlank() -> clockRange!!.replace("-", "–")
+    else -> location.shortScheduleLocation()
+}
 
 private val locationShortenMap = mapOf(
     "博学北楼" to "博北",

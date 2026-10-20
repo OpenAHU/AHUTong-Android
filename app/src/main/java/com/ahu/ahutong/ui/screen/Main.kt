@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.window.DialogProperties
@@ -91,6 +92,7 @@ import com.ahu.ahutong.ui.screen.main.StudentMailScreen
 import com.ahu.ahutong.ui.screen.main.Repository
 import com.ahu.ahutong.ui.screen.main.RepositoryDownloads
 import com.ahu.ahutong.ui.screen.main.Schedule
+import com.ahu.ahutong.ui.screen.main.schedule.CustomCoursesScreen
 import com.ahu.ahutong.ui.screen.main.REPOSITORY_DIRECTORY_ROUTE
 import com.ahu.ahutong.ui.screen.main.REPOSITORY_PATH_ARG
 import com.ahu.ahutong.ui.screen.main.REPOSITORY_ROUTE
@@ -456,7 +458,26 @@ fun Main(
                     scheduleViewModel = scheduleViewModel,
                     behaviorRecorder = behaviorRecorder,
                     graduateController = if (undergraduateEnabled) null else postgraduateScheduleViewModel,
-                    graduateAccountId = if (undergraduateEnabled) null else SessionStore.currentUser()?.xh
+                    graduateAccountId = if (undergraduateEnabled) null else SessionStore.currentUser()?.xh,
+                    onOpenCustomCourses = { navController.navigate("custom_courses") },
+                    onEditCustomCourse = { id ->
+                        navController.navigate("custom_courses?editId=${Uri.encode(id)}")
+                    }
+                )
+            }
+            animatedComposable(
+                route = "custom_courses?editId={editId}",
+                arguments = listOf(
+                    navArgument("editId") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                CustomCoursesScreen(
+                    initialEditId = backStackEntry.arguments?.getString("editId"),
+                    onBack = { navController.popBackStack() }
                 )
             }
             animatedComposable("tools") {
