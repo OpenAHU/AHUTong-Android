@@ -165,36 +165,3 @@ fun ApkUpdateDialog(
         }
     )
 }
-
-/** 镜像源切换提示弹窗。 */
-@Composable
-fun ApkMirrorSourceDialog(
-    onUseMirror: () -> Unit,
-    onKeepOriginal: () -> Unit,
-) {
-    AppDialog(
-        title = "下载较慢",
-        titleStyle = MaterialTheme.typography.headlineSmall,
-        titleFontWeight = FontWeight.Bold,
-        onDismiss = onKeepOriginal,
-        properties = DialogProperties(
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false
-        ),
-        actions = listOf(
-            AppDialogAction("继续原下载", onClick = onKeepOriginal),
-            AppDialogAction(
-                "使用镜像源",
-                onClick = onUseMirror,
-                style = AppDialogActionStyle.Primary
-            )
-        ),
-        content = {
-            Text(
-                text = "当前下载超过 5 秒仍未达到 30%，是否切换到镜像源继续下载？文件校验仍使用官方源提供的信息。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    )
-}
