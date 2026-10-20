@@ -27,11 +27,22 @@ object AttendanceJsonParser {
         val room = record.optJSONObject("roomBean")
         val build = record.optJSONObject("buildBean")
         val detail = record.optJSONObject("accountDetailEntity")
+        val account = record.optJSONObject("accountBean")
 
         val punchTime = water?.optString("operdate").orEmpty()
-        val classDate = punchTime.substringBefore(' ').takeIf { it.length >= 10 }
+        // 缺勤没有打卡，真实日期/节次在 accountBean（checkdate/startJc/endJc）；
+        // accountDetailEntity 的 timingdate 是学期模板（01-01），不能当上课日期。
+        val classDate = account?.optString("checkdate").orEmpty().takeIf { it.length >= 10 }
+            ?: punchTime.substringBefore(' ').takeIf { it.length >= 10 }
             ?: detail?.optString("timingdate_startdate").orEmpty()
-        val section = water?.optString("jc").orEmpty()
+
+        val startJc = account?.optInt("startJc", 0) ?: 0
+        val endJc = account?.optInt("endJc", 0) ?: 0
+        val section = when {
+            startJc > 0 && endJc > startJc -> "第${startJc}-${endJc}节"
+            startJc > 0 -> "第${startJc}节"
+            else -> water?.optString("jc").orEmpty().let { if (it.isBlank()) "" else "第${it}节" }
+        }
 
         return AttendanceRecord(
             courseName = subject?.optString("sName").orEmpty(),
@@ -40,7 +51,7 @@ object AttendanceJsonParser {
             room = room?.optString("roomnum").orEmpty()
                 .ifBlank { build?.optString("name").orEmpty() },
             building = build?.optString("name").orEmpty(),
-            section = if (section.isBlank()) "" else "第${section}节",
+            section = section,
             classDate = classDate,
             startTime = detail?.optString("lessonstime_start_starttime").orEmpty(),
             endTime = detail?.optString("lessonstime_end_endtime").orEmpty(),
