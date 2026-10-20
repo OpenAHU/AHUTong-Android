@@ -182,7 +182,7 @@ object HomeWidgetRegistry {
             route = "attendance_records",
             iconId = R.drawable.ic_attendance,
             tint = Color(0xFF00897B),
-            category = WidgetCategory.CAMPUS
+            category = WidgetCategory.ACADEMIC
         ),
         HomeWidgetSpec(
             id = "phone_book",
