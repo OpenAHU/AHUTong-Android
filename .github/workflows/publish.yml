@@ -45,6 +45,8 @@ jobs:
     outputs:
       artifact_name: ${{ steps.identity.outputs.artifact_name }}
       release_id: ${{ steps.identity.outputs.release_id }}
+      version_code: ${{ steps.plan.outputs.version_code }}
+      version_name: ${{ steps.plan.outputs.version_name }}
     env:
       SENTRY_AUTH_TOKEN: ''
       DEPLOY_ROOT: ${{ secrets.DEPLOY_ROOT }}
@@ -267,6 +269,29 @@ jobs:
           if [[ -n "${RELEASE_SSH_DIR:-}" && "$RELEASE_SSH_DIR" == "$RUNNER_TEMP"/ahutong-ssh-* ]]; then
             rm -rf -- "$RELEASE_SSH_DIR"
           fi
+
+  sync-published-version:
+    name: 发布成功后提交版本号到 master 和 develop
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: 检出同一提交的版本回写脚本
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          # Only this job retains the repository token for the two version commits.
+          persist-credentials: true
+
+      - name: 仅更新两个版本字段，原子推送到两个分支
+        env:
+          VERSION_CODE: ${{ needs.publish.outputs.version_code }}
+          VERSION_NAME: ${{ needs.publish.outputs.version_name }}
+        run: |
+          python3 scripts/ci_sync_version.py --version-code "$VERSION_CODE" --version-name "$VERSION_NAME"
 
   record-sentry-deployment:
     name: 服务器发布成功后完成 Sentry 版本与部署记录
