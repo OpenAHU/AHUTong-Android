@@ -90,7 +90,9 @@
 # 结果：入站解析成空对象、出站键名全错——上传被服务端当空批吞掉、窗口名上报因缺 terminal 直接
 # 422。整包保留，以后新增模型不必再逐条补规则。
 -keep class com.ahu.ahutong.data.canteen.** { *; }
-# 插件契约：接口与签名不得被裁剪；插件入口类必须保留无参构造（ServiceLoader / 反射实例化）。
+# 插件契约：插件按全限定名引用这些类型，宿主 R8 不得改名/裁剪。
+# 只保留成员不够——类名被改成 qb:/xz6: 后，插件在 release 下会直接找不到 AhuPlugin。
+-keep class com.ahu.ahutong.core.plugin.** { *; }
 -keepclassmembers class com.ahu.ahutong.core.plugin.** { *; }
 -keep class * implements com.ahu.ahutong.core.plugin.AhuPlugin { public <init>(); }
 -dontwarn com.ahu.ahutong.core.plugin.**
