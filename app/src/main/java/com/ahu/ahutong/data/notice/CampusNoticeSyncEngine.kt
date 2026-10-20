@@ -16,6 +16,11 @@ internal interface PagedCampusNoticeSource : CampusNoticeSource {
     suspend fun fetchPage(pageUrl: String?): CampusNoticePage
 }
 
+/** 动态信源：作用域变化（例如用户换了学院）时，旧作用域的通知需要清掉。 */
+internal interface ScopedCampusNoticeSource {
+    fun currentScopeKey(): String?
+}
+
 internal interface CampusNoticeStore {
     fun read(accountId: String): CampusNoticeSnapshot
     fun write(accountId: String, snapshot: CampusNoticeSnapshot)
@@ -74,7 +79,16 @@ internal class CampusNoticeSyncEngine(
         val newlyUnread = mutableListOf<CampusNotice>()
         for (source in sources) {
             if (!isSourceEnabled(source, accountId)) continue
-            val previous = snapshot.sourceStatuses[source.sourceId]
+            val scopeKey = (source as? ScopedCampusNoticeSource)?.currentScopeKey()
+            var previous = snapshot.sourceStatuses[source.sourceId]
+            if (scopeKey != null && previous?.scopeKey != null && previous.scopeKey != scopeKey) {
+                // 用户院系变化：丢掉旧学院的通知与游标，重新按新学院建基线。
+                snapshot = snapshot.copy(
+                    notices = snapshot.notices.filterNot { it.sourceId == source.sourceId },
+                    sourceStatuses = snapshot.sourceStatuses - source.sourceId
+                )
+                previous = null
+            }
             if (!force && previous?.lastSuccessfulSyncDate == today().toString()) continue
             try {
                 val seen = snapshot.notices.asSequence()
@@ -107,7 +121,8 @@ internal class CampusNoticeSyncEngine(
                     } else {
                         previous?.historyExhausted ?: false
                     },
-                    historyError = if (baseline) null else previous?.historyError
+                    historyError = if (baseline) null else previous?.historyError,
+                    scopeKey = scopeKey ?: previous?.scopeKey
                 )
                 val updated = snapshot.copy(
                     notices = (newItems + snapshot.notices)
@@ -126,7 +141,8 @@ internal class CampusNoticeSyncEngine(
             } catch (error: Exception) {
                 val updated = snapshot.copy(sourceStatuses = snapshot.sourceStatuses +
                     (source.sourceId to (previous ?: CampusNoticeSourceStatus(source.sourceId)).copy(
-                        lastError = syncErrorMessage(error)
+                        lastError = syncErrorMessage(error),
+                        scopeKey = scopeKey ?: previous?.scopeKey
                     )))
                 if (!fence.commitIfCurrent(observedGeneration, accountId) {
                         store.write(accountId, updated)
@@ -161,6 +177,8 @@ internal class CampusNoticeSyncEngine(
             if (!isSourceEnabled(source, accountId)) continue
             val paged = source as? PagedCampusNoticeSource ?: continue
             val previous = snapshot.sourceStatuses[source.sourceId]
+            val scopeKey = (source as? ScopedCampusNoticeSource)?.currentScopeKey()
+            if (scopeKey != null && previous?.scopeKey != null && previous.scopeKey != scopeKey) continue
             if (previous?.historyExhausted == true) continue
             try {
                 var cursor = previous?.nextPageUrl

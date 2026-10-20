@@ -60,6 +60,7 @@ import com.ahu.ahutong.data.notice.AcademicAffairsNoticeParser
 import com.ahu.ahutong.data.notice.CampusNotice
 import com.ahu.ahutong.data.notice.CampusNoticeRepository
 import com.ahu.ahutong.data.notice.CampusNoticeUrlPolicy
+import com.ahu.ahutong.data.notice.CollegeNoticeRegistry
 import com.ahu.ahutong.data.notice.PostgraduateNoticeParser
 import com.ahu.ahutong.data.notice.UniversityNoticeParser
 import com.ahu.ahutong.data.notice.noticeSourceLabel
@@ -93,11 +94,14 @@ fun CampusNoticeScreen() {
                 .thenByDescending { it.discoveredAtMillis }
         )
     }
-    val sourceOptions = remember(graduate) {
+    val sourceOptions = remember(graduate, accountId) {
         buildList<Pair<String?, String>> {
             add(null to "全部")
             add(UniversityNoticeParser.SOURCE_ID to "校级")
             add(AcademicAffairsNoticeParser.SOURCE_ID to "教务处")
+            if (CollegeNoticeRegistry.resolveCurrent() != null) {
+                add(CollegeNoticeRegistry.SOURCE_ID to "学院")
+            }
             if (graduate) add(PostgraduateNoticeParser.SOURCE_ID to "研究生院")
         }
     }
@@ -176,9 +180,10 @@ fun CampusNoticeScreen() {
             AcademicAffairsNoticeParser.SOURCE_ID -> AcademicAffairsNoticeParser.FIRST_PAGE
             PostgraduateNoticeParser.SOURCE_ID -> PostgraduateNoticeParser.FIRST_PAGE
             UniversityNoticeParser.SOURCE_ID -> UniversityNoticeParser.FIRST_PAGE
+            CollegeNoticeRegistry.SOURCE_ID -> CollegeNoticeRegistry.resolveCurrent()?.listUrl
             else -> if (graduate) PostgraduateNoticeParser.FIRST_PAGE
             else UniversityNoticeParser.FIRST_PAGE
-        }
+        } ?: UniversityNoticeParser.FIRST_PAGE
         val opened = runCatching {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }.isSuccess

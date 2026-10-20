@@ -20,7 +20,9 @@ data class CampusNoticeSourceStatus(
     /** 历史列表已经翻到底。 */
     val historyExhausted: Boolean = false,
     /** 历史翻页失败原因；与增量同步的 [lastError] 分开，避免互相覆盖。 */
-    val historyError: String? = null
+    val historyError: String? = null,
+    /** 动态信源的作用域（学院源用于识别院系切换）。 */
+    val scopeKey: String? = null
 )
 
 data class CampusNoticeSnapshot(
@@ -45,6 +47,7 @@ internal object CampusNoticeUrlPolicy {
         UniversityNoticeParser.SOURCE_ID -> UniversityNoticeParser.isTrustedArticleUrl(url)
         AcademicAffairsNoticeParser.SOURCE_ID -> AcademicAffairsNoticeParser.isTrustedArticleUrl(url)
         PostgraduateNoticeParser.SOURCE_ID -> PostgraduateNoticeParser.isTrustedArticleUrl(url)
+        CollegeNoticeRegistry.SOURCE_ID -> CollegeNoticeRegistry.isTrustedArticleUrl(url)
         else -> false
     }
 }
@@ -52,6 +55,7 @@ internal object CampusNoticeUrlPolicy {
 internal fun noticeSourceLabel(sourceId: String): String = when (sourceId) {
     AcademicAffairsNoticeParser.SOURCE_ID -> "教务处"
     PostgraduateNoticeParser.SOURCE_ID -> "研究生院"
+    CollegeNoticeRegistry.SOURCE_ID -> "学院"
     UniversityNoticeParser.SOURCE_ID -> "安徽大学"
     else -> "校园通知"
 }

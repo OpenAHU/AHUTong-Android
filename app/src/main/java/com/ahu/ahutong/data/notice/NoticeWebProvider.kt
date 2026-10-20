@@ -39,13 +39,15 @@ class NoticeWebProvider : ContentProvider() {
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle = synchronized(fetchLock) {
         val target = when {
-            PostgraduateNoticeParser.isTrustedListUrl(arg) ->
+            method == METHOD_FETCH && PostgraduateNoticeParser.isTrustedListUrl(arg) ->
                 WebTarget("研究生院", EXTRACT_POSTGRADUATE_JS)
-            AcademicAffairsNoticeParser.isTrustedListUrl(arg) ->
+            method == METHOD_FETCH && AcademicAffairsNoticeParser.isTrustedListUrl(arg) ->
                 WebTarget("教务处", EXTRACT_ACADEMIC_AFFAIRS_JS)
+            method == METHOD_FETCH_HTML && CollegeNoticeRegistry.configForListUrl(arg) != null ->
+                WebTarget("学院", EXTRACT_COLLEGE_HTML_JS)
             else -> null
         }
-        if (method != METHOD_FETCH || target == null) {
+        if (target == null) {
             return@synchronized result(error = "公告请求地址不在受信任栏目内")
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
@@ -148,12 +150,13 @@ class NoticeWebProvider : ContentProvider() {
 
     companion object {
         const val METHOD_FETCH = "fetch_list"
+        const val METHOD_FETCH_HTML = "fetch_html"
         const val KEY_HTML = "html"
         const val KEY_ERROR = "error"
         private const val FETCH_TIMEOUT_SECONDS = 25L
         private const val POLL_INTERVAL_MS = 500L
         private const val MAX_HTML_LENGTH = 500_000
-        private val TRUSTED_HOSTS = setOf("graschool.ahu.edu.cn", "jwc.ahu.edu.cn")
+        private val TRUSTED_HOSTS = setOf("graschool.ahu.edu.cn", "jwc.ahu.edu.cn") + CollegeNoticeRegistry.hosts
 
         private val EXTRACT_POSTGRADUATE_JS = """
             (function() {
@@ -161,6 +164,26 @@ class NoticeWebProvider : ContentProvider() {
               if (!list || !list.querySelector('li.list_item')) return '';
               var next = document.querySelector('a.next');
               return '<html><body>' + list.outerHTML + (next ? next.outerHTML : '') + '</body></html>';
+            })()
+        """.trimIndent()
+
+        private val EXTRACT_COLLEGE_HTML_JS = """
+            (function() {
+              var selectors = [
+                'ul.news_list li.news',
+                'ul.wp_article_list li.list_item',
+                '.list_box li',
+                'div.inew > div.inewi',
+                '.science-r-m div[id^=wp_news_] ul.fixed > li',
+                'div.newsList ul li',
+                'div.col_news_list div.jzlb'
+              ];
+              for (var i = 0; i < selectors.length; i++) {
+                if (document.querySelector(selectors[i])) {
+                  return document.documentElement.outerHTML;
+                }
+              }
+              return '';
             })()
         """.trimIndent()
 

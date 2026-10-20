@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.notice
 
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
+import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.notification.CampusNoticeNotifier
@@ -22,12 +23,17 @@ object CampusNoticeRepository {
         sources = listOf(
             UniversityNoticeCrawler(UniversityNoticeHttpFetcher()),
             AcademicAffairsNoticeCrawler(AcademicAffairsNoticeWebFetcher()),
+            CollegeNoticeSource({ CollegeNoticeRegistry.resolveCurrent() }, CollegeNoticeWebFetcher()),
             PostgraduateNoticeCrawler(PostgraduateNoticeWebFetcher())
         ),
         store = store,
         fence = fence,
         isSourceEnabled = { source, _ ->
-            source.sourceId != PostgraduateNoticeParser.SOURCE_ID || !AHUCache.canUseUndergraduateAcademics()
+            when (source.sourceId) {
+                CollegeNoticeRegistry.SOURCE_ID -> CollegeNoticeRegistry.resolveCurrent() != null
+                PostgraduateNoticeParser.SOURCE_ID -> !AHUCache.canUseUndergraduateAcademics()
+                else -> true
+            }
         }
     )
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -79,6 +85,10 @@ object CampusNoticeRepository {
         syncJob = scope.launch {
             mutableSyncingAccountId.value = accountId
             try {
+                // 学院源依赖学籍院系；首次使用通知时顺手补一次学籍缓存（已有缓存则不发请求）。
+                if (CollegeNoticeRegistry.resolveCurrent() == null && AHUCache.getStudentInfo() == null) {
+                    runCatching { AHURepository.getStudentInfo(force = false) }
+                }
                 val result = runCatching { engine.sync(accountId, force) }.getOrNull() ?: return@launch
                 val current = result.snapshot ?: return@launch
                 if (fence.currentAccountId() != accountId || fence.generation() != result.generation) return@launch
