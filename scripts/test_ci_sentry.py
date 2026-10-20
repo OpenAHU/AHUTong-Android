@@ -102,6 +102,57 @@ class SentryFixture:
                                   release_info=str(self.release_info), cli=str(self.bundle / "sentry-cli"))
 
 
+class SignatureTest(unittest.TestCase):
+    def test_accept_supported_signer_labels(self):
+        labels = ("Signer #1", "Signer:", "V1 Signer:", "V2 Signer:",
+                  "V3.0 Signer:", "V3.1 Signer:")
+        for label in labels:
+            with self.subTest(label=label):
+                output = (f"{label} certificate DN: not-to-be-logged\n"
+                          f"{label} certificate SHA-256 digest: {PIN}\n")
+                with patch.dict(os.environ, ANDROID_CERT_SHA256=":".join(["AB"] * 32)), \
+                        patch.object(ci_sentry, "run", return_value=output) as run:
+                    ci_sentry.verify_signature("signed.apk", "apksigner")
+                run.assert_called_once_with(["apksigner", "verify", "--print-certs", "signed.apk"])
+
+    def test_reject_wrong_certificate_for_each_format(self):
+        for label in ("Signer #1", "V3.0 Signer:"):
+            with self.subTest(label=label):
+                output = f"{label} certificate SHA-256 digest: {'cd' * 32}\n"
+                with patch.dict(os.environ, ANDROID_CERT_SHA256=PIN), \
+                        patch.object(ci_sentry, "run", return_value=output):
+                    with self.assertRaisesRegex(ci_sentry.ValidationError, "does not match"):
+                        ci_sentry.verify_signature("signed.apk", "apksigner")
+
+    def test_reject_missing_certificate_without_using_other_digests(self):
+        outputs = ("", f"Source Stamp Signer: certificate SHA-256 digest: {PIN}\n",
+                   f"Signer #1 public key SHA-256 digest: {PIN}\n",
+                   "V3.0 Signer: certificate SHA-256 digest: invalid\n")
+        for output in outputs:
+            with self.subTest(output=output):
+                with patch.dict(os.environ, ANDROID_CERT_SHA256=PIN), \
+                        patch.object(ci_sentry, "run", return_value=output):
+                    with self.assertRaisesRegex(ci_sentry.ValidationError, "Cannot read APK signing certificate"):
+                        ci_sentry.verify_signature("signed.apk", "apksigner")
+
+    def test_reject_multiple_certificate_entries_even_when_they_match(self):
+        for other in (PIN, "cd" * 32):
+            with self.subTest(other=other):
+                output = (f"Signer #1 certificate SHA-256 digest: {PIN}\n"
+                          f"Signer #2 certificate SHA-256 digest: {other}\n")
+                with patch.dict(os.environ, ANDROID_CERT_SHA256=PIN), \
+                        patch.object(ci_sentry, "run", return_value=output):
+                    with self.assertRaisesRegex(ci_sentry.ValidationError, "exactly one"):
+                        ci_sentry.verify_signature("signed.apk", "apksigner")
+
+    def test_ignore_source_stamp_when_app_certificate_is_present(self):
+        output = (f"V3.0 Signer: certificate SHA-256 digest: {PIN}\n"
+                  f"Source Stamp Signer: certificate SHA-256 digest: {'cd' * 32}\n")
+        with patch.dict(os.environ, ANDROID_CERT_SHA256=PIN), \
+                patch.object(ci_sentry, "run", return_value=output):
+            ci_sentry.verify_signature("signed.apk", "apksigner")
+
+
 class ArtifactTest(unittest.TestCase):
     def test_prepare_stable_and_preview(self):
         for channel, name in (("stable", "3.4.3"), ("preview", "3.4.3-beta1")):
