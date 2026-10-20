@@ -15,7 +15,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -27,16 +28,13 @@ import retrofit2.Response
 @Retention(AnnotationRetention.BINARY)
 annotation class UpdateDispatcher
 
-/** 下载过程中对外说的事：进度、镜像建议、结果。文案仍由展示侧决定。 */
+/** 下载过程中对外说的事：进度与结果。文案仍由展示侧决定。 */
 sealed interface ApkDownloadEvent {
 
     data object Started : ApkDownloadEvent
 
     /** [fraction] 为 null 表示服务端没给长度（与迁移前一致：进度条转圈而不显示百分比）。 */
     data class Progress(val fraction: Float?) : ApkDownloadEvent
-
-    /** 主站太慢，建议用户切镜像（5 秒还没到 30%）。 */
-    data object MirrorSuggested : ApkDownloadEvent
 
     /** 本地已有校验通过的包，[elapsedText] 为 null。 */
     data class Succeeded(
@@ -49,7 +47,7 @@ sealed interface ApkDownloadEvent {
 }
 
 /**
- * APK 下载器：从 URL 拉到本地、边下边校验、必要时切镜像。
+ * APK 下载器：统一从镜像流式下载到本地，完成后校验。
  *
  * 它原先长在 MainViewModel 里（约四百行，与界面状态交织）。搬到这里之后，下载与校验的规则
  * 不再受"谁在调用"影响，也能被单测直接驱动（见 ApkDownloadArchitectureTest 的搬迁）。
@@ -63,19 +61,10 @@ interface ApkDownloader {
 
     fun start(versionCode: Int, downloadUrl: String, sha256: String, forceRedownload: Boolean = false)
 
-    /** 切到镜像重下（会先取消主站那条）。 */
-    fun switchToMirror(versionCode: Int, downloadUrl: String, sha256: String)
-
-    fun keepPrimary()
-
     fun cancel()
 }
 
-/**
- * 默认实现：独立的 IO 作用域 + 自己的 OkHttp dispatcher，因此"切镜像"能真正打断正在读的 socket。
- *
- * 日志与文案与迁移前逐条对齐（入口标签、镜像标记、断点状态都保留）——它们是现场排查下载问题时唯一能看的东西。
- */
+/** 独立 IO 作用域；取消时同时关闭传输，打断正在读取的响应体。 */
 class DefaultApkDownloader @Inject constructor(
     private val directory: ApkDirectory,
     private val transport: ApkDownloadTransport,
@@ -109,10 +98,11 @@ class DefaultApkDownloader @Inject constructor(
         downloadJob = scope.launch {
             previous?.join()
             emit(ApkDownloadEvent.Started)
-            // 这一次尝试的进度只属于这一次：镜像提示的判据是"本次 5 秒内还没到 30%"，
-            // 留着上一次的进度会让提示永远不出现（迁移前每次尝试都会先把进度清空）。
-            lastProgress = null
             try {
+                // 入口也归一化，避免旧调用方或重试意外访问主站。
+                val mirrorUrl = ApkUpdatePolicy.mirrorDownloadUrl(downloadUrl).getOrElse {
+                    throw SecurityException("镜像下载地址无效", it)
+                }
                 val dir = apkDir()
                 val outFile = ApkIntegrity.apkFile(dir, versionCode)
                 val partFile = File(dir, "${outFile.name}.part")
@@ -129,94 +119,13 @@ class DefaultApkDownloader @Inject constructor(
                 }
 
                 val startedAt = System.currentTimeMillis()
-                var mirrorPromptJob: Job? = null
-                try {
-                    mirrorPromptJob = launch {
-                        delay(MIRROR_PROMPT_DELAY_MS)
-                        val progress = lastProgress
-                        if (progress == null || progress < MIRROR_PROMPT_PROGRESS_THRESHOLD) {
-                            emit(ApkDownloadEvent.MirrorSuggested)
-                        }
-                    }
-                    Log.i(
-                        TAG,
-                        "apk download start version=$versionCode, " +
-                            "url=$downloadUrl, mirror=false, partExists=${partFile.exists()}, " +
-                            "partBytes=${partFile.length()}"
-                    )
-
-                    val downloadedFile = downloadSingleStream(
-                        downloadUrl = downloadUrl,
-                        allowMirrorHost = false,
-                        partFile = partFile
-                    )
-                    val verifiedSha256 = replaceDownloadedApk(downloadedFile, outFile, sha256)
-                    Log.i(
-                        TAG,
-                        "apk download verified version=$versionCode, " +
-                            "bytes=${outFile.length()}, sha256=$verifiedSha256"
-                    )
-                    emit(
-                        ApkDownloadEvent.Succeeded(
-                            apkFile = outFile,
-                            elapsedText = formatElapsed(System.currentTimeMillis() - startedAt),
-                            alreadyLocal = false
-                        )
-                    )
-                } finally {
-                    mirrorPromptJob?.cancel()
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "apk download failed", e)
-                emit(ApkDownloadEvent.Failed(e.message ?: "下载失败"))
-            }
-        }
-    }
-
-    override fun switchToMirror(versionCode: Int, downloadUrl: String, sha256: String) {
-        val previous = downloadJob
-        previous?.cancel()
-        // 取消协程打断不了阻塞中的 ResponseBody 读：先把这条专用客户端上的 call 全部关掉。
-        transport.cancelAll()
-        // 整个换源过程都挂在被追踪的任务上：cancel() 必须能打断它。
-        // 否则 ViewModel 已经走了，镜像下载还会从 join 之后自己开始（审查发现的遗漏）。
-        downloadJob = scope.launch {
-            previous?.join()
-            // 主站那条可能刚好完成：本地已有校验通过的包，就不必再用镜像下一遍（迁移前的行为）。
-            val existing = cachedApk(versionCode, sha256)
-            if (existing != null) {
-                emit(
-                    ApkDownloadEvent.Succeeded(
-                        apkFile = existing,
-                        elapsedText = null,
-                        alreadyLocal = true
-                    )
-                )
-                return@launch
-            }
-            val mirrorUrl = ApkUpdatePolicy.mirrorDownloadUrl(downloadUrl).getOrElse {
-                emit(ApkDownloadEvent.Failed("镜像下载地址无效"))
-                return@launch
-            }
-            val startedAt = System.currentTimeMillis()
-            try {
-                emit(ApkDownloadEvent.Started)
-                lastProgress = null
-                val dir = apkDir()
-                val outFile = ApkIntegrity.apkFile(dir, versionCode)
-                val partFile = File(dir, "${outFile.name}.part")
                 Log.i(
                     TAG,
                     "apk download start version=$versionCode, url=$mirrorUrl, mirror=true, " +
                         "partExists=${partFile.exists()}, partBytes=${partFile.length()}"
                 )
-                val downloadedFile = downloadSingleStream(
-                    downloadUrl = mirrorUrl,
-                    allowMirrorHost = true,
-                    partFile = partFile
-                )
+                val downloadedFile = downloadSingleStream(mirrorUrl, partFile)
+                currentCoroutineContext().ensureActive()
                 val verifiedSha256 = replaceDownloadedApk(downloadedFile, outFile, sha256)
                 Log.i(
                     TAG,
@@ -233,13 +142,12 @@ class DefaultApkDownloader @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
                 Log.w(TAG, "apk download failed", e)
                 emit(ApkDownloadEvent.Failed(e.message ?: "下载失败"))
             }
         }
     }
-
-    override fun keepPrimary() = Unit
 
     override fun cancel() {
         downloadJob?.cancel()
@@ -248,10 +156,9 @@ class DefaultApkDownloader @Inject constructor(
 
     private suspend fun downloadSingleStream(
         downloadUrl: String,
-        allowMirrorHost: Boolean,
         partFile: File
     ): File {
-        val response = openDownloadResponse(downloadUrl, allowMirrorHost)
+        val response = openDownloadResponse(downloadUrl)
         if (!response.isSuccessful) {
             closeResponse(response)
             throw IOException("下载失败：HTTP ${response.code()}")
@@ -260,10 +167,24 @@ class DefaultApkDownloader @Inject constructor(
             closeResponse(response)
             throw IOException("下载内容为空")
         }
-        val total = body.contentLength()
+        // ESA/透明 gzip 解压后 Content-Length 可能缺失或只描述压缩传输大小。
+        // X-File-Size 描述最终写入磁盘的文件大小，应优先用它计算进度与检查完整性。
+        val total = try {
+            val fileSize = response.headers()["X-File-Size"]
+            if (fileSize != null) {
+                fileSize.trim().toLongOrNull()?.takeIf { it > 0 }
+                    ?: throw IOException("安装包大小信息无效")
+            } else {
+                body.contentLength()
+            }
+        } catch (e: Exception) {
+            body.close()
+            throw e
+        }
         Log.i(
             TAG,
             "single stream response code=${response.code()}, totalBytes=$total, " +
+                "bodyBytes=${body.contentLength()}, protocol=${response.raw().protocol}, " +
                 "url=${response.raw().request.url}"
         )
         if (total > ApkUpdatePolicy.MAX_APK_BYTES) {
@@ -271,25 +192,28 @@ class DefaultApkDownloader @Inject constructor(
             throw IOException("安装包过大，请稍后重试")
         }
 
-        lastProgress = if (total > 0) 0f else null
-        emit(ApkDownloadEvent.Progress(lastProgress))
-        partFile.delete()
         var completed = 0L
-        var lastEmit = System.currentTimeMillis()
-        var lastSpeedLog = lastEmit
-        var lastSpeedBytes = 0L
-        val startedAt = lastEmit
-        var lastReported = 0f
+        val startedAt = System.currentTimeMillis()
         body.use { responseBody ->
+            emit(ApkDownloadEvent.Progress(if (total > 0) 0f else null))
+            partFile.delete()
+            var lastEmit = startedAt
+            var lastSpeedLog = startedAt
+            var lastSpeedBytes = 0L
+            var lastReported = 0f
             responseBody.byteStream().use { input: InputStream ->
                 BufferedOutputStream(FileOutputStream(partFile), BUFFER_SIZE).use { output ->
                     val buffer = ByteArray(BUFFER_SIZE)
                     var read = input.read(buffer)
                     while (read >= 0) {
+                        currentCoroutineContext().ensureActive()
                         output.write(buffer, 0, read)
                         completed += read
                         if (completed > ApkUpdatePolicy.MAX_APK_BYTES) {
                             throw IOException("安装包超过大小限制")
+                        }
+                        if (total > 0 && completed > total) {
+                            throw IOException("安装包超过声明大小，请重试")
                         }
                         if (total > 0) {
                             val now = System.currentTimeMillis()
@@ -311,7 +235,6 @@ class DefaultApkDownloader @Inject constructor(
                                 now - lastEmit >= PROGRESS_MIN_INTERVAL_MS ||
                                 completed == total
                             ) {
-                                lastProgress = progress
                                 emit(ApkDownloadEvent.Progress(progress))
                                 lastReported = progress
                                 lastEmit = now
@@ -340,14 +263,13 @@ class DefaultApkDownloader @Inject constructor(
     }
 
     private suspend fun openDownloadResponse(
-        initialUrl: String,
-        allowMirrorHost: Boolean
+        initialUrl: String
     ): Response<ResponseBody> {
         var currentUrl = initialUrl
         repeat(ApkUpdatePolicy.MAX_DOWNLOAD_REDIRECTS + 1) { redirectCount ->
             val response = transport.download(currentUrl)
             val finalUrl = response.raw().request.url.toString()
-            ApkUpdatePolicy.validateDownloadUrl(finalUrl, allowMirrorHost = allowMirrorHost).getOrElse {
+            ApkUpdatePolicy.validateDownloadUrl(finalUrl, mirrorOnly = true).getOrElse {
                 closeResponse(response)
                 throw SecurityException("下载地址不受信任")
             }
@@ -365,7 +287,7 @@ class DefaultApkDownloader @Inject constructor(
                 currentUrl = ApkUpdatePolicy.validateDownloadUrl(
                     rawUrl = location,
                     baseUrl = finalUrl,
-                    allowMirrorHost = allowMirrorHost
+                    mirrorOnly = true
                 ).getOrElse {
                     throw SecurityException("下载重定向到不受信任地址")
                 }
@@ -411,6 +333,7 @@ class DefaultApkDownloader @Inject constructor(
     }
 
     private suspend fun emit(event: ApkDownloadEvent) {
+        currentCoroutineContext().ensureActive()
         _events.emit(event)
     }
 
@@ -434,10 +357,6 @@ class DefaultApkDownloader @Inject constructor(
         const val BUFFER_SIZE = 64 * 1024
         const val PROGRESS_MIN_INTERVAL_MS = 1_000L
         const val PROGRESS_MIN_DELTA = 0.01f
-        const val MIRROR_PROMPT_DELAY_MS = 5_000L
-        const val MIRROR_PROMPT_PROGRESS_THRESHOLD = 0.30f
         const val DOWNLOAD_LOG_INTERVAL_MS = 3_000L
     }
-
-    private var lastProgress: Float? = null
 }

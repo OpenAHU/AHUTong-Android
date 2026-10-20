@@ -35,10 +35,8 @@ class MainViewModel @Inject constructor(
                         apkErrorText.value = null
                         apkProgress.value = null
                         apkDownloadElapsedText.value = null
-                        showApkMirrorPrompt.value = false
                     }
                     is ApkDownloadEvent.Progress -> apkProgress.value = event.fraction
-                    ApkDownloadEvent.MirrorSuggested -> showApkMirrorPrompt.value = true
                     is ApkDownloadEvent.Succeeded -> {
                         val update = selectedUpdate ?: return@collect
                         val revision = updateChannelRevision
@@ -51,8 +49,6 @@ class MainViewModel @Inject constructor(
                         apkDownloading.value = false
                         apkProgress.value = null
                         apkDownloadElapsedText.value = event.elapsedText
-                        showApkMirrorPrompt.value = false
-                        apkUsingMirrorSource.value = false
                         apkLocalReady.value = true
                         if (installAfterApkDownload) {
                             downloadedApkFile.value = event.apkFile
@@ -65,8 +61,6 @@ class MainViewModel @Inject constructor(
                         apkDownloading.value = false
                         apkProgress.value = null
                         apkDownloadElapsedText.value = null
-                        showApkMirrorPrompt.value = false
-                        apkUsingMirrorSource.value = false
                         apkErrorText.value = event.message
                         if (showDialogWhenApkDownloadCompletes) {
                             showDialogWhenApkDownloadCompletes = false
@@ -87,8 +81,6 @@ class MainViewModel @Inject constructor(
     var apkErrorText = mutableStateOf<String?>(null)
     var downloadedApkFile = mutableStateOf<File?>(null)
     var apkUpdateChecking = mutableStateOf(false)
-    var showApkMirrorPrompt = mutableStateOf(false)
-    private val apkUsingMirrorSource = mutableStateOf(false)
     /** 本地已存在目标版本 APK，可直接安装 */
     var apkLocalReady = mutableStateOf(false)
 
@@ -112,8 +104,6 @@ class MainViewModel @Inject constructor(
         apkErrorText.value = null
         apkDownloadElapsedText.value = null
         downloadedApkFile.value = null
-        showApkMirrorPrompt.value = false
-        apkUsingMirrorSource.value = false
         viewModelScope.launch { checkApkUpdate() }
     }
 
@@ -182,8 +172,6 @@ class MainViewModel @Inject constructor(
         apkErrorText.value = null
         apkProgress.value = null
         apkDownloadElapsedText.value = null
-        showApkMirrorPrompt.value = false
-        apkUsingMirrorSource.value = false
         // 强制重下会先删掉本地包：立刻把「可安装」按下去，否则失败的下载会让界面继续
         // 提供「安装」（点下去只会得到「本地文件已丢失」）。
         if (forceRedownload) {
@@ -198,21 +186,6 @@ class MainViewModel @Inject constructor(
         )
     }
 
-    fun keepPrimaryApkDownload() {
-        showApkMirrorPrompt.value = false
-    }
-
-    fun switchApkDownloadToMirror() {
-        val update = selectedUpdate ?: return
-        showApkMirrorPrompt.value = false
-        if (!apkDownloading.value || apkUsingMirrorSource.value) return
-        apkUsingMirrorSource.value = true
-        downloader.switchToMirror(
-            versionCode = update.info.versionCode,
-            downloadUrl = update.downloadUrl,
-            sha256 = update.sha256
-        )
-    }
     fun continueApkDownloadInBackground() {
         if (apkDownloading.value) {
             showDialogWhenApkDownloadCompletes = true
@@ -230,7 +203,6 @@ class MainViewModel @Inject constructor(
         showDialogWhenApkDownloadCompletes = false
         apkDownloading.value = false
         apkProgress.value = null
-        showApkMirrorPrompt.value = false
         downloadedApkFile.value = null
 
         viewModelScope.launch(Dispatchers.IO) {

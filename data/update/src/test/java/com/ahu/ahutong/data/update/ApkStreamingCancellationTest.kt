@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.update
 
 import java.io.Closeable
+import java.io.ByteArrayOutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -9,6 +10,7 @@ import java.security.MessageDigest
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.zip.GZIPOutputStream
 import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,8 +20,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import okio.Buffer
@@ -29,15 +34,87 @@ import retrofit2.Retrofit
 
 class ApkStreamingCancellationTest {
     @Test
-    fun `switching mirror interrupts a body after the Retrofit callback has returned`() = runBlocking {
+    fun `transparent gzip without Content-Length verifies decoded bytes using X-File-Size`() = runBlocking {
+        val bytes = ByteArray(128 * 1024) { 42 }
+        val encoded = ByteArrayOutputStream().apply {
+            GZIPOutputStream(this).use { it.write(bytes) }
+        }.toByteArray()
+        val listener = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val server = thread(isDaemon = true, name = "apk-gzip-server") {
+            listener.accept().use { socket ->
+                socket.soTimeout = 5_000
+                val input = socket.getInputStream().bufferedReader()
+                while (!input.readLine().isNullOrEmpty()) { }
+                socket.getOutputStream().use { output ->
+                    output.write(("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n" +
+                        "X-File-Size: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray())
+                    output.write(encoded)
+                }
+            }
+        }
+        val calls = ApkDownloadCalls()
+        val base = OkHttpClient.Builder().addInterceptor { chain ->
+            val original = chain.request()
+            assertEquals("openahu.muxyang.com", original.url.host)
+            chain.proceed(original.newBuilder().url("http://127.0.0.1:${listener.localPort}/app.apk").build())
+                .newBuilder().request(original).build()
+        }.build()
+        val client = createApkDownloadClient(base, calls)
+        val api = Retrofit.Builder().baseUrl("http://127.0.0.1:${listener.localPort}/")
+            .client(client).build().create(ApkDownloadApi::class.java)
+        var bodyLength: Long? = null
+        val transport = object : ApkDownloadTransport {
+            override suspend fun download(url: String) = api.downloadByUrl(url).also {
+                bodyLength = it.body()?.contentLength()
+            }
+            override fun cancelAll() { calls.cancelAll() }
+        }
+        val directory = Files.createTempDirectory("apk-gzip-test").toFile()
+        val downloader = DefaultApkDownloader(ApkDirectory { directory }, transport, Dispatchers.IO)
+        val events = mutableListOf<ApkDownloadEvent>()
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+            withTimeout(5_000) {
+                downloader.events.onEach { events += it }.first {
+                    it is ApkDownloadEvent.Succeeded || it is ApkDownloadEvent.Failed
+                }
+            }
+        }
+        try {
+            val sha256 = MessageDigest.getInstance("SHA-256").digest(bytes)
+                .joinToString("") { "%02x".format(it) }
+            downloader.start(1, DOWNLOAD_URL, sha256)
+            collector.join()
+            assertEquals(-1L, bodyLength)
+            val success = events.last() as ApkDownloadEvent.Succeeded
+            assertEquals(sha256, ApkIntegrity.sha256Of(success.apkFile))
+            assertEquals(bytes.size.toLong(), success.apkFile.length())
+            val progress = events.filterIsInstance<ApkDownloadEvent.Progress>().map { it.fraction }
+            assertEquals(0f, progress.first())
+            assertEquals(1f, progress.last())
+            assertTrue(progress.zipWithNext().all { (a, b) -> a != null && b != null && a <= b })
+        } finally {
+            downloader.cancel()
+            collector.cancelAndJoin()
+            listener.close()
+            server.join(2_000)
+            client.dispatcher.executorService.shutdownNow()
+            client.connectionPool.evictAll()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `restarting mirror download interrupts a body after the Retrofit callback has returned`() = runBlocking {
         StalledApkServer().use { server ->
             val calls = ApkDownloadCalls()
             val bodyRead = CountDownLatch(1)
+            val requests = java.util.concurrent.atomic.AtomicInteger()
             val base = OkHttpClient.Builder()
                 .readTimeout(5, TimeUnit.SECONDS)
                 .addInterceptor { chain ->
                     val original = chain.request()
-                    val mirror = original.url.host != "openahu.org"
+                    assertEquals("openahu.muxyang.com", original.url.host)
+                    val mirror = requests.incrementAndGet() > 1
                     val response = chain.proceed(
                         original.newBuilder()
                             .url("http://127.0.0.1:${server.port}/${if (mirror) "mirror" else "primary"}")
@@ -82,9 +159,9 @@ class ApkStreamingCancellationTest {
                 repeat(100) { if (client.dispatcher.runningCallsCount() != 0) delay(10) }
                 assertEquals(0, client.dispatcher.runningCallsCount(), "Retrofit callback must have returned")
 
-                downloader.switchToMirror(1, DOWNLOAD_URL, sha256)
+                downloader.start(1, DOWNLOAD_URL, sha256, forceRedownload = true)
 
-                assertTrue(server.mirrorRequested.await(1, TimeUnit.SECONDS), "Switch waited for the stalled primary body")
+                assertTrue(server.mirrorRequested.await(1, TimeUnit.SECONDS), "Restart waited for the stalled body")
                 assertTrue(completed.await(2, TimeUnit.SECONDS), "Mirror APK was not verified")
                 assertEquals(sha256, ApkIntegrity.sha256Of(ApkIntegrity.apkFile(directory, 1)))
             } finally {

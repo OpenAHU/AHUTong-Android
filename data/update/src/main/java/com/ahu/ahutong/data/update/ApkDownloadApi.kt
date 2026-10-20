@@ -22,7 +22,7 @@ import javax.inject.Inject
  *
  * 与普通 API 分享同一个仓库工厂，但用**独立的 dispatcher** 并且**不跟随重定向**：
  * 重定向由下载器逐跳校验目标主机（计划 P4 要求校验不可绕过），跟着跳会绕过它。
- * 独立 dispatcher 是为了"切镜像时取消下载"不会连累普通接口调用。
+ * 独立 dispatcher 确保取消下载不会连累普通接口调用。
  */
 interface ApkDownloadApi {
 
@@ -32,7 +32,7 @@ interface ApkDownloadApi {
 
     companion object {
 
-        private const val BASE_URL = "https://openahu.org"
+        private const val BASE_URL = "https://openahu.muxyang.com"
         private val downloadCalls = ApkDownloadCalls()
 
         private val client: OkHttpClient by lazy {
@@ -55,7 +55,7 @@ interface ApkDownloadApi {
 
         val API: ApkDownloadApi by lazy { retrofit(BASE_URL, client).create(ApkDownloadApi::class.java) }
 
-        /** 取消所有进行中的下载（切镜像时用：关掉 socket，别等读超时）。 */
+        /** 取消所有进行中的下载，包含已返回响应头、仍在读正文的 call。 */
         fun cancelAll() {
             downloadCalls.cancelAll()
             client.dispatcher.cancelAll()
@@ -100,7 +100,7 @@ internal fun createApkDownloadClient(
     downloadCalls: ApkDownloadCalls = ApkDownloadCalls()
 ): OkHttpClient =
     baseClient.newBuilder()
-        // Cancelling an APK or switching its mirror must not cancel ordinary API calls.
+        // Cancelling an APK must not cancel ordinary API calls.
         .dispatcher(Dispatcher())
         .eventListener(downloadCalls)
         .followRedirects(false)

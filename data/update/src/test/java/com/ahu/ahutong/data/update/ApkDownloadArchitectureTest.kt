@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 /**
  * 下载器两条「容易被改坏」的约定的源码级断言：
  *
- * 1. 切镜像必须先关掉进行中的 call，再等旧下载结束——只取消协程打断不了阻塞中的读；
+ * 1. 重新下载必须先关掉进行中的 call，再等旧下载结束——只取消协程打断不了阻塞中的读；
  * 2. 正常收尾只对 part 文件算一次摘要（算两次意味着复制路径与重命名路径都被走了）。
  *
  * 它们原先断言 MainViewModel 的形状，随下载器一起搬进模块——被测代码去哪儿，测试就跟到哪儿。
@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 class ApkDownloadArchitectureTest {
 
     @Test
-    fun `mirror switch closes active calls before joining the old download`() {
+    fun `restarting closes active calls before joining the old download`() {
         val downloader = source("com/ahu/ahutong/data/update/ApkDownloader.kt")
         val cancelIndex = downloader.indexOf("transport.cancelAll()")
         val joinIndex = downloader.indexOf("previous?.join()")
