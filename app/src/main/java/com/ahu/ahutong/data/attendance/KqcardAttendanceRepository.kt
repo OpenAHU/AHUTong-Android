@@ -120,8 +120,14 @@ object KqcardAttendanceRepository {
         repeat(10) {
             client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
                 val location = response.header("Location")
-                if (response.code in 300..399 && location != null) {
-                    val next = url.resolve(location)
+                // CAS 授权回调有时返回 200 + <script>location.href=...</script>，
+                // 不会给出 Location 头；不解析这段 JS 就会停在回调页。
+                val jsRedirect = if (location == null) {
+                    response.body?.string()?.let(::extractJsRedirect)
+                } else null
+                val target = location ?: jsRedirect
+                if (target != null) {
+                    val next = url.resolve(target)
                         ?: throw AttendanceException("教务跳转地址无法解析")
                     url = if (next.host.endsWith("ahu.edu.cn") && next.scheme == "http") {
                         next.newBuilder().scheme("https").port(443).build()
@@ -132,6 +138,14 @@ object KqcardAttendanceRepository {
             }
         }
         throw AttendanceException("教务跳转次数过多")
+    }
+
+    private fun extractJsRedirect(body: String): String? {
+        val match = Regex("""location\.href\s*=\s*["']([^"']+)["']""").find(body)
+            ?: return null
+        return match.groupValues[1]
+            .replace("&amp;", "&")
+            .takeIf { it.isNotBlank() }
     }
 
     private fun extractToken(url: HttpUrl): String? {
