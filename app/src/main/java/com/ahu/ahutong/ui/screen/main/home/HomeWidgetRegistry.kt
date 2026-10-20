@@ -177,6 +177,14 @@ object HomeWidgetRegistry {
             category = WidgetCategory.CAMPUS
         ),
         HomeWidgetSpec(
+            id = "attendance_records",
+            title = "教务考勤",
+            route = "attendance_records",
+            iconId = R.drawable.ic_attendance,
+            tint = Color(0xFF00897B),
+            category = WidgetCategory.CAMPUS
+        ),
+        HomeWidgetSpec(
             id = "phone_book",
             title = "电话本",
             route = "phone_book",

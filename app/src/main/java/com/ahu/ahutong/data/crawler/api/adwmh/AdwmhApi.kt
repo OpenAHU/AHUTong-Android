@@ -53,6 +53,9 @@ interface AdwmhApi {
     ): ResponseBody
 
 
+    @GET("/commapp/myapp")
+    suspend fun getMyApps(): ResponseBody
+
     @GET("/xzxcard/yue")
     suspend fun getBalance(): Balance
 
