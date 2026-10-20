@@ -234,7 +234,7 @@ private fun StudentInfoSections(info: StudentInfo) {
     }
 
     val contactRows = listOfNotNull(
-        info.phoneMasked?.let { "手机（已脱敏）" to it },
+        info.phoneMasked?.let { "手机" to it },
         info.email?.let { "邮箱" to it }
     )
     if (contactRows.isNotEmpty()) {
