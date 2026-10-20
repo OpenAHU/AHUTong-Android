@@ -166,6 +166,83 @@ class CampusNoticeSyncEngineTest {
         assertEquals(0, source.fetchCount)
     }
 
+    @Test fun `baseline seeds a history cursor and loadMore appends older read notices`() = runTest {
+        val pages = mapOf<String?, CampusNoticePage>(
+            null to CampusNoticePage(listOf(notice("university", "one")), "https://www.ahu.edu.cn/15046/list2.htm"),
+            "https://www.ahu.edu.cn/15046/list2.htm" to CampusNoticePage(
+                listOf(notice("university", "two")),
+                "https://www.ahu.edu.cn/15046/list3.htm"
+            ),
+            "https://www.ahu.edu.cn/15046/list3.htm" to CampusNoticePage(listOf(notice("university", "three")), null)
+        )
+        val source = FakePagedSource("university", pages)
+        val store = MemoryStore()
+        val engine = engine(listOf(source), store, FakeFence("student-a"))
+
+        val baseline = engine.sync("student-a").snapshot!!
+        assertEquals(listOf("one"), baseline.notices.map(CampusNotice::articleId))
+        assertEquals("https://www.ahu.edu.cn/15046/list2.htm", baseline.sourceStatuses["university"]?.nextPageUrl)
+        assertFalse(baseline.sourceStatuses["university"]?.historyExhausted == true)
+
+        val second = engine.loadMore("student-a").snapshot!!
+        assertEquals(listOf("one", "two"), second.notices.map(CampusNotice::articleId))
+        assertEquals(0, second.unreadCount)
+        assertEquals("https://www.ahu.edu.cn/15046/list3.htm", second.sourceStatuses["university"]?.nextPageUrl)
+
+        val third = engine.loadMore("student-a").snapshot!!
+        assertEquals(listOf("one", "two", "three"), third.notices.map(CampusNotice::articleId))
+        assertTrue(third.sourceStatuses["university"]?.historyExhausted == true)
+        assertNull(third.sourceStatuses["university"]?.nextPageUrl)
+
+        val fetches = source.fetchPageCount
+        engine.loadMore("student-a")
+        assertEquals(fetches, source.fetchPageCount)
+    }
+
+    @Test fun `legacy snapshots without a cursor skip the already seen first page`() = runTest {
+        val pages = mapOf<String?, CampusNoticePage>(
+            null to CampusNoticePage(listOf(notice("university", "one")), "https://www.ahu.edu.cn/15046/list2.htm"),
+            "https://www.ahu.edu.cn/15046/list2.htm" to CampusNoticePage(listOf(notice("university", "two")), null)
+        )
+        val source = FakePagedSource("university", pages)
+        val store = MemoryStore()
+        store.states["student-a"] = CampusNoticeSnapshot(
+            accountId = "student-a",
+            notices = listOf(notice("university", "one")),
+            sourceStatuses = mapOf(
+                "university" to CampusNoticeSourceStatus(
+                    sourceId = "university",
+                    lastSuccessfulSyncDate = today.toString()
+                )
+            )
+        )
+        val engine = engine(listOf(source), store, FakeFence("student-a"))
+
+        val result = engine.loadMore("student-a").snapshot!!
+
+        assertEquals(listOf("one", "two"), result.notices.map(CampusNotice::articleId))
+        assertEquals(2, source.fetchPageCount)
+        assertTrue(result.sourceStatuses["university"]?.historyExhausted == true)
+    }
+
+    @Test fun `loadMore can target a single source`() = runTest {
+        val university = FakePagedSource(
+            "university",
+            mapOf(null to CampusNoticePage(listOf(notice("university", "one")), "u2"))
+        )
+        val postgraduate = FakePagedSource(
+            "postgraduate",
+            mapOf(null to CampusNoticePage(listOf(notice("postgraduate", "g1")), "g2"))
+        )
+        val engine = engine(listOf(university, postgraduate), MemoryStore(), FakeFence("student-a"))
+        engine.sync("student-a")
+
+        engine.loadMore("student-a", sourceId = "postgraduate")
+
+        assertEquals(1, university.fetchPageCount)
+        assertEquals(2, postgraduate.fetchPageCount)
+    }
+
     private fun engine(sources: List<CampusNoticeSource>, store: MemoryStore, fence: FakeFence) =
         CampusNoticeSyncEngine(sources, store, fence, today = { today }, nowMillis = { 123L })
 
@@ -181,6 +258,20 @@ class CampusNoticeSyncEngineTest {
             onFetch()
             failure?.let { throw it }
             return items
+        }
+    }
+
+    private class FakePagedSource(
+        override val sourceId: String,
+        private val pages: Map<String?, CampusNoticePage>
+    ) : PagedCampusNoticeSource {
+        var fetchPageCount = 0
+        override suspend fun fetchSince(seenIds: Set<String>, firstSync: Boolean): List<CampusNotice> =
+            error("paged source should not use fetchSince in these tests")
+
+        override suspend fun fetchPage(pageUrl: String?): CampusNoticePage {
+            fetchPageCount++
+            return pages[pageUrl] ?: throw IOException("missing page: $pageUrl")
         }
     }
 

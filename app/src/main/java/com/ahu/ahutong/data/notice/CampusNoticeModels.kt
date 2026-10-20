@@ -14,7 +14,13 @@ data class CampusNoticeSourceStatus(
     val sourceId: String,
     val lastSuccessfulSyncDate: String? = null,
     val lastSuccessfulSyncAtMillis: Long? = null,
-    val lastError: String? = null
+    val lastError: String? = null,
+    /** 历史浏览游标：已同步到的最新列表页之后，下一页的地址。 */
+    val nextPageUrl: String? = null,
+    /** 历史列表已经翻到底。 */
+    val historyExhausted: Boolean = false,
+    /** 历史翻页失败原因；与增量同步的 [lastError] 分开，避免互相覆盖。 */
+    val historyError: String? = null
 )
 
 data class CampusNoticeSnapshot(

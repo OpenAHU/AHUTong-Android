@@ -35,7 +35,10 @@ object CampusNoticeRepository {
     val snapshot: StateFlow<CampusNoticeSnapshot?> get() = mutableSnapshot
     private val mutableSyncingAccountId = MutableStateFlow<String?>(null)
     val syncingAccountId: StateFlow<String?> get() = mutableSyncingAccountId
+    private val mutableLoadingMoreAccountId = MutableStateFlow<String?>(null)
+    val loadingMoreAccountId: StateFlow<String?> get() = mutableLoadingMoreAccountId
     private var syncJob: Job? = null
+    private var loadMoreJob: Job? = null
     private var syncAccountId: String? = null
     private var syncRequestToken = 0L
 
@@ -93,6 +96,30 @@ object CampusNoticeRepository {
         }
     }
 
+    /** 首页同步正在进行时避免再排队一次历史翻页；引擎内部也有互斥锁兜底。 */
+    @Synchronized
+    fun requestLoadMore(sourceId: String? = null) {
+        if (!SessionStore.isLoggedIn()) return
+        val accountId = SessionStore.currentUser()?.xh?.takeIf(String::isNotBlank) ?: return
+        if (syncJob?.isActive == true || loadMoreJob?.isActive == true) return
+        loadMoreJob = scope.launch {
+            mutableLoadingMoreAccountId.value = accountId
+            try {
+                val result = runCatching { engine.loadMore(accountId, sourceId) }.getOrNull() ?: return@launch
+                val current = result.snapshot ?: return@launch
+                if (fence.currentAccountId() == accountId &&
+                    fence.generation() == result.generation
+                ) {
+                    mutableSnapshot.value = current
+                }
+            } finally {
+                if (mutableLoadingMoreAccountId.value == accountId) {
+                    mutableLoadingMoreAccountId.value = null
+                }
+            }
+        }
+    }
+
     fun markRead(accountId: String, articleId: String?) {
         scope.launch {
             val updated = engine.markRead(accountId, articleId) ?: return@launch
@@ -113,8 +140,13 @@ object CampusNoticeRepository {
             syncJob.also { syncJob = null; syncAccountId = null }
         }
         pending?.cancelAndJoin()
+        val pendingLoadMore = synchronized(this) {
+            loadMoreJob.also { loadMoreJob = null }
+        }
+        pendingLoadMore?.cancelAndJoin()
         withContext(Dispatchers.IO) { store.clearAll() }
         mutableSnapshot.value = null
         mutableSyncingAccountId.value = null
+        mutableLoadingMoreAccountId.value = null
     }
 }

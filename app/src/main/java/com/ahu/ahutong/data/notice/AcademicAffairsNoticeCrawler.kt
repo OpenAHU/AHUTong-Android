@@ -7,8 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Walks the academic-affairs notice pages until a previously seen article is found. */
-internal class AcademicAffairsNoticeCrawler(private val fetcher: NoticePageFetcher) : CampusNoticeSource {
+internal class AcademicAffairsNoticeCrawler(private val fetcher: NoticePageFetcher) : PagedCampusNoticeSource {
     override val sourceId: String = AcademicAffairsNoticeParser.SOURCE_ID
+
+    override suspend fun fetchPage(pageUrl: String?): CampusNoticePage {
+        val url = pageUrl ?: AcademicAffairsNoticeParser.FIRST_PAGE
+        return AcademicAffairsNoticeParser.parse(fetcher.fetch(url), url)
+    }
 
     override suspend fun fetchSince(seenIds: Set<String>, firstSync: Boolean): List<CampusNotice> {
         val visited = mutableSetOf<String>()

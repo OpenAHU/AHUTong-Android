@@ -11,8 +11,13 @@ internal fun interface NoticePageFetcher {
     suspend fun fetch(url: String): String
 }
 
-internal class UniversityNoticeCrawler(private val fetcher: NoticePageFetcher) : CampusNoticeSource {
+internal class UniversityNoticeCrawler(private val fetcher: NoticePageFetcher) : PagedCampusNoticeSource {
     override val sourceId: String = UniversityNoticeParser.SOURCE_ID
+
+    override suspend fun fetchPage(pageUrl: String?): CampusNoticePage {
+        val url = pageUrl ?: UniversityNoticeParser.FIRST_PAGE
+        return UniversityNoticeParser.parse(fetcher.fetch(url), url)
+    }
 
     /** On first use, establish one current page as read history; later walk until a known ID. */
     override suspend fun fetchSince(seenIds: Set<String>, firstSync: Boolean): List<CampusNotice> {

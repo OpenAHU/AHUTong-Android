@@ -65,6 +65,7 @@ import com.ahu.ahutong.data.notice.UniversityNoticeParser
 import com.ahu.ahutong.data.notice.noticeSourceLabel
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppCard
+import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.AppStateCard
@@ -82,8 +83,10 @@ fun CampusNoticeScreen() {
     val graduate = !AHUCache.canUseUndergraduateAcademics()
     val stored by CampusNoticeRepository.snapshot.collectAsState()
     val syncingAccountId by CampusNoticeRepository.syncingAccountId.collectAsState()
+    val loadingMoreAccountId by CampusNoticeRepository.loadingMoreAccountId.collectAsState()
     val snapshot = stored?.takeIf { it.accountId == accountId }
     val isRefreshing = !accountId.isNullOrBlank() && syncingAccountId == accountId
+    val isLoadingMore = !accountId.isNullOrBlank() && loadingMoreAccountId == accountId
     val allNotices = remember(snapshot?.notices) {
         snapshot?.notices.orEmpty().sortedWith(
             compareByDescending<CampusNotice> { it.publishedOn }
@@ -101,6 +104,23 @@ fun CampusNoticeScreen() {
     var sourceFilter by rememberSaveable { mutableStateOf<String?>(null) }
     val notices = remember(allNotices, sourceFilter) {
         if (sourceFilter == null) allNotices else allNotices.filter { it.sourceId == sourceFilter }
+    }
+    val activeSourceIds = remember(sourceFilter, sourceOptions) {
+        if (sourceFilter != null) {
+            listOf(sourceFilter)
+        } else {
+            sourceOptions.mapNotNull { it.first }
+        }
+    }
+    val hasMore = remember(snapshot, activeSourceIds) {
+        snapshot != null && activeSourceIds.any { id ->
+            val status = snapshot.sourceStatuses[id]
+            status != null && !status.historyExhausted &&
+                (status.nextPageUrl != null || status.lastSuccessfulSyncDate != null)
+        }
+    }
+    val historyError = remember(snapshot, activeSourceIds) {
+        activeSourceIds.any { snapshot?.sourceStatuses?.get(it)?.historyError != null }
     }
     LaunchedEffect(sourceOptions) {
         if (sourceFilter != null && sourceOptions.none { it.first == sourceFilter }) {
@@ -209,6 +229,42 @@ fun CampusNoticeScreen() {
                     } else {
                         items(notices, key = { "${it.sourceId}:${it.articleId}" }) { notice ->
                             CampusNoticeRow(notice = notice, onClick = { openArticle(notice) })
+                        }
+                        if (hasMore) {
+                            item(key = "load_more") {
+                                // 滑到列表底部时自动翻一页；失败后只保留手动重试，避免反复打 WAF。
+                                LaunchedEffect(notices.size, sourceFilter, historyError) {
+                                    if (!isLoadingMore && !historyError) {
+                                        CampusNoticeRepository.requestLoadMore(sourceFilter)
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isLoadingMore) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AppCircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
+                                            Text(
+                                                "正在加载更早公告…",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    } else {
+                                        TextButton(onClick = {
+                                            CampusNoticeRepository.requestLoadMore(sourceFilter)
+                                        }) {
+                                            Text(if (historyError) "加载失败，点击重试" else "加载更早公告")
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
