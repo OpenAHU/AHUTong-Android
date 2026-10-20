@@ -59,6 +59,21 @@ def _bump(core, change):
     return major, minor, patch + 1
 
 
+def _next_version_code(target, codes):
+    major, minor, _ = target
+    if not 0 <= major <= 9 or not 0 <= minor <= 99:
+        raise ValueError("versionCode xyyzzz requires major in 0..9 and minor in 0..99")
+    base = major * 100000 + minor * 1000
+    # Stable and preview share zzz; a new major/minor series starts at 000.
+    sequence = max((code - base for code in codes if base <= code < base + 1000), default=-1) + 1
+    if sequence > 999:
+        raise ValueError("versionCode zzz is exhausted; increase the major or minor version")
+    code = _version_code(base + sequence)
+    if code <= max(codes):
+        raise ValueError("Target versionCode must exceed the local, stable and preview codes; increase the major or minor version")
+    return code
+
+
 def plan_release(state, gradle_text, change, changelog, force):
     if not isinstance(state, dict):
         raise ValueError("Release state must be a JSON object")
@@ -80,7 +95,6 @@ def plan_release(state, gradle_text, change, changelog, force):
     stable = channels.get("stable")
     if stable and stable[1] is not None:
         raise ValueError("Stable channel must have a stable version name")
-    version_code = _version_code(max(codes) + 1)
 
     # A local version ahead of the published stable is an already-prepared target.
     baseline = stable[0] if stable else local_core
@@ -89,6 +103,7 @@ def plan_release(state, gradle_text, change, changelog, force):
         target = max(target, local_core)
     elif local_beta is not None and change in {"patch", "test"}:
         target = local_core
+    version_code = _next_version_code(target, codes)
     version_name = ".".join(map(str, target))
     if change == "test":
         previous = [(local_core, local_beta), channels.get("preview", (None, None))]
