@@ -181,7 +181,7 @@ object HomeWidgetRegistry {
             title = "教务考勤",
             route = "attendance_records",
             iconId = R.drawable.ic_attendance,
-            tint = Color(0xFF00897B),
+            tint = Color(0xFF3F51B5),
             category = WidgetCategory.ACADEMIC
         ),
         HomeWidgetSpec(
