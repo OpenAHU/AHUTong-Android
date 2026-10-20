@@ -576,27 +576,27 @@ private fun WeekPicker(
     onReplace: (Set<Int>) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
+        Text(
+            text = "上课周次（已选 ${selected.size} 周）",
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        // 快捷操作单独一行并允许换行：窄屏 / 大字号下标题和按钮同排会把「双周」挤出屏幕。
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
-            Text(
-                text = "上课周次（已选 ${selected.size} 周）",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Row {
-                TextButton(onClick = { onReplace((1..CUSTOM_COURSE_MAX_WEEK).toSet()) }) {
-                    Text("全选")
-                }
-                TextButton(onClick = {
-                    onReplace((1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 1 }.toSet())
-                }) { Text("单周") }
-                TextButton(onClick = {
-                    onReplace((1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 0 }.toSet())
-                }) { Text("双周") }
+            WeekQuickAction("全选") {
+                onReplace((1..CUSTOM_COURSE_MAX_WEEK).toSet())
             }
+            WeekQuickAction("单周") {
+                onReplace((1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 1 }.toSet())
+            }
+            WeekQuickAction("双周") {
+                onReplace((1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 0 }.toSet())
+            }
+            WeekQuickAction("清空") { onReplace(emptySet()) }
         }
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -611,6 +611,19 @@ private fun WeekPicker(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun WeekQuickAction(
+    label: String,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
     }
 }
 
