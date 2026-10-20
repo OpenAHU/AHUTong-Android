@@ -44,7 +44,7 @@ class NoticeWebProvider : ContentProvider() {
             method == METHOD_FETCH && AcademicAffairsNoticeParser.isTrustedListUrl(arg) ->
                 WebTarget("教务处", EXTRACT_ACADEMIC_AFFAIRS_JS)
             method == METHOD_FETCH_HTML && CollegeNoticeRegistry.configForListUrl(arg) != null ->
-                WebTarget("学院", EXTRACT_COLLEGE_HTML_JS)
+                WebTarget("学院", EXTRACT_COLLEGE_HTML_JS, DESKTOP_USER_AGENT)
             else -> null
         }
         if (target == null) {
@@ -76,6 +76,7 @@ class NoticeWebProvider : ContentProvider() {
             runCatching {
                 val view = WebView(ContextThemeWrapper(context, android.R.style.Theme_Material_Light_NoActionBar))
                 webView.set(view)
+                target.userAgent?.let { view.settings.userAgentString = it }
                 view.settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
@@ -146,7 +147,11 @@ class NoticeWebProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
-    private data class WebTarget(val label: String, val extractScript: String)
+    private data class WebTarget(
+        val label: String,
+        val extractScript: String,
+        val userAgent: String? = null
+    )
 
     companion object {
         const val METHOD_FETCH = "fetch_list"
@@ -156,6 +161,10 @@ class NoticeWebProvider : ContentProvider() {
         private const val FETCH_TIMEOUT_SECONDS = 25L
         private const val POLL_INTERVAL_MS = 500L
         private const val MAX_HTML_LENGTH = 500_000
+        // 部分学院站按 UA 把 list.htm 301 到移动版 listm.htm；学院列表统一用桌面 UA。
+        private const val DESKTOP_USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         private val TRUSTED_HOSTS = setOf("graschool.ahu.edu.cn", "jwc.ahu.edu.cn") + CollegeNoticeRegistry.hosts
 
         private val EXTRACT_POSTGRADUATE_JS = """
