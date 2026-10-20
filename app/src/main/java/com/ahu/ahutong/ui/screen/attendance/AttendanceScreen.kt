@@ -55,6 +55,7 @@ fun AttendanceScreen(
             AppTitleIconButton(
                 icon = DesignSystemR.drawable.ic_refresh,
                 contentDescription = "刷新",
+                loading = state.loading,
                 onClick = { viewModel.refresh() }
             )
         },
@@ -91,6 +92,19 @@ fun AttendanceScreen(
                         onClick = { viewModel.refresh() },
                         variant = AppButtonVariant.Secondary
                     ) { Text("重试") }
+                }
+            }
+        }
+
+        if (state.loading && state.records.isEmpty() && state.error == null) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AppCircularProgressIndicator()
                 }
             }
         }
