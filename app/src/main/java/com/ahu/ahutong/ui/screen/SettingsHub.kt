@@ -52,6 +52,7 @@ fun SettingsHub(
     Settings(
         onNavigateToLogin = { navController.navigate("login") },
         onSwitchAccount = { openAccounts() },
+        onNavigateToProfile = { navController.navigate("profile") },
         onNavigateToPreferences = { navController.navigate("preferences") },
         onNavigateToEarlyAccess = { navController.navigate("settings__early_access") },
         earlyAccessSummary = earlyAccessSummary(earlyAccess),

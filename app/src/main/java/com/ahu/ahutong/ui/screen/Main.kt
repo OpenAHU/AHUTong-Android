@@ -100,6 +100,7 @@ import com.ahu.ahutong.ui.screen.main.SchoolCalendar
 import com.ahu.ahutong.ui.screen.main.RepositorySettings
 import com.ahu.ahutong.ui.screen.main.Weather
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongScreen
+import com.ahu.ahutong.ui.screen.profile.ProfileScreen
 import com.ahu.ahutong.ui.screen.settings.Contributors
 import com.ahu.ahutong.ui.screen.settings.EarlyAccessScreen
 import com.ahu.ahutong.ui.screen.settings.EarlyAccessInvitationHost
@@ -671,6 +672,12 @@ fun Main(
                     navController = navController,
                     mainViewModel = mainViewModel,
                     scheduleViewModel = scheduleViewModel
+                )
+            }
+            animatedComposable("profile") {
+                ProfileScreen(
+                    scheduleViewModel = scheduleViewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
             animatedComposable("settings__early_access") {

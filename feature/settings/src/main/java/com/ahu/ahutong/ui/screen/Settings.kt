@@ -83,6 +83,7 @@ import top.yukonga.miuix.kmp.icon.icons.useful.Update
 fun Settings(
     onNavigateToLogin: () -> Unit,
     onSwitchAccount: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     onNavigateToPreferences: () -> Unit,
     onNavigateToEarlyAccess: () -> Unit,
     earlyAccessSummary: String,
@@ -183,7 +184,8 @@ fun Settings(
             ) {
                 SettingsInfoRow(
                     title = name,
-                    subtitle = scheduleSummary
+                    subtitle = scheduleSummary,
+                    onClick = onNavigateToProfile
                 )
                 SettingsActionRow(
                     title = "重新登录",
