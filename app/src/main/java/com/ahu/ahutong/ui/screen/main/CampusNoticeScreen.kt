@@ -94,7 +94,7 @@ fun CampusNoticeScreen() {
                 .thenByDescending { it.discoveredAtMillis }
         )
     }
-    val sourceOptions = remember(graduate, accountId) {
+    val sourceOptions = remember(graduate, accountId, snapshot) {
         buildList<Pair<String?, String>> {
             add(null to "全部")
             add(UniversityNoticeParser.SOURCE_ID to "校级")
