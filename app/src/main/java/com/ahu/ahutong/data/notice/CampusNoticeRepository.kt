@@ -21,6 +21,7 @@ object CampusNoticeRepository {
     private val engine = CampusNoticeSyncEngine(
         sources = listOf(
             UniversityNoticeCrawler(UniversityNoticeHttpFetcher()),
+            AcademicAffairsNoticeCrawler(AcademicAffairsNoticeWebFetcher()),
             PostgraduateNoticeCrawler(PostgraduateNoticeWebFetcher())
         ),
         store = store,

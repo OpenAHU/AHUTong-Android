@@ -54,16 +54,16 @@ internal class PostgraduateNoticeWebFetcher : NoticePageFetcher {
             throw CampusNoticeProtocolException("当前系统不支持隔离网页数据，请在浏览器查看")
         }
         val context = AppEnvironmentHolder.context()
-        val provider = Uri.parse("content://${context.packageName}.postgraduate_notices")
+        val provider = Uri.parse("content://${context.packageName}.notice_web")
         val response = runCatching {
-            context.contentResolver.call(provider, PostgraduateNoticeWebProvider.METHOD_FETCH, url, null)
+            context.contentResolver.call(provider, NoticeWebProvider.METHOD_FETCH, url, null)
         }.getOrElse { throw CampusNoticeProtocolException("研究生院公告网页启动失败") }
-        val error = response?.getString(PostgraduateNoticeWebProvider.KEY_ERROR)
+        val error = response?.getString(NoticeWebProvider.KEY_ERROR)
         if (error != null) {
             if (error.contains("HTTP 412")) throw CampusNoticeAccessBlockedException()
             throw CampusNoticeProtocolException(error)
         }
-        response?.getString(PostgraduateNoticeWebProvider.KEY_HTML)?.takeIf(String::isNotBlank)
+        response?.getString(NoticeWebProvider.KEY_HTML)?.takeIf(String::isNotBlank)
             ?: throw CampusNoticeProtocolException("研究生院公告网页没有返回列表")
     }
 }

@@ -22,22 +22,31 @@ import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONTokener
 
 /**
- * Renders only public graduate notice lists with the normal Android browser engine.
- * The private process/profile is separate from login WebViews; no cookies are read or exported.
+ * 用隔离的 WebView 引擎渲染受 WAF 保护的公开公告列表。
+ *
+ * 教务处与研究生院都返回 412 + JS 挑战，裸 HTTP 拿不到内容；这里让页面脚本自己跑完挑战，
+ * 再把列表 DOM 交给调用方解析。进程与登录 WebView 分离，不读取也不导出任何 Cookie。
  */
-class PostgraduateNoticeWebProvider : ContentProvider() {
+class NoticeWebProvider : ContentProvider() {
     private val fetchLock = Any()
 
     override fun onCreate(): Boolean {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WebView.setDataDirectorySuffix("postgraduate_notices")
+            WebView.setDataDirectorySuffix("notice_web")
         }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle = synchronized(fetchLock) {
-        if (method != METHOD_FETCH || !PostgraduateNoticeParser.isTrustedListUrl(arg)) {
-            return@synchronized result(error = "公告请求地址不在研究生院栏目内")
+        val target = when {
+            PostgraduateNoticeParser.isTrustedListUrl(arg) ->
+                WebTarget("研究生院", EXTRACT_POSTGRADUATE_JS)
+            AcademicAffairsNoticeParser.isTrustedListUrl(arg) ->
+                WebTarget("教务处", EXTRACT_ACADEMIC_AFFAIRS_JS)
+            else -> null
+        }
+        if (method != METHOD_FETCH || target == null) {
+            return@synchronized result(error = "公告请求地址不在受信任栏目内")
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
             return@synchronized result(error = "当前系统版本不支持隔离网页数据")
@@ -78,10 +87,10 @@ class PostgraduateNoticeWebProvider : ContentProvider() {
                     override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                         val address = Uri.parse(url)
                         val sameOfficialHost = address.scheme == "https" &&
-                            address.host == "graschool.ahu.edu.cn" && address.port == -1
+                            address.host in TRUSTED_HOSTS && address.port == -1
                         if (!sameOfficialHost && url != "about:blank") {
                             view.stopLoading()
-                            finish(message = "研究生院公告页跳转到非受信任地址")
+                            finish(message = "${target.label}公告页跳转到非受信任地址")
                         }
                     }
 
@@ -90,16 +99,16 @@ class PostgraduateNoticeWebProvider : ContentProvider() {
                     }
 
                     override fun onReceivedError(view: WebView, request: WebResourceRequest, received: WebResourceError) {
-                        if (request.isForMainFrame) finish(message = "研究生院公告网页加载失败")
+                        if (request.isForMainFrame) finish(message = "${target.label}公告网页加载失败")
                     }
                 }
                 val check = object : Runnable {
                     override fun run() {
                         if (!active.get()) return
-                        view.evaluateJavascript(EXTRACT_LIST_JS) { raw ->
+                        view.evaluateJavascript(target.extractScript) { raw ->
                             val extracted = runCatching { JSONTokener(raw).nextValue() as String }.getOrNull()
                             if (!extracted.isNullOrBlank()) {
-                                if (extracted.length > MAX_HTML_LENGTH) finish(message = "研究生院公告页面过大")
+                                if (extracted.length > MAX_HTML_LENGTH) finish(message = "${target.label}公告页面过大")
                                 else finish(page = extracted)
                             } else if (active.get()) {
                                 handler.postDelayed(this, POLL_INTERVAL_MS)
@@ -109,12 +118,16 @@ class PostgraduateNoticeWebProvider : ContentProvider() {
                 }
                 view.loadUrl(arg!!)
                 handler.postDelayed(check, POLL_INTERVAL_MS)
-            }.onFailure { finish(message = "研究生院公告网页初始化失败") }
+            }.onFailure { finish(message = "${target.label}公告网页初始化失败") }
         }
 
         val completed = latch.await(FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         if (!completed) {
-            finish(message = if (mainFrameHttpCode.get() == 412) "访问受限（HTTP 412）" else "研究生院公告网页加载超时")
+            finish(message = if (mainFrameHttpCode.get() == 412) {
+                "访问受限（HTTP 412）"
+            } else {
+                "${target.label}公告网页加载超时"
+            })
         }
         handler.post { webView.getAndSet(null)?.destroy() }
         result(html = html.get(), error = error.get())
@@ -131,6 +144,8 @@ class PostgraduateNoticeWebProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
+    private data class WebTarget(val label: String, val extractScript: String)
+
     companion object {
         const val METHOD_FETCH = "fetch_list"
         const val KEY_HTML = "html"
@@ -138,12 +153,23 @@ class PostgraduateNoticeWebProvider : ContentProvider() {
         private const val FETCH_TIMEOUT_SECONDS = 25L
         private const val POLL_INTERVAL_MS = 500L
         private const val MAX_HTML_LENGTH = 500_000
-        private val EXTRACT_LIST_JS = """
+        private val TRUSTED_HOSTS = setOf("graschool.ahu.edu.cn", "jwc.ahu.edu.cn")
+
+        private val EXTRACT_POSTGRADUATE_JS = """
             (function() {
               var list = document.querySelector('ul.wp_article_list');
               if (!list || !list.querySelector('li.list_item')) return '';
               var next = document.querySelector('a.next');
               return '<html><body>' + list.outerHTML + (next ? next.outerHTML : '') + '</body></html>';
+            })()
+        """.trimIndent()
+
+        private val EXTRACT_ACADEMIC_AFFAIRS_JS = """
+            (function() {
+              var list = document.querySelector('ul.news_list.list2');
+              if (!list || !list.querySelector('li.news')) return '';
+              var next = document.querySelector('li.page_nav a.next');
+              return '<html><body>' + list.outerHTML + (next && next.parentElement ? next.parentElement.outerHTML : '') + '</body></html>';
             })()
         """.trimIndent()
     }

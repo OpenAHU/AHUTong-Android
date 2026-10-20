@@ -109,10 +109,10 @@
         </provider>
 
         <provider
-            android:name=".data.notice.PostgraduateNoticeWebProvider"
-            android:authorities="${applicationId}.postgraduate_notices"
+            android:name=".data.notice.NoticeWebProvider"
+            android:authorities="${applicationId}.notice_web"
             android:exported="false"
-            android:process=":postgraduate_notices" />
+            android:process=":notice_web" />
 
         <provider
             android:name=".data.mail.StudentMailSessionProvider"

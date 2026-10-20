@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,10 +26,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +45,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,10 +56,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.notice.AcademicAffairsNoticeParser
 import com.ahu.ahutong.data.notice.CampusNotice
 import com.ahu.ahutong.data.notice.CampusNoticeRepository
 import com.ahu.ahutong.data.notice.CampusNoticeUrlPolicy
 import com.ahu.ahutong.data.notice.PostgraduateNoticeParser
+import com.ahu.ahutong.data.notice.UniversityNoticeParser
+import com.ahu.ahutong.data.notice.noticeSourceLabel
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppCard
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -74,11 +84,28 @@ fun CampusNoticeScreen() {
     val syncingAccountId by CampusNoticeRepository.syncingAccountId.collectAsState()
     val snapshot = stored?.takeIf { it.accountId == accountId }
     val isRefreshing = !accountId.isNullOrBlank() && syncingAccountId == accountId
-    val notices = remember(snapshot?.notices) {
+    val allNotices = remember(snapshot?.notices) {
         snapshot?.notices.orEmpty().sortedWith(
             compareByDescending<CampusNotice> { it.publishedOn }
                 .thenByDescending { it.discoveredAtMillis }
         )
+    }
+    val sourceOptions = remember(graduate) {
+        buildList<Pair<String?, String>> {
+            add(null to "全部")
+            add(UniversityNoticeParser.SOURCE_ID to "校级")
+            add(AcademicAffairsNoticeParser.SOURCE_ID to "教务处")
+            if (graduate) add(PostgraduateNoticeParser.SOURCE_ID to "研究生院")
+        }
+    }
+    var sourceFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    val notices = remember(allNotices, sourceFilter) {
+        if (sourceFilter == null) allNotices else allNotices.filter { it.sourceId == sourceFilter }
+    }
+    LaunchedEffect(sourceOptions) {
+        if (sourceFilter != null && sourceOptions.none { it.first == sourceFilter }) {
+            sourceFilter = null
+        }
     }
     var showSettings by remember { mutableStateOf(false) }
     var showReplacementPicker by remember { mutableStateOf(false) }
@@ -125,8 +152,13 @@ fun CampusNoticeScreen() {
     }
 
     fun openOfficialSite() {
-        val url = if (graduate) "https://graschool.ahu.edu.cn/9577/list.htm"
-        else "https://www.ahu.edu.cn/15046/list.htm"
+        val url = when (sourceFilter) {
+            AcademicAffairsNoticeParser.SOURCE_ID -> AcademicAffairsNoticeParser.FIRST_PAGE
+            PostgraduateNoticeParser.SOURCE_ID -> PostgraduateNoticeParser.FIRST_PAGE
+            UniversityNoticeParser.SOURCE_ID -> UniversityNoticeParser.FIRST_PAGE
+            else -> if (graduate) PostgraduateNoticeParser.FIRST_PAGE
+            else UniversityNoticeParser.FIRST_PAGE
+        }
         val opened = runCatching {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         }.isSuccess
@@ -140,6 +172,13 @@ fun CampusNoticeScreen() {
             TrailingAction(Icons.Outlined.OpenInBrowser, "在浏览器查看") { openOfficialSite() },
             TrailingAction(Icons.Outlined.Settings, "校园通知设置") { showSettings = true }
         ),
+        trailingContent = {
+            NoticeSourceFilter(
+                options = sourceOptions,
+                selected = sourceFilter,
+                onSelect = { sourceFilter = it }
+            )
+        },
         freeContent = {
             PullToRefreshBox(
                 isRefreshing = isRefreshing,
@@ -153,12 +192,18 @@ fun CampusNoticeScreen() {
                 ) {
                     if (notices.isEmpty()) {
                         item(key = "state") {
-                            val error = snapshot?.sourceStatuses?.values?.any { it.lastError != null } == true
+                            val error = if (sourceFilter == null) {
+                                snapshot?.sourceStatuses?.values?.any { it.lastError != null } == true
+                            } else {
+                                snapshot?.sourceStatuses?.get(sourceFilter)?.lastError != null
+                            }
                             when {
                                 accountId.isNullOrBlank() -> AppStateCard.Empty("请先登录以查看公告")
                                 isRefreshing || snapshot == null -> AppStateCard.Loading()
                                 error -> AppStateCard.Error(message = "下拉刷新重试", title = "公告暂时无法加载")
-                                else -> AppStateCard.Empty("暂无公告")
+                                else -> AppStateCard.Empty(
+                                    if (sourceFilter == null) "暂无公告" else "该信源暂无公告"
+                                )
                             }
                         }
                     } else {
@@ -278,6 +323,59 @@ fun CampusNoticeScreen() {
 }
 
 @Composable
+private fun NoticeSourceFilter(
+    options: List<Pair<String?, String>>,
+    selected: String?,
+    onSelect: (String?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = options.firstOrNull { it.first == selected }?.second ?: "全部"
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = "筛选信源",
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (sourceId, sourceLabel) ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            sourceLabel,
+                            fontWeight = if (sourceId == selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    trailingIcon = if (sourceId == selected) {
+                        {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    } else null,
+                    onClick = {
+                        expanded = false
+                        onSelect(sourceId)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CampusNoticeRow(notice: CampusNotice, onClick: () -> Unit) {
     AppCard(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -311,7 +409,7 @@ private fun CampusNoticeRow(notice: CampusNotice, onClick: () -> Unit) {
                 }
             }
             Text(
-                "${if (notice.sourceId == PostgraduateNoticeParser.SOURCE_ID) "研究生院" else "安徽大学"} · ${notice.publishedOn}",
+                "${noticeSourceLabel(notice.sourceId)} · ${notice.publishedOn}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

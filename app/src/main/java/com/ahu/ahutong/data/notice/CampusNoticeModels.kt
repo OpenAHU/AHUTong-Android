@@ -37,7 +37,15 @@ internal class CampusNoticeAccessBlockedException : java.io.IOException("公告�
 internal object CampusNoticeUrlPolicy {
     fun isTrustedArticle(sourceId: String, url: String?): Boolean = when (sourceId) {
         UniversityNoticeParser.SOURCE_ID -> UniversityNoticeParser.isTrustedArticleUrl(url)
+        AcademicAffairsNoticeParser.SOURCE_ID -> AcademicAffairsNoticeParser.isTrustedArticleUrl(url)
         PostgraduateNoticeParser.SOURCE_ID -> PostgraduateNoticeParser.isTrustedArticleUrl(url)
         else -> false
     }
+}
+
+internal fun noticeSourceLabel(sourceId: String): String = when (sourceId) {
+    AcademicAffairsNoticeParser.SOURCE_ID -> "教务处"
+    PostgraduateNoticeParser.SOURCE_ID -> "研究生院"
+    UniversityNoticeParser.SOURCE_ID -> "安徽大学"
+    else -> "校园通知"
 }

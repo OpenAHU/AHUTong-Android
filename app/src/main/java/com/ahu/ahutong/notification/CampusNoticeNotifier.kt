@@ -15,7 +15,7 @@ import androidx.core.content.ContextCompat
 import com.ahu.ahutong.MainActivity
 import com.ahu.ahutong.data.notice.CampusNotice
 import com.ahu.ahutong.data.notice.CampusNoticeUrlPolicy
-import com.ahu.ahutong.data.notice.PostgraduateNoticeParser
+import com.ahu.ahutong.data.notice.noticeSourceLabel
 import java.security.MessageDigest
 
 object CampusNoticeNotifier {
@@ -31,7 +31,7 @@ object CampusNoticeNotifier {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         manager.createNotificationChannel(NotificationChannel(
             CHANNEL_ID, "校园通知", NotificationManager.IMPORTANCE_DEFAULT
-        ).apply { description = "安徽大学官网新公告" })
+        ).apply { description = "安徽大学及教务处官网新公告" })
     }
 
     fun post(context: Context, accountId: String, notices: List<CampusNotice>) {
@@ -59,7 +59,7 @@ object CampusNoticeNotifier {
             )
             val notification = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle(if (notice.sourceId == PostgraduateNoticeParser.SOURCE_ID) "校园通知 · 研究生院" else "校园通知 · 安徽大学")
+                .setContentTitle("校园通知 · ${noticeSourceLabel(notice.sourceId)}")
                 .setContentText(notice.title)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(notice.title))
                 .setContentIntent(pending)
