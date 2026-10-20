@@ -177,6 +177,9 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun loadQrCode(forceRefresh: Boolean = false) {
+        // 手动刷新付款码通常发生在刚充值/刚消费之后：二维码重新取，余额也必须一起拉，
+        // 否则底部会一直显示充值前的数字（有余额但页面不动）。
+        if (forceRefresh) refreshCardBalance()
         qrLoader.start(forceRefresh)
     }
 
