@@ -39,16 +39,16 @@ class XuexiaotongViewModel @Inject constructor(
 
     fun cookieHeader(): String = session.cookieHeader()
 
-    private val _loggedIn = MutableStateFlow(session.hasSession())
+    private val _loggedIn = MutableStateFlow(false)
     val loggedIn: StateFlow<Boolean> = _loggedIn.asStateFlow()
 
-    private val _works = MutableStateFlow<List<Work>>(store.works())
+    private val _works = MutableStateFlow<List<Work>>(emptyList())
     val works: StateFlow<List<Work>> = _works.asStateFlow()
 
-    private val _courses = MutableStateFlow<List<Course>>(store.courses())
+    private val _courses = MutableStateFlow<List<Course>>(emptyList())
     val courses: StateFlow<List<Course>> = _courses.asStateFlow()
 
-    private val _progress = MutableStateFlow<List<CourseProgress>>(store.courseProgress())
+    private val _progress = MutableStateFlow<List<CourseProgress>>(emptyList())
     val progress: StateFlow<List<CourseProgress>> = _progress.asStateFlow()
 
     private val _syncing = MutableStateFlow(false)
@@ -63,22 +63,22 @@ class XuexiaotongViewModel @Inject constructor(
     private val _courseSyncProgress = MutableStateFlow(SyncProgress())
     val courseSyncProgress: StateFlow<SyncProgress> = _courseSyncProgress.asStateFlow()
 
-    private val _lastSync = MutableStateFlow(store.lastSync())
+    private val _lastSync = MutableStateFlow(0L)
     val lastSync: StateFlow<Long> = _lastSync.asStateFlow()
 
-    private val _remindSetting = MutableStateFlow(store.remindSetting())
+    private val _remindSetting = MutableStateFlow(RemindSetting())
     val remindSetting: StateFlow<RemindSetting> = _remindSetting.asStateFlow()
 
-    private val _customEvents = MutableStateFlow<List<CustomEvent>>(store.customEvents())
+    private val _customEvents = MutableStateFlow<List<CustomEvent>>(emptyList())
     val customEvents: StateFlow<List<CustomEvent>> = _customEvents.asStateFlow()
 
-    private val _showDone = MutableStateFlow(store.showDone())
+    private val _showDone = MutableStateFlow(false)
     val showDone: StateFlow<Boolean> = _showDone.asStateFlow()
 
-    private val _doneGray = MutableStateFlow(store.doneGray())
+    private val _doneGray = MutableStateFlow(false)
     val doneGray: StateFlow<Boolean> = _doneGray.asStateFlow()
 
-    private val _showEmptyCourses = MutableStateFlow(store.showEmptyCourses())
+    private val _showEmptyCourses = MutableStateFlow(false)
     val showEmptyCourses: StateFlow<Boolean> = _showEmptyCourses.asStateFlow()
 
     private val _snackbar = MutableStateFlow<String?>(null)
@@ -88,38 +88,70 @@ class XuexiaotongViewModel @Inject constructor(
 
     fun showMsg(msg: String) { _snackbar.value = msg }
 
-    fun refreshState() {
-        _loggedIn.value = session.hasSession()
-        _works.value = store.works()
-        _courses.value = store.courses()
-        _progress.value = store.courseProgress()
-        _lastSync.value = store.lastSync()
-        _remindSetting.value = store.remindSetting()
-        _customEvents.value = store.customEvents()
-        _showDone.value = store.showDone()
-        _doneGray.value = store.doneGray()
-        _showEmptyCourses.value = store.showEmptyCourses()
+    private data class SavedState(
+        val loggedIn: Boolean, val works: List<Work>, val courses: List<Course>,
+        val progress: List<CourseProgress>, val lastSync: Long, val remind: RemindSetting,
+        val events: List<CustomEvent>, val showDone: Boolean, val doneGray: Boolean, val showEmpty: Boolean
+    )
+
+    private var stateRevision = 0L
+    private val restoreJob = viewModelScope.launch { applySavedState(readSavedState()) }
+
+    private suspend fun readSavedState() = withContext(ioDispatcher) {
+        SavedState(session.hasSession(), store.works(), store.courses(), store.courseProgress(),
+            store.lastSync(), store.remindSetting(), store.customEvents(), store.showDone(), store.doneGray(), store.showEmptyCourses())
     }
 
-    fun toggleShowDone() {
+    private fun applySavedState(saved: SavedState) {
+        _loggedIn.value = saved.loggedIn
+        _works.value = saved.works
+        _courses.value = saved.courses
+        _progress.value = saved.progress
+        _lastSync.value = saved.lastSync
+        _remindSetting.value = saved.remind
+        _customEvents.value = saved.events
+        _showDone.value = saved.showDone
+        _doneGray.value = saved.doneGray
+        _showEmptyCourses.value = saved.showEmpty
+    }
+
+    private fun afterRestore(action: () -> Unit) {
+        if (restoreJob.isCompleted) action()
+        else viewModelScope.launch { restoreJob.join(); action() }
+    }
+
+    fun refreshState() {
+        if (!restoreJob.isCompleted) return
+        viewModelScope.launch {
+            val revision = stateRevision
+            val saved = readSavedState()
+            if (revision == stateRevision) applySavedState(saved)
+        }
+    }
+
+    fun toggleShowDone() = afterRestore {
+        stateRevision++
         val v = !_showDone.value
         store.saveShowDone(v)
         _showDone.value = v
     }
 
-    fun toggleDoneGray() {
+    fun toggleDoneGray() = afterRestore {
+        stateRevision++
         val v = !_doneGray.value
         store.saveDoneGray(v)
         _doneGray.value = v
     }
 
-    fun toggleShowEmptyCourses() {
+    fun toggleShowEmptyCourses() = afterRestore {
+        stateRevision++
         val v = !_showEmptyCourses.value
         store.saveShowEmptyCourses(v)
         _showEmptyCourses.value = v
     }
 
-    fun onLoginSuccess() {
+    fun onLoginSuccess() = afterRestore {
+        stateRevision++
         _loggedIn.value = true
         refreshState()
         syncWorks()
@@ -136,6 +168,7 @@ class XuexiaotongViewModel @Inject constructor(
     }
 
     fun logout() {
+        stateRevision++
         _loggedIn.value = false
         viewModelScope.coroutineContext.cancelChildren()
         reminders.cancelAll()
@@ -152,8 +185,8 @@ class XuexiaotongViewModel @Inject constructor(
         _courseSyncing.value = false
     }
 
-    fun syncWorks() {
-        if (!_loggedIn.value || _syncing.value || _courseSyncing.value) return
+    fun syncWorks() = afterRestore {
+        if (!_loggedIn.value || _syncing.value || _courseSyncing.value) return@afterRestore
         viewModelScope.launch {
             _syncing.value = true
             _syncProgress.value = SyncProgress(message = "正在同步作业...")
@@ -164,8 +197,9 @@ class XuexiaotongViewModel @Inject constructor(
                         _syncProgress.value = SyncProgress(done, total, message)
                     }
                 }
+                stateRevision++
                 _works.value = works
-                _courses.value = store.courses()
+                _courses.value = withContext(ioDispatcher) { store.courses() }
                 _syncProgress.value = SyncProgress(message = "同步完成")
                 store.saveLastSync(System.currentTimeMillis())
                 _lastSync.value = store.lastSync()
@@ -184,8 +218,8 @@ class XuexiaotongViewModel @Inject constructor(
         }
     }
 
-    fun syncCourseProgress() {
-        if (!_loggedIn.value || _syncing.value || _courseSyncing.value) return
+    fun syncCourseProgress() = afterRestore {
+        if (!_loggedIn.value || _syncing.value || _courseSyncing.value) return@afterRestore
         viewModelScope.launch {
             _courseSyncing.value = true
             _courseSyncProgress.value = SyncProgress(message = "正在同步课程进度...")
@@ -196,6 +230,7 @@ class XuexiaotongViewModel @Inject constructor(
                         _courseSyncProgress.value = SyncProgress(done, total, message)
                     }
                 }
+                stateRevision++
                 _progress.value = list
                 _courseSyncProgress.value = SyncProgress(message = "同步完成")
                 store.saveLastSync(System.currentTimeMillis())
@@ -211,7 +246,8 @@ class XuexiaotongViewModel @Inject constructor(
         }
     }
 
-    fun saveRemind(setting: RemindSetting) {
+    fun saveRemind(setting: RemindSetting) = afterRestore {
+        stateRevision++
         store.saveRemindSetting(setting)
         _remindSetting.value = setting
         reminders.rescheduleAll()
@@ -221,26 +257,30 @@ class XuexiaotongViewModel @Inject constructor(
         reminders.sendTest()
     }
 
-    fun saveCustomEvents(list: List<CustomEvent>) {
+    fun saveCustomEvents(list: List<CustomEvent>) = afterRestore {
+        stateRevision++
         store.saveCustomEvents(list)
         _customEvents.value = list
         reminders.rescheduleAll()
     }
 
-    fun addCustomEvent(ev: CustomEvent) {
+    fun addCustomEvent(ev: CustomEvent) = afterRestore {
+        stateRevision++
         val list = _customEvents.value.toMutableList()
         list.add(ev)
         saveCustomEvents(list)
     }
 
-    fun toggleCustomEventDone(id: String) {
+    fun toggleCustomEventDone(id: String) = afterRestore {
+        stateRevision++
         val list = _customEvents.value.map {
             if (it.id == id) it.copy(done = !it.done) else it
         }
         saveCustomEvents(list)
     }
 
-    fun deleteCustomEvent(id: String) {
+    fun deleteCustomEvent(id: String) = afterRestore {
+        stateRevision++
         val list = _customEvents.value.filter { it.id != id }
         saveCustomEvents(list)
     }

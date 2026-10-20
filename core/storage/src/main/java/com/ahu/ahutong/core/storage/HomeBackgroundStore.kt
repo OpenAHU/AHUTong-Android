@@ -26,6 +26,8 @@ object HomeBackgroundStore {
 
     private val _revision = MutableStateFlow(0)
     val revision = _revision.asStateFlow()
+    private val _imageRevision = MutableStateFlow(0)
+    val imageRevision = _imageRevision.asStateFlow()
 
     private val prefs
         get() = AppEnvironmentHolder.context()
@@ -72,6 +74,7 @@ object HomeBackgroundStore {
             .putBoolean("reduce_glass", true)
             .putBoolean(PREF_AUTO_GLASS_NOTICE, true)
             .apply()
+        _imageRevision.value++
         _revision.value++
     }
 
@@ -85,16 +88,22 @@ object HomeBackgroundStore {
         File(context.filesDir, SRC_FILE).delete()
         File(context.filesDir, BLUR_FILE).delete()
         prefs.edit().clear().apply()
+        _imageRevision.value++
         _revision.value++
     }
 
     /** 取主色调（缩样后量化统计，返回 #AARRGGBB）。 */
-    fun dominantColorHex(context: Context): String? {
+    suspend fun dominantColorHex(context: Context): String? = withContext(Dispatchers.IO) {
         val file = blurredFile(context)
-        if (!file.exists()) return null
-        val small = BitmapFactory.decodeFile(file.absolutePath)?.let {
-            Bitmap.createScaledBitmap(it, 24, 24, true)
-        } ?: return null
+        if (!file.exists()) return@withContext null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = max(1, min(bounds.outWidth, bounds.outHeight) / 24)
+        }
+        val small = BitmapFactory.decodeFile(file.absolutePath, options)?.let { decoded ->
+            Bitmap.createScaledBitmap(decoded, 24, 24, true).also { if (it !== decoded) decoded.recycle() }
+        } ?: return@withContext null
         // 量化到 4bit/通道分桶，取「饱和度尚可的最常见桶」
         val buckets = HashMap<Int, Int>()
         for (x in 0 until small.width) {
@@ -111,11 +120,11 @@ object HomeBackgroundStore {
             }
         }
         small.recycle()
-        val best = buckets.maxByOrNull { it.value }?.key ?: return null
+        val best = buckets.maxByOrNull { it.value }?.key ?: return@withContext null
         val r = ((best shr 8) and 0xF) * 17
         val g = ((best shr 4) and 0xF) * 17
         val b = (best and 0xF) * 17
-        return "#FF%02X%02X%02X".format(r, g, b)
+        "#FF%02X%02X%02X".format(r, g, b)
     }
 
     private fun regenerateBlurred(context: Context, src: Bitmap) {

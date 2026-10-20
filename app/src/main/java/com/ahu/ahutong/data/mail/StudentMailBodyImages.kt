@@ -54,7 +54,6 @@ class StudentMailBodyImages internal constructor(
     private val lock = Any()
     private var closed = false
     private val calls = mutableSetOf<Call>()
-    private val responses = mutableSetOf<Response>()
     private val resourceCount = AtomicInteger()
     private val documentBytes = AtomicLong()
 
@@ -148,14 +147,7 @@ class StudentMailBodyImages internal constructor(
             .header("Cache-Control", "no-store").build())
         synchronized(lock) { ensureCurrent(); calls.add(call) }
         try {
-            val response = call.execute()
-            synchronized(lock) {
-                if (closed) { response.close(); return null }
-                responses.add(response)
-            }
-            try {
-                return response.use { ensureCurrent(); consume(it).also { ensureCurrent() } }
-            } finally { synchronized(lock) { responses.remove(response) } }
+            return call.execute().use { ensureCurrent(); consume(it).also { ensureCurrent() } }
         } finally { synchronized(lock) { calls.remove(call) } }
     }
 
@@ -193,9 +185,8 @@ class StudentMailBodyImages internal constructor(
     override fun close() {
         synchronized(lock) {
             closed = true
+            // The loading worker owns response.use; concurrent body.close races with its read.
             calls.forEach(Call::cancel)
-            responses.forEach(Response::close)
-            responses.clear()
             calls.clear()
         }
     }

@@ -19,19 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
@@ -46,33 +42,26 @@ import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import com.ahu.ahutong.data.session.SessionStore
 
-/** 政策内容变更时递增：老用户将重新看到新政策弹窗（合规有意行为）。 */
-private const val CURRENT_PRIVACY_POLICY_VERSION = 1
-
 @Composable
 fun Splash(
     navController: NavController,
     viewModel: SplashViewModel = hiltViewModel()
 ) {
-    var dialogRevision by remember { mutableIntStateOf(0) }
+    val policyAccepted by viewModel.privacyPolicyAccepted.collectAsState()
     val telemetryState by viewModel.telemetryOnboardingState.collectAsState()
     val bootstrapTrainingState by viewModel.bootstrapTrainingOnboardingState.collectAsState()
     val activity = LocalActivity.current
     val context = LocalContext.current
 
-    val agreementAccepted = AHUCache.isAgreementAccepted()
-    // 版本机制：老用户仅有旧布尔记录 → 视为 version 0，正式政策首上线重新征得一次
-    val privacyAccepted = AHUCache.privacyPolicyVersion() >= CURRENT_PRIVACY_POLICY_VERSION
-    val businessAccepted = AHUCache.isBusinessAccepted()
     val telemetryChoice = (telemetryState as? TelemetryOnboardingState.Ready)?.choice
     val bootstrapTrainingChoice =
         (bootstrapTrainingState as? BootstrapTrainingOnboardingState.Ready)?.choice
 
-    LaunchedEffect(dialogRevision, telemetryState, bootstrapTrainingState) {
-        if (agreementAccepted && privacyAccepted && businessAccepted &&
+    LaunchedEffect(policyAccepted, telemetryState, bootstrapTrainingState) {
+        if (policyAccepted == true &&
             telemetryChoice != null && bootstrapTrainingChoice != null
         ) {
-            if (SessionStore.isLoggedIn()) {
+            if (withContext(Dispatchers.IO) { SessionStore.isLoggedIn() }) {
                 navController.navigate("home") {
                     popUpTo("splash") { inclusive = true }
                 }
@@ -84,9 +73,9 @@ fun Splash(
         }
     }
 
-    val onboardingReady = telemetryState is TelemetryOnboardingState.Ready &&
+    val onboardingReady = policyAccepted != null && telemetryState is TelemetryOnboardingState.Ready &&
         bootstrapTrainingState is BootstrapTrainingOnboardingState.Ready
-    val requiresAcceptance = !agreementAccepted || !privacyAccepted || !businessAccepted ||
+    val requiresAcceptance = policyAccepted != true ||
         telemetryChoice == null || bootstrapTrainingChoice == null
     if (!onboardingReady || !requiresAcceptance) {
         Box(
@@ -105,12 +94,7 @@ fun Splash(
         UnifiedPrivacyPolicyDialog(
             policyMarkdown = policyMarkdown,
             onAgree = {
-                AHUCache.setAgreementAccepted()
-                AHUCache.setPrivacyAccepted()
-                AHUCache.savePrivacyPolicyVersion(CURRENT_PRIVACY_POLICY_VERSION)
-                AHUCache.setBusinessAccepted()
                 viewModel.acceptUnifiedPrivacyPolicy()
-                dialogRevision++
             },
             onDisagree = { activity?.finish() }
         )

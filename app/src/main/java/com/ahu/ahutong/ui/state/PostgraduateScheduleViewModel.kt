@@ -30,14 +30,9 @@ class PostgraduateScheduleViewModel : ViewModel(), PostgraduateScheduleControlle
         if (accountId == account && (mutableState.value.timetable != null || mutableState.value.loading)) return
         job?.cancel()
         accountId = account
-        val cached = account?.let(repository::cachedCurrent)
-        mutableState.value = if (cached == null) PostgraduateScheduleState() else
-            PostgraduateScheduleState(
-                cached.terms, cached.selectedTerm, cached.timetable,
-                firstWeekMonday = storedFirstMonday(cached.selectedTerm),
-                today = DebugClock.nowLocalDate()
-            )
-        if (account != null && cached == null) load(force = false)
+        mutableState.value = PostgraduateScheduleState()
+        // current() already prefers the account cache; its decoding belongs on IO too.
+        if (account != null) load(force = false)
     }
 
     override fun refresh() = load(force = true)
@@ -72,12 +67,10 @@ class PostgraduateScheduleViewModel : ViewModel(), PostgraduateScheduleControlle
         if (mutableState.value.selectedTerm?.code == term.code && mutableState.value.timetable != null) return
         val account = accountId ?: return
         job?.cancel()
-        val cached = repository.cachedForTerm(account, term.code)
         mutableState.value = mutableState.value.copy(
-            selectedTerm = term, timetable = cached, loading = cached == null, error = null,
+            selectedTerm = term, timetable = null, loading = true, error = null,
             firstWeekMonday = storedFirstMonday(term), today = DebugClock.nowLocalDate()
         )
-        if (cached != null) return
         job = viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) { repository.forTerm(account, term) }

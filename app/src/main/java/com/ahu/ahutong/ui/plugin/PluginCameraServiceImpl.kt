@@ -39,7 +39,7 @@ class PluginCameraServiceImpl(
     private val context: Context
 ) : PluginCameraService {
 
-    private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var activeSession: CameraSessionImpl? = null
 
     override fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -69,7 +69,7 @@ class PluginCameraServiceImpl(
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .apply {
-                    setAnalyzer(analysisExecutor) { proxy ->
+                    setAnalyzer(cameraExecutor) { proxy ->
                         try {
                             val bitmap = proxy.toBitmap()?.downsample(ANALYSIS_SHORT_SIDE)
                             if (bitmap != null) consumer.onBitmap(bitmap)
@@ -80,20 +80,24 @@ class PluginCameraServiceImpl(
                 }
         }
 
-        val provider = ProcessCameraProvider.getInstance(context).get()
-        // 重复 startSession：先解绑旧会话——宿主 Activity 的相机被插件独占
-        provider.unbindAll()
-        val camera = provider.bindToLifecycle(
-            PluginHostLauncherHub.activity as LifecycleOwner,
-            CameraSelector.DEFAULT_BACK_CAMERA,
-            *listOfNotNull(preview, imageCapture, imageAnalysis).toTypedArray()
+        activeSession?.close()
+        val session = CameraSessionImpl(
+            context, PluginHostLauncherHub.activity as LifecycleOwner,
+            preview, imageCapture, imageAnalysis, cameraExecutor
         )
-        return CameraSessionImpl(context, camera, provider, imageCapture, imageAnalysis)
+        activeSession = session
+        val provider = ProcessCameraProvider.getInstance(context)
+        provider.addListener({
+            // This listener runs only after completion; get() cannot block the UI.
+            runCatching { provider.get() }.fold(session::bind, session::fail)
+        }, ContextCompat.getMainExecutor(context))
+        return session
     }
 
     companion object {
         private const val TAG = "PluginCameraService"
         private const val ANALYSIS_SHORT_SIDE = 480
+        private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     }
 }
 
@@ -101,27 +105,57 @@ class PluginCameraServiceImpl(
 
 internal class CameraSessionImpl(
     private val context: Context,
-    private val camera: Camera,
-    private val provider: ProcessCameraProvider,
+    private val owner: LifecycleOwner,
+    private val preview: Preview,
     private val imageCapture: ImageCapture,
-    private val imageAnalysis: ImageAnalysis?
+    private val imageAnalysis: ImageAnalysis?,
+    private val imageExecutor: ExecutorService
 ) : PluginCameraService.CameraSession {
+    private var camera: Camera? = null
+    private var provider: ProcessCameraProvider? = null
+    private var closed = false
+    private var torch = false
+    private var failure: Throwable? = null
+
+    fun bind(provider: ProcessCameraProvider) {
+        if (closed) return
+        try {
+            camera = provider.bindToLifecycle(
+                owner, CameraSelector.DEFAULT_BACK_CAMERA,
+                *listOfNotNull(preview, imageCapture, imageAnalysis).toTypedArray()
+            )
+            this.provider = provider
+            setTorch(torch)
+        } catch (error: Exception) {
+            fail(error)
+        }
+    }
+
+    fun fail(error: Throwable) {
+        failure = error
+        Log.w(TAG, "相机初始化失败", error)
+    }
 
     override fun capture(callback: com.ahu.ahutong.core.plugin.PluginBitmapCallback) {
         val main = ContextCompat.getMainExecutor(context)
+        if (closed || camera == null) {
+            val error = failure ?: IllegalStateException(if (closed) "相机会话已关闭" else "相机正在初始化，请稍后重试")
+            main.execute { callback.onError(error.message ?: "相机不可用") }
+            return
+        }
         imageCapture.takePicture(
-            main,
+            imageExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: androidx.camera.core.ImageProxy) {
                     try {
                         val bitmap = image.toBitmap()?.rotate(image.imageInfo.rotationDegrees)
                         if (bitmap != null) {
-                            callback.onSuccess(bitmap)
+                            main.execute { callback.onSuccess(bitmap) }
                         } else {
-                            callback.onError("拍照解码失败")
+                            main.execute { callback.onError("拍照解码失败") }
                         }
                     } catch (t: Throwable) {
-                        callback.onError(t.message ?: t.javaClass.simpleName)
+                        main.execute { callback.onError(t.message ?: t.javaClass.simpleName) }
                     } finally {
                         image.close()
                     }
@@ -129,21 +163,25 @@ internal class CameraSessionImpl(
 
                 override fun onError(exception: ImageCaptureException) {
                     Log.w(TAG, "拍照失败", exception)
-                    callback.onError(exception.message ?: "拍照失败")
+                    main.execute { callback.onError(exception.message ?: "拍照失败") }
                 }
             }
         )
     }
 
     override fun setTorch(on: Boolean) {
-        runCatching { camera.cameraControl.enableTorch(on) } // 无闪光灯设备空操作（CameraX 内部吞）
+        torch = on
+        runCatching { camera?.cameraControl?.enableTorch(on) }
     }
 
     override fun close() {
+        closed = true
         runCatching {
             imageAnalysis?.clearAnalyzer()
-            provider.unbindAll()
+            provider?.unbind(*listOfNotNull(preview, imageCapture, imageAnalysis).toTypedArray())
         }
+        camera = null
+        provider = null
     }
 
     private fun Bitmap?.rotate(degrees: Int): Bitmap? {

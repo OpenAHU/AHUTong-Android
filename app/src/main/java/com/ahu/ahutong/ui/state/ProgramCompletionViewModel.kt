@@ -9,6 +9,8 @@ import com.ahu.ahutong.data.crawler.model.jwxt.ProgramCompletion
 import com.ahu.ahutong.ext.launchSafe
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -35,7 +37,7 @@ class ProgramCompletionViewModel @Inject constructor() : ViewModel() {
     }
 
     private fun load() = viewModelScope.launchSafe {
-        val cached = ProgramCompletionGateway.loadCached()
+        val cached = withContext(Dispatchers.IO) { ProgramCompletionGateway.loadCached() }
         if (cached != null) {
             state.value = UiState(loading = false, data = cached.first, fetchedAt = cached.second)
         } else {

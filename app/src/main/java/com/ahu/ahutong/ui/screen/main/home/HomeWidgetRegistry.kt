@@ -2,6 +2,7 @@ package com.ahu.ahutong.ui.screen.main.home
 
 import androidx.compose.ui.graphics.Color
 import com.ahu.ahutong.R
+import com.ahu.ahutong.core.plugin.AhuPlugin
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.HomeWidgetDefaults
 import com.ahu.ahutong.data.model.AcademicFeatureAccess
@@ -31,7 +32,9 @@ object HomeWidgetRegistry {
 
     /** 插件入口（ServiceLoader 发现，宿主对插件零静态引用）。 */
     val pluginWidgets: List<HomeWidgetSpec>
-        get() = com.ahu.ahutong.ui.plugin.PluginRegistry.plugins.value.map { plugin ->
+        get() = pluginSpecs(com.ahu.ahutong.ui.plugin.PluginRegistry.plugins.value)
+
+    private fun pluginSpecs(plugins: List<AhuPlugin>): List<HomeWidgetSpec> = plugins.map { plugin ->
             val resIcon = (plugin.meta.icon as? com.ahu.ahutong.core.plugin.PluginIcon.Resource)?.resId
             val bytesIcon = (plugin.meta.icon as? com.ahu.ahutong.core.plugin.PluginIcon.Bytes)?.png
             HomeWidgetSpec(
@@ -208,7 +211,18 @@ object HomeWidgetRegistry {
         )
     )
 
-    val widgetById = widgets.associateBy { it.id }
+    private var indexedPlugins: List<AhuPlugin>? = null
+    private var widgetIndex: Map<String, HomeWidgetSpec> = emptyMap()
+
+    val widgetById: Map<String, HomeWidgetSpec>
+        @Synchronized get() {
+            val plugins = com.ahu.ahutong.ui.plugin.PluginRegistry.plugins.value
+            if (indexedPlugins !== plugins) {
+                widgetIndex = (builtInWidgets + pluginSpecs(plugins)).associateBy { it.id }
+                indexedPlugins = plugins
+            }
+            return widgetIndex
+        }
 
     /**
      * 当前风格下可展示的小工具列表。

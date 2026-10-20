@@ -5,7 +5,13 @@ import com.ahu.ahutong.utils.DES
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 
-internal data class PortalPage(val url: String, val status: Int, val html: String)
+internal data class PortalPage(
+    val url: String,
+    val status: Int,
+    val html: String,
+    /** 当前跳转链是否收到过中央 CAS 下发的有效 CASTGC。 */
+    val casSessionIssued: Boolean = false
+)
 
 /** HTTP operations are injected so CAS and GMIS page handling can be tested without accounts. */
 internal class AcademicPortalLogin(
@@ -17,6 +23,9 @@ internal class AcademicPortalLogin(
         val graduate = entry == GMIS_ENTRY
         if (isSuccess(page, graduate, user)) return PortalLoginResult(PortalLoginStatus.SUCCESS, sessionPageUrl = page.url)
         if (page.status == 412) return PortalLoginResult(PortalLoginStatus.VERIFICATION_REQUIRED)
+        if (shouldResumeSso(page)) {
+            return resumePortalSession(entry, graduate, user)
+        }
         if (page.status !in 200..299) return unavailable(page.status)
 
         val url = page.url.toHttpUrlOrNull()
@@ -27,7 +36,11 @@ internal class AcademicPortalLogin(
         }
         val lt = form.selectFirst("input[name=lt]")?.attr("value")?.takeIf { it.isNotBlank() }
             ?: return PortalLoginResult(PortalLoginStatus.UNAVAILABLE, "统一认证页面结构发生变化")
-        val action = url.resolve(form.attr("action"))
+        val resolvedAction = url.resolve(form.attr("action"))
+        // 校方表单 action 可只有 /cas/login，仍须保留当前入口的 service 参数。
+        val action = if (resolvedAction?.query == null) {
+            resolvedAction?.newBuilder()?.encodedQuery(url.encodedQuery)?.build()
+        } else resolvedAction
         if (action?.scheme != "https" || action.host != "one.ahu.edu.cn" ||
             action.encodedPath.substringBefore(';') != "/cas/login"
         ) return PortalLoginResult(PortalLoginStatus.UNAVAILABLE, "统一认证提交地址无效")
@@ -47,9 +60,27 @@ internal class AcademicPortalLogin(
         )
         return when {
             page.status == 412 -> PortalLoginResult(PortalLoginStatus.VERIFICATION_REQUIRED)
-            page.status !in 200..299 -> unavailable(page.status)
             isSuccess(page, graduate, user) -> PortalLoginResult(PortalLoginStatus.SUCCESS, sessionPageUrl = page.url)
+            shouldResumeSso(page) -> resumePortalSession(entry, graduate, user)
+            page.status !in 200..299 -> unavailable(page.status)
             else -> rejected(graduate)
+        }
+    }
+
+    private fun shouldResumeSso(page: PortalPage): Boolean =
+        page.status in 200..399 && (isCasPostLoginUrl(page.url) || page.casSessionIssued)
+
+    /** 复用 HTTP 客户端的 Cookie，最多补一次目标教务 SSO；不重提账号密码。 */
+    private suspend fun resumePortalSession(entry: String, graduate: Boolean, user: User): PortalLoginResult {
+        val page = request(entry, null)
+        return when {
+            page.status == 412 -> PortalLoginResult(PortalLoginStatus.VERIFICATION_REQUIRED)
+            page.status !in 200..299 && !shouldResumeSso(page) -> unavailable(page.status)
+            isSuccess(page, graduate, user) -> PortalLoginResult(PortalLoginStatus.SUCCESS, sessionPageUrl = page.url)
+            else -> PortalLoginResult(
+                PortalLoginStatus.VERIFICATION_REQUIRED,
+                "统一认证需要完成账号设置或网页验证后继续登录"
+            )
         }
     }
 

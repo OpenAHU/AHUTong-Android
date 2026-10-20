@@ -133,7 +133,18 @@ object AppActionCatalog {
         spec(AppActionId.OPEN_COURSE_DETAIL, ActionFamily.ACADEMIC, null, "课程详情", suggestible = false, sensitivity = Sensitivity.ACADEMIC),
         spec(AppActionId.LOGIN, ActionFamily.TECHNICAL, "login", "登录", labelEligible = false, predictable = false, suggestible = false, sensitivity = Sensitivity.AUTHENTICATION),
         spec(AppActionId.SETUP, ActionFamily.TECHNICAL, "setup", "初始化", labelEligible = false, predictable = false, suggestible = false),
-        spec(AppActionId.SPLASH, ActionFamily.TECHNICAL, "splash", "启动", labelEligible = false, predictable = false, suggestible = false)
+        spec(AppActionId.SPLASH, ActionFamily.TECHNICAL, "splash", "启动", labelEligible = false, predictable = false, suggestible = false),
+        // Complete route coverage without changing the learned output ABI or enabling new suggestions.
+        spec(AppActionId.VIEW_CAMPUS_NOTICES, ActionFamily.CAMPUS_SERVICE, "campus_notices", "校园通知", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_STUDENT_MAIL, ActionFamily.CAMPUS_SERVICE, "student_mail", "学生邮箱", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_PROGRAM_COMPLETION, ActionFamily.ACADEMIC, "program_completion", "培养方案", sideEffect = SideEffect.READ_ONLY, sensitivity = Sensitivity.ACADEMIC, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_IDENTITY_CODE, ActionFamily.CAMPUS_SERVICE, "identity_code", "身份码", sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_PLUGIN, ActionFamily.TECHNICAL, "plugin/{pluginId}", "打开插件", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_EARLY_ACCESS, ActionFamily.SETTINGS, "settings__early_access", "抢先体验", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__privacy_policy", "隐私政策", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_THEME_LAB, ActionFamily.SETTINGS, "settings__theme_lab", "主题实验室", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_BILLING, ActionFamily.CAMPUS_SERVICE, "billing", "校园卡账单", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_BILLING_STATS, ActionFamily.CAMPUS_SERVICE, "billing_stats", "账单统计", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false)
     )
 
     private val specById = specs.associateBy(AppActionSpec::id)
@@ -223,7 +234,9 @@ object AppActionCatalog {
         "settings__license", "settings__contributors", "preferences", "electricity_pay",
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
-        "splash"
+        "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
+        "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy",
+        "settings__theme_lab", "billing", "billing_stats"
     )
 
     init {
@@ -246,6 +259,9 @@ object AppActionCatalog {
         specByRoute[route]?.let { return it.id }
         routeAliases[route]?.let { return it }
         if (route.startsWith("repository/")) return AppActionId.OPEN_REPOSITORY_DIRECTORY
+        if (route.startsWith("plugin/") && route.removePrefix("plugin/").matches(Regex("[a-z0-9_]+"))) {
+            return AppActionId.OPEN_PLUGIN
+        }
         return null
     }
 

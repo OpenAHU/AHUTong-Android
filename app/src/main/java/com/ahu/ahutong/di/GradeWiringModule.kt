@@ -5,11 +5,15 @@ import com.ahu.ahutong.data.grade.ExamSource
 import com.ahu.ahutong.core.common.MockDataSignals
 import com.ahu.ahutong.ui.state.RepositoryExamSource
 import com.ahu.ahutong.ui.state.RepositoryGradeSource
+import com.ahu.ahutong.ui.state.GradeDispatcher
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 
 /**
  * 成绩 feature 的接线：端口在 :data:grade，实现留在 :app（仓库与缓存）。
@@ -33,4 +37,10 @@ abstract class GradeWiringModule {
     @Binds
     @Singleton
     abstract fun bindExamSource(implementation: RepositoryExamSource): ExamSource
+
+    companion object {
+        @Provides
+        @GradeDispatcher
+        fun provideGradeDispatcher(): CoroutineDispatcher = Dispatchers.IO
+    }
 }

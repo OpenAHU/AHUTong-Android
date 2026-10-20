@@ -7,6 +7,13 @@ import java.util.ServiceLoader
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 插件注册表 = 编译期内置（ServiceLoader）+ 运行期安装（.ahup）的合并视图。
@@ -20,22 +27,41 @@ object PluginRegistry {
     val plugins: StateFlow<List<AhuPlugin>> = _plugins.asStateFlow()
 
     private var initialized = false
+    private val reloadMutex = Mutex()
+    private val initializationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Application's Java entry point; discovery must not delay the first frame. */
+    fun initAsync(context: Context) {
+        val application = context.applicationContext
+        initializationScope.launch { init(application) }
+    }
 
     /** 进程内初始化一次（Main 启动时调用）。 */
-    fun init(context: Context) {
-        if (initialized) return
-        initialized = true
-        reload(context)
+    suspend fun init(context: Context) = withContext(Dispatchers.IO) {
+        reloadMutex.withLock {
+            if (!initialized) reloadInternal(context)
+        }
     }
 
     /** 安装/卸载后调用：重新发现全部插件。 */
-    fun reload(context: Context) {
+    suspend fun reload(context: Context) = update(context) { }
+
+    /** Keep discovery and installation from reading or removing the same files concurrently. */
+    suspend fun update(context: Context, change: () -> Unit) = withContext(Dispatchers.IO) {
+        reloadMutex.withLock {
+            change()
+            reloadInternal(context)
+        }
+    }
+
+    private fun reloadInternal(context: Context) {
         val builtIn = runCatching {
             ServiceLoader.load(AhuPlugin::class.java, AhuPlugin::class.java.classLoader).toList()
         }.onFailure { Log.e(TAG, "内置插件发现失败", it) }
             .getOrDefault(emptyList())
         val runtime = RuntimePluginLoader.loadAll(context.applicationContext)
         _plugins.value = builtIn + runtime
+        initialized = true
         Log.i(TAG, "插件注册表：内置 ${builtIn.size} 个，运行期 ${runtime.size} 个")
     }
 

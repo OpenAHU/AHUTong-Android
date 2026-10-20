@@ -2,6 +2,8 @@ package com.ahu.ahutong.data.mail
 
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -155,7 +157,11 @@ class StudentMailDownloadTest {
             .setHeader("Content-Disposition", "attachment; filename=fixture.bin")
             .throttleBody(1024, 1, TimeUnit.SECONDS))
         val output = ByteArrayOutputStream()
-        val pending = async(start = CoroutineStart.UNDISPATCHED) {
+        val cancellationFailures = CopyOnWriteArrayList<Throwable>()
+        val pending = async(
+            context = CoroutineExceptionHandler { _, error -> cancellationFailures.add(error) },
+            start = CoroutineStart.UNDISPATCHED
+        ) {
             downloader().download("message", "3", output)
         }
         assertNotNull(withContext(Dispatchers.IO) { server.takeRequest(2, TimeUnit.SECONDS) })
@@ -164,6 +170,7 @@ class StudentMailDownloadTest {
         withTimeout(2_000) { while (client.dispatcher.runningCallsCount() != 0) delay(10) }
         assertTrue(output.size() < 100_000)
         assertTrue(pending.isCancelled)
+        assertTrue("Cancellation must not leak a completion-handler exception", cancellationFailures.isEmpty())
     }
 
     @Test fun doesNotRetryOrAcceptPartialResponse() = runBlocking {

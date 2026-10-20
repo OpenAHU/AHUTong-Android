@@ -18,6 +18,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +35,10 @@ import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.AppSectionCard
 import com.ahu.ahutong.ui.components.AppToggle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** manifest 能力字符串 → 中文标签（与 PluginCapability 枚举名一一对应）。 */
 private fun capabilityLabel(raw: String): String = when (raw.trim().uppercase()) {
@@ -57,12 +63,38 @@ fun PluginManagerSection() {
     var candidate by remember { mutableStateOf<AhupCandidate?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var listTick by remember { mutableIntStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    fun runPluginOperation(block: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                error = null
+                block()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = failure.message ?: "插件操作失败"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val runtimePlugins by produceState<List<Pair<String, AhupManifest?>>>(emptyList(), devMode, listTick) {
+        value = withContext(Dispatchers.IO) {
+            if (devMode) AhupInstaller.installedIds(context).map { it to AhupInstaller.manifestOf(context, it) }
+            else emptyList()
+        }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            runCatching { AhupInstaller.inspect(context, uri) }
-                .onSuccess { candidate = it }
-                .onFailure { error = it.message ?: "插件包解析失败" }
+            runPluginOperation {
+                candidate = withContext(Dispatchers.IO) { AhupInstaller.inspect(context, uri) }
+            }
         }
     }
 
@@ -114,10 +146,7 @@ fun PluginManagerSection() {
             }
 
             if (devMode) {
-                @Suppress("UNUSED_EXPRESSION") listTick // 卸载/安装后递增以重组列表
-                val runtimePlugins = AhupInstaller.installedIds(context)
-                runtimePlugins.forEach { id ->
-                    val manifest = AhupInstaller.manifestOf(context, id)
+                runtimePlugins.forEach { (id, manifest) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -132,10 +161,13 @@ fun PluginManagerSection() {
                         }
                         AppButton(
                             onClick = {
-                                AhupInstaller.uninstall(context, id)
-                                cleanupPluginData(context, id)
-                                PluginRegistry.reload(context)
-                                listTick++
+                                runPluginOperation {
+                                    PluginRegistry.update(context) {
+                                        AhupInstaller.uninstall(context, id)
+                                        cleanupPluginData(context, id)
+                                    }
+                                    listTick++
+                                }
                             },
                             variant = AppButtonVariant.Secondary
                         ) { Text("卸载") }
@@ -196,9 +228,11 @@ fun PluginManagerSection() {
                     label = if (remaining > 0) "我已阅读（${remaining}s）" else "我已阅读，开启",
                     onClick = {
                         if (remaining > 0) return@AppDialogAction
-                        AhupGate.setDevMode(context, true)
-                        devMode = true
-                        showEnableDisclaimer = false
+                        runPluginOperation {
+                            AhupGate.setDevMode(context, true)
+                            devMode = true
+                            showEnableDisclaimer = false
+                        }
                     },
                     style = AppDialogActionStyle.Primary
                 )
@@ -236,9 +270,11 @@ fun PluginManagerSection() {
                 AppDialogAction(
                     label = "关闭并卸载全部",
                     onClick = {
-                        AhupGate.setDevMode(context, false)
-                        devMode = false
-                        showDisableConfirm = false
+                        runPluginOperation {
+                            AhupGate.setDevMode(context, false)
+                            devMode = false
+                            showDisableConfirm = false
+                        }
                     },
                     style = AppDialogActionStyle.Danger
                 )
@@ -277,10 +313,11 @@ fun PluginManagerSection() {
                     label = if (installBlocked) "请先卸载旧版本" else "安装",
                     enabled = !installBlocked,
                     onClick = {
-                        AhupInstaller.install(context, c)
-                        PluginRegistry.reload(context)
-                        candidate = null
-                        listTick++
+                        runPluginOperation {
+                            PluginRegistry.update(context) { AhupInstaller.install(context, c) }
+                            candidate = null
+                            listTick++
+                        }
                     },
                     style = if (c.signatureStatus == AhupInstaller.SignatureStatus.INVALID ||
                         installBlocked

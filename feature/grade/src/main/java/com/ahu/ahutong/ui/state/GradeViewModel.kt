@@ -31,6 +31,10 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import com.ahu.ahutong.core.common.toUserMessage
 import com.ahu.ahutong.data.session.SessionIdentity
 
@@ -40,7 +44,8 @@ class GradeViewModel @Inject constructor(
     private val presets: PresetSuggestions,
     private val grades: GradeSource,
     private val session: SessionIdentity,
-    private val weekConfig: ScheduleWeekConfig
+    private val weekConfig: ScheduleWeekConfig,
+    @GradeDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     private val tag = "GradeViewModel"
 
@@ -83,8 +88,10 @@ class GradeViewModel @Inject constructor(
 
     /** 每个 profile ID → Grade（null = 该专业无成绩） */
     private var perProfileGrades: Map<String, Grade?> = emptyMap()
+    private val cacheRestoreJob: Job
 
     fun getGpaRank() = viewModelScope.launch {
+        cacheRestoreJob.join()
         if (rankLoading) {
             Log.i(tag, "getGpaRank skip: already loading")
             return@launch
@@ -109,7 +116,7 @@ class GradeViewModel @Inject constructor(
             val rankPayload = result.valueOrNull()
             if (rankPayload != null) {
                 gpaRankInfo = rankPayload
-                grades.saveGpaRank(studentId, rankPayload)
+                withContext(ioDispatcher) { grades.saveGpaRank(studentId, rankPayload) }
             } else {
                 gpaRankInfo = null
                 rankEmptyMessage = "「${profile.displayName}」暂无排名信息"
@@ -130,6 +137,7 @@ class GradeViewModel @Inject constructor(
     }
 
     private suspend fun loadGrade(isRefresh: Boolean, preserveSelectedTerm: Boolean) {
+        cacheRestoreJob.join()
         if (isLoading) return
         val previousTerm = selectedTerm()
         isLoading = true
@@ -138,7 +146,7 @@ class GradeViewModel @Inject constructor(
             if (result.isSuccess) {
             grade = result.valueOrNull()
                 // 加载由 CrawlerDataSource 写入的 per-profile 缓存
-                perProfileGrades = grades.cachedPerProfileGrades()
+                perProfileGrades = withContext(ioDispatcher) { grades.cachedPerProfileGrades() }
                 val profiles = resolveRankProfiles()
                 // 如果 per-profile 缓存为空（单学号学生首次加载），直接使用合并后的 grade
                 if (perProfileGrades.isNotEmpty()) {
@@ -186,7 +194,7 @@ class GradeViewModel @Inject constructor(
     private suspend fun resolveRankProfiles(): List<GradeStudentProfile> {
         var profiles = studentProfiles
         if (profiles.isEmpty() && !grades.usesMockData()) {
-            profiles = grades.cachedProfiles()
+            profiles = withContext(ioDispatcher) { grades.cachedProfiles() }
             Log.i(tag, "resolveRankProfiles cache size=${profiles.size}")
         }
         if (profiles.isEmpty() && !grades.usesMockData()) {
@@ -347,16 +355,16 @@ class GradeViewModel @Inject constructor(
             .onEach { refreshTermAndYearGPA() }
             .launchIn(viewModelScope)
 
-        val cachedProfiles = if (grades.usesMockData()) emptyList() else grades.cachedProfiles()
-        perProfileGrades = grades.cachedPerProfileGrades()
-        studentProfiles = if (perProfileGrades.isNotEmpty() || cachedProfiles.size <= 1) {
-            cachedProfiles
-        } else {
-            emptyList()
-        }
-        // 加载第一个专业的缓存排名
-        cachedProfiles.firstOrNull()?.let {
-            gpaRankInfo = grades.cachedGpaRank(it.id)
+        cacheRestoreJob = viewModelScope.launch {
+            val owner = session.currentUser()?.xh to session.isLoggedIn()
+            val (cachedProfiles, cachedGrades, cachedRank) = withContext(ioDispatcher) {
+                val profiles = if (grades.usesMockData()) emptyList() else grades.cachedProfiles()
+                Triple(profiles, grades.cachedPerProfileGrades(), profiles.firstOrNull()?.let { grades.cachedGpaRank(it.id) })
+            }
+            if (owner != (session.currentUser()?.xh to session.isLoggedIn())) return@launch
+            perProfileGrades = cachedGrades
+            studentProfiles = if (cachedGrades.isNotEmpty() || cachedProfiles.size <= 1) cachedProfiles else emptyList()
+            gpaRankInfo = cachedRank
         }
         viewModelScope.launch {
             presetCandidates = presets.rank(SemanticDomain.GRADE)

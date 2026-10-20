@@ -20,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -120,16 +123,18 @@ fun License(
     }
 
     selectedLicense?.let { license ->
-        val licenseText = remember(license) {
-            listOfNotNull(license.noticeAsset, license.licenseAsset)
-                .map { assetPath ->
-                    runCatching {
-                        context.assets.open(assetPath).bufferedReader().use { it.readText() }
-                    }.getOrElse {
-                        context.getString(R.string.license_load_failed, assetPath)
+        val licenseText by produceState("", license) {
+            value = withContext(Dispatchers.IO) {
+                listOfNotNull(license.noticeAsset, license.licenseAsset)
+                    .map { assetPath ->
+                        runCatching {
+                            context.assets.open(assetPath).bufferedReader().use { it.readText() }
+                        }.getOrElse {
+                            context.getString(R.string.license_load_failed, assetPath)
+                        }
                     }
-                }
-                .joinToString("\n\n")
+                    .joinToString("\n\n")
+            }
         }
 
         AppDialog(

@@ -42,11 +42,7 @@ data class StudentMailUiState(
 
 class StudentMailViewModel : ViewModel() {
     private val repository = StudentMailRepository()
-    private val mutableState = MutableStateFlow(StudentMailSession.cachedOverview()?.let { overview ->
-        StudentMailUiState(connected = true, account = overview.account, folders = overview.folders,
-            folderId = overview.folderId, messages = overview.page.messages, total = overview.page.total,
-            unreadOnly = overview.unreadOnly)
-    } ?: StudentMailUiState())
+    private val mutableState = MutableStateFlow(StudentMailUiState())
     val state: StateFlow<StudentMailUiState> = mutableState.asStateFlow()
     private var operation: Job? = null
     private var operationRevision = 0L
@@ -56,12 +52,22 @@ class StudentMailViewModel : ViewModel() {
     private fun busy() = state.value.let { it.loading || it.sending || it.saving || it.transfer != null }
 
     init {
-        connect()
+        viewModelScope.launch {
+            if (operationRevision != 0L) return@launch
+            val overview = withContext(Dispatchers.IO) { StudentMailSession.cachedOverview() }
+            if (operationRevision != 0L) return@launch
+            overview?.let {
+                mutableState.value = StudentMailUiState(connected = true, account = it.account, folders = it.folders,
+                    folderId = it.folderId, messages = it.page.messages, total = it.page.total, unreadOnly = it.unreadOnly)
+            }
+            connect()
+        }
         viewModelScope.launch {
             AhuSessionState.status.collect { status ->
                 if (status == AhuSessionState.Status.Anonymous && !canResumePersistedCampusSession(
                         SessionRefreshCoordinator.isExplicitlySignedOut(), status, SessionStore.isLoggedIn())) {
                     operation?.cancel()
+                    operationRevision++
                     pendingUploadKey = null
                     pendingDownload = null
                     repository.disconnect()
@@ -80,8 +86,10 @@ class StudentMailViewModel : ViewModel() {
                 block()
                 repository.webSession().assertCurrent()
                 state.value.takeIf { it.connected }?.let { current ->
-                    repository.rememberOverview(MailOverview(current.account, current.folders, current.folderId,
-                        MailPage(current.messages, current.total), current.unreadOnly))
+                    withContext(Dispatchers.IO) {
+                        repository.rememberOverview(MailOverview(current.account, current.folders, current.folderId,
+                            MailPage(current.messages, current.total), current.unreadOnly))
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled

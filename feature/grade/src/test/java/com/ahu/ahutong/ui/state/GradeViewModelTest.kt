@@ -60,7 +60,7 @@ class GradeViewModelTest {
         behavior: FakeGradeBehavior = FakeGradeBehavior(),
         presets: FakePresetSuggestions = FakePresetSuggestions(),
         session: FakeGradeSession = FakeGradeSession()
-    ) = GradeViewModel(behavior, presets, source, session, FakeGradeWeekConfig())
+    ) = GradeViewModel(behavior, presets, source, session, FakeGradeWeekConfig(), dispatcher)
 
     @Test
     fun `a successful load records a ready content state`() = runTest(dispatcher) {

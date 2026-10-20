@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ahu.ahutong.data.AHURepository
+import com.ahu.ahutong.data.crawler.login.isCasPostLoginUrl
 import com.google.gson.Gson
 import org.json.JSONObject
 
@@ -125,6 +126,7 @@ private fun createJwxtLoginWebView(
             private var completed = false
             private var mainFrameNavigationId = 0
             private var ssoFallbackNavigationId = -1
+            private val postLoginSsoStages = mutableSetOf<String>()
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 mainFrameNavigationId++
@@ -159,6 +161,16 @@ private fun createJwxtLoginWebView(
                     uri.host.equals(JWXT_HOST, ignoreCase = true) &&
                         uri.path?.trimEnd('/') == JWXT_LOGIN_PATH -> {
                         scheduleSsoFallback(view)
+                    }
+
+                    isCasPostLoginUrl(url) -> {
+                        val stage = if (uri.path.orEmpty().startsWith("/tp_up/")) "portal" else "guide"
+                        if (postLoginSsoStages.add(stage)) {
+                            view.loadUrl(JWXT_LOGIN_URL)
+                        } else {
+                            // 学校仍强制要求设置手机号时，把页面交给用户。
+                            onInteractionRequired()
+                        }
                     }
 
                     uri.host.equals(CAS_HOST, ignoreCase = true) &&

@@ -11,6 +11,7 @@ import com.ahu.ahutong.data.network.retrofit
 import retrofit2.http.Header
 import retrofit2.http.POST
 import com.ahu.ahutong.data.network.AhuHttp
+import com.ahu.ahutong.data.network.asciiUserAgent
 
 interface TelemetryApi {
     @POST("/v1/on-device-model-evaluations/credentials")
@@ -55,7 +56,7 @@ interface TelemetryApi {
                 chain.proceed(
                     request.newBuilder()
                         .removeHeader("Cookie")
-                        .header("User-Agent", "AHUTong/${BuildConfig.VERSION_NAME} (Android telemetry)")
+                        .header("User-Agent", asciiUserAgent("AHUTong/${BuildConfig.VERSION_NAME} (Android telemetry)"))
                         .header("Accept", "application/json")
                         .build()
                 )

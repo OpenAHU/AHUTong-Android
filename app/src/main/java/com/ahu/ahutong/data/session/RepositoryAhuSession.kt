@@ -81,7 +81,10 @@ class RepositoryAhuSession(
         // 续期成功即回到已认证：协调器只负责并发与代号，登录态的写入留在会话层。
         if (refreshed) {
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration + 1, refreshScope) {
-                if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
+                // A restarted process begins Anonymous even when its account was persisted.
+                if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
+                    account.currentUser() != null
+                ) {
                     AhuSessionState.markAuthenticated()
                 }
             }
@@ -94,7 +97,9 @@ class RepositoryAhuSession(
                 // 只有凭据被明确拒绝（REJECTED）才宣告过期、触发重新登录引导；
                 // 瞬时失败（网络抖动/超时）保持静默——冷却窗外下个请求会自动再试，
                 // 这是 0492acc 之前旧实现的自愈体验，不该退化成「抖一下就逼用户重登」。
-                if (rejected && AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
+                if (rejected && (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
+                    account.currentUser() != null)
+                ) {
                     AhuSessionState.markExpired()
                 }
             }

@@ -11,6 +11,7 @@ import com.ahu.ahutong.data.network.retrofit
 import retrofit2.http.Header
 import retrofit2.http.POST
 import com.ahu.ahutong.data.network.AhuHttp
+import com.ahu.ahutong.data.network.asciiUserAgent
 
 interface BootstrapTrainingApi {
     @POST("/v1/bootstrap-training-data/credentials")
@@ -59,7 +60,7 @@ interface BootstrapTrainingApi {
                         .apply {
                             request.header("Authorization")?.let { header("Authorization", it) }
                         }
-                        .header("User-Agent", "AHUTong/${BuildConfig.VERSION_NAME} (Android bootstrap-training)")
+                        .header("User-Agent", asciiUserAgent("AHUTong/${BuildConfig.VERSION_NAME} (Android bootstrap-training)"))
                         .header("Accept", "application/json")
                         .build()
                 )

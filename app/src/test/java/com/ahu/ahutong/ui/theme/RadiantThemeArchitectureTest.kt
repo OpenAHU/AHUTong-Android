@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 class RadiantThemeArchitectureTest {
     @Test
-    fun `radiant owns a distinct home and bottom navigation layout`() {
+    fun `themes share the Radiant home structure and retain themed bottom navigation`() {
         assertTrue(AppUiTheme.LIQUID_GLASS.usesLiquidGlass)
         assertTrue(AppUiTheme.RADIANT.usesLiquidGlass)
 
@@ -16,12 +16,13 @@ class RadiantThemeArchitectureTest {
         val bottomBar = source("com/ahu/ahutong/ui/screen/BottomNavBar.kt")
         val main = source("com/ahu/ahutong/ui/screen/Main.kt")
 
-        assertTrue(home.contains("val radiant = isRadiantUi"))
+        assertFalse(home.contains("val radiant = isRadiantUi"))
         assertTrue(home.contains("HomeWidgetRegistry.slotCountRadiant"))
         assertTrue(home.contains("HomeDateRow("))
         assertTrue(bottomBar.contains("if (isRadiantUi)"))
         assertTrue(bottomBar.contains("\"xuexiaotong\""))
-        assertTrue(main.contains("currentRoute == \"xuexiaotong\""))
+        assertTrue(main.contains("animatedComposable(\"xuexiaotong\")"))
+        assertTrue(main.contains("selectedRoute = currentRoute"))
     }
 
     @Test

@@ -1,9 +1,14 @@
 package com.ahu.ahutong.data.update
 
 import com.ahu.ahutong.data.network.AhuHttp
+import com.ahu.ahutong.data.network.asciiUserAgent
 import com.ahu.ahutong.data.network.retrofit
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
+import okhttp3.Call
 import okhttp3.Dispatcher
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -28,6 +33,7 @@ interface ApkDownloadApi {
     companion object {
 
         private const val BASE_URL = "https://openahu.org"
+        private val downloadCalls = ApkDownloadCalls()
 
         private val client: OkHttpClient by lazy {
             val base = AhuHttp.plain(
@@ -44,13 +50,14 @@ interface ApkDownloadApi {
                     chain.proceed(request)
                 }
                 .build()
-            createApkDownloadClient(base)
+            createApkDownloadClient(base, downloadCalls)
         }
 
         val API: ApkDownloadApi by lazy { retrofit(BASE_URL, client).create(ApkDownloadApi::class.java) }
 
         /** 取消所有进行中的下载（切镜像时用：关掉 socket，别等读超时）。 */
         fun cancelAll() {
+            downloadCalls.cancelAll()
             client.dispatcher.cancelAll()
         }
 
@@ -59,7 +66,7 @@ interface ApkDownloadApi {
             val versionName = runCatching {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionName
             }.getOrNull().orEmpty()
-            return "AHUTong/$versionName (Android)"
+            return asciiUserAgent("AHUTong/$versionName (Android)")
         }
     }
 }
@@ -77,10 +84,25 @@ class RetrofitApkDownloadTransport @Inject constructor() : ApkDownloadTransport 
     override fun cancelAll() = ApkDownloadApi.cancelAll()
 }
 
-internal fun createApkDownloadClient(baseClient: OkHttpClient): OkHttpClient =
+/** Streaming callbacks leave the dispatcher before their response bodies finish. */
+internal class ApkDownloadCalls : EventListener() {
+    private val calls = ConcurrentHashMap.newKeySet<Call>()
+
+    override fun callStart(call: Call) { calls.add(call) }
+    override fun callEnd(call: Call) { calls.remove(call) }
+    override fun callFailed(call: Call, ioe: IOException) { calls.remove(call) }
+
+    fun cancelAll() { calls.forEach { it.cancel() } }
+}
+
+internal fun createApkDownloadClient(
+    baseClient: OkHttpClient,
+    downloadCalls: ApkDownloadCalls = ApkDownloadCalls()
+): OkHttpClient =
     baseClient.newBuilder()
         // Cancelling an APK or switching its mirror must not cancel ordinary API calls.
         .dispatcher(Dispatcher())
+        .eventListener(downloadCalls)
         .followRedirects(false)
         .followSslRedirects(false)
         .build()

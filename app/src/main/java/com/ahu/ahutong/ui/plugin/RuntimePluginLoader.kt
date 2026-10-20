@@ -19,24 +19,28 @@ import java.util.concurrent.ConcurrentHashMap
 object RuntimePluginLoader {
 
     /** 最近一次装载失败的「id: 原因」——给插件区排障展示（本机日志级别不可靠）。 */
-    val lastErrors = mutableListOf<String>()
+    @Volatile
+    var lastErrors: List<String> = emptyList()
+        private set
 
     /** 已装载插件的上下文（路由渲染时要传给 createContentView）。 */
     private val pluginContexts = ConcurrentHashMap<String, PluginContextWrapper>()
 
     fun loadAll(context: Context): List<AhuPlugin> {
-        lastErrors.clear()
+        val errors = mutableListOf<String>()
         pluginContexts.clear()
-        return AhupInstaller.installedIds(context).mapNotNull { id ->
+        val plugins = AhupInstaller.installedIds(context).mapNotNull { id ->
             runCatching { load(context, id) }
                 .onFailure {
                     // 反射包装的异常剥到根因（InvocationTargetException 的 message 恒为 null）
                     val root = generateSequence(it) { e -> e.cause }.last()
-                    lastErrors.add("$id: ${root.javaClass.simpleName}: ${root.message}")
+                    errors.add("$id: ${root.javaClass.simpleName}: ${root.message}")
                     Log.e(TAG, "插件 $id 装载失败", it)
                 }
                 .getOrNull()
         }
+        lastErrors = errors.toList()
+        return plugins
     }
 
     /** 插件专属 Context；内置插件（无插件包）返回 null，由调用方回退到宿主 Context。 */

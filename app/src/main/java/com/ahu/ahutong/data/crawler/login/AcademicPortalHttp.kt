@@ -48,6 +48,7 @@ internal object AcademicPortalHttp {
     private suspend fun execute(address: String, fields: Map<String, String>?, gmisReferer: String?): PortalPage {
         var url = securePortalUrl(address)
         var form = fields
+        var casSessionIssued = false
         repeat(12) {
             kotlinx.coroutines.currentCoroutineContext().ensureActive()
             val builder = Request.Builder().url(url).header("User-Agent", JwxtApi.BROWSER_USER_AGENT)
@@ -68,13 +69,19 @@ internal object AcademicPortalHttp {
                 builder.post(body.build())
             }
             client.newCall(builder.build()).execute().use { response ->
+                casSessionIssued = casSessionIssued || hasIssuedCasSession(response)
+                if (gmisReferer == null) {
+                    casPostLoginRedirect(response, casSessionIssued)?.let { return it }
+                }
                 if (response.code in listOf(301, 302, 303, 307, 308)) {
                     val next = response.header("Location")?.let(url::resolve)
                         ?: throw IOException("Missing portal redirect")
                     url = securePortalUrl(next.toString())
                     if (response.code !in listOf(307, 308)) form = null
                 } else {
-                    return PortalPage(url.toString(), response.code, response.body?.string().orEmpty())
+                    return PortalPage(
+                        url.toString(), response.code, response.body?.string().orEmpty(), casSessionIssued
+                    )
                 }
             }
         }

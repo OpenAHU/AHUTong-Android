@@ -46,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -334,12 +335,17 @@ fun Main(
     // 一键扫码浮层（同页弹窗，不跳导航页）
     var scanOpen by remember { mutableStateOf(false) }
     val backgroundRevision by HomeBackgroundStore.revision.collectAsState()
-    val appBackground = remember(backgroundRevision) {
-        if (HomeBackgroundStore.isEnabled) {
-            HomeBackgroundStore.blurredFile(context).takeIf { it.exists() }
-                ?.let { BitmapFactory.decodeFile(it.absolutePath)?.asImageBitmap() }
-                ?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
-        } else null
+    val backgroundImageRevision by HomeBackgroundStore.imageRevision.collectAsState()
+    val backgroundBitmap by produceState<ImageBitmap?>(null, context, backgroundImageRevision) {
+        value = withContext(Dispatchers.IO) {
+            if (HomeBackgroundStore.isEnabled) {
+                HomeBackgroundStore.blurredFile(context).takeIf { it.exists() }
+                    ?.let { BitmapFactory.decodeFile(it.absolutePath)?.asImageBitmap() }
+            } else null
+        }
+    }
+    val appBackground = remember(backgroundBitmap, backgroundRevision) {
+        backgroundBitmap?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
     }
     CompositionLocalProvider(
         LocalAppBackground provides appBackground,
@@ -379,6 +385,8 @@ fun Main(
                     navController = navController,
                     behaviorRuntime = behaviorRuntime,
                     isActive = isHomeActive,
+                    undergraduateEnabled = undergraduateEnabled,
+                    accountId = SessionStore.currentUser()?.xh,
                     onOpenSchedule = {
                         scope.launch { selectPrimaryDestination("schedule") }
                     },

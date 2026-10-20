@@ -22,6 +22,14 @@ import com.ahu.ahutong.personalization.context.ExamDistanceBucket
 import com.ahu.ahutong.personalization.recorder.BehaviorRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import javax.inject.Qualifier
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GradeDispatcher
 
 internal object ExamRefreshPolicy {
     const val AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1_000L
@@ -50,7 +58,8 @@ internal fun List<Exam>.hasSameExamContents(other: List<Exam>): Boolean {
 class ExamViewModel @Inject constructor(
     private val exams: ExamSource,
     private val session: SessionIdentity,
-    private val behavior: BehaviorRecorder
+    private val behavior: BehaviorRecorder,
+    @GradeDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
     val data = MutableLiveData<AhuResult<List<Exam>>>()
 
@@ -85,7 +94,9 @@ class ExamViewModel @Inject constructor(
         if (!isRefresh && isLoading.value == true) return
 
         refreshJob = viewModelScope.launchSafe {
-            val user = session.currentUser()
+            val user = withContext(ioDispatcher) { session.currentUser() }
+            val owner = Triple(user?.xh, session.isLoggedIn(), exams.usesMockData())
+            fun ownerIsCurrent() = owner == Triple(session.currentUser()?.xh, session.isLoggedIn(), exams.usesMockData())
             if (user == null && !exams.usesMockData()) {
                 data.value = AhuResult.Failure(AhuError.Unauthorized("账户未登录"))
                 errorMessage.value = "账户未登录"
@@ -93,8 +104,10 @@ class ExamViewModel @Inject constructor(
             }
 
             // 1. 优先展示缓存数据，首屏秒出
-            val cached = exams.cachedExams()
-            val cachedAt = exams.cachedAt()
+            val (cached, cachedAt) = withContext(ioDispatcher) {
+                exams.cachedExams() to exams.cachedAt()
+            }
+            if (!ownerIsCurrent()) return@launchSafe
             val hasCachedSnapshot = cachedAt > 0L
             if (!isRefresh && (cached.isNotEmpty() || hasCachedSnapshot)) {
                 data.value = AhuResult.Success(cached)
@@ -122,6 +135,11 @@ class ExamViewModel @Inject constructor(
                 studentId = user?.xh ?: "mock-student",
                 studentName = user?.name ?: "Mock 用户"
             )
+            if (!ownerIsCurrent()) {
+                isLoading.value = false
+                _refreshState.value = RefreshState.IDLE
+                return@launchSafe
+            }
 
             if (result.isSuccess) {
                     val newExams = result.valueOrNull().orEmpty()
