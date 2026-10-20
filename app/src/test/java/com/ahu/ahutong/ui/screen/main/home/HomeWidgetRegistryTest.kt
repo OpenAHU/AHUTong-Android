@@ -1,7 +1,9 @@
 package com.ahu.ahutong.ui.screen.main.home
 
-import androidx.compose.runtime.Composable
+import android.content.Context
+import android.view.View
 import com.ahu.ahutong.core.plugin.AhuPlugin
+import com.ahu.ahutong.core.plugin.PluginCapability
 import com.ahu.ahutong.core.plugin.PluginHostServices
 import com.ahu.ahutong.core.plugin.PluginIcon
 import com.ahu.ahutong.core.plugin.PluginMeta
@@ -22,7 +24,10 @@ class HomeWidgetRegistryTest {
             assertFalse(HomeWidgetRegistry.widgetById.containsKey("plugin:test_widget"))
             val plugin = object : AhuPlugin {
                 override val meta = PluginMeta("test_widget", "Test", "", PluginIcon.Resource(0), 0L, "1", "test")
-                @Composable override fun Entry(host: PluginHostServices) = Unit
+                override val capabilities: Set<PluginCapability> = emptySet()
+                override fun createContentView(context: Context, host: PluginHostServices): View =
+                    View(context)
+                override fun onDestroy() = Unit
             }
             discovery.value = listOf(plugin)
             val index = HomeWidgetRegistry.widgetById

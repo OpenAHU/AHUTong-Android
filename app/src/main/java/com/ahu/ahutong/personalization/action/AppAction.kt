@@ -136,6 +136,8 @@ object AppActionCatalog {
         spec(AppActionId.SPLASH, ActionFamily.TECHNICAL, "splash", "启动", labelEligible = false, predictable = false, suggestible = false),
         // Complete route coverage without changing the learned output ABI or enabling new suggestions.
         spec(AppActionId.VIEW_CAMPUS_NOTICES, ActionFamily.CAMPUS_SERVICE, "campus_notices", "校园通知", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_CANTEEN_RANKING, ActionFamily.CAMPUS_SERVICE, "canteen_ranking", "安大必吃榜", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_CANTEEN_FOOTPRINT, ActionFamily.CAMPUS_SERVICE, "canteen_footprint", "干饭足迹", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_STUDENT_MAIL, ActionFamily.CAMPUS_SERVICE, "student_mail", "学生邮箱", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_PROGRAM_COMPLETION, ActionFamily.ACADEMIC, "program_completion", "培养方案", sideEffect = SideEffect.READ_ONLY, sensitivity = Sensitivity.ACADEMIC, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_IDENTITY_CODE, ActionFamily.CAMPUS_SERVICE, "identity_code", "身份码", sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
@@ -235,6 +237,7 @@ object AppActionCatalog {
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
+        "canteen_ranking", "canteen_footprint",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy",
         "settings__theme_lab", "billing", "billing_stats"
     )

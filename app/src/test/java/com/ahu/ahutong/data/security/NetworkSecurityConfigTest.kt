@@ -8,14 +8,16 @@ import kotlin.test.assertTrue
 
 class NetworkSecurityConfigTest {
     @Test
-    fun `cleartext is limited to the in-process loopback bridge`() {
+    fun `cleartext is limited to the loopback bridge and the canteen endpoint`() {
         val xml = File(repositoryRoot(), "app/src/main/res/xml/network_security_config.xml")
             .readText()
 
         assertTrue(xml.contains("<base-config cleartextTrafficPermitted=\"false\""))
-        assertEquals(1, Regex("<domain-config cleartextTrafficPermitted=\"true\"").findAll(xml).count())
+        assertEquals(2, Regex("<domain-config cleartextTrafficPermitted=\"true\"").findAll(xml).count())
         assertTrue(xml.contains(">127.0.0.1</domain>"))
         assertTrue(xml.contains(">localhost</domain>"))
+        // 必吃榜服务器在域名备案完成前按 IP 明文直连（HTTPS 上线后删除该块）。
+        assertTrue(xml.contains(">121.37.174.199</domain>"))
     }
 
     @Test

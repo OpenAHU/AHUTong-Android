@@ -30,6 +30,11 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+
+    testOptions {
+        // CircleApi 用 android.util.LruCache；JVM 单测里按默认值返回即可。
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
