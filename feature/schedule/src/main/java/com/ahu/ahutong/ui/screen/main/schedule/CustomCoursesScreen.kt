@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -443,6 +448,7 @@ private fun CustomCourseSlotEditor(
 ) {
     val context = LocalContext.current
     val span = slot.resolvedSpan()
+    var weekDialogVisible by remember { mutableStateOf(false) }
     AppSectionCard(contentPadding = PaddingValues(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -470,13 +476,9 @@ private fun CustomCourseSlotEditor(
             modifier = Modifier.fillMaxWidth()
         )
 
-        WeekPicker(
+        WeekSelectionRow(
             selected = slot.weeks,
-            onToggle = { week ->
-                val weeks = if (week in slot.weeks) slot.weeks - week else slot.weeks + week
-                onChange(slot.copy(weeks = weeks))
-            },
-            onReplace = { weeks -> onChange(slot.copy(weeks = weeks)) }
+            onClick = { weekDialogVisible = true }
         )
 
         Row(
@@ -567,51 +569,127 @@ private fun CustomCourseSlotEditor(
             )
         }
     }
+    if (weekDialogVisible) {
+        WeekSelectionDialog(
+            initial = slot.weeks,
+            onDismiss = { weekDialogVisible = false },
+            onConfirm = { weeks ->
+                weekDialogVisible = false
+                onChange(slot.copy(weeks = weeks))
+            }
+        )
+    }
 }
 
 @Composable
-private fun WeekPicker(
+private fun WeekSelectionRow(
     selected: Set<Int>,
-    onToggle: (Int) -> Unit,
-    onReplace: (Set<Int>) -> Unit
+    onClick: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
-            text = "上课周次（已选 ${selected.size} 周）",
+            text = "上课周次",
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.bodyMedium
         )
-        // 快捷操作单独一行并允许换行：窄屏 / 大字号下标题和按钮同排会把「双周」挤出屏幕。
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
+        Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            WeekQuickAction("全选") {
-                onReplace((1..CUSTOM_COURSE_MAX_WEEK).toSet())
-            }
-            WeekQuickAction("单周") {
-                onReplace((1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 1 }.toSet())
-            }
-            WeekQuickAction("双周") {
-                onReplace((1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 0 }.toSet())
-            }
-            WeekQuickAction("清空") { onReplace(emptySet()) }
-        }
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            (1..CUSTOM_COURSE_MAX_WEEK).forEach { week ->
-                AppFilterChip(
-                    selected = week in selected,
-                    onClick = { onToggle(week) },
-                    label = { Text("$week") }
-                )
-            }
+            Text(
+                text = weekSelectionLabel(selected),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
+}
+
+@Composable
+private fun WeekSelectionDialog(
+    initial: Set<Int>,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<Int>) -> Unit
+) {
+    var weeks by remember { mutableStateOf(initial) }
+    AppDialog(
+        title = "选择上课周次",
+        subtitle = "已选 ${weeks.size} 周",
+        onDismiss = onDismiss,
+        contentScrollable = true,
+        actions = listOf(
+            AppDialogAction("取消", onClick = onDismiss),
+            AppDialogAction(
+                "完成",
+                onClick = { onConfirm(weeks) },
+                style = AppDialogActionStyle.Primary
+            )
+        ),
+        content = {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                WeekQuickAction("全选") {
+                    weeks = (1..CUSTOM_COURSE_MAX_WEEK).toSet()
+                }
+                WeekQuickAction("单周") {
+                    weeks = (1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 1 }.toSet()
+                }
+                WeekQuickAction("双周") {
+                    weeks = (1..CUSTOM_COURSE_MAX_WEEK).filter { it % 2 == 0 }.toSet()
+                }
+                WeekQuickAction("清空") { weeks = emptySet() }
+            }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                (1..CUSTOM_COURSE_MAX_WEEK).forEach { week ->
+                    AppFilterChip(
+                        selected = week in weeks,
+                        onClick = {
+                            weeks = if (week in weeks) weeks - week else weeks + week
+                        },
+                        label = { Text("$week") }
+                    )
+                }
+            }
+        }
+    )
+}
+
+private fun weekSelectionLabel(weeks: Set<Int>): String {
+    val sorted = weeks.filter { it in 1..CUSTOM_COURSE_MAX_WEEK }.distinct().sorted()
+    if (sorted.isEmpty()) return "未选择"
+    if (sorted.size == CUSTOM_COURSE_MAX_WEEK) return "全部 ${CUSTOM_COURSE_MAX_WEEK} 周"
+    val first = sorted.first()
+    val last = sorted.last()
+    if (sorted.size == 1) return "第${first}周"
+    if (sorted.zipWithNext().all { (a, b) -> b - a == 1 }) {
+        return "第${first}-${last}周"
+    }
+    if (sorted.zipWithNext().all { (a, b) -> b - a == 2 }) {
+        return "第${first}-${last}${if (first % 2 == 0) "双" else "单"}周"
+    }
+    return sorted.joinToString("/") + "周"
 }
 
 @Composable
