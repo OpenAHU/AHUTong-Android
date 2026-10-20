@@ -99,10 +99,16 @@ def verify_signature(apk, apksigner):
     if not re.fullmatch(r"[a-f0-9]{64}", pin):
         raise ValidationError("ANDROID_CERT_SHA256 must contain a SHA-256 certificate pin")
     output = run([str(apksigner), "verify", "--print-certs", str(apk)])
+    # Build Tools 37 labels certificates by signature scheme instead of "Signer #1".
     certificates = re.findall(
-        r"^Signer #\d+ certificate SHA-256 digest: ([A-Fa-f0-9:]+)\s*$", output, re.MULTILINE
+        r"^(?:Signer #\d+|(?:V\d+(?:\.\d+)? )?Signer:) certificate SHA-256 digest: "
+        r"([A-Fa-f0-9:]+)[ \t\r]*$", output, re.MULTILINE
     )
-    if len(certificates) != 1 or certificates[0].replace(":", "").lower() != pin:
+    if not certificates:
+        raise ValidationError("Cannot read APK signing certificate SHA-256 from apksigner output")
+    if len(certificates) != 1:
+        raise ValidationError("Expected exactly one APK signing certificate")
+    if certificates[0].replace(":", "").lower() != pin:
         raise ValidationError("APK signing certificate does not match ANDROID_CERT_SHA256")
 
 

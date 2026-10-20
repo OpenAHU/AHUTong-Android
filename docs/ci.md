@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `checks.yml` / Code checks | 提交、PR、手动；也供发布复用 | diff/凭据检查、发布脚本测试、Rust 测试与 Clippy、Android 单测、Release lint |
 | `build.yml` / Build APKs | 提交、PR、手动 | 编译固定 SDK 子模块的 Android SO，构建 Debug 与无签名 Release，核对 SO 来源和 R8 UUID，归档 APK/mapping |
-| `publish.yml` / 发布版本 | 仅手动 `workflow_dispatch` | 通过完整检查后，计算版本、签名、上传 mapping、发布服务器、记录 Sentry release/deploy |
+| `publish.yml` / 发布版本 | 仅手动 `workflow_dispatch` | 通过完整检查后，计算版本、签名、上传 mapping、发布服务器、回写版本号、记录 Sentry release/deploy |
 
 同仓库分支已有 PR 时，自动流程优先检查 PR merge commit，避免 push/PR 重复运行。新提交取消该分支旧的自动检查/构建；发布流程跨两个渠道串行，不取消正在发布的版本。工具链和缓存配置集中在 `.github/actions/setup-android/action.yml`，第三方 Actions 固定提交 SHA。PR 不读取发布 Secrets。外部 fork PR 缓存只读；同仓库 PR 可保存其隔离的缓存，便于后续提交复用编译结果。Gradle 启用 build cache；单测与 Release lint 按顺序执行，先取得测试结论，再进行 Release 分析。
 
@@ -33,13 +33,23 @@
 
 通过 GitHub API 手动触发时仍可传入裸值 `major` / `minor` / `patch` / `test`；表单值会在传给规划脚本前提取相同的英文前缀。版本计算、渠道与部署顺序不变。
 
-从本地 Gradle 默认版本、服务器正式与 preview 元数据计算 `versionCode=max(三个渠道/本地的值)+1`，不按版本字符串拼接数字，且不超过 Android 的 2100000000 上限。版本规划文件和实际 APK 身份均归档，不自动提交版本改动回 Git。
+`versionCode` 使用 `xyyzzz`：`x` 对应本次实际版本的主版本（0–9），`yy` 对应次版本（0–99，两位补零），`zzz` 是同一主/次版本内的发版序号（三位补零，与版本名的修订号及 beta 序号无关）。正式版和 preview 共用序号，读取本地 Gradle 默认版本及服务器两个渠道的版本码，在相同 `xyy` 前缀下取最大的 `zzz` 再加 1；切换到新的主/次版本且尚无该前缀记录时，`zzz` 从 `000` 开始。例如 `304005 → 304006`，升到 `3.5` 为 `305000`，升到 `4.0` 为 `400000`。已有该目标版本的 preview 时继续递增，不重复归零。
 
-以正式版 `3.4.2` 为例：major → `4.0.0`，minor → `3.5.0`，patch → `3.4.3`，test → `3.4.3-beta1`。相同目标已有 beta2 时，下一次 test 为 beta3；正式 patch 晋升为 `3.4.3`，不会跳到 `3.4.4`。本地版本若已高于服务器正式版，视为已准备的目标，避免重复递增。不同目标的 preview 仍参与版本码最大值计算。
+主/次版本超出位数范围、`zzz` 超过 `999`，或新版本码不能高于本地及线上两个渠道的版本码时，规划会报错，要求提升主/次版本；不会把序号进位到次版本或生成倒退的版本码。版本规划文件和实际 APK 身份均归档，通过 Gradle 参数注入 APK 版本，服务器发布成功后再将实际版本写回 Git。
+
+以正式版 `3.4.2` 为例：major → `4.0.0`，minor → `3.5.0`，patch → `3.4.3`，test → `3.4.3-beta1`。相同目标已有 beta2 时，下一次 test 为 beta3；正式 patch 晋升为 `3.4.3`，不会跳到 `3.4.4`。本地版本若已高于服务器正式版，视为已准备的目标，避免重复递增。若 preview 已发布更高的主/次版本，则不能再发布较低主/次版本的更新。
 
 服务器目录从 Secret `DEPLOY_ROOT` 读取：test 发布到 `$DEPLOY_ROOT/preview/`，其他三种发布到 `$DEPLOY_ROOT/`。只配置正式版根目录，不能把 preview 目录填作根目录；preview 子目录由脚本自动选择。两渠道均构建 Release，包名 `com.ahu.ahutong`、生产签名一致，以支持互相覆盖安装。不会用 `.debug` 包作为 preview，也不更改独立 SO 下载端点的 `libahutong_rs.so` / `so_version.txt`。
 
 历史服务器版本名 `X.Y.Z-debugN`、`X.Y.Z-release-betaN` 只作为规划输入，延续其测试序号；新计划一律输出 `X.Y.Z-betaN`。旧命名的计划不能直接改写元数据，须重新规划和构建，保证 APK 内嵌版本一致。2026-10-19 只读核对线上正式版为 `3.4.2/304003`、preview 为 `3.4.3-debug2/304005`；在这份状态下，test 规划为 `3.4.3-beta3/304006`，patch 为 `3.4.3/304006`。实际发布仍以构建前 SSH 读取的最新状态为准。
+
+### 发布成功后回写 master / develop
+
+`sync-published-version` 仅在 `publish` 成功后运行，与 Sentry 部署记录任务独立。它使用本次实际构建和部署的 `version_code` / `version_name`，从远端最新 `master`、`develop` 分别创建仅修改 `app/build.gradle.kts` 两个版本字面量的 Conventional Commit，不把来源分支的功能代码合入这两个分支。注释、Gradle 参数覆盖及其他文件保持不变。
+
+回写使用原子 push；任一分支发生并发更新时，重新读取分支并重试，最多三次，不强推。版本已一致时不创建空提交，分支已有更高版本码时保留该版本，相同版本码却对应不同版本名则报错。只有回写任务获得 `contents: write`，通过仓库 `GITHUB_TOKEN` 提交，无需额外 PAT；该 token 的 push 不会触发普通 push 流水线，见 [GitHub GITHUB_TOKEN 文档](https://docs.github.com/en/actions/concepts/security/github_token)。分支保护仍然生效，需允许该任务直接提交。
+
+如果回写任务失败，APK 已经发布，不会自动撤回；修复权限或冲突后，只重跑 `sync-published-version` 即可，不要重新部署同一 APK。
 
 ## 需要配置的 Secrets
 
@@ -89,6 +99,7 @@
 6. 创建 Sentry release，关联完整 Git 提交，上传一次 mapping，再按 APK UUID 回读确认。任何失败都不会替换线上渠道文件。
 7. 上传临时包；校验 ZIP、摘要、大小、元数据、全渠道版本码和之前的服务器指纹。备份目标渠道全部已有文件，再替换，版本码文件最后提交。
 8. 独立后续任务在服务器发布成功后 finalize Sentry、创建 `release` 环境部署记录，已有相同渠道/版本码记录时不重复创建。
+9. 独立后续任务将实际版本号提交到 `master`、`develop`，与第 8 步并行；失败后可单独重试。
 
 服务器现有 API 根据 APK 现场计算 SHA-256 和 Ed25519 签名，CI 不创建额外 `.sha` / `signature` 文件。目标渠道更新五个现有公开文件，并新增可审计 `release.json`。备份位于 `.ci-backups/<channel>/<old_code>-<time>-<id>/`；其他已有备份、calendars 和独立 SO 文件不改动。
 
@@ -103,7 +114,7 @@ python3 -B -m unittest discover -s scripts -p 'test_ci_*.py' -v
 actionlint .github/workflows/checks.yml .github/workflows/build.yml .github/workflows/publish.yml
 ```
 
-测试使用临时目录、合成 APK/ZIP 及外部命令/API mock，覆盖版本、两渠道隔离、校验失败、并发状态变化、回滚及 Sentry 记录。它们不代替实际签名、SSH 发布或新 APK 真机安装验证。
+测试使用临时目录、合成 APK/ZIP、真实本地裸 Git 仓库及外部命令/API mock，覆盖版本规则、版本字段回写、原子推送与并发重试、两渠道隔离、校验失败、并发状态变化、回滚及 Sentry 记录。它们不代替实际签名、SSH 发布或新 APK 真机安装验证。
 
 参考：[GitHub workflow_dispatch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch)、[Actions Secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)、[zipalign](https://developer.android.com/tools/zipalign)、[Sentry releases](https://docs.sentry.io/cli/releases/)、[Sentry 权限](https://docs.sentry.io/api/permissions/)。
 
