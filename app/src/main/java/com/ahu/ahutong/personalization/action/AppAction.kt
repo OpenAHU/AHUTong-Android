@@ -121,7 +121,7 @@ object AppActionCatalog {
         spec(AppActionId.OPEN_PREFERENCES, ActionFamily.SETTINGS, "preferences", "偏好设置"),
         spec(AppActionId.OPEN_LICENSES, ActionFamily.SETTINGS, "settings__license", "开源许可"),
         spec(AppActionId.OPEN_CONTRIBUTORS, ActionFamily.SETTINGS, "settings__contributors", "贡献者"),
-        spec(AppActionId.OPEN_INFO, ActionFamily.SETTINGS, "info", "个人信息"),
+        spec(AppActionId.OPEN_INFO, ActionFamily.SETTINGS, "profile", "个人信息"),
         spec(AppActionId.EDIT_HOME, ActionFamily.SETTINGS, null, "编辑主页"),
         spec(AppActionId.MANUAL_REFRESH_SCHEDULE, ActionFamily.DATA_OPERATION, null, "刷新课表", suggestible = false, sideEffect = SideEffect.READ_ONLY, sensitivity = Sensitivity.ACADEMIC),
         spec(AppActionId.MANUAL_REFRESH_EXAM, ActionFamily.DATA_OPERATION, null, "刷新考场", suggestible = false, sideEffect = SideEffect.READ_ONLY, sensitivity = Sensitivity.ACADEMIC),
@@ -153,6 +153,7 @@ object AppActionCatalog {
     private val specById = specs.associateBy(AppActionSpec::id)
     private val specByRoute = specs.mapNotNull { value -> value.route?.let { it to value } }.toMap()
     private val routeAliases = mapOf(
+        "info" to AppActionId.OPEN_INFO,
         "electricity_recent_rooms" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "electricity_alert_settings" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "xuexiaotong" to AppActionId.VIEW_SCHOOL_CALENDAR,
@@ -231,7 +232,7 @@ object AppActionCatalog {
     val outputIndex: Map<String, Int> = outputIds.withIndex().associate { it.value to it.index }
 
     val navigationRouteManifest: Set<String> = setOf(
-        "home", "setup", "login", "info", "schedule", "tools", "school_calendar", "grade",
+        "home", "setup", "login", "info", "profile", "schedule", "tools", "school_calendar", "grade",
         "phone_book", "exam", "evaluation", "free_classroom", "lost_found", "weather",
         "repository", "repository/{path}", "repository_downloads", "repository_settings", "settings",
         "settings__license", "settings__contributors", "preferences", "electricity_pay",

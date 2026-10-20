@@ -69,6 +69,12 @@ interface JwxtApi {
     @GET("/student/for-std/grade/sheet")
     suspend fun getGrade(): Response<ResponseBody>
 
+    @GET("/student/for-std/student-info")
+    suspend fun fetchStudentInfoEntry(): Response<ResponseBody>
+
+    @GET("/student/for-std/student-info/info/{id}")
+    suspend fun getStudentInfo(@Path("id") id: String): Response<ResponseBody>
+
     // GPA rank page (replaces old redirect-based approach)
     @GET("/student/for-std/grade/sheet/semester-index/{id}")
     suspend fun getGpaRankPage(@Path("id") id: String): Response<ResponseBody>

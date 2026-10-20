@@ -26,6 +26,8 @@ import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverCount
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverPage
 import com.ahu.ahutong.data.crawler.model.ycard.RequestBody
+import com.ahu.ahutong.data.crawler.model.jwxt.StudentInfo
+import com.ahu.ahutong.data.crawler.utils.StudentInfoHtmlParser
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.Course
@@ -298,6 +300,70 @@ object AHURepository {
 
         Log.w(TAG, "getGradeStudentProfiles empty: no internal jwxt student id")
         emptyList()
+    }
+
+    /**
+     * 教务学籍页：优先返回本机缓存；[force] 为真时重新抓取。
+     *
+     * 入口 `/student/for-std/student-info` 通常会 302 到 `info/{内部学生ID}`；
+     * 若入口返回选择页，则退回已缓存的 ID 或成绩档案里的内部 ID 再取一次。
+     */
+    suspend fun getStudentInfo(force: Boolean = false): AhuResult<StudentInfo> = withContext(Dispatchers.IO) {
+        if (!AHUCache.canUseUndergraduateAcademics()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号暂不支持本科学籍页"))
+        }
+        if (!force && !AHUCache.getMockData()) {
+            AHUCache.getStudentInfo()?.let {
+                Log.i(TAG, "getStudentInfo: 本地获取")
+                return@withContext AhuResult.Success(it)
+            }
+        }
+        if (AHUCache.getMockData()) {
+            return@withContext AhuResult.Failure(AhuError.Unknown("演示模式暂不支持学籍信息"))
+        }
+
+        try {
+            syncCookies()
+            var info = fetchStudentInfoPage()
+            if (info == null) {
+                val internalId = AHUCache.getJwxtStudentId()?.takeIf(String::isNotBlank)
+                    ?: getGradeStudentProfiles().firstOrNull()?.id
+                if (internalId != null) info = fetchStudentInfoPage(internalId)
+            }
+            if (info == null) {
+                AhuResult.Failure(AhuError.Unauthorized("登录状态可能已过期，请重新登录"))
+            } else {
+                AHUCache.setStudentInfo(info)
+                Log.i(
+                    TAG,
+                    "getStudentInfo resolved: sections=${listOfNotNull(info.department, info.major, info.adminClass).size}"
+                )
+                AhuResult.Success(info)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            Log.w(TAG, "getStudentInfo failed", error)
+            AhuResult.Failure(error.toAhuError())
+        }
+    }
+
+    private suspend fun fetchStudentInfoPage(internalId: String? = null): StudentInfo? {
+        val response = if (internalId == null) {
+            JwxtApi.API.fetchStudentInfoEntry()
+        } else {
+            JwxtApi.API.getStudentInfo(internalId)
+        }
+        return try {
+            if (!response.isSuccessful) {
+                response.errorBody()?.close()
+                return null
+            }
+            val html = response.body()?.use { it.string() }.orEmpty()
+            StudentInfoHtmlParser.parse(html)
+        } finally {
+            response.errorBody()?.close()
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.crawler.model.adwnh.CampusItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundTypeItem
+import com.ahu.ahutong.data.crawler.model.jwxt.StudentInfo
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.CustomCourse
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
@@ -711,6 +712,18 @@ object AHUCache {
         } ?: ""
         if (data.isBlank()) return emptyList()
         return data.fromJson(object : TypeToken<List<GradeStudentProfile>>() {}.type) ?: emptyList()
+    }
+
+    fun setStudentInfo(info: StudentInfo) {
+        userPutString("jwxt_student_info", Gson().toJson(info))
+    }
+
+    fun getStudentInfo(): StudentInfo? {
+        val data = userGetStringOrMigrate("jwxt_student_info") {
+            kv.decodeString("jwxt_student_info")
+        } ?: ""
+        if (data.isBlank()) return null
+        return data.fromJson(StudentInfo::class.java)
     }
 
     fun savePerProfileGrades(map: Map<GradeStudentProfile, Grade?>) {
