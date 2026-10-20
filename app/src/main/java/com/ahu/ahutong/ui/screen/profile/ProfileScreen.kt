@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.core.designsystem.R as DesignSystemR
 import com.ahu.ahutong.data.model.AcademicAccountType
+import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppPageScaffold
@@ -57,6 +59,10 @@ fun ProfileScreen(
         scheduleConfig != null -> "假期中"
         else -> "未确认"
     }
+    val semesterKey = remember { CurrentWeekResolver.getCachedSemesterKey() }
+    val schoolYearLabel = semesterKey?.schoolYear ?: "未确认"
+    val schoolTermLabel = semesterKey?.schoolTerm?.takeIf(String::isNotBlank)
+        ?.let { "第${it}学期" } ?: "未确认"
 
     AppPageScaffold(
         title = "个人信息",
@@ -162,8 +168,8 @@ fun ProfileScreen(
             if (!isGraduate) {
                 AppSectionCard {
                     ProfileSectionTitle("学期")
-                    ProfileInfoRow("学年", "${scheduleViewModel.schoolYear} 学年")
-                    ProfileInfoRow("学期", "第${scheduleViewModel.schoolTerm}学期")
+                    ProfileInfoRow("学年", "$schoolYearLabel 学年")
+                    ProfileInfoRow("学期", schoolTermLabel)
                     ProfileInfoRow("当前教学周", weekLabel)
                 }
             }
