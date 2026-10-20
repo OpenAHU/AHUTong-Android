@@ -567,11 +567,21 @@ fun SettingsInfoRow(
     onClick: (() -> Unit)? = null,
     showDivider: Boolean = true
 ) {
+    if (onClick != null) {
+        SettingsActionRow(
+            title = title,
+            onClick = onClick,
+            modifier = modifier,
+            subtitle = subtitle,
+            value = value,
+            showDivider = showDivider
+        )
+        return
+    }
     if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
         Column(modifier = modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth()
-                    .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
                     .heightIn(min = 68.dp)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -582,14 +592,6 @@ fun SettingsInfoRow(
                     subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
                 }
                 value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
-                if (onClick != null) {
-                    MiuixIcon(
-                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    )
-                }
             }
             SettingsDivider(visible = showDivider)
         }
@@ -599,7 +601,6 @@ fun SettingsInfoRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
                 .heightIn(min = 68.dp)
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -615,14 +616,6 @@ fun SettingsInfoRow(
                     text = it,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            if (onClick != null) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
