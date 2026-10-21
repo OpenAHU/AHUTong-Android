@@ -47,6 +47,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -73,6 +74,7 @@ object AHURepository {
      */
     val jwxtBrowserUserAgent: String get() = com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi.BROWSER_USER_AGENT
     const val WEB_VERIFICATION_REQUIRED_CODE = 412
+    private const val BALANCE_SESSION_RECOVERY_TIMEOUT_MS = 15_000L
 
     @Volatile
     private var dataSource: BaseDataSource = SdkDataSource()
@@ -398,7 +400,20 @@ object AHURepository {
      */
     suspend fun getCardMoney() = withContext(Dispatchers.IO) {
         try {
-            dataSource.getCardMoney()
+            var result = dataSource.getCardMoney()
+            // 钱包接口可能以 HTTP 200 + 业务错误码返回登录失效，不会触发 401 拦截器。
+            // 与付款码一致，失败时显式恢复一次智慧安大会话再重试，避免余额一直停在旧值。
+            if (result.isFailure && SessionStore.isLoggedIn()) {
+                val refreshed = withTimeoutOrNull(BALANCE_SESSION_RECOVERY_TIMEOUT_MS) {
+                    DefaultWisdomSession.ensureFresh(
+                        SessionRefreshCoordinator.currentGeneration(
+                            SessionRefreshCoordinator.Scope.WISDOM
+                        )
+                    )
+                } == true
+                if (refreshed) result = dataSource.getCardMoney()
+            }
+            result
         } catch (e: Exception) {
             AhuResult.Failure(e.toAhuError())
         }

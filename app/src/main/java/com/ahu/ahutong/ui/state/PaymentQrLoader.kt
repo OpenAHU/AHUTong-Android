@@ -38,6 +38,9 @@ internal data class PaymentQrUiState(
 internal class PaymentQrLoader(
     private val repository: PaymentQrRepository,
     private val scope: CoroutineScope,
+    /** 用户主动刷新完成后触发；余额要等二维码/会话刷新之后才取。 */
+    private val onManualRefreshFinished: () -> Unit = {},
+    // 保持最后一个参数是首次刷新回调，避免现有尾随 lambda 调用点改变语义。
     private val onFirstRefreshFinished: () -> Unit = {}
 ) {
     private val mutableState = MutableStateFlow(PaymentQrUiState())
@@ -74,6 +77,7 @@ internal class PaymentQrLoader(
                 cached = repository.cachedForDisplay()
                 mutableState.value = display(cached, attempted, failures > 0)
                 if (refreshRequested || repository.elapsedNow() >= retryAt) {
+                    val manualRefresh = refreshRequested
                     refreshRequested = false
                     mutableState.value = display(cached, attempted, failures > 0).copy(loading = true)
                     val result = refreshWhileDisplaying(attempted, failures > 0)
@@ -84,7 +88,10 @@ internal class PaymentQrLoader(
                     retryAt = repository.elapsedNow() + if (result.isSuccess) {
                         cached?.refreshDelayMillis(repository.elapsedNow()) ?: 1_000L
                     } else retryDelayMillis(failures)
-                    if (!notified) {
+                    if (manualRefresh) {
+                        notified = true
+                        onManualRefreshFinished()
+                    } else if (!notified) {
                         notified = true
                         onFirstRefreshFinished()
                     }

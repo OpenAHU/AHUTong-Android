@@ -58,7 +58,12 @@ class DiscoveryViewModel @Inject constructor(
     val state = MutableStateFlow(false)
     val qrStatusText = MutableStateFlow("")
     val qrRefreshing = MutableStateFlow(false)
-    private val qrLoader = PaymentQrLoader(paymentQrRepository, viewModelScope, ::refreshCardBalance)
+    private val qrLoader = PaymentQrLoader(
+        paymentQrRepository,
+        viewModelScope,
+        onFirstRefreshFinished = ::refreshCardBalance,
+        onManualRefreshFinished = ::refreshCardBalance
+    )
     private var qrWarmJob: Job? = null
     private var warmOwner: PaymentQrOwner? = null
     private var renderedQrKey: Pair<String, Long>? = null
@@ -145,12 +150,8 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun refreshCardBalance() {
-        if (!AHUCache.getMockData()) {
-            AHUCache.getCardBalance()?.let {
-                balance = it
-            }
-        }
-
+        // 刷新时不能先把缓存写回界面：请求一旦失败就会把刚充值后的余额又盖回旧值。
+        // 首次进入的缓存展示由 loadActivityBean() 负责。
         viewModelScope.launchSafe {
             qrWarmJob?.join()
             AHURepository.getCardMoney().onSuccess {
@@ -177,9 +178,8 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun loadQrCode(forceRefresh: Boolean = false) {
-        // 手动刷新付款码通常发生在刚充值/刚消费之后：二维码重新取，余额也必须一起拉，
-        // 否则底部会一直显示充值前的数字（有余额但页面不动）。
-        if (forceRefresh) refreshCardBalance()
+        // 手动刷新通常发生在刚充值/刚消费之后。余额必须等二维码刷新
+        //（以及它可能触发的会话恢复）完成后再取，否则会拿到刷新前的旧余额。
         qrLoader.start(forceRefresh)
     }
 
