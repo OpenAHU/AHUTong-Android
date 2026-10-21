@@ -101,6 +101,43 @@ class PaymentQrLoaderTest {
         assertEquals(listOf("qr", "balance"), events)
     }
 
+    @Test fun `manual refresh requests balance after the QR request completes`() = runTest {
+        val fixture = PaymentQrFixture(this)
+        val events = mutableListOf<String>()
+        var calls = 0
+        val repository = fixture.repository { calls++; Result.success("qr-$calls") }
+        val loader = PaymentQrLoader(
+            repository,
+            backgroundScope,
+            onFirstRefreshFinished = { events += "first" },
+            onManualRefreshFinished = { events += "manual-balance" }
+        )
+        loader.start()
+        runCurrent()
+        assertEquals(listOf("first"), events)
+
+        loader.start(forceRefresh = true)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(2, calls)
+        assertEquals(listOf("first", "manual-balance"), events)
+    }
+
+    @Test fun `manual first refresh counts as the balance trigger instead of firing twice`() = runTest {
+        val fixture = PaymentQrFixture(this)
+        val events = mutableListOf<String>()
+        val repository = fixture.repository { Result.success("qr") }
+        val loader = PaymentQrLoader(
+            repository,
+            backgroundScope,
+            onFirstRefreshFinished = { events += "first" },
+            onManualRefreshFinished = { events += "manual-balance" }
+        )
+        loader.start(forceRefresh = true)
+        runCurrent()
+        assertEquals(listOf("manual-balance"), events)
+    }
+
     @Test fun `known expired cached code is removed even while the network keeps failing`() = runTest {
         val fixture = PaymentQrFixture(this)
         fixture.seed(expiresInMs = 8_000)

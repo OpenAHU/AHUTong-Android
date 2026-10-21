@@ -458,8 +458,13 @@ class CrawlerDataSource(
     }
 
     override suspend fun getCardMoney(): AhuResult<Card> {
+        val response = adwmh.getBalance()
+        if (response.code != 10000) {
+            // 登录失效常以 HTTP 200 + 业务错误码返回；不要把 null 当成 0 元成功。
+            return AhuResult.Failure(AhuError.Server(response.code, response.msg))
+        }
         val card = Card()
-        card.balance = adwmh.getBalance().`object`
+        card.balance = response.`object`
         return AhuResult.Success(card)
     }
 
