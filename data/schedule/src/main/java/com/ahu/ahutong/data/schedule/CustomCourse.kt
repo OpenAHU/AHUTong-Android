@@ -19,12 +19,16 @@ data class CustomCourse(
 ) {
 
     /** 读到损坏/旧版数据时尽量救回可用字段；名称与时间都缺失就丢弃。 */
-    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS", "UNNECESSARY_SAFE_CALL")
     fun normalized(): CustomCourse? {
-        val safeId = id.trim().ifBlank { return null }
-        val safeName = name.trim().ifBlank { return null }
-        val safeSlots = (slots as List<CustomCourseSlot>?).orEmpty()
-            .mapNotNull { slot -> slot?.normalized() }
+        // Gson 在未保留泛型签名时会把 slots 元素还原成 LinkedTreeMap，字段缺失时还会留下 null；
+        // 这里按运行时类型过滤，坏数据只丢条目，不能让整张课表跟着崩。
+        val safeId = id?.trim().orEmpty().ifBlank { return null }
+        val safeName = name?.trim().orEmpty().ifBlank { return null }
+        val rawSlots: List<*> = slots ?: emptyList<Any>()
+        val safeSlots = rawSlots
+            .filterIsInstance<CustomCourseSlot>()
+            .mapNotNull { it.normalized() }
         if (safeSlots.isEmpty()) return null
         return copy(
             id = safeId,
@@ -73,8 +77,10 @@ data class CustomCourseSlot(
 
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
     fun normalized(): CustomCourseSlot? {
-        val safeWeeks = (weekIndexes as List<Int>?).orEmpty()
-            .mapNotNull { it?.takeIf { week -> week in 1..CUSTOM_COURSE_MAX_WEEK } }
+        val rawWeeks: List<*> = weekIndexes ?: emptyList<Any>()
+        val safeWeeks = rawWeeks
+            .filterIsInstance<Int>()
+            .filter { week -> week in 1..CUSTOM_COURSE_MAX_WEEK }
             .distinct()
             .sorted()
         if (safeWeeks.isEmpty()) return null

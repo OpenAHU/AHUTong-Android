@@ -100,6 +100,38 @@ class CustomCourseTest {
     }
 
     @Test
+    fun `corrupt slot maps are dropped instead of crashing normalization`() {
+        @Suppress("UNCHECKED_CAST")
+        val course = CustomCourse(
+            id = "abc",
+            name = "晚自习",
+            slots = listOf(mapOf("weekday" to 1)) as List<CustomCourseSlot>
+        )
+        assertNull(course.normalized())
+    }
+
+    @Test
+    fun `valid slots survive alongside corrupt entries`() {
+        @Suppress("UNCHECKED_CAST")
+        val course = CustomCourse(
+            id = "abc",
+            name = "晚自习",
+            slots = listOf(
+                CustomCourseSlot(
+                    weekday = 1,
+                    weekIndexes = listOf(1),
+                    startSection = 11,
+                    endSection = 12
+                ),
+                mapOf("weekday" to 2)
+            ) as List<CustomCourseSlot>
+        )
+        val normalized = assertNotNull(course.normalized())
+        assertEquals(1, normalized.slots.size)
+        assertEquals(1, normalized.slots.single().weekday)
+    }
+
+    @Test
     fun `normalization drops invalid weeks and keeps valid slots`() {
         val course = CustomCourse(
             id = "abc",
