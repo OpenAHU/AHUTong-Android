@@ -97,6 +97,12 @@
 -keep class * implements com.ahu.ahutong.core.plugin.AhuPlugin { public <init>(); }
 -dontwarn com.ahu.ahutong.core.plugin.**
 
+# 插件按 plugin-platform BOM 以 compileOnly 引用宿主运行时，插件包里不含这些类。
+# R8 会裁掉宿主自己没直接调用的顶层函数类（release 实测 kotlin.collections.SetsKt
+# 被删除，插件 setOf() 直接 ClassNotFoundException），所以把插件 ABI 整体保留。
+-keep class kotlin.** { *; }
+-keep class kotlinx.coroutines.** { *; }
+
 # Gson records for encrypted, per-account GMIS timetable and term caches.
 -keep class com.ahu.ahutong.data.schedule.gmis.GmisTerm { *; }
 -keep class com.ahu.ahutong.data.schedule.gmis.GmisCourse { *; }
