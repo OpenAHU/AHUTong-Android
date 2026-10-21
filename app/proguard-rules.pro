@@ -104,6 +104,12 @@
 -keep class com.ahu.ahutong.data.schedule.gmis.GmisTimetable { *; }
 -keep class com.ahu.ahutong.data.crawler.gmis.GmisCacheCodec$* { *; }
 
+# 自定义课程按账号+学期以 Gson 持久化。保留完整类与字段，尤其是 slots: List<CustomCourseSlot>
+# 的泛型签名；否则 R8 会把签名退化成 raw ArrayList，Gson 只能产出 LinkedTreeMap，
+# 读取时在 normalized() 里触发 ClassCastException（release 实测）。
+-keep class com.ahu.ahutong.data.schedule.CustomCourse { *; }
+-keep class com.ahu.ahutong.data.schedule.CustomCourseSlot { *; }
+
 # Payment view models contain a small number of file-local wire DTOs. Keep only the DTO naming
 # families rather than the ViewModels themselves, so R8 can still optimize the screen logic while
 # Gson retains concrete constructors and field contracts in Review/Release builds.
