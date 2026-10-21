@@ -8,16 +8,16 @@ import kotlin.test.assertTrue
 
 class NetworkSecurityConfigTest {
     @Test
-    fun `cleartext is limited to the loopback bridge, canteen endpoint, and card upstream`() {
+    fun `cleartext is limited to the loopback bridge and card upstream`() {
         val xml = File(repositoryRoot(), "app/src/main/res/xml/network_security_config.xml")
             .readText()
 
         assertTrue(xml.contains("<base-config cleartextTrafficPermitted=\"false\""))
-        assertEquals(3, Regex("<domain-config cleartextTrafficPermitted=\"true\"").findAll(xml).count())
+        assertEquals(2, Regex("<domain-config cleartextTrafficPermitted=\"true\"").findAll(xml).count())
         assertTrue(xml.contains(">127.0.0.1</domain>"))
         assertTrue(xml.contains(">localhost</domain>"))
-        // 必吃榜服务器在域名备案完成前按 IP 明文直连（HTTPS 上线后删除该块）。
-        assertTrue(xml.contains(">121.37.174.199</domain>"))
+        // stable-prep：必吃榜明文放行已移除，代码保留但不再连服务端。
+        assertFalse(xml.contains(">121.37.174.199</domain>"))
         // 金寨路校区一卡通上游只有明文 HTTP，插件经宿主网络栈访问。
         assertTrue(xml.contains(">ykt.hfue.edu.cn</domain>"))
     }
