@@ -69,6 +69,7 @@ import com.ahu.ahutong.data.gray.GrayFeatures
 import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.Billing
+import com.ahu.ahutong.core.common.CanteenFeature
 import com.ahu.ahutong.ui.screen.canteen.CanteenFootprintScreen
 import com.ahu.ahutong.ui.screen.canteen.CanteenRankingScreen
 import com.ahu.ahutong.ui.screen.attendance.AttendanceScreen
@@ -400,8 +401,10 @@ fun Main(
                         shouldEnterHomeEdit = false
                     }
                 )
-                // 必吃榜匿名上传同意（未表态时弹一次，之后不再打扰）
-                com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
+                // 必吃榜仅 Best-Bites 分支开放；stable-prep 不挂载，避免 popup/后台上传。
+                if (CanteenFeature.ENABLED) {
+                    com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
+                }
             }
             animatedComposable("setup") {
                 Setup(

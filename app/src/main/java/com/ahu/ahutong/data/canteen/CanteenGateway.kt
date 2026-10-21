@@ -4,6 +4,7 @@ import android.util.Log
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.CanteenWindowStore
 import com.ahu.ahutong.core.common.AhuResult
+import com.ahu.ahutong.core.common.CanteenFeature
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
@@ -57,6 +58,7 @@ object CanteenGateway {
     data class UploadOutcome(val ok: Boolean, val sent: Int, val total: Int)
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
+        if (!CanteenFeature.ENABLED) return@withContext false
         runCatching {
             val localVersion = AHUCache.getCanteenMapVersion()
             val resp = CanteenApi.API.windowMap(sinceVersion = localVersion)
@@ -88,6 +90,7 @@ object CanteenGateway {
      */
     suspend fun uploadRecentBills(handledMeals: Set<String> = emptySet()): BillsSync =
         withContext(Dispatchers.IO) {
+            if (!CanteenFeature.ENABLED) return@withContext BillsSync(ok = false)
             runCatching {
                 val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
                 val now = System.currentTimeMillis()
@@ -154,6 +157,7 @@ object CanteenGateway {
         suggestedName: String,
         reporterToken: String
     ): Boolean = withContext(Dispatchers.IO) {
+        if (!CanteenFeature.ENABLED) return@withContext false
         runCatching {
             CanteenApi.API.windowReport(
                 body = WindowReportBody(
@@ -200,6 +204,7 @@ object CanteenGateway {
      * **空载也 POST 一个空批次**：服务端数据包监控需要看到每次触发的请求时间戳。
      */
     suspend fun uploadTxns(records: List<TurnoverRecord>): UploadOutcome = withContext(Dispatchers.IO) {
+        if (!CanteenFeature.ENABLED) return@withContext UploadOutcome(ok = false, sent = 0, total = 0)
         runCatching {
             val cutoff = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
                 .format(Date(System.currentTimeMillis() - UPLOAD_DAYS * 24 * 3600 * 1000))
@@ -239,6 +244,7 @@ object CanteenGateway {
         minTxns: Int = 20,
         forceRefresh: Boolean = false
     ): InsightsResponse? = withContext(Dispatchers.IO) {
+        if (!CanteenFeature.ENABLED) return@withContext null
         val key = "$period|$canteens|$limit|$minTxns"
         if (!forceRefresh) {
             insightsCache?.let { (k, cached) ->

@@ -49,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.ahu.ahutong.core.common.CanteenFeature
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
@@ -162,15 +163,17 @@ fun Preferences(
                         onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
                     )
                 }
-                canteenUploadConsent?.let { consent ->
-                    SettingsToggleRow(
-                        title = "参与必吃榜数据共建",
-                        subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
-                        selected = consent,
-                        onSelectedChange = viewModel::setCanteenUploadConsent,
-                        backdrop = backdrop,
-                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                    )
+                if (CanteenFeature.ENABLED) {
+                    canteenUploadConsent?.let { consent ->
+                        SettingsToggleRow(
+                            title = "参与必吃榜数据共建",
+                            subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
+                            selected = consent,
+                            onSelectedChange = viewModel::setCanteenUploadConsent,
+                            backdrop = backdrop,
+                            onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                        )
+                    }
                 }
                 SettingsToggleRow(
                     title = "导航栏扫码入口",

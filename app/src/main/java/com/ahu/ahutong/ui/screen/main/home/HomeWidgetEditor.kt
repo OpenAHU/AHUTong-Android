@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import com.ahu.ahutong.core.common.CanteenFeature
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -377,8 +378,10 @@ private fun RadiantHomeWidgetSlotLayout(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // 众包补标注：与校园卡同级。壳负责"有没有候选"的显隐动画，编辑态不出现。
-        CanteenAskCardHost(enabled = !isEditing)
+        // 众包补标注：与校园卡同级；stable-prep 不挂载，避免创建 ViewModel/触发上传。
+        if (CanteenFeature.ENABLED) {
+            CanteenAskCardHost(enabled = !isEditing)
+        }
 
         Column(
             modifier = Modifier.fillMaxWidth(),

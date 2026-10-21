@@ -2,6 +2,7 @@ package com.ahu.ahutong.ui.screen.main.home
 
 import androidx.compose.ui.graphics.Color
 import com.ahu.ahutong.R
+import com.ahu.ahutong.core.common.CanteenFeature
 import com.ahu.ahutong.core.plugin.AhuPlugin
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.dao.HomeWidgetDefaults
@@ -58,7 +59,13 @@ object HomeWidgetRegistry {
     val defaultSlotsRadiant: List<String?> = HomeWidgetDefaults.radiant
 
     /** 内置小工具 + 插件入口（插件由 ServiceLoader 发现，可为空）。 */
-    val widgets: List<HomeWidgetSpec> get() = builtInWidgets + pluginWidgets
+    val widgets: List<HomeWidgetSpec> get() = visibleBuiltInWidgets() + pluginWidgets
+
+    /** stable-prep：必吃榜代码保留，但不进入小工具列表/主页插槽。 */
+    private fun visibleBuiltInWidgets(): List<HomeWidgetSpec> =
+        builtInWidgets.filter {
+            CanteenFeature.ENABLED || it.id != HomeWidgetDefaults.LEGACY_CANTEEN_WIDGET_ID
+        }
 
     private val builtInWidgets = listOf(
         // —— 缴费充值 ——
@@ -226,7 +233,7 @@ object HomeWidgetRegistry {
         @Synchronized get() {
             val plugins = com.ahu.ahutong.ui.plugin.PluginRegistry.plugins.value
             if (indexedPlugins !== plugins) {
-                widgetIndex = (builtInWidgets + pluginSpecs(plugins)).associateBy { it.id }
+                widgetIndex = (visibleBuiltInWidgets() + pluginSpecs(plugins)).associateBy { it.id }
                 indexedPlugins = plugins
             }
             return widgetIndex

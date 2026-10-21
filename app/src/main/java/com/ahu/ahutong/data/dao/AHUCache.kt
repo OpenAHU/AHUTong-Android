@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.dao
 
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
+import com.ahu.ahutong.core.common.CanteenFeature
 import com.ahu.ahutong.BuildConfig
 import com.ahu.ahutong.data.crawler.model.adwnh.CampusItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
@@ -452,7 +453,6 @@ object AHUCache {
     // Keep the legacy key as Classic so existing layouts migrate without a copy or downgrade hazard.
     private const val HOME_WIDGET_SLOTS_CLASSIC_KEY = "home_widget_slots"
     private const val HOME_WIDGET_SLOTS_RADIANT_KEY = "home_widget_slots_radiant"
-    private const val HOME_SLOTS_CANTEEN_MIGRATED_PREFIX = "home_slots_canteen_migrated_"
     private const val HOME_WIDGET_SLOT_COUNT_CLASSIC = 8
     private const val HOME_WIDGET_SLOT_COUNT_RADIANT = 7
 
@@ -517,33 +517,32 @@ object AHUCache {
             }.getOrNull()
                 ?.let { normalizeHomeWidgetSlots(layoutFamily, it) }
                 ?: defaultHomeWidgetSlots(layoutFamily)
-        }.let { migratePinnedWidgetToCanteenRanking(layoutFamily, it) }
+        }.let { migrateCanteenWidgetOut(layoutFamily, it) }
         homeWidgetSlotsCache = HomeWidgetSlotsCache(userId, layoutFamily, slots)
         return slots
     }
 
     /**
-     * 一次性迁移（2026-10-07）：首页固定位由校园通知换成必吃榜。
-     * 已保存过布局的用户不会吃到新默认值，这里把旧固定位里的 campus_notices
-     * 原位替换为 canteen_ranking 并落盘；用户之后仍可自由拖回。
+     * stable-prep 反向迁移：Best-Bites 曾把校园通知固定位换成必吃榜；
+     * 关闭必吃榜后把遗留插槽恢复为校园通知，避免首页出现空白格。
      */
-    private fun migratePinnedWidgetToCanteenRanking(
+    private fun migrateCanteenWidgetOut(
         layoutFamily: HomeWidgetLayoutFamily,
         slots: List<String?>
     ): List<String?> {
-        val flagKey = HOME_SLOTS_CANTEEN_MIGRATED_PREFIX + layoutFamily.name
-        if (userGetStringOrMigrate(flagKey) { null } != null) return slots
-        userPutString(flagKey, "1")
-        if (HomeWidgetDefaults.NOTICE_WIDGET_ID !in slots ||
-            HomeWidgetDefaults.PINNED_WIDGET_ID in slots
-        ) {
-            return slots
-        }
-        val migrated = slots.map {
-            if (it == HomeWidgetDefaults.NOTICE_WIDGET_ID) {
-                HomeWidgetDefaults.PINNED_WIDGET_ID
+        if (CanteenFeature.ENABLED ||
+            HomeWidgetDefaults.LEGACY_CANTEEN_WIDGET_ID !in slots
+        ) return slots
+
+        var restoredNotice = HomeWidgetDefaults.NOTICE_WIDGET_ID in slots
+        val migrated = slots.map { id ->
+            if (id != HomeWidgetDefaults.LEGACY_CANTEEN_WIDGET_ID) {
+                id
+            } else if (!restoredNotice) {
+                restoredNotice = true
+                HomeWidgetDefaults.NOTICE_WIDGET_ID
             } else {
-                it
+                null
             }
         }
         saveHomeWidgetSlots(layoutFamily, migrated)
