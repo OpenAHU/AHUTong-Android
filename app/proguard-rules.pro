@@ -101,10 +101,13 @@
 # R8 会裁掉/改名宿主自己没直接调用的 API（release 实测 kotlin.collections.SetsKt 被删除、
 # androidx.compose.material3.TextKt 被改名为 ol8），插件一引用就 ClassNotFoundException。
 # 因此把 BOM 声明的整条插件 ABI 保留：Kotlin、协程、Compose、Coil。
+# 插件还会按 compileOnly 直接使用宿主网络栈，OkHttp 及其公开类型依赖的 Okio 一并保留。
 -keep class kotlin.** { *; }
 -keep class kotlinx.coroutines.** { *; }
 -keep class androidx.compose.** { *; }
 -keep class coil.** { *; }
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
 
 # Gson records for encrypted, per-account GMIS timetable and term caches.
 -keep class com.ahu.ahutong.data.schedule.gmis.GmisTerm { *; }
