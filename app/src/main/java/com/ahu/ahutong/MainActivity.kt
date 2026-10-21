@@ -31,7 +31,6 @@ import com.ahu.ahutong.data.notice.CampusNoticeRepository
 import com.ahu.ahutong.ext.launchSafe
 import com.ahu.ahutong.sdk.LocalServiceClient
 import com.ahu.ahutong.sdk.RustSDK
-import com.ahu.ahutong.ui.component.ApkMirrorSourceDialog
 import com.ahu.ahutong.ui.component.ApkUpdateDialog
 import com.ahu.ahutong.ui.screen.Main
 import com.ahu.ahutong.ui.screen.setup.canUseAuthenticatedPages
@@ -211,16 +210,6 @@ class MainActivity : ComponentActivity() {
                         onCancel = {
                             mainViewModel.continueApkDownloadInBackground()
                             Toast.makeText(this@MainActivity, "已转到后台下载", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                }
-                if (mainViewModel.showApkMirrorPrompt.value) {
-                    ApkMirrorSourceDialog(
-                        onUseMirror = {
-                            mainViewModel.switchApkDownloadToMirror()
-                        },
-                        onKeepOriginal = {
-                            mainViewModel.keepPrimaryApkDownload()
                         }
                     )
                 }

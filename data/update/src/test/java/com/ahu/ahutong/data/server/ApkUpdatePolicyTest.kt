@@ -14,7 +14,7 @@ class ApkUpdatePolicyTest {
 
         assertTrue(result.isSuccess)
         assertEquals(sha256.lowercase(), result.getOrThrow().sha256)
-        assertEquals("https://openahu.org/download/app.apk", result.getOrThrow().downloadUrl)
+        assertEquals("https://openahu.muxyang.com/download/app.apk", result.getOrThrow().downloadUrl)
     }
 
     @Test
@@ -65,7 +65,7 @@ class ApkUpdatePolicyTest {
         )
 
         assertTrue(result.isSuccess)
-        assertEquals("https://openahu.org/download/app.apk", result.getOrThrow().downloadUrl)
+        assertEquals("https://openahu.muxyang.com/download/app.apk", result.getOrThrow().downloadUrl)
     }
 
     @Test
@@ -89,7 +89,7 @@ class ApkUpdatePolicyTest {
     }
 
     @Test
-    fun validateRejectsMirrorDownloadHostByDefault() {
+    fun validateRejectsDeprecatedMirrorDownloadHost() {
         val result = ApkUpdatePolicy.validate(
             updateInfo(url = "https://openahu-ahutong-cn.muxyang.com/download/app.apk"),
             currentVersionCode = 1
@@ -99,14 +99,14 @@ class ApkUpdatePolicyTest {
     }
 
     @Test
-    fun validateAcceptsMirrorDownloadHostOnlyWhenExplicitlyAllowed() {
+    fun validateAcceptsCurrentMirrorDownloadHost() {
         val result = ApkUpdatePolicy.validateDownloadUrl(
-            rawUrl = "https://openahu-ahutong-cn.muxyang.com/download/app.apk",
-            allowMirrorHost = true
+            rawUrl = "https://openahu.muxyang.com/download/app.apk",
+            mirrorOnly = true
         )
 
         assertTrue(result.isSuccess)
-        assertEquals("https://openahu-ahutong-cn.muxyang.com/download/app.apk", result.getOrThrow())
+        assertEquals("https://openahu.muxyang.com/download/app.apk", result.getOrThrow())
     }
 
     @Test
@@ -117,8 +117,27 @@ class ApkUpdatePolicyTest {
 
         assertTrue(result.isSuccess)
         assertEquals(
-            "https://openahu-ahutong-cn.muxyang.com/download/app.apk?channel=stable",
+            "https://openahu.muxyang.com/download/app.apk?channel=stable",
             result.getOrThrow()
+        )
+    }
+
+    @Test
+    fun mirrorDownloadUrlPreservesEncodedPathQueryAndPortAndIsIdempotent() {
+        val original = "https://openahu.org:443/download/app%20preview.apk?token=a%2Fb&next=https%3A%2F%2Fopenahu.org"
+        val mirror = "https://openahu.muxyang.com:443/download/app%20preview.apk?token=a%2Fb&next=https%3A%2F%2Fopenahu.org"
+        assertEquals(mirror, ApkUpdatePolicy.mirrorDownloadUrl(original).getOrThrow())
+        assertEquals(mirror, ApkUpdatePolicy.mirrorDownloadUrl(mirror).getOrThrow())
+    }
+
+    @Test
+    fun downloadRedirectCannotReturnToOriginOrDeprecatedMirror() {
+        listOf("openahu.org", "www.openahu.org", "openahu-ahutong-cn.muxyang.com", "evil.test").forEach { host ->
+            assertTrue(ApkUpdatePolicy.validateDownloadUrl("https://$host/download/app.apk", mirrorOnly = true).isFailure)
+        }
+        assertEquals(
+            "https://openahu.muxyang.com/download/next.apk",
+            ApkUpdatePolicy.validateDownloadUrl("next.apk", "https://openahu.muxyang.com/download/app.apk", mirrorOnly = true).getOrThrow()
         )
     }
 
