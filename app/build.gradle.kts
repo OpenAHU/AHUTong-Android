@@ -92,8 +92,8 @@ android {
         applicationId = "com.ahu.ahutong"
         minSdk = 26
         targetSdk = 36
-        versionCode = 304006
-        versionName = "3.4.3-beta3"
+        versionCode = 304007
+        versionName = "3.4.3"
         providers.gradleProperty("release.versionCode").orNull?.let { versionCode = it.toInt() }
         providers.gradleProperty("release.versionName").orNull?.let { versionName = it }
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
