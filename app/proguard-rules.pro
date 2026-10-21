@@ -98,10 +98,13 @@
 -dontwarn com.ahu.ahutong.core.plugin.**
 
 # 插件按 plugin-platform BOM 以 compileOnly 引用宿主运行时，插件包里不含这些类。
-# R8 会裁掉宿主自己没直接调用的顶层函数类（release 实测 kotlin.collections.SetsKt
-# 被删除，插件 setOf() 直接 ClassNotFoundException），所以把插件 ABI 整体保留。
+# R8 会裁掉/改名宿主自己没直接调用的 API（release 实测 kotlin.collections.SetsKt 被删除、
+# androidx.compose.material3.TextKt 被改名为 ol8），插件一引用就 ClassNotFoundException。
+# 因此把 BOM 声明的整条插件 ABI 保留：Kotlin、协程、Compose、Coil。
 -keep class kotlin.** { *; }
 -keep class kotlinx.coroutines.** { *; }
+-keep class androidx.compose.** { *; }
+-keep class coil.** { *; }
 
 # Gson records for encrypted, per-account GMIS timetable and term caches.
 -keep class com.ahu.ahutong.data.schedule.gmis.GmisTerm { *; }
