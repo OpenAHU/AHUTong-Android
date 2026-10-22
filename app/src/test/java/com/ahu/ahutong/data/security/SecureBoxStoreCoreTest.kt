@@ -32,6 +32,41 @@ class SecureBoxStoreCoreTest {
     }
 
     @Test
+    fun `unavailable encrypted data does not fall back and recovers on the next read`() {
+        secure.values["init.current_user"] = "trusted-user"
+        native.put("init", "current_user", "stale-native-user")
+        plaintext.put("init", "current_user", "stale-plaintext-user")
+        val failure = SecureReadResult.Unavailable(IllegalStateException("Keystore unavailable"))
+        secure.readFailure = failure
+
+        assertEquals(failure, core.readOrMigrate("init", "current_user") { error("must not read plaintext") })
+        assertNull(core.getOrMigrate("init", "current_user") { error("must not read plaintext") })
+        assertEquals("trusted-user", secure.values["init.current_user"])
+        assertEquals("stale-native-user", native.values["init/current_user"])
+        assertEquals("stale-plaintext-user", plaintext.values["init/current_user"])
+        assertTrue(native.reads.isEmpty())
+        assertTrue(plaintext.reads.isEmpty())
+
+        secure.readFailure = null
+
+        assertEquals("trusted-user", core.getOrMigrate("init", "current_user") { error("must not read plaintext") })
+        assertTrue(native.values.isEmpty())
+        assertTrue(plaintext.values.isEmpty())
+    }
+
+    @Test
+    fun `permanently unreadable encrypted data remains fail closed`() {
+        secure.values["init.current_user"] = "unreadable"
+        native.put("init", "current_user", "stale-user")
+        val failure = SecureReadResult.Unavailable(IllegalArgumentException("corrupt ciphertext"), retryable = false)
+        secure.readFailure = failure
+
+        assertEquals(failure, core.readOrMigrate("init", "current_user") { error("must not use legacy identity") })
+        assertEquals("unreadable", secure.values["init.current_user"])
+        assertTrue(native.reads.isEmpty())
+    }
+
+    @Test
     fun `a native copy is promoted to the secure store and then removed`() {
         native.put("user_1", "token", "from-native")
         plaintext.put("user_1", "token", "stale-plaintext")
@@ -109,7 +144,10 @@ class SecureBoxStoreCoreTest {
 
     private class FakeSecureStore : SecureStringStore {
         val values = linkedMapOf<String, String>()
+        var readFailure: SecureReadResult.Unavailable? = null
         override fun getString(key: String): String? = values[key]
+        override fun readString(key: String): SecureReadResult =
+            readFailure ?: super.readString(key)
         override fun putString(key: String, value: String) {
             values[key] = value
         }

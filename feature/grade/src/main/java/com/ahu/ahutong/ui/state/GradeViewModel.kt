@@ -27,6 +27,9 @@ import com.ahu.ahutong.personalization.semantic.SemanticDomain
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onEach
@@ -49,7 +52,8 @@ class GradeViewModel @Inject constructor(
 ) : ViewModel() {
     private val tag = "GradeViewModel"
 
-    var totalGradePointAverage by mutableStateOf("暂无")
+    val totalGradePointAverage: String
+        get() = gpaRankInfo?.gpa?.let { "%.2f".format(it) } ?: "暂无"
     var termGradePointAverage by mutableStateOf("暂无")
     var grade by mutableStateOf<Grade?>(null)
 
@@ -89,47 +93,55 @@ class GradeViewModel @Inject constructor(
     /** 每个 profile ID → Grade（null = 该专业无成绩） */
     private var perProfileGrades: Map<String, Grade?> = emptyMap()
     private val cacheRestoreJob: Job
+    private var rankRequestJob: Job? = null
+    private var rankRequestSequence = 0L
 
-    fun getGpaRank() = viewModelScope.launch {
-        cacheRestoreJob.join()
-        if (rankLoading) {
-            Log.i(tag, "getGpaRank skip: already loading")
-            return@launch
-        }
-        rankLoading = true
-        rankEmptyMessage = null
-        try {
-            Log.i(tag, "getGpaRank start profiles=${studentProfiles.size} selected=$selectedProfileIndex")
-            val rankProfiles = resolveRankProfiles()
-            val safeProfileIndex = selectedProfileIndex.takeIf { it in rankProfiles.indices } ?: 0
-            val profile = rankProfiles.getOrNull(safeProfileIndex)
-            val studentId = profile?.id ?: run {
-                Log.w(tag, "getGpaRank skip: no selected profile")
-                return@launch
+    fun getGpaRank(): Job {
+        val requestSequence = ++rankRequestSequence
+        rankRequestJob?.cancel()
+        return viewModelScope.launch {
+            cacheRestoreJob.join()
+            rankLoading = true
+            rankEmptyMessage = null
+            try {
+                Log.i(tag, "getGpaRank start profiles=${studentProfiles.size} selected=$selectedProfileIndex")
+                val rankProfiles = resolveRankProfiles()
+                val safeProfileIndex = selectedProfileIndex.takeIf { it in rankProfiles.indices } ?: 0
+                val profile = rankProfiles.getOrNull(safeProfileIndex)
+                val studentId = profile?.id ?: run {
+                    rankEmptyMessage = "暂未获取到学生档案，无法加载绩点排名"
+                    Log.w(tag, "getGpaRank skip: no selected profile")
+                    return@launch
+                }
+                val result = grades.fetchGpaRank(studentId)
+                currentCoroutineContext().ensureActive()
+                if (requestSequence != rankRequestSequence) return@launch
+                Log.i(
+                    tag,
+                    "getGpaRank ok=${result.isSuccess} hasData=${result.valueOrNull() != null} " +
+                        "error=${result.errorOrNull()?.let { it::class.java.simpleName }.orEmpty()}"
+                )
+                val rankPayload = result.valueOrNull()
+                if (rankPayload != null) {
+                    gpaRankInfo = rankPayload
+                    withContext(ioDispatcher) { grades.saveGpaRank(studentId, rankPayload) }
+                } else {
+                    val message = result.errorOrNull()?.toUserMessage() ?: "请稍后重试"
+                    rankEmptyMessage = "绩点排名加载失败：$message"
+                    Log.w(tag, "getGpaRank failed without rank data")
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                if (requestSequence == rankRequestSequence) {
+                    rankEmptyMessage = "绩点排名加载失败，请稍后重试"
+                    Log.w(tag, "getGpaRank failed", t)
+                }
+            } finally {
+                if (requestSequence == rankRequestSequence) rankLoading = false
+                Log.i(tag, "getGpaRank finish rankLoading=$rankLoading hasRank=${gpaRankInfo != null}")
             }
-            val result = grades.fetchGpaRank(studentId)
-            Log.i(
-                tag,
-                "getGpaRank ok=${result.isSuccess} hasData=${result.valueOrNull() != null} " +
-                    "error=${result.errorOrNull()?.let { it::class.java.simpleName }.orEmpty()}"
-            )
-            val rankPayload = result.valueOrNull()
-            if (rankPayload != null) {
-                gpaRankInfo = rankPayload
-                withContext(ioDispatcher) { grades.saveGpaRank(studentId, rankPayload) }
-            } else {
-                gpaRankInfo = null
-                rankEmptyMessage = "「${profile.displayName}」暂无排名信息"
-                Log.w(tag, "getGpaRank returned no rank data")
-            }
-        } catch (t: Throwable) {
-            gpaRankInfo = null
-            rankEmptyMessage = "获取排名失败：${t.message}"
-            Log.w(tag, "getGpaRank failed", t)
-        } finally {
-            rankLoading = false
-            Log.i(tag, "getGpaRank finish rankLoading=$rankLoading hasRank=${gpaRankInfo != null}")
-        }
+        }.also { rankRequestJob = it }
     }
 
     fun getGarde(isRefresh: Boolean = false) = viewModelScope.launch {
@@ -187,7 +199,6 @@ class GradeViewModel @Inject constructor(
         // 新专业的成绩可能为空，先更新专业数据，再由统一的学期策略决定定位位置。
         if (profileGrade == null) {
             termGradePointAverage = "暂无"
-            totalGradePointAverage = "暂无"
         }
     }
 
@@ -243,7 +254,11 @@ class GradeViewModel @Inject constructor(
     }
 
     fun selectProfile(index: Int) {
-        if (selectedProfileIndex == index || index !in studentProfiles.indices) return
+        if (updateSelectedProfile(index)) commitCurrentPreset()
+    }
+
+    private fun updateSelectedProfile(index: Int): Boolean {
+        if (selectedProfileIndex == index || index !in studentProfiles.indices) return false
         selectedProfileIndex = index
         gpaRankInfo = null
         rankEmptyMessage = null
@@ -251,7 +266,7 @@ class GradeViewModel @Inject constructor(
         switchToSelectedProfile()
         selectTermAfterLoad(previousTerm, preserveSelectedTerm = true)
         getGpaRank()
-        commitCurrentPreset()
+        return true
     }
 
     fun selectTerm(year: String, term: String) {
@@ -269,8 +284,11 @@ class GradeViewModel @Inject constructor(
             ?: return@launch
         if (decoded.profileIndex !in studentProfiles.indices && studentProfiles.isNotEmpty()) return@launch
         if (decoded.schoolYear !in schoolYears || decoded.term !in terms.keys) return@launch
-        selectedProfileIndex = decoded.profileIndex.coerceAtLeast(0)
-        if (studentProfiles.isNotEmpty()) switchToSelectedProfile()
+        if (studentProfiles.isNotEmpty()) {
+            updateSelectedProfile(decoded.profileIndex)
+        } else {
+            selectedProfileIndex = decoded.profileIndex.coerceAtLeast(0)
+        }
         schoolYear = decoded.schoolYear
         schoolTerm = decoded.term
         refreshTermAndYearGPA()
@@ -340,13 +358,6 @@ class GradeViewModel @Inject constructor(
     }
 
     init {
-        snapshotFlow { gpaRankInfo }
-            .onEach { info ->
-                totalGradePointAverage = info?.gpa?.let { "%.2f".format(it) } ?: "暂无"
-                refreshTermAndYearGPA()
-            }
-            .launchIn(viewModelScope)
-
         snapshotFlow { grade }
             .onEach { refreshTermAndYearGPA() }
             .launchIn(viewModelScope)

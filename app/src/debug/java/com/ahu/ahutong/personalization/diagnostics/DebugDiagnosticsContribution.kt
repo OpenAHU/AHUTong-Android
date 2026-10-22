@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Analytics
@@ -71,6 +72,9 @@ import com.ahu.ahutong.personalization.prefetch.PrefetchDiagnostic
 import com.ahu.ahutong.personalization.prefetch.PrefetchState
 import com.ahu.ahutong.personalization.ui.SuggestionPolicy
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
+import com.ahu.ahutong.ui.components.AppPageScaffold
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
+import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
@@ -116,7 +120,10 @@ class DebugDiagnosticsContribution @Inject constructor(
         runtime: BehaviorPredictionRuntime
     ) {
         builder.composable(DIAGNOSTICS_ROUTE) {
-            DiagnosticsScreen(runtime, prefetchCoordinator, preferences)
+            DiagnosticsScreen(
+                runtime, prefetchCoordinator, preferences,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 
@@ -190,7 +197,8 @@ class DebugDiagnosticsContribution @Inject constructor(
 private fun DiagnosticsScreen(
     runtime: BehaviorPredictionRuntime,
     prefetchCoordinator: PrefetchCoordinator,
-    preferences: DebugDiagnosticsPreferences
+    preferences: DebugDiagnosticsPreferences,
+    onBack: () -> Unit
 ) {
     val state by runtime.diagnostics.collectAsState()
     val prefetch by prefetchCoordinator.diagnostics.collectAsState()
@@ -208,16 +216,11 @@ private fun DiagnosticsScreen(
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
     }
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .appLiquidGlassSceneBackground(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    val useSharedHeader = LocalAppUiTheme.current in setOf(AppUiTheme.MATERIAL, AppUiTheme.MIUIX)
+    val pageContent: LazyListScope.() -> Unit = {
         item {
             DiagnosticsSection {
-                Text("端侧行为模型诊断", style = MaterialTheme.typography.headlineSmall)
+                if (!useSharedHeader) Text("端侧行为模型诊断", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     "Debug 专用 · 所有内容均已脱敏",
                     style = MaterialTheme.typography.bodyMedium,
@@ -328,6 +331,28 @@ private fun DiagnosticsScreen(
         item {
             TechnicalDetailsSection(state, snapshot)
         }
+    }
+    if (!useSharedHeader) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+                .appLiquidGlassSceneBackground(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = pageContent
+        )
+    } else {
+        AppPageScaffold(
+            title = "端侧行为模型诊断",
+            onBack = onBack,
+            freeContent = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = pageContent
+                )
+            }
+        )
     }
 }
 

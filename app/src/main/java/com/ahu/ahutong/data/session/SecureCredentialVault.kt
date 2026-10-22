@@ -1,6 +1,9 @@
 package com.ahu.ahutong.data.session
 
 import com.ahu.ahutong.data.security.SecureBoxStore
+import com.ahu.ahutong.data.security.SecureReadResult
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
+import com.ahu.ahutong.data.security.valueOrNull
 
 /**
  * [CredentialVault] 的生产实现：底层固定为 SecureStorage（AES-GCM + Android Keystore），
@@ -17,7 +20,20 @@ object SecureCredentialVault : CredentialVault {
     }
 
     override fun wisdomPassword(): String? =
-        SecureBoxStore.getOrMigrate(KEY) { SecureBoxStore.legacyString(KEY) }
+        readPassword().valueOrNull()
+
+    override fun wisdomPasswordForRefresh(): String? =
+        when (val stored = readPassword()) {
+            is SecureReadResult.Value -> stored.value
+            SecureReadResult.Missing -> null
+            is SecureReadResult.Unavailable -> {
+                if (stored.retryable) throw SecureStorageUnavailableException(stored.cause)
+                null
+            }
+        }
+
+    private fun readPassword(): SecureReadResult =
+        SecureBoxStore.readOrMigrate(KEY) { SecureBoxStore.legacyString(KEY) }
 
     override fun clearWisdomPassword() = SecureBoxStore.remove(KEY)
 }

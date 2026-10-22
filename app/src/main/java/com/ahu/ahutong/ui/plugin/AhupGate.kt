@@ -38,10 +38,18 @@ object AhupGate {
  */
 internal fun cleanupPluginData(context: Context, pluginId: String) {
     // 插件通过 PluginContextWrapper 拿到的偏好文件名为 plugin_<id>__<name>，
-    // 旧版则是单个 plugin_<id>.xml —— 两种前缀一起清，避免卸载后残留。
+    // 旧版则是单个 plugin_<id>.xml。按命名分隔符匹配，避免卸载 foo 时删除 foobar。
     val prefsDir = File(context.filesDir.parentFile, "shared_prefs")
     prefsDir.listFiles()
-        ?.filter { it.name.startsWith("plugin_${pluginId}") }
-        ?.forEach { it.delete() }
+        ?.mapNotNull { file ->
+            val xmlName = file.name.removeSuffix(".bak")
+            if (!xmlName.endsWith(".xml")) return@mapNotNull null
+            xmlName.removeSuffix(".xml").takeIf { name ->
+                name == "plugin_$pluginId" || name.startsWith("plugin_${pluginId}__")
+            }
+        }
+        ?.distinct()
+        // Android also invalidates its in-process SharedPreferences cache and removes .bak files.
+        ?.forEach { context.deleteSharedPreferences(it) }
     File(context.filesDir, "ahup_plugins/$pluginId").deleteRecursively()
 }

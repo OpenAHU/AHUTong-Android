@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.screen.main.home.WidgetCategory
+import com.ahu.ahutong.ui.components.AppPageBackButton
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 
@@ -72,11 +74,15 @@ fun MoreWidgetsScreen(
                     .padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "返回"
-                    )
+                if (LocalAppUiTheme.current.usesLiquidGlass) {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
+                } else {
+                    AppPageBackButton(onBack = { navController.popBackStack() })
                 }
                 Text(
                     text = "全部小工具",

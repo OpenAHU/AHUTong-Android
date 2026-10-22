@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.net.URLDecoder
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 
 object TokenManager {
 
@@ -158,10 +159,15 @@ object TokenManager {
         val refreshed = SessionRefreshCoordinator.refreshIfNeeded(
             observedGeneration, scope = SessionRefreshCoordinator.Scope.CENTRAL_CAS
         ) {
-            val user = SessionStore.currentUser()
-                ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
-            val password = SecureCredentialVault.wisdomPassword()?.takeIf { it.isNotBlank() }
-                ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
+            val (user, password) = try {
+                val user = SessionStore.currentUserForRefresh()
+                    ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
+                val password = SecureCredentialVault.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
+                    ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
+                user to password
+            } catch (_: SecureStorageUnavailableException) {
+                return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+            }
 
             val serviceLoginUrl = casLoginUrl
                 ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED

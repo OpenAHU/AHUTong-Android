@@ -45,6 +45,7 @@ class FakeGradeSource(
         private set
     var cachedProfileList: List<GradeStudentProfile> = emptyList()
     var perProfile: Map<String, Grade?> = emptyMap()
+    var rankFetcher: (suspend (String) -> AhuResult<GpaRankInfo>)? = null
     val savedRanks = mutableListOf<Pair<String, GpaRankInfo>>()
 
     override fun usesMockData(): Boolean = mockData
@@ -61,7 +62,8 @@ class FakeGradeSource(
 
     override suspend fun fetchProfiles(): List<GradeStudentProfile> = profileList
 
-    override suspend fun fetchGpaRank(studentId: String): AhuResult<GpaRankInfo> = rankResult
+    override suspend fun fetchGpaRank(studentId: String): AhuResult<GpaRankInfo> =
+        rankFetcher?.invoke(studentId) ?: rankResult
 
     override fun saveGpaRank(studentId: String, rank: GpaRankInfo) {
         savedRanks += studentId to rank

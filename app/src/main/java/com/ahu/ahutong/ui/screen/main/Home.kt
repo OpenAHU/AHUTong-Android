@@ -75,13 +75,12 @@ import com.ahu.ahutong.data.schedule.gmis.GmisTimetableAdapter
 import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
 import com.ahu.ahutong.data.crawler.gmis.GmisScheduleSnapshot
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
-import com.ahu.ahutong.data.schedule.GraduateTodayCoursePolicy
+import com.ahu.ahutong.ui.screen.main.home.selectHomeCourses
 import java.time.ZoneId
 import java.util.Date
 import kotlinx.coroutines.CancellationException
 import com.ahu.ahutong.data.dao.HomeWidgetLayoutFamily
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
-import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.ScheduleConfigBean
@@ -218,7 +217,7 @@ fun Home(
     }
     val homeAcademicReady = undergraduateEnabled || (graduateSnapshot != null && graduateConfig != null)
     val density = LocalDensity.current
-    val schedule = scheduleViewModel.schedule.observeAsState().value?.valueOrNull() ?: emptyList()
+    val undergraduateSchedule = scheduleViewModel.schedule.observeAsState().value?.valueOrNull() ?: emptyList()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
     val holidays by scheduleViewModel.scheduleHolidays.observeAsState(emptyMap())
     var today by remember { mutableStateOf(DebugClock.nowLocalDate()) }
@@ -243,29 +242,7 @@ fun Home(
     }
     val effectiveScheduleConfig = if (undergraduateEnabled) scheduleConfig ?: localScheduleConfig else graduateConfig
     val isInSemester = effectiveScheduleConfig?.isInSemester != false
-    val currentWeek = effectiveScheduleConfig?.week ?: 1
-    val currentWeekday = effectiveScheduleConfig?.weekDay ?: 1
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
-    val todayCourses = remember(schedule, isInSemester, currentWeek, currentWeekday, undergraduateEnabled) {
-        if (isInSemester) {
-            if (!undergraduateEnabled && effectiveScheduleConfig != null) {
-                GraduateTodayCoursePolicy.filter(
-                    schedule,
-                    currentWeek,
-                    effectiveScheduleConfig.weekDay
-                )
-            } else if (!undergraduateEnabled) {
-                emptyList()
-            } else schedule
-                .asSequence()
-                .filter { currentWeek in it.weekIndexes }
-                .filter { it.weekday == currentWeekday }
-                .sortedBy { it.startTime }
-                .toList()
-        } else {
-            emptyList()
-        }
-    }
     LaunchedEffect(isActive) {
         if (isActive) scheduleViewModel.onHomeEntered()
     }
@@ -286,6 +263,18 @@ fun Home(
             initialCalendar.get(Calendar.HOUR_OF_DAY) * 60 + initialCalendar.get(Calendar.MINUTE)
         )
     }
+    val homeCourses = remember(
+        undergraduateSchedule, graduateGrid, undergraduateEnabled, effectiveScheduleConfig, currentMinutes
+    ) {
+        selectHomeCourses(
+            undergraduateCourses = undergraduateSchedule,
+            graduateCourses = graduateGrid?.courses.orEmpty(),
+            undergraduateEnabled = undergraduateEnabled,
+            config = effectiveScheduleConfig,
+            currentMinutes = currentMinutes
+        )
+    }
+    val todayCourses = homeCourses.today
     var isEditingHome by remember { mutableStateOf(false) }
     var homeWidgetSlots by remember(noticeAccountId) {
         mutableStateOf(normalizeHomeWidgetSlots(HomeWidgetPlacement.currentSlots(), slotCount, knownWidgetIds))
@@ -573,36 +562,9 @@ fun Home(
             }
             Spacer(modifier = Modifier.height(12.dp))
             // 今日课程全部结束 → 课程条切换为明日课程（Hero 大字仍按今日算，显示空闲）
-            val stripCourses = remember(todayCourses, currentMinutes, schedule, effectiveScheduleConfig) {
-                val allDone = todayCourses.isNotEmpty() && todayCourses.all { course ->
-                    val range = ScheduleSectionTimes.getCourseTimeRangeInMinutes(course)
-                    !range.isEmpty() && currentMinutes > range.last
-                }
-                if (!allDone) {
-                    todayCourses to false
-                } else {
-                    val todayWeekday = effectiveScheduleConfig?.weekDay ?: 1
-                    val nextWeekday = if (todayWeekday == 7) 1 else todayWeekday + 1
-                    val nextWeek = if (todayWeekday == 7) currentWeek + 1 else currentWeek
-                    val tomorrow = schedule
-                        .asSequence()
-                        .filter { nextWeek in it.startWeek..it.endWeek }
-                        .filter { it.weekday == nextWeekday }
-                        .filter {
-                            if (nextWeek in it.weekIndexes) {
-                                true
-                            } else {
-                                nextWeek % 2 == it.startWeek % 2
-                            }
-                        }
-                        .sortedBy { it.startTime }
-                        .toList()
-                    tomorrow to true
-                }
-            }
             AnimatedVisibility(
                 // 配置没就绪时 currentWeek/weekDay 只是兜底值，先别渲染——否则会"先出现一份周一的课，再缩回去"
-                visible = effectiveScheduleConfig != null && stripCourses.first.isNotEmpty(),
+                visible = homeCourses.strip.isNotEmpty(),
                 enter = HomeCardEnter,
                 exit = HomeCardExit
             ) {
@@ -611,11 +573,11 @@ fun Home(
                     Spacer(modifier = Modifier.height(16.dp))
                     // 课程条（滚轮三区）替代原纵向列表——全主题生效
                     CourseStrip(
-                        todayCourses = stripCourses.first,
+                        todayCourses = homeCourses.strip,
                         currentMinutes = currentMinutes,
                         onOpenSchedule = onOpenSchedule,
-                        isTomorrow = stripCourses.second,
-                        holiday = holidays[if (stripCourses.second) today.plusDays(1) else today]
+                        isTomorrow = homeCourses.isTomorrow,
+                        holiday = holidays[if (homeCourses.isTomorrow) today.plusDays(1) else today]
                     )
                 }
             }

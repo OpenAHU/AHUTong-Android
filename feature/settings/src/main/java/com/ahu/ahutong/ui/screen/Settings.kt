@@ -19,6 +19,8 @@ import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material.icons.outlined.PeopleOutline
+import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material3.AlertDialog
@@ -75,6 +77,7 @@ import top.yukonga.miuix.kmp.icon.icons.useful.Delete
 import top.yukonga.miuix.kmp.icon.icons.useful.Edit
 import top.yukonga.miuix.kmp.icon.icons.useful.Info
 import top.yukonga.miuix.kmp.icon.icons.useful.Personal
+import top.yukonga.miuix.kmp.icon.icons.useful.Refresh
 import top.yukonga.miuix.kmp.icon.icons.useful.Settings
 import top.yukonga.miuix.kmp.icon.icons.useful.Update
 
@@ -201,10 +204,12 @@ fun Settings(
                 )
                 SettingsActionRow(
                     title = "切换账号",
-                    subtitle = "快速登录已保存的账号",
-                    leadingIcon = if (useMiuixIcons) MiuixIcons.Useful.Personal
-                        else if (isRadiant) null else Icons.Outlined.PeopleOutline,
-                    leadingPainter = if (isRadiant) painterResource(R.drawable.ic_peoples) else null,
+                    leadingIcon = when {
+                        useMiuixIcons -> MiuixIcons.Useful.Refresh
+                        isRadiant -> null
+                        else -> Icons.Outlined.SwitchAccount
+                    },
+                    leadingPainter = if (isRadiant) painterResource(R.drawable.ic_switch_account) else null,
                     showDivider = false,
                     onClick = onSwitchAccount
                 )
@@ -246,13 +251,9 @@ fun Settings(
             )
             SettingsActionRow(
                 title = "抢先体验",
-                subtitle = earlyAccessSummary,
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Personal
-                    isRadiant -> null
-                    else -> Icons.Outlined.PeopleOutline
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_peoples) else null,
+                value = earlyAccessSummary,
+                leadingIcon = if (isRadiant) null else Icons.Outlined.Science,
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_experiment) else null,
                 showDivider = false,
                 onClick = onNavigateToEarlyAccess
             )

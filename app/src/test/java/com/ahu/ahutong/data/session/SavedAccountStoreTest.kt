@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.session
 
 import com.ahu.ahutong.data.model.User
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -63,5 +64,36 @@ class SavedAccountStoreTest {
         )
         assertFailsWith<IllegalStateException> { failing.save(User("乙", "test-b"), "password-b") }
         assertEquals(listOf("test-a"), store().accounts().map { it.userId })
+    }
+
+    @Test
+    fun `temporary read failure cannot overwrite or forget existing account credentials`() {
+        store().save(User("甲", "test-a"), "password-a")
+        store().save(User("乙", "test-b"), "password-b")
+        val originalPayload = encryptedPayload
+        var unavailable = true
+        val recovering = SavedAccountStore(
+            read = {
+                if (unavailable) throw SecureStorageUnavailableException(IllegalStateException("Keystore busy"))
+                encryptedPayload
+            },
+            write = { encryptedPayload = it },
+            remove = { encryptedPayload = null }
+        )
+
+        // Synchronous UI reads remain safe; mutations must not treat that failure as an empty list.
+        assertTrue(recovering.accounts().isEmpty())
+        assertNull(recovering.password("test-a"))
+        assertFailsWith<SecureStorageUnavailableException> {
+            recovering.save(User("丙", "test-c"), "password-c")
+        }
+        assertFailsWith<SecureStorageUnavailableException> { recovering.forget("test-a") }
+        assertEquals(originalPayload, encryptedPayload)
+
+        unavailable = false
+
+        assertEquals(listOf("test-b", "test-a"), recovering.accounts().map { it.userId })
+        assertEquals("password-a", recovering.password("test-a"))
+        assertEquals("password-b", recovering.password("test-b"))
     }
 }

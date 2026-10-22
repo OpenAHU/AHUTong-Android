@@ -2,6 +2,7 @@ package com.ahu.ahutong.data.session
 
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.security.SecureBoxStore
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import com.ahu.ahutong.ext.fromJson
 import com.google.gson.Gson
 
@@ -21,45 +22,38 @@ object SessionStore : SessionIdentity {
     private const val KEY_RUST_COOKIES = "rust_cookies_json"
     private const val KEY_EVAL_TOKEN = "eval_token"
 
-    private val userCacheLock = Any()
-
-    @Volatile
-    private var userCache: User? = null
-
-    @Volatile
-    private var userCacheInitialized = false
+    private val userRestore = CurrentUserRestore(
+        read = {
+            SecureBoxStore.readOrMigrate(KEY_CURRENT_USER) {
+                SecureBoxStore.legacyString(KEY_CURRENT_USER)
+            }
+        },
+        decode = { it.fromJson(User::class.java) }
+    )
 
     /** 只做读写与缓存；"用户变化后要刷新小组件槽位"这类副作用仍由缓存层负责。 */
     fun persistCurrentUser(user: User) {
         SecureBoxStore.put(KEY_CURRENT_USER, Gson().toJson(user))
-        synchronized(userCacheLock) {
-            userCache = user
-            userCacheInitialized = true
-        }
+        userRestore.update(user)
     }
 
     fun clearPersistedCurrentUser() {
         SecureBoxStore.remove(KEY_CURRENT_USER)
-        synchronized(userCacheLock) {
-            userCache = null
-            userCacheInitialized = true
-        }
+        userRestore.update(null)
     }
 
-    override fun currentUser(): User? {
-        if (userCacheInitialized) return userCache
-        return synchronized(userCacheLock) {
-            if (userCacheInitialized) {
-                userCache
-            } else {
-                val data = SecureBoxStore.getOrMigrate(KEY_CURRENT_USER) {
-                    SecureBoxStore.legacyString(KEY_CURRENT_USER)
-                }.orEmpty()
-                data.fromJson(User::class.java).also { user ->
-                    userCache = user
-                    userCacheInitialized = true
-                }
-            }
+    override fun currentUser(): User? =
+        (restoreCurrentUser() as? CurrentUserRestoreResult.Ready)?.user
+
+    fun restoreCurrentUser(): CurrentUserRestoreResult = userRestore.restore()
+
+    fun isUserRestoreUnavailable(): Boolean = userRestore.unavailable
+
+    fun currentUserForRefresh(): User? = when (val restored = restoreCurrentUser()) {
+        is CurrentUserRestoreResult.Ready -> restored.user
+        is CurrentUserRestoreResult.Unavailable -> {
+            if (restored.retryable) throw SecureStorageUnavailableException(restored.cause)
+            null
         }
     }
 

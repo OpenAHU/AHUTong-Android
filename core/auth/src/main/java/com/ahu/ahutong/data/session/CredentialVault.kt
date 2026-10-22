@@ -12,6 +12,9 @@ interface CredentialVault {
 
     fun wisdomPassword(): String?
 
+    /** Automatic refresh must distinguish unavailable storage from missing credentials. */
+    fun wisdomPasswordForRefresh(): String? = wisdomPassword()
+
     fun clearWisdomPassword()
 }
 

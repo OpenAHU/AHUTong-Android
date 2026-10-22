@@ -25,11 +25,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
@@ -208,6 +213,41 @@ class ElectricityDepositViewModelTest {
         assertEquals(second.room, settingsViewModel.selectedRoom.value)
         assertEquals(second, settings.configuration.value.rooms.single().selection)
         assertEquals(5, paymentViewModel.alertConfiguration.value.rooms.single().thresholdDays)
+    }
+
+    @Test
+    fun `cancelled room request cannot clear a newer request loading state or show a network error`() = runTest(dispatcher) {
+        val source = source(selection())
+        val subject = viewModel(source)
+        advanceUntilIdle()
+        val oldCleanup = CompletableDeferred<Unit>()
+        val nextResponse = CompletableDeferred<AhuResult<ElectricityRoom>>()
+        source.roomHandler = { selected ->
+            if (selected.room?.value == "102") {
+                try {
+                    awaitCancellation()
+                } finally {
+                    withContext(NonCancellable) { oldCleanup.await() }
+                }
+            } else {
+                nextResponse.await()
+            }
+        }
+
+        subject.onRoomSelected(requireNotNull(selection("102").room))
+        runCurrent()
+        subject.onRoomSelected(requireNotNull(selection("103").room))
+        runCurrent()
+        oldCleanup.complete(Unit)
+        runCurrent()
+
+        assertTrue(subject.isLoading.value)
+        assertNull(subject.errorMessage.value)
+        nextResponse.complete(AhuResult.Success(room()))
+        advanceUntilIdle()
+        assertFalse(subject.isLoading.value)
+        assertEquals("103", subject.selectedRoom.value?.value)
+        assertNull(subject.errorMessage.value)
     }
 
     private fun viewModel(

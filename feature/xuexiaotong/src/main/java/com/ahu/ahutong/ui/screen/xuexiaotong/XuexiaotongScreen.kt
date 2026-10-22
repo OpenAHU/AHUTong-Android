@@ -88,6 +88,7 @@ import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
@@ -127,6 +128,7 @@ fun XuexiaotongScreen() {
     var showLogin by remember { mutableStateOf(false) }
 
     if (showLogin) {
+        val onLoginBack: (() -> Unit)? = if (LocalAppUiTheme.current.usesLiquidGlass) null else ({ showLogin = false })
         // 系统返回回到日历/课程子页，而不是 pop 掉整个学习通路由
         androidx.activity.compose.BackHandler { showLogin = false }
         // 登录页全主题去玻璃（低频页面，不值得为它碰采样层）：
@@ -144,6 +146,7 @@ fun XuexiaotongScreen() {
             ) {
                 XuexiaotongLoginScreen(
                     login = viewModel::login,
+                    onBack = onLoginBack,
                     onLoginSuccess = {
                         viewModel.onLoginSuccess()
                         showLogin = false

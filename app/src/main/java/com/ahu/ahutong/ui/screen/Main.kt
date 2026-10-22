@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.isImeVisible
@@ -123,6 +124,7 @@ import com.ahu.ahutong.ui.components.LocalAppBackground
 import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
+import com.ahu.ahutong.ui.components.AppPageHeader
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
@@ -231,7 +233,7 @@ fun Main(
         currentRoute !in setOf("login", "splash") && !canUseBusinessPages
     LaunchedEffect(protectedRouteBlocked, currentRoute) {
         if (protectedRouteBlocked) {
-            navController.navigate("login") {
+            navController.navigate(if (SessionStore.isUserRestoreUnavailable()) "splash" else "login") {
                 popUpTo(navController.graph.id) { inclusive = true }
                 launchSingleTop = true
             }
@@ -449,6 +451,7 @@ fun Main(
             animatedComposable("info") {
                 Info(
                     scheduleViewModel = scheduleViewModel,
+                    onBack = { navController.popBackStack() },
                     onSetup = { navController.popBackStack() }
                 )
             }
@@ -499,7 +502,7 @@ fun Main(
                 )
             }
             animatedComposable("campus_notices") {
-                CampusNoticeScreen()
+                CampusNoticeScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("school_calendar") {
                 SchoolCalendar(navController = navController)
@@ -598,25 +601,36 @@ fun Main(
                             themeTokensProvider = { tokens }
                         )
                     }
-                    androidx.compose.ui.viewinterop.AndroidView(
-                        factory = { viewContext ->
-                            runCatching {
-                                plugin.createContentView(pluginContext, host)
-                            }.onFailure {
-                                android.util.Log.e("PluginRoute", "创建插件视图失败：$pluginId", it)
-                            }.getOrElse {
-                                android.widget.TextView(viewContext).apply {
-                                    text = "插件渲染失败：$pluginId"
-                                    setPadding(72, 72, 72, 72)
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        onRelease = { plugin.onDestroy() }
-                    )
-                    BackHandler(enabled = true) {
+                    val onPluginBack: () -> Unit = {
                         if (!host.dispatchBack()) navController.popBackStack()
                     }
+                    val pluginContent: @Composable () -> Unit = {
+                        androidx.compose.ui.viewinterop.AndroidView(
+                            factory = { viewContext ->
+                                runCatching {
+                                    plugin.createContentView(pluginContext, host)
+                                }.onFailure {
+                                    android.util.Log.e("PluginRoute", "创建插件视图失败：$pluginId", it)
+                                }.getOrElse {
+                                    android.widget.TextView(viewContext).apply {
+                                        text = "插件渲染失败：$pluginId"
+                                        setPadding(72, 72, 72, 72)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                            onRelease = { plugin.onDestroy() }
+                        )
+                    }
+                    if (appUiTheme.usesLiquidGlass) {
+                        pluginContent()
+                    } else {
+                        Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                            AppPageHeader(title = plugin.meta.title, onBack = onPluginBack)
+                            Box(Modifier.weight(1f).fillMaxWidth()) { pluginContent() }
+                        }
+                    }
+                    BackHandler(enabled = true, onBack = onPluginBack)
                     androidx.compose.runtime.DisposableEffect(pluginId) {
                         host.dispatchStart()
                         host.dispatchResume()
@@ -626,11 +640,21 @@ fun Main(
                         }
                     }
                 } else {
-                    Text(
-                        text = "插件未安装或已卸载",
-                        modifier = Modifier.padding(24.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val missingPlugin: @Composable () -> Unit = {
+                        Text(
+                            text = "插件未安装或已卸载",
+                            modifier = Modifier.padding(24.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (appUiTheme.usesLiquidGlass) {
+                        missingPlugin()
+                    } else {
+                        Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                            AppPageHeader(title = "插件", onBack = { navController.popBackStack() })
+                            missingPlugin()
+                        }
+                    }
                 }
             }
             animatedComposable("weather") {
@@ -795,6 +819,7 @@ fun Main(
                     Debug(
                         scheduleViewModel = scheduleViewModel,
                         discoveryViewModel = discoveryViewModel,
+                        onBack = { navController.popBackStack() },
                         onGrayStateChanged = {
                             scope.launch {
                                 homeEditGrayState = GrayReleaseManager.state(

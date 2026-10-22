@@ -11,6 +11,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.ahu.ahutong.data.network.AhuHttp
@@ -88,16 +89,18 @@ class ChaoxingApi(private val context: Context) {
 
     suspend fun silentRelogin(): Boolean = withContext(Dispatchers.IO) {
         val cred = Store.getCredential() ?: return@withContext false
-        val backup = Store.getCookie()
+        val backup = cookieJar.snapshot()
         clearSession()
         try {
             loginByPassword(cred.first, cred.second)
             true
+        } catch (e: CancellationException) {
+            cookieJar.restoreSnapshot(backup)
+            Store.saveCookie(cookieJar.cookieString())
+            throw e
         } catch (e: Exception) {
-            if (backup.isNotEmpty()) {
-                cookieJar.restoreFromString(backup)
-                Store.saveCookie(backup)
-            }
+            cookieJar.restoreSnapshot(backup)
+            Store.saveCookie(cookieJar.cookieString())
             false
         }
     }

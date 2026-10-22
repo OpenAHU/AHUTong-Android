@@ -51,6 +51,8 @@ import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.notification.CourseReminderScheduler
 import com.ahu.ahutong.ui.components.LiquidToggle
+import com.ahu.ahutong.ui.components.AppPageHeader
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.screen.main.home.recallLine
@@ -77,7 +79,8 @@ import kotlinx.coroutines.withContext
 fun Debug(
     scheduleViewModel: ScheduleViewModel = viewModel(),
     discoveryViewModel: DiscoveryViewModel = viewModel(),
-    onGrayStateChanged: () -> Unit = {}
+    onGrayStateChanged: () -> Unit = {},
+    onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -198,10 +201,14 @@ fun Debug(
                 .padding(horizontal = 8.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Debug",
-                style = MaterialTheme.typography.headlineLarge
-            )
+            if (LocalAppUiTheme.current.usesLiquidGlass) {
+                Text(
+                    text = "Debug",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            } else {
+                AppPageHeader(title = "Debug", onBack = onBack, horizontalPadding = 0.dp, verticalPadding = 0.dp)
+            }
             Text(
                 text = "调试网络、时间和缓存状态。当前时间模拟会影响首页、课表和小组件。",
                 color = secondaryTextColor,

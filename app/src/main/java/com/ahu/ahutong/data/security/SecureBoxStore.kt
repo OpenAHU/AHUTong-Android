@@ -37,6 +37,9 @@ object SecureBoxStore {
     fun getOrMigrate(box: String, key: String, fallback: () -> String?): String? =
         core.getOrMigrate(box, key, fallback)
 
+    fun readOrMigrate(box: String, key: String, fallback: () -> String?): SecureReadResult =
+        core.readOrMigrate(box, key, fallback)
+
     fun remove(box: String, key: String) = core.remove(box, key)
 
     // 初始化箱的便捷重载（历史调用点保持原样）
@@ -47,6 +50,9 @@ object SecureBoxStore {
     fun getOrMigrate(key: String, fallback: () -> String?): String? =
         getOrMigrate(INIT_BOX, key, fallback)
 
+    fun readOrMigrate(key: String, fallback: () -> String?): SecureReadResult =
+        readOrMigrate(INIT_BOX, key, fallback)
+
     fun remove(key: String) = remove(INIT_BOX, key)
 
     /** 旧 MMKV 明文值，仅用于迁移兜底。 */
@@ -56,6 +62,7 @@ object SecureBoxStore {
 
     private object SecureStorageAdapter : SecureStringStore {
         override fun getString(key: String): String? = SecureStorage.getString(key)
+        override fun readString(key: String): SecureReadResult = SecureStorage.readString(key)
         override fun putString(key: String, value: String) = SecureStorage.putString(key, value)
         override fun remove(key: String) = SecureStorage.remove(key)
     }

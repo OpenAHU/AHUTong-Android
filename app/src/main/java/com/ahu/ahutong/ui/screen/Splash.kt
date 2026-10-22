@@ -3,6 +3,7 @@ package com.ahu.ahutong.ui.screen
 import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.platform.LocalContext
 import com.ahu.ahutong.R
+import com.ahu.ahutong.MainActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,9 +19,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
@@ -41,6 +47,7 @@ import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.session.CurrentUserRestoreResult
 
 @Composable
 fun Splash(
@@ -52,21 +59,34 @@ fun Splash(
     val bootstrapTrainingState by viewModel.bootstrapTrainingOnboardingState.collectAsState()
     val activity = LocalActivity.current
     val context = LocalContext.current
+    var restoreAttempt by remember { mutableIntStateOf(0) }
+    var restoreFailure by remember { mutableStateOf<CurrentUserRestoreResult.Unavailable?>(null) }
 
     val telemetryChoice = (telemetryState as? TelemetryOnboardingState.Ready)?.choice
     val bootstrapTrainingChoice =
         (bootstrapTrainingState as? BootstrapTrainingOnboardingState.Ready)?.choice
 
-    LaunchedEffect(policyAccepted, telemetryState, bootstrapTrainingState) {
+    LaunchedEffect(policyAccepted, telemetryState, bootstrapTrainingState, restoreAttempt) {
         if (policyAccepted == true &&
             telemetryChoice != null && bootstrapTrainingChoice != null
         ) {
-            if (withContext(Dispatchers.IO) { SessionStore.isLoggedIn() }) {
-                navController.navigate("home") {
-                    popUpTo("splash") { inclusive = true }
+            restoreFailure = null
+            val restored = withContext(Dispatchers.IO) {
+                var result = SessionStore.restoreCurrentUser()
+                for (retryDelay in listOf(150L, 350L)) {
+                    if (result is CurrentUserRestoreResult.Unavailable && result.retryable) {
+                        delay(retryDelay)
+                        result = SessionStore.restoreCurrentUser()
+                    } else break
                 }
+                result
+            }
+            if (restored is CurrentUserRestoreResult.Unavailable) {
+                restoreFailure = restored
             } else {
-                navController.navigate("login") {
+                val user = (restored as CurrentUserRestoreResult.Ready).user
+                if (user != null) (activity as? MainActivity)?.onSessionStorageReady()
+                navController.navigate(if (user != null) "home" else "login") {
                     popUpTo("splash") { inclusive = true }
                 }
             }
@@ -82,7 +102,30 @@ fun Splash(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            AppCircularProgressIndicator()
+            val failure = restoreFailure
+            if (failure == null) {
+                AppCircularProgressIndicator()
+            } else {
+                com.ahu.ahutong.ui.components.AppStateCard.Error(
+                    title = "登录信息读取失败",
+                    message = if (failure.retryable) {
+                        "暂时无法读取已保存的登录信息，请稍后重试。"
+                    } else {
+                        "无法读取已保存的登录信息，请重新登录。"
+                    },
+                    retryLabel = if (failure.retryable) "重试" else "重新登录",
+                    onRetry = {
+                        if (failure.retryable) {
+                            restoreFailure = null
+                            restoreAttempt++
+                        } else {
+                            navController.navigate("login") {
+                                popUpTo("splash") { inclusive = true }
+                            }
+                        }
+                    }
+                )
+            }
         }
     } else if (requiresAcceptance) {
         val policyMarkdown by produceState<String?>(null) {

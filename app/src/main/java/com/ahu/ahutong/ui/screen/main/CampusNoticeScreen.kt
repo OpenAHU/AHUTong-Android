@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -78,7 +79,7 @@ import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CampusNoticeScreen() {
+fun CampusNoticeScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val accountId = SessionStore.currentUser()?.xh
     val graduate = !AHUCache.canUseUndergraduateAcademics()
@@ -192,6 +193,7 @@ fun CampusNoticeScreen() {
 
     AppPageScaffold(
         title = "校园通知",
+        onBack = if (LocalAppUiTheme.current.usesLiquidGlass) null else onBack,
         modifier = Modifier.fillMaxSize(),
         actions = listOf(
             TrailingAction(Icons.Outlined.OpenInBrowser, "在浏览器查看") { openOfficialSite() },

@@ -126,11 +126,11 @@ object StudentMailSession {
                     invalidate(existing)
                 }
             }
-            val account = SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }
+            val account = SessionStore.currentUserForRefresh()?.xh?.takeIf { it.isNotBlank() }
                 ?: throw MailServiceFailure("请先登录智慧安大")
             val reset = resetGeneration
             val identity = SessionRefreshCoordinator.currentIdentityGeneration()
-            var generation = SessionRefreshCoordinator.currentGeneration()
+            val portalStamp = PortalSessionStamp()
             fun mailboxCurrent(): Boolean = reset == resetGeneration &&
                 account == SessionStore.currentUser()?.xh &&
                 identity == SessionRefreshCoordinator.currentIdentityGeneration() &&
@@ -138,8 +138,7 @@ object StudentMailSession {
             // Persisted CAS/portal cookies can be used before the UI status is hydrated at cold start.
             fun current(): Boolean = reset == resetGeneration &&
                 account == SessionStore.currentUser()?.xh &&
-                generation == SessionRefreshCoordinator.currentGeneration() &&
-                !SessionRefreshCoordinator.isExplicitlySignedOut()
+                portalStamp.isCurrent()
             fun checkCurrent() {
                 if (!current()) throw MailServiceFailure("登录账号已变化，请重新进入邮箱")
             }
@@ -180,10 +179,9 @@ object StudentMailSession {
                 if (service?.host != PORTAL_HOST || service.encodedPath != "/tp_up/view") {
                     throw MailServiceFailure("智慧安大邮箱登录入口已变化")
                 }
-                val password = SecureCredentialVault.wisdomPassword()?.takeIf { it.isNotBlank() }
+                val password = SecureCredentialVault.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
                     ?: throw MailServiceFailure("智慧安大登录已过期，请重新登录")
-                val refreshed = SessionRefreshCoordinator.refreshIfNeeded(generation,
-                    scope = SessionRefreshCoordinator.Scope.CENTRAL_CAS) {
+                val refreshed = portalStamp.refresh {
                     StudentMailDiagnostics.record("portal.cas.refresh.begin")
                     checkCurrent()
                     if (AHURepository.refreshCentralCasSession(account, password, page.url.toString())) {
@@ -191,14 +189,13 @@ object StudentMailSession {
                     } else SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
                 }
                 // A concurrent sign-in can also advance the coordinator. Never adopt a different account.
-                if (!refreshed || SessionRefreshCoordinator.currentGeneration() != generation + 1 ||
+                if (!refreshed || !portalStamp.isCurrent() ||
                     reset != resetGeneration || account != SessionStore.currentUser()?.xh ||
                     SessionRefreshCoordinator.isExplicitlySignedOut()) {
                     throw MailServiceFailure("无法续期智慧安大邮箱登录，请重新登录后重试")
                 }
-                generation += 1
                 StudentMailDiagnostics.record("portal.cas.refresh.success")
-                SessionRefreshCoordinator.commitIfCurrent(generation) {
+                portalStamp.commit {
                     checkCurrent()
                     AhuSessionState.markAuthenticated()
                 }

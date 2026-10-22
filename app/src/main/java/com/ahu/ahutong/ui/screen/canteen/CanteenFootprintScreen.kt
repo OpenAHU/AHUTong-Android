@@ -26,6 +26,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.ahu.ahutong.ui.components.AppPageBackButton
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -80,16 +82,20 @@ fun CanteenFootprintScreen(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "返回",
-                tint = CanteenPalette.textPrimary,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable { onBack?.invoke() }
-                    .padding(10.dp)
-                    .size(24.dp)
-            )
+            if (LocalAppUiTheme.current.usesLiquidGlass) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "返回",
+                    tint = CanteenPalette.textPrimary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable { onBack?.invoke() }
+                        .padding(10.dp)
+                        .size(24.dp)
+                )
+            } else {
+                onBack?.let { AppPageBackButton(onBack = it, tint = CanteenPalette.textPrimary) }
+            }
         }
 
         when (val s = state) {

@@ -27,7 +27,7 @@ private fun createSession(wisdomOnly: Boolean) = RepositoryAhuSession(
     refreshScope = if (wisdomOnly) SessionRefreshCoordinator.Scope.WISDOM
         else SessionRefreshCoordinator.Scope.ACADEMIC,
     credentials = SecureCredentialVault,
-    account = SessionAccount { SessionStore.currentUser() },
+    account = SessionAccount { SessionStore.currentUserForRefresh() },
     residue = object : SessionResidue {
 
         override fun clearRetainedServiceSessions() {

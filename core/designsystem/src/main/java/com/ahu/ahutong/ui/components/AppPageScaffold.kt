@@ -37,9 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -52,8 +50,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
@@ -260,7 +256,6 @@ internal fun MiuixPageScaffoldImpl(
     freeContent: (@Composable BoxScope.() -> Unit)?
 ) {
     val scrollBehavior = MiuixScrollBehavior()
-    val haptic = LocalHapticFeedback.current
     MiuixScaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
@@ -273,18 +268,7 @@ internal fun MiuixPageScaffoldImpl(
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     onBack?.let { callback ->
-                        MiuixIconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                callback()
-                            }
-                        ) {
-                            MiuixIcon(
-                                imageVector = MiuixIcons.Useful.Back,
-                                contentDescription = "返回",
-                                tint = MiuixTheme.colorScheme.onSurface
-                            )
-                        }
+                        AppPageBackButton(onBack = callback)
                     }
                 },
                 actions = {

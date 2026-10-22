@@ -73,7 +73,8 @@ open class AppComponentPack {
         miuixInsideMargin: PaddingValues,
         miuixStandalone: Boolean,
         liquidLabelWeight: Float,
-        liquidValueWeight: Float
+        liquidValueWeight: Float,
+        grouped: Boolean
     ) {
         MaterialSelectFieldImpl(
             label = label,
@@ -83,7 +84,8 @@ open class AppComponentPack {
             modifier = modifier,
             placeholder = placeholder,
             enabled = enabled,
-            valueTextAlign = valueTextAlign
+            valueTextAlign = valueTextAlign,
+            grouped = grouped
         )
     }
 

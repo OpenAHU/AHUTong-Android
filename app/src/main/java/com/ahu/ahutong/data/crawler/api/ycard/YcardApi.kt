@@ -256,12 +256,15 @@ interface YcardApi {
                     "校园卡登录凭证不可用".toResponseBody("text/plain".toMediaType())
                 )
             val firstResponse = BATHROOM_API.enterFeeItem(feeItemId, appId, attemptedToken)
-            if (firstResponse.code() != 401) return firstResponse
-
-            firstResponse.errorBody()?.close()
-            val refreshedToken = TokenManager.refreshAfterUnauthorized(attemptedToken)
-                ?: return firstResponse
-            return BATHROOM_API.enterFeeItem(feeItemId, appId, refreshedToken)
+            var refreshedToken: String? = null
+            return retryYcardUnauthorized(
+                firstResponse,
+                refresh = {
+                    refreshedToken = TokenManager.refreshAfterUnauthorized(attemptedToken)
+                    !refreshedToken.isNullOrBlank()
+                },
+                retry = { BATHROOM_API.enterFeeItem(feeItemId, appId, requireNotNull(refreshedToken)) }
+            )
         }
 
         internal suspend fun initializeBathroomFeeItem(
@@ -306,13 +309,11 @@ interface YcardApi {
                 )
             }
             val firstResponse = api.request()
-            if (firstResponse.code() != 401) return firstResponse
-
-            firstResponse.errorBody()?.close()
-            if (TokenManager.refreshAfterUnauthorized(attemptedToken).isNullOrBlank()) {
-                return firstResponse
-            }
-            return api.request()
+            return retryYcardUnauthorized(
+                firstResponse,
+                refresh = { !TokenManager.refreshAfterUnauthorized(attemptedToken).isNullOrBlank() },
+                retry = { api.request() }
+            )
         }
 
         private const val BATHROOM_MINI_PROGRAM_USER_AGENT =

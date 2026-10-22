@@ -37,6 +37,48 @@ class AhuSessionContractTest {
 
     private val user = User("测试同学", "20210001")
 
+    @Test
+    fun `temporarily unreadable credentials preserve the session and remain retryable`() = runBlocking {
+        val unavailable = com.ahu.ahutong.data.security.SecureStorageUnavailableException(
+            java.security.ProviderException("Keystore temporarily unavailable")
+        )
+        val vault = object : CredentialVault by FakeCredentialVault("stored-secret") {
+            override fun wisdomPasswordForRefresh(): String? = throw unavailable
+        }
+        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
+        val subject = RepositoryAhuSession(login, vault, FakeSessionAccount(user), FakeSessionResidue())
+        AhuSessionState.markAuthenticated()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+        RepositorySessionExpiryHook(subject).onExpired(generation)
+
+        assertTrue(login.calls.isEmpty())
+        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+        assertEquals(SessionRefreshCoordinator.FailureKind.TRANSIENT,
+            SessionRefreshCoordinator.failureKindOf(generation))
+    }
+
+    @Test
+    fun `temporarily unreadable persisted identity is not treated as a rejected account`() = runBlocking {
+        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
+        val account = SessionAccount {
+            throw com.ahu.ahutong.data.security.SecureStorageUnavailableException(
+                java.security.ProviderException("Keystore temporarily unavailable")
+            )
+        }
+        val subject = RepositoryAhuSession(login, FakeCredentialVault("stored-secret"), account, FakeSessionResidue())
+        AhuSessionState.markAuthenticated()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+
+        assertTrue(login.calls.isEmpty())
+        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+        assertEquals(SessionRefreshCoordinator.FailureKind.TRANSIENT,
+            SessionRefreshCoordinator.failureKindOf(generation))
+    }
+
     /**
      * [AhuSessionState] 是进程内单例（登录态的单一真相），用例之间显式复位，
      * 免得测试顺序影响断言。

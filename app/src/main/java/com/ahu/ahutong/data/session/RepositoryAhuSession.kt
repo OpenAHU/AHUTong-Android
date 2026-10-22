@@ -5,6 +5,7 @@ import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import com.ahu.ahutong.data.model.LoginOutcome
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -59,10 +60,15 @@ class RepositoryAhuSession(
 
     override suspend fun ensureFresh(observedGeneration: Long): Boolean {
         val refreshed = SessionRefreshCoordinator.refreshIfNeeded(observedGeneration, scope = refreshScope) {
-            val user = account.currentUser()
-                ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
-            val password = credentials.wisdomPassword()?.takeIf { it.isNotBlank() }
-                ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
+            val (user, password) = try {
+                val user = account.currentUser()
+                    ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
+                val password = credentials.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
+                    ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
+                user to password
+            } catch (_: SecureStorageUnavailableException) {
+                return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+            }
 
             Log.i(TAG, "Refreshing expired first-party session")
             val loginResult = refreshLogin.signIn(

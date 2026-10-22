@@ -46,7 +46,8 @@ object MiuixComponentPack : AppComponentPack() {
         miuixInsideMargin: PaddingValues,
         miuixStandalone: Boolean,
         liquidLabelWeight: Float,
-        liquidValueWeight: Float
+        liquidValueWeight: Float,
+        grouped: Boolean
     ) {
         MiuixSelectFieldImpl(
             label = label,
@@ -56,7 +57,8 @@ object MiuixComponentPack : AppComponentPack() {
             modifier = modifier,
             enabled = enabled,
             insideMargin = miuixInsideMargin,
-            standalone = miuixStandalone
+            standalone = miuixStandalone,
+            grouped = grouped
         )
     }
 

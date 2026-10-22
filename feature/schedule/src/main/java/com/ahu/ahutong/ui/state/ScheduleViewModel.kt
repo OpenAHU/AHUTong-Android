@@ -118,6 +118,11 @@ class ScheduleViewModel @Inject constructor(
     /** 最近一次后台刷新失败的原因；界面只判断有没有失败（文案由界面自己写，见 ADR 0001 规则 3）。 */
     val scheduleRefreshError = MutableLiveData<AhuError?>(null)
     private var backgroundRefreshJob: Job? = null
+    private var backgroundRefreshIdentity: Triple<Boolean, String?, Boolean>? = null
+    private var backgroundRefreshRevision = 0L
+    private var scheduleRequestRevision = 0L
+    private var configRequestRevision = 0L
+    private var configLoadJob: Job? = null
     private var cacheLoadJob: Job? = null
     private var cacheLoadIdentity: Triple<Boolean, String?, Boolean>? = null
     val scheduleHolidays = MutableLiveData<Map<LocalDate, ScheduleHoliday>>(emptyMap())
@@ -171,6 +176,8 @@ class ScheduleViewModel @Inject constructor(
             refreshLatestSchedule()
             return
         }
+        val identity = previewIdentity()
+        val revision = ++scheduleRequestRevision
         viewModelScope.launchSafe {
             if (!session.isLoggedIn() && !scheduleSource.usesMockData()) {
                 schedule.value = AhuResult.Failure(AhuError.Unauthorized("请先登录！"))
@@ -178,6 +185,7 @@ class ScheduleViewModel @Inject constructor(
             }
 
             val result = scheduleSource.fetch(isRefresh = isRefresh)
+            if (revision != scheduleRequestRevision || identity != previewIdentity()) return@launchSafe
             schedule.value = result
             scheduleFetchedAt.value = scheduleSource.fetchedAt()
             if (result.isSuccess) {
@@ -224,13 +232,24 @@ class ScheduleViewModel @Inject constructor(
     }
 
     private fun refreshLatestSchedule() {
-        if (backgroundRefreshJob?.isActive == true) return
+        val identity = previewIdentity()
+        if (backgroundRefreshJob?.isActive == true && backgroundRefreshIdentity == identity) return
+        backgroundRefreshJob?.cancel()
+        backgroundRefreshIdentity = identity
+        val revision = ++backgroundRefreshRevision
+        val scheduleRevision = ++scheduleRequestRevision
         backgroundRefreshJob = viewModelScope.launchSafe {
-            cacheLoadJob?.join()
-            isScheduleRefreshing.value = true
-            scheduleRefreshError.value = null
             try {
+                cacheLoadJob?.join()
+                if (revision != backgroundRefreshRevision || scheduleRevision != scheduleRequestRevision ||
+                    identity != previewIdentity()
+                ) return@launchSafe
+                isScheduleRefreshing.value = true
+                scheduleRefreshError.value = null
                 val refresh = scheduleSource.refreshCache()
+                if (revision != backgroundRefreshRevision || scheduleRevision != scheduleRequestRevision ||
+                    identity != previewIdentity()
+                ) return@launchSafe
                 refresh.onSuccess { result ->
                     scheduleFetchedAt.value = result.fetchedAt
                     val displayedSchedule = schedule.value?.valueOrNull()
@@ -249,7 +268,7 @@ class ScheduleViewModel @Inject constructor(
                     }
                 }
             } finally {
-                isScheduleRefreshing.value = false
+                if (revision == backgroundRefreshRevision) isScheduleRefreshing.value = false
             }
         }
     }
@@ -328,15 +347,20 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun loadConfig() {
-        viewModelScope.launchSafe {
+        val identity = previewIdentity()
+        val revision = ++configRequestRevision
+        configLoadJob?.cancel()
+        configLoadJob = viewModelScope.launchSafe {
             val initialConfig = weekConfig.resolveLocalFirst()
-            scheduleConfig.postValue(initialConfig.config)
+            if (revision != configRequestRevision || identity != previewIdentity()) return@launchSafe
+            scheduleConfig.value = initialConfig.config
             reminders.reschedule()
 
             if (!DebugClock.isMocked() && initialConfig.source != ConfigSource.REMOTE) {
                 val remoteConfig = runCatching { weekConfig.syncRemote() }.getOrNull()
+                if (revision != configRequestRevision || identity != previewIdentity()) return@launchSafe
                 remoteConfig?.config?.let {
-                    scheduleConfig.postValue(it)
+                    scheduleConfig.value = it
                     reminders.reschedule()
                 }
             }
@@ -382,9 +406,14 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun clear() {
+        scheduleRequestRevision++
+        configRequestRevision++
+        backgroundRefreshRevision++
+        configLoadJob?.cancel()
         cacheLoadJob?.cancel()
         cacheLoadIdentity = null
         backgroundRefreshJob?.cancel()
+        backgroundRefreshIdentity = null
         catalogueRequestRevision++
         nextRequestRevision++
         semestersJob?.cancel()
