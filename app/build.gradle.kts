@@ -21,16 +21,15 @@ val buglyAppId = providers.gradleProperty("bugly.appId").orNull
     ?: providers.environmentVariable("BUGLY_APP_ID").orNull
     ?: "2c2ccadcad"
 
-// 必吃榜写入密钥。**内测期随仓库提供默认值**：正式发版由固定的人从干净 clone / CI 构建，
-// 那里没有 local.properties，默认空串会让 release 端上传 401、众包卡片不出现（2026-10-11 实测）。
-// 该密钥随 APK 分发、本就可被提取，内测期按「公开标识」对待；备案完成切到自有域名 API 后再收口。
-// 覆盖优先级：-Pcanteen.writeKey=... → 环境变量 CANTEEN_WRITE_KEY → local.properties。
+// 必吃榜写入密钥不随仓库提供默认值：正式发布由 GitHub Actions Secret 注入，
+// 本地调试用 -Pcanteen.writeKey=...、CANTEEN_WRITE_KEY 环境变量或 local.properties。
+// 该密钥最终仍会进入 APK、可被提取，服务端限频/配额才是主要防线。
 val canteenWriteKey: String = providers.gradleProperty("canteen.writeKey").orNull
     ?: providers.environmentVariable("CANTEEN_WRITE_KEY").orNull
     ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { f ->
         Properties().apply { f.inputStream().use { load(it) } }.getProperty("canteen.writeKey")
     }
-    ?: "cd665474e3b5fff42a23f9fe5d2e6a8cf57201e4d5990c0d"
+    ?: ""
 
 val sentryToken = providers.environmentVariable("SENTRY_AUTH_TOKEN")
     .map { it.trim() }
@@ -99,8 +98,8 @@ android {
         applicationId = "com.ahu.ahutong"
         minSdk = 26
         targetSdk = 36
-        versionCode = 304006
-        versionName = "3.4.3-beta3"
+        versionCode = 304009
+        versionName = "3.4.5"
         providers.gradleProperty("release.versionCode").orNull?.let { versionCode = it.toInt() }
         providers.gradleProperty("release.versionName").orNull?.let { versionName = it }
         buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")

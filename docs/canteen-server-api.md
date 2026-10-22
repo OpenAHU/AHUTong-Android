@@ -19,16 +19,11 @@
 
 | 环境 | Base URL | 说明 |
 |---|---|---|
-| **现在（备案前）** | `http://121.37.174.199:8000` | 也可用 `http://121.37.174.199`（80 口同样可用）。**HTTP 明文** |
-| 备案 + 域名就绪后 | `https://<你的域名>` | 服务端只改一行配置即自动启用 HTTPS，**接口路径不变** |
+| **正式环境（2026-10-22 起）** | `https://inchangejiang.cn` | HTTP 会自动 308 跳转到 HTTPS；`www.inchangejiang.cn` 同样可用 |
 
-> ⚠️ **客户端必须注意**：当前是 **HTTP 明文**，Android 9(API 28)+ 默认禁止明文流量。联调阶段需在 App 里放行该地址：
-> - 全局放行：`AndroidManifest.xml` → `<application android:usesCleartextTraffic="true">`
-> - 或精确白名单（推荐）：`network_security_config.xml` 里为 `121.37.174.199` 开 `cleartextTrafficPermitted="true"`
-> 上线换 HTTPS 后应把这些放行**撤掉**。
+> 客户端直接使用 `https://inchangejiang.cn/`，不需要在 `network_security_config.xml` 里放行任何明文地址。
 
-**连通性自检**：`curl http://121.37.174.199:8000/api/health` → `{"ok":true}`
-**交互式文档**：`http://121.37.174.199:8000/docs`
+**连通性自检**：`curl https://inchangejiang.cn/api/health` → `{"ok":true}`
 
 > 📦 服务端已灌入一组演示数据（约 400 笔交易 / 6 个窗口 / 3 天），方便直接联调看真实响应。
 > 清掉：`cd ~/projects/ahutong/deploy && docker compose stop api && rm -f ../data/app.db* && docker compose start api`
@@ -238,7 +233,7 @@ GET /api/canteen/insights?period=month&limit=10&canteens=桔园,榴园
 
 ## 5. 管理后台（仅作者本人）
 
-地址 `http://121.37.174.199:8000/admin`（HTTP Basic）。含：映射表检视/编辑、按终端聚合的待审队列、采纳/拒绝、**发布**（点一下才递增版本同步给所有客户端）、**待补终端清单**、**批量粘贴导入**。
+地址 `https://inchangejiang.cn/admin`（HTTP Basic，已由 HTTPS 保护）。含：映射表检视/编辑、按终端聚合的待审队列、采纳/拒绝、**发布**（点一下才递增版本同步给所有客户端）、**待补终端清单**、**批量粘贴导入**。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|

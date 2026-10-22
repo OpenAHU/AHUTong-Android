@@ -70,6 +70,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_CERT_SHA256: ${{ secrets.ANDROID_CERT_SHA256 }}
+          CANTEEN_WRITE_KEY: ${{ secrets.CANTEEN_WRITE_KEY }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
@@ -80,8 +81,8 @@ jobs:
           from ci_release import validate_deploy_root
           required = ('DEPLOY_SSH_TARGET', 'DEPLOY_SSH_PRIVATE_KEY', 'DEPLOY_SSH_KNOWN_HOSTS',
                       'ANDROID_KEYSTORE_B64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS',
-                      'ANDROID_KEY_PASSWORD', 'ANDROID_CERT_SHA256', 'SENTRY_AUTH_TOKEN',
-                      'DEPLOY_ROOT', 'SENTRY_ORG', 'SENTRY_PROJECT')
+                      'ANDROID_KEY_PASSWORD', 'ANDROID_CERT_SHA256', 'CANTEEN_WRITE_KEY',
+                      'SENTRY_AUTH_TOKEN', 'DEPLOY_ROOT', 'SENTRY_ORG', 'SENTRY_PROJECT')
           missing = [key for key in required if not os.environ.get(key, '').strip()]
           if missing:
               raise SystemExit('缺少 Actions Secrets：' + ', '.join(missing))
@@ -153,6 +154,7 @@ jobs:
         env:
           VERSION_CODE: ${{ steps.plan.outputs.version_code }}
           VERSION_NAME: ${{ steps.plan.outputs.version_name }}
+          CANTEEN_WRITE_KEY: ${{ secrets.CANTEEN_WRITE_KEY }}
         run: |
           ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" \
             -Pkotlin.compiler.execution.strategy=in-process \

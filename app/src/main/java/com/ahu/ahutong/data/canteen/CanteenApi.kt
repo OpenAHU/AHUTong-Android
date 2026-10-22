@@ -49,7 +49,7 @@ interface CanteenApi {
 
     companion object {
         /** 80 口（Caddy 反代）；8000 口安全组规则已删除，公网不可达（2026-10-07 服务端 v1.4.0）。 */
-        const val BASE_URL = "http://121.37.174.199/"
+        const val BASE_URL = "https://inchangejiang.cn/"
 
         val API: CanteenApi by lazy {
             AhuHttp.retrofit(BASE_URL) {
