@@ -19,6 +19,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import android.util.Log
 import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
@@ -250,7 +251,7 @@ class ElectricityDepositViewModel @Inject constructor(
                 _errorMessage.value = e.message ?: "恢复选择时发生未知错误"
                 Log.e("ElectricityDepositViewModel", "恢复选择失败", e)
             } finally {
-                _isLoading.value = false
+                if (isActive) _isLoading.value = false
             }
         }
     }
@@ -334,6 +335,7 @@ class ElectricityDepositViewModel @Inject constructor(
     }
 
     fun retry() {
+        selectionLoadJob?.cancel()
         when {
             _selectedController.value.requiresCampus && _selectedCampus.value == null -> fetchInitialOptions()
             _selectedBuilding.value == null && _selectedController.value.requiresCampus -> fetchBuildings()
@@ -366,10 +368,12 @@ class ElectricityDepositViewModel @Inject constructor(
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载电控选项失败"
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (_errorMessage.value != null || _selectedCampus.value == null) {
+                if (isActive && (_errorMessage.value != null || _selectedCampus.value == null)) {
                     _isLoading.value = false
                 }
             }
@@ -397,10 +401,12 @@ class ElectricityDepositViewModel @Inject constructor(
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载楼栋失败"
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (_errorMessage.value != null || _selectedBuilding.value == null) {
+                if (isActive && (_errorMessage.value != null || _selectedBuilding.value == null)) {
                     _isLoading.value = false
                 }
             }
@@ -428,10 +434,12 @@ class ElectricityDepositViewModel @Inject constructor(
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载楼层失败"
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (_errorMessage.value != null || _selectedFloor.value == null) {
+                if (isActive && (_errorMessage.value != null || _selectedFloor.value == null)) {
                     _isLoading.value = false
                 }
             }
@@ -459,10 +467,12 @@ class ElectricityDepositViewModel @Inject constructor(
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载房间失败"
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (_errorMessage.value != null || _selectedRoom.value == null) {
+                if (isActive && (_errorMessage.value != null || _selectedRoom.value == null)) {
                     _isLoading.value = false
                 }
             }
@@ -501,11 +511,13 @@ class ElectricityDepositViewModel @Inject constructor(
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载房间信息失败"
                     reportRoomError()
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
                 reportRoomError()
             } finally {
-                _isLoading.value = false
+                if (isActive) _isLoading.value = false
             }
         }
     }

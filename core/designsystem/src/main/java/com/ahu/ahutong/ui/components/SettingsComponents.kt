@@ -74,15 +74,12 @@ import com.kyant.backdrop.Backdrop
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
-import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle as MiuixSmallTitle
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.extra.SuperDropdown
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -221,13 +218,6 @@ fun SettingsPageLayout(
     }
 
     val scrollBehavior = MiuixScrollBehavior()
-    val haptic = LocalHapticFeedback.current
-    val onBackWithFeedback = onBack?.let { callback ->
-        {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            callback()
-        }
-    }
     MiuixScaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
@@ -239,14 +229,8 @@ fun SettingsPageLayout(
                 color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    onBackWithFeedback?.let { callback ->
-                        MiuixIconButton(onClick = callback) {
-                            MiuixIcon(
-                                imageVector = MiuixIcons.Useful.Back,
-                                contentDescription = "返回",
-                                tint = MiuixTheme.colorScheme.onSurface
-                            )
-                        }
+                    onBack?.let { callback ->
+                        AppPageBackButton(onBack = callback)
                     }
                 }
             )

@@ -33,6 +33,8 @@ class FakeScheduleSource : ScheduleSource {
     var nextResult: AhuResult<List<Course>> = AhuResult.Success(emptyList())
     var semestersResult: AhuResult<List<ScheduleSemester>> = AhuResult.Success(emptyList())
     var semesterResult: AhuResult<List<Course>> = AhuResult.Success(emptyList())
+    var fetchLoader: (suspend () -> AhuResult<List<Course>>)? = null
+    var refreshLoader: (suspend () -> AhuResult<ScheduleRefreshResult>)? = null
     var semesterLoader: (suspend (Int) -> AhuResult<List<Course>>)? = null
     val semesterRequests = mutableListOf<Int>()
     var semestersCount = 0
@@ -53,12 +55,12 @@ class FakeScheduleSource : ScheduleSource {
 
     override suspend fun fetch(isRefresh: Boolean): AhuResult<List<Course>> {
         fetchCount++
-        return fetchResult
+        return fetchLoader?.invoke() ?: fetchResult
     }
 
     override suspend fun refreshCache(): AhuResult<ScheduleRefreshResult> {
         refreshCount++
-        return refreshResult
+        return refreshLoader?.invoke() ?: refreshResult
     }
 
     override suspend fun next(isRefresh: Boolean): AhuResult<List<Course>> {
@@ -86,6 +88,8 @@ class FakeScheduleWeekConfig : ScheduleWeekConfig {
     var localResult: ResolvedConfig = ResolvedConfig(ScheduleConfigBean(), ConfigSource.LOCAL)
     var remoteResult: ResolvedConfig? = null
     var mockedTime = false
+    var localLoader: (suspend () -> ResolvedConfig)? = null
+    var remoteLoader: (suspend () -> ResolvedConfig?)? = null
 
     val calls = mutableListOf<String>()
 
@@ -104,12 +108,12 @@ class FakeScheduleWeekConfig : ScheduleWeekConfig {
 
     override suspend fun resolveLocalFirst(): ResolvedConfig {
         calls += "resolve"
-        return localResult
+        return localLoader?.invoke() ?: localResult
     }
 
     override suspend fun syncRemote(): ResolvedConfig? {
         calls += "remote"
-        return remoteResult
+        return remoteLoader?.invoke() ?: remoteResult
     }
 
     override suspend fun saveSchoolYearAndTerm(schoolYear: String, semesterKey: String) {

@@ -111,14 +111,12 @@ class CampusCompatibleDnsTest {
     fun httpDohErrorsFallBackWithoutRepeatingCampusSystemLookup() {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(503))
-            val doh = DnsOverHttps.Builder()
+            // Exercise the production builder: the Android PSL asset loader is absent
+            // on the JVM, just as in Sentry AHUTONG-ANDROID-1K's failed lookup.
+            val doh = campusDohBuilder()
                 .client(OkHttpClient.Builder().callTimeout(2, TimeUnit.SECONDS).build())
                 .url(server.url("/dns-query"))
                 .includeIPv6(false)
-                // Android's public-suffix asset loader is unavailable in this plain JVM test.
-                // CampusCompatibleDns's local-name policy is covered above; exercise the real
-                // DNS HTTP transport here without invoking the library's Android asset lookup.
-                .resolvePrivateAddresses(true)
                 .build()
             val system = RecordingDns(listOf(publicAddress))
 

@@ -30,7 +30,7 @@ object AliyunDns : Dns {
             .followSslRedirects(false)
             .apply { cacheDirectory?.let { cache(Cache(it, 2L * 1024 * 1024)) } }
             .build()
-        val doh = DnsOverHttps.Builder()
+        val doh = campusDohBuilder()
             .client(bootstrapClient)
             .url("https://dns.alidns.com/dns-query".toHttpUrl())
             // The HTTPS hostname and certificate are still verified against dns.alidns.com.
@@ -45,6 +45,10 @@ object AliyunDns : Dns {
 
     override fun lookup(hostname: String): List<InetAddress> = resolver.lookup(hostname)
 }
+
+/** Local-name routing is handled below; DoH must not depend on Android's PSL asset loader. */
+internal fun campusDohBuilder(): DnsOverHttps.Builder =
+    DnsOverHttps.Builder().resolvePrivateAddresses(true)
 
 /** Public names prefer DoH; local names and campus split-horizon records retain system DNS. */
 internal class CampusCompatibleDns(

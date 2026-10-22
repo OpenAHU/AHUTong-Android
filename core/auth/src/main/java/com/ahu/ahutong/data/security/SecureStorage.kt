@@ -8,6 +8,8 @@ import android.util.Base64
 import android.util.Log
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import java.security.KeyStore
+import java.security.GeneralSecurityException
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -62,9 +64,12 @@ object SecureStorage {
     }
 
     @Synchronized
-    fun getString(key: String): String? {
-        val encoded = preferences.getString(key, null) ?: return null
+    fun getString(key: String): String? = readString(key).valueOrNull()
+
+    @Synchronized
+    fun readString(key: String): SecureReadResult {
         return try {
+            val encoded = preferences.getString(key, null) ?: return SecureReadResult.Missing
             val parts = encoded.split(':', limit = 3)
             require(parts.size == 3 && parts[0] == VERSION) { "Unsupported ciphertext" }
             val iv = Base64.decode(parts[1], Base64.NO_WRAP)
@@ -72,17 +77,20 @@ object SecureStorage {
             val cipher = Cipher.getInstance(TRANSFORMATION).apply {
                 init(
                     Cipher.DECRYPT_MODE,
-                    getOrCreateKey(),
+                    existingKey() ?: throw MissingKeyException(),
                     GCMParameterSpec(TAG_LENGTH_BITS, iv)
                 )
             }
-            cipher.doFinal(ciphertext).toString(Charsets.UTF_8)
+            SecureReadResult.Value(cipher.doFinal(ciphertext).toString(Charsets.UTF_8))
         } catch (e: Exception) {
-            // A replaced/invalidated key must never make us fall back to treating ciphertext as data.
-            Log.w(TAG, "Unable to decrypt stored value; removing it", e)
-            if (e.hasInvalidatedKeyCause()) resetInvalidatedKey()
-            else preferences.edit().remove(key).commit()
-            null
+            // Reads never replace a key or erase ciphertext, including during a transient
+            // Keystore outage. Unreadable values must also remain distinct from missing keys.
+            Log.w(TAG, "Unable to decrypt stored value; keeping ciphertext", e)
+            SecureReadResult.Unavailable(
+                cause = e,
+                retryable = !e.hasInvalidatedKeyCause() && e !is MissingKeyException &&
+                    e !is AEADBadTagException && e !is IllegalArgumentException && e !is ClassCastException
+            )
         }
     }
 
@@ -125,9 +133,15 @@ object SecureStorage {
         }
     }
 
-    private fun getOrCreateKey(): SecretKey {
+    private class MissingKeyException : GeneralSecurityException("Stored ciphertext has no Keystore key")
+
+    private fun existingKey(): SecretKey? {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        return keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+    }
+
+    private fun getOrCreateKey(): SecretKey {
+        existingKey()?.let { return it }
 
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
             init(

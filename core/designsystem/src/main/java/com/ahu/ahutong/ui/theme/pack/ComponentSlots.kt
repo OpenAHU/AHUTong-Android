@@ -120,10 +120,11 @@ class MixedComponentPack(
         miuixInsideMargin: PaddingValues,
         miuixStandalone: Boolean,
         liquidLabelWeight: Float,
-        liquidValueWeight: Float
+        liquidValueWeight: Float,
+        grouped: Boolean
     ) = pack(ComponentSlotId.SelectField).SelectField(
         label, selected, options, onSelected, modifier, placeholder, enabled,
-        valueTextAlign, miuixInsideMargin, miuixStandalone, liquidLabelWeight, liquidValueWeight
+        valueTextAlign, miuixInsideMargin, miuixStandalone, liquidLabelWeight, liquidValueWeight, grouped
     )
 
     @Composable

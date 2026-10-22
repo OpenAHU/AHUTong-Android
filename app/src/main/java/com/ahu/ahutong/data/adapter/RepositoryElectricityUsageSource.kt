@@ -58,41 +58,28 @@ class RepositoryElectricityUsageSource @Inject constructor() : ElectricityUsageS
                 is AhuResult.Success -> result.value
             }
             val periodStart = asOf.minusDays(30)
-            val periodEnd = asOf.minusDays(1)
-            val history = collectElectricityUsagePages { page ->
-                val body = when (val result = request {
-                    getElectricityUsageHistory(
-                        feeItemId = controller.feeItemId,
-                        building = building,
-                        floor = floor,
-                        room = room,
-                        campus = campus,
-                        startDate = periodStart.toString(),
-                        // Include the boundary in the wire query, then discard today's
-                        // partial readings for a consistent 30 complete day forecast.
-                        endDate = asOf.toString(),
-                        page = page,
-                        rows = PAGE_SIZE
-                    )
-                }) {
-                    is AhuResult.Failure -> return@collectElectricityUsagePages result
-                    is AhuResult.Success -> result.value
+            loadElectricityUsageSnapshot(asOf, balance) {
+                collectElectricityUsagePages { page ->
+                    val body = when (val result = request {
+                        getElectricityUsageHistory(
+                            feeItemId = controller.feeItemId,
+                            building = building,
+                            floor = floor,
+                            room = room,
+                            campus = campus,
+                            startDate = periodStart.toString(),
+                            // Include the boundary in the wire query, then discard today's
+                            // partial readings for a consistent 30 complete day forecast.
+                            endDate = asOf.toString(),
+                            page = page,
+                            rows = PAGE_SIZE
+                        )
+                    }) {
+                        is AhuResult.Failure -> return@collectElectricityUsagePages result
+                        is AhuResult.Success -> result.value
+                    }
+                    ElectricityUsageProtocol.history(body)
                 }
-                ElectricityUsageProtocol.history(body)
-            }
-            when (history) {
-                is AhuResult.Failure -> history
-                is AhuResult.Success -> AhuResult.Success(
-                    ElectricityUsageSnapshot(
-                        asOf,
-                        balance,
-                        history.value.filter {
-                            !it.date.isBefore(periodStart) && !it.date.isAfter(periodEnd)
-                        },
-                        periodStart,
-                        periodEnd
-                    )
-                )
             }
         } catch (error: CancellationException) {
             throw error
@@ -127,6 +114,25 @@ class RepositoryElectricityUsageSource @Inject constructor() : ElectricityUsageS
     private companion object {
         const val PAGE_SIZE = 100
     }
+}
+
+/** A confirmed empty balance needs no usage forecast or history request to trigger an alert. */
+internal suspend fun loadElectricityUsageSnapshot(
+    asOf: LocalDate,
+    balance: Double,
+    history: suspend () -> AhuResult<List<ElectricityDailyUsage>>
+): AhuResult<ElectricityUsageSnapshot> {
+    val periodStart = asOf.minusDays(30)
+    val periodEnd = asOf.minusDays(1)
+    val records = if (balance <= 0.0) emptyList() else when (val result = history()) {
+        is AhuResult.Failure -> return result
+        is AhuResult.Success -> result.value
+    }
+    return AhuResult.Success(ElectricityUsageSnapshot(
+        asOf, balance,
+        records.filter { !it.date.isBefore(periodStart) && !it.date.isAfter(periodEnd) },
+        periodStart, periodEnd
+    ))
 }
 
 /** Collect only complete history; a failed or looping page must not produce a low estimate. */

@@ -128,12 +128,7 @@ class RepositoryElectricityDepositSource @Inject constructor() : ElectricityDepo
 
             val response = request { pay(form) }
             if (!response.isSuccessful) {
-                return@withContext AhuResult.Failure(
-                    AhuError.Server(
-                        response.code,
-                        "支付失败，请稍后重试（${response.code}）"
-                    )
-                )
+                return@withContext AhuResult.Failure(electricityHttpError(response.code))
             }
             val result = GSON.fromJson(response.body, ElectricityFinalPayResponse::class.java)
             if (result.code == 200 && result.success) {
@@ -278,9 +273,7 @@ class RepositoryElectricityDepositSource @Inject constructor() : ElectricityDepo
         val response = request(call)
         Log.d(TAG, "${label}响应码: ${response.code}")
         if (!response.isSuccessful) {
-            AhuResult.Failure(
-                AhuError.Server(response.code, "请求接口失败: ${response.message}")
-            )
+            AhuResult.Failure(electricityHttpError(response.code))
         } else if (response.body.isEmpty()) {
             AhuResult.Failure(AhuError.ProtocolChanged("服务器返回内容为空"))
         } else {
@@ -298,7 +291,6 @@ class RepositoryElectricityDepositSource @Inject constructor() : ElectricityDepo
         val response = YcardApi.authorizedCall(request = call)
         return HttpPayload(
             code = response.code(),
-            message = response.message(),
             body = if (response.isSuccessful) {
                 response.body()?.string().orEmpty()
             } else {
@@ -351,6 +343,11 @@ private val ElectricityOptionLevel.missingItemsMessage: String
         ElectricityOptionLevel.Rooms -> "解析数据失败，未找到房间列表"
     }
 
-private data class HttpPayload(val code: Int, val message: String, val body: String) {
+internal fun electricityHttpError(code: Int): AhuError = when (code) {
+    401, 403 -> AhuError.Unauthorized("校园卡登录暂不可用，请稍后重试")
+    else -> AhuError.Server(code, "电控服务暂不可用，请稍后重试（$code）")
+}
+
+private data class HttpPayload(val code: Int, val body: String) {
     val isSuccessful: Boolean get() = code in 200..299
 }

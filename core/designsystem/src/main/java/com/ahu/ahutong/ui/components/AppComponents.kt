@@ -105,6 +105,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.VisualTransformation
@@ -376,6 +377,43 @@ fun AppHeaderIconButton(
     )
 }
 
+/** 标题栏与自绘子页共用的返回键；导航行为由页面显式提供。 */
+@Composable
+fun AppPageBackButton(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    backdrop: Backdrop? = null,
+    tint: Color? = null
+) {
+    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+        val haptic = LocalHapticFeedback.current
+        MiuixIconButton(
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onBack()
+            },
+            modifier = modifier.size(AppComponentTokens.TouchTarget),
+            minWidth = AppComponentTokens.TouchTarget,
+            minHeight = AppComponentTokens.TouchTarget
+        ) {
+            MiuixIcon(
+                imageVector = MiuixIcons.Useful.Back,
+                contentDescription = "返回",
+                tint = tint ?: MiuixTheme.colorScheme.onSurface
+            )
+        }
+    } else {
+        AppHeaderIconButton(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = "返回",
+            onClick = onBack,
+            modifier = modifier,
+            backdrop = backdrop,
+            tint = tint
+        )
+    }
+}
+
 @Composable
 internal fun MiuixHeaderIconButtonImpl(
     imageVector: ImageVector,
@@ -484,6 +522,8 @@ internal fun RowPageHeaderImpl(
     verticalPadding: Dp,
     actions: @Composable RowScope.() -> Unit
 ) {
+    val compactTitle = LocalAppUiTheme.current == AppUiTheme.MATERIAL ||
+        LocalAppUiTheme.current == AppUiTheme.MIUIX
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -491,21 +531,27 @@ internal fun RowPageHeaderImpl(
                 horizontal = horizontalPadding,
                 vertical = verticalPadding
             ),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compactTitle) 8.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        onBack?.let {
-            AppHeaderIconButton(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = "返回",
-                onClick = it,
-                backdrop = backdrop
-            )
+        onBack?.let { callback ->
+            if (LocalAppUiTheme.current == AppUiTheme.MATERIAL || LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+                AppPageBackButton(onBack = callback, backdrop = backdrop)
+            } else {
+                AppHeaderIconButton(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "返回",
+                    onClick = callback,
+                    backdrop = backdrop
+                )
+            }
         }
         Text(
             text = title,
             modifier = Modifier.weight(1f),
             color = MaterialTheme.colorScheme.onSurface,
+            maxLines = if (compactTitle) 1 else Int.MAX_VALUE,
+            overflow = if (compactTitle) TextOverflow.Ellipsis else TextOverflow.Clip,
             style = if (onBack == null) {
                 MaterialTheme.typography.headlineLarge
             } else {
@@ -525,7 +571,6 @@ internal fun MiuixPageHeaderImpl(
     onBack: (() -> Unit)?,
     actions: @Composable RowScope.() -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
     MiuixTopAppBar(
         title = title,
         largeTitle = title,
@@ -533,18 +578,7 @@ internal fun MiuixPageHeaderImpl(
         color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
             onBack?.let { callback ->
-                MiuixIconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        callback()
-                    }
-                ) {
-                    MiuixIcon(
-                        imageVector = MiuixIcons.Useful.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface
-                    )
-                }
+                AppPageBackButton(onBack = callback)
             }
         },
         actions = actions
@@ -1198,7 +1232,7 @@ internal fun RadiantToggleImpl(
     )
 }
 
-/** 主题无感的下拉选择：分发到当前 [LocalComponentPack] 的实现。 */
+/** 主题无感的下拉选择；grouped 用于共享分区卡中的选项行，不绘制各自的边框或背景。 */
 @Composable
 fun <T> AppSelectField(
     label: String,
@@ -1212,7 +1246,8 @@ fun <T> AppSelectField(
     miuixInsideMargin: PaddingValues = PaddingValues(16.dp),
     miuixStandalone: Boolean = false,
     liquidLabelWeight: Float = 1f,
-    liquidValueWeight: Float = 1f
+    liquidValueWeight: Float = 1f,
+    grouped: Boolean = false
 ) {
     LocalComponentPack.current.SelectField(
         label = label,
@@ -1226,7 +1261,8 @@ fun <T> AppSelectField(
         miuixInsideMargin = miuixInsideMargin,
         miuixStandalone = miuixStandalone,
         liquidLabelWeight = liquidLabelWeight,
-        liquidValueWeight = liquidValueWeight
+        liquidValueWeight = liquidValueWeight,
+        grouped = grouped
     )
 }
 
@@ -1239,7 +1275,8 @@ internal fun <T> MiuixSelectFieldImpl(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     insideMargin: PaddingValues = PaddingValues(16.dp),
-    standalone: Boolean = false
+    standalone: Boolean = false,
+    grouped: Boolean = false
 ) {
     // Miuix 0.7.2 sends menus to the Activity host, while a Compose Dialog has its own window.
     // Use a window-owned menu here so both the anchor coordinates and z-order follow the dialog.
@@ -1250,7 +1287,8 @@ internal fun <T> MiuixSelectFieldImpl(
             options = options,
             onSelected = onSelected,
             modifier = modifier,
-            enabled = enabled
+            enabled = enabled,
+            grouped = grouped
         )
         return
     }
@@ -1265,7 +1303,7 @@ internal fun <T> MiuixSelectFieldImpl(
         modifier = modifier,
         enabled = enabled,
         insideMargin = insideMargin,
-        standalone = standalone
+        standalone = standalone && !grouped
     )
 }
 
@@ -1278,7 +1316,8 @@ internal fun <T> MaterialSelectFieldImpl(
     modifier: Modifier = Modifier,
     placeholder: String = "请选择",
     enabled: Boolean = true,
-    valueTextAlign: TextAlign = TextAlign.Start
+    valueTextAlign: TextAlign = TextAlign.Start,
+    grouped: Boolean = false
 ) {
     val selectedLabel = remember(options, selected, placeholder) {
         options.find { it.value == selected }?.label ?: placeholder
@@ -1291,7 +1330,8 @@ internal fun <T> MaterialSelectFieldImpl(
         onSelected = onSelected,
         modifier = modifier,
         enabled = enabled,
-        valueTextAlign = valueTextAlign
+        valueTextAlign = valueTextAlign,
+        grouped = grouped
     )
 }
 
@@ -1306,7 +1346,8 @@ internal fun <T> RadiantSelectFieldImpl(
     enabled: Boolean = true,
     valueTextAlign: TextAlign = TextAlign.Start,
     labelWeight: Float = 1f,
-    valueWeight: Float = 1f
+    valueWeight: Float = 1f,
+    grouped: Boolean = false
 ) {
     val selectedLabel = remember(options, selected, placeholder) {
         options.find { it.value == selected }?.label ?: placeholder
@@ -1321,7 +1362,8 @@ internal fun <T> RadiantSelectFieldImpl(
         enabled = enabled,
         valueTextAlign = valueTextAlign,
         labelWeight = labelWeight,
-        valueWeight = valueWeight
+        valueWeight = valueWeight,
+        grouped = grouped
     )
 }
 
@@ -1385,7 +1427,8 @@ internal fun <T> MaterialSelectField(
     onSelected: (T) -> Unit,
     modifier: Modifier,
     enabled: Boolean,
-    valueTextAlign: TextAlign
+    valueTextAlign: TextAlign,
+    grouped: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     val wallpaperEnabled = LocalAppBackground.current != null &&
@@ -1395,7 +1438,38 @@ internal fun <T> MaterialSelectField(
         onExpandedChange = { if (enabled) expanded = !expanded },
         modifier = modifier
     ) {
-        OutlinedTextField(
+        if (grouped) {
+            Row(
+                modifier = Modifier
+                    .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = enabled)
+                    .fillMaxWidth()
+                    .heightIn(min = 58.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val alpha = if (enabled) 1f else 0.38f
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    selectedLabel,
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = valueTextAlign,
+                    maxLines = 2
+                )
+                CompositionLocalProvider(
+                    LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
+                ) {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                }
+            }
+        } else OutlinedTextField(
             value = selectedLabel,
             onValueChange = {},
             readOnly = true,
@@ -1476,7 +1550,8 @@ internal fun <T> LiquidGlassSelectField(
     enabled: Boolean,
     valueTextAlign: TextAlign,
     labelWeight: Float,
-    valueWeight: Float
+    valueWeight: Float,
+    grouped: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     var anchorWidthPx by remember { mutableStateOf(0) }
@@ -1535,11 +1610,13 @@ internal fun <T> LiquidGlassSelectField(
                     )
                 }
                 .heightIn(min = 58.dp)
-                .appLiquidGlassSurface(
-                    shape = AppComponentTokens.ControlShape,
-                    fallbackColor = MaterialTheme.colorScheme.surfaceContainer,
-                    level = LiquidGlassSurfaceLevel.Control,
-                    backdropSamplingEnabled = false
+                .then(
+                    if (grouped) Modifier else Modifier.appLiquidGlassSurface(
+                        shape = AppComponentTokens.ControlShape,
+                        fallbackColor = MaterialTheme.colorScheme.surfaceContainer,
+                        level = LiquidGlassSurfaceLevel.Control,
+                        backdropSamplingEnabled = false
+                    )
                 )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

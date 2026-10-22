@@ -8,7 +8,11 @@ import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.personalization.action.AppActionId
+import com.ahu.ahutong.personalization.preset.AppliedPreset
+import com.ahu.ahutong.personalization.preset.PresetCandidate
+import com.ahu.ahutong.personalization.preset.PresetInteractionToken
 import com.ahu.ahutong.personalization.semantic.ContentStateBucket
+import com.ahu.ahutong.personalization.semantic.SemanticDomain
 import com.ahu.ahutong.testing.FakeGradeBehavior
 import com.ahu.ahutong.testing.FakeGradeSession
 import com.ahu.ahutong.testing.FakeGradeSource
@@ -18,15 +22,18 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import org.junit.Rule
 
@@ -129,7 +136,97 @@ class GradeViewModelTest {
     }
 
     @Test
-    fun `a missing rank explains itself instead of staying silent`() = runTest(dispatcher) {
+    fun `switching profile cancels the old rank request and loads the selected rank`() = runTest(dispatcher) {
+        val primary = profileOf("primary")
+        val minor = profileOf("minor")
+        val primaryResult = CompletableDeferred<AhuResult<GpaRankInfo>>()
+        val minorResult = CompletableDeferred<AhuResult<GpaRankInfo>>()
+        val primaryRank = GpaRankInfo(gpa = 3.7, majorRank = 3)
+        val minorRank = GpaRankInfo(gpa = 3.2, majorRank = 8)
+        val requestedProfiles = mutableListOf<String>()
+        val source = FakeGradeSource().apply {
+            cachedProfileList = listOf(primary, minor)
+            perProfile = mapOf(primary.id to gradeOf(1), minor.id to gradeOf(1))
+            rankFetcher = { studentId ->
+                requestedProfiles += studentId
+                if (studentId == primary.id) primaryResult.await() else minorResult.await()
+            }
+        }
+        val subject = viewModel(source = source)
+
+        subject.getGpaRank()
+        runCurrent()
+        subject.selectProfile(1)
+        runCurrent()
+
+        assertEquals(listOf(primary.id, minor.id), requestedProfiles)
+        assertTrue(subject.rankLoading)
+        assertNull(subject.gpaRankInfo)
+        primaryResult.complete(AhuResult.Success(primaryRank))
+        runCurrent()
+        assertNull(subject.gpaRankInfo)
+        assertTrue(subject.rankLoading)
+
+        minorResult.complete(AhuResult.Success(minorRank))
+        advanceUntilIdle()
+
+        assertEquals(minorRank, subject.gpaRankInfo)
+        assertEquals(listOf(minor.id to minorRank), source.savedRanks)
+        assertEquals(false, subject.rankLoading)
+    }
+
+    @Test
+    fun `a preset profile switch also discards the previous profile rank`() = runTest(dispatcher) {
+        val primary = profileOf("primary")
+        val minor = profileOf("minor")
+        val primaryResult = CompletableDeferred<AhuResult<GpaRankInfo>>()
+        val minorResult = CompletableDeferred<AhuResult<GpaRankInfo>>()
+        val primaryRank = GpaRankInfo(gpa = 3.7, majorRank = 3)
+        val minorRank = GpaRankInfo(gpa = 3.2, majorRank = 8)
+        val requestedProfiles = mutableListOf<String>()
+        val source = FakeGradeSource().apply {
+            cachedProfileList = listOf(primary, minor)
+            perProfile = mapOf(primary.id to gradeOf(1), minor.id to gradeOf(1)).mapValues { (_, grade) ->
+                grade.apply { termGradeList.first().setSchoolYear("2025-2026") }
+            }
+            rankFetcher = { studentId ->
+                requestedProfiles += studentId
+                if (studentId == primary.id) primaryResult.await() else minorResult.await()
+            }
+        }
+        val payload = """{"profileIndex":1,"schoolYear":"2025-2026","term":"1"}"""
+        val candidate = PresetCandidate(
+            opportunityId = "opportunity", presetId = "minor-preset", domain = SemanticDomain.GRADE,
+            localPayloadJson = payload, coarseFeaturesJson = "{}", statScore = 1f, tinyScore = 1f,
+            effectiveScore = 1f, reason = "test"
+        )
+        val token = PresetInteractionToken("interaction", SemanticDomain.GRADE, "opportunity", "minor-preset", "minor")
+        val presets = FakePresetSuggestions(applied = AppliedPreset(payload, token))
+        val subject = viewModel(source = source, presets = presets)
+        subject.getGpaRank()
+        runCurrent()
+        subject.gpaRankInfo = primaryRank
+
+        subject.applyPresetCandidate(candidate)
+        runCurrent()
+
+        assertEquals(1, subject.selectedProfileIndex)
+        assertEquals(listOf(primary.id, minor.id), requestedProfiles)
+        assertNull(subject.gpaRankInfo)
+        assertTrue(subject.rankLoading)
+        primaryResult.complete(AhuResult.Success(primaryRank))
+        runCurrent()
+        assertNull(subject.gpaRankInfo)
+        minorResult.complete(AhuResult.Success(minorRank))
+        advanceUntilIdle()
+
+        assertEquals(minorRank, subject.gpaRankInfo)
+        assertEquals(listOf(minor.id to minorRank), source.savedRanks)
+        assertEquals(1, presets.submissions.size)
+    }
+
+    @Test
+    fun `a failed rank request reports a loading error instead of missing statistics`() = runTest(dispatcher) {
         val source = FakeGradeSource(
             profileList = listOf(profileOf("122850")),
             rankResult = AhuResult.Failure(AhuError.Network)
@@ -140,7 +237,55 @@ class GradeViewModelTest {
         advanceUntilIdle()
 
         assertNull(subject.gpaRankInfo)
-        assertTrue(subject.rankEmptyMessage?.contains("暂无排名信息") == true)
+        assertTrue(subject.rankEmptyMessage?.contains(AhuError.Network.toUserMessage()) == true)
+        assertTrue(source.savedRanks.isEmpty())
+    }
+
+    @Test
+    fun `grades can finish before the independent rank request and keep its loading state`() = runTest(dispatcher) {
+        val rankResult = CompletableDeferred<AhuResult<GpaRankInfo>>()
+        val rank = GpaRankInfo(gpa = 3.7, majorRank = 3, majorHeadCount = 120)
+        val source = FakeGradeSource(
+            gradeResult = AhuResult.Success(gradeOf(2)),
+            profileList = listOf(profileOf("primary"))
+        ).apply { rankFetcher = { rankResult.await() } }
+        val subject = viewModel(source = source)
+
+        subject.loadOnEnter()
+        runCurrent()
+
+        assertEquals(2, subject.grade?.termGradeList?.sumOf { it.gradeList.size })
+        assertFalse(subject.isLoading)
+        assertTrue(subject.rankLoading)
+        assertNull(subject.gpaRankInfo)
+        assertNull(subject.rankEmptyMessage)
+
+        rankResult.complete(AhuResult.Success(rank))
+        advanceUntilIdle()
+
+        assertFalse(subject.rankLoading)
+        assertEquals(rank, subject.gpaRankInfo)
+        assertEquals("3.70", subject.totalGradePointAverage)
+        assertNull(subject.rankEmptyMessage)
+    }
+
+    @Test
+    fun `a failed rank refresh keeps previously loaded rank data visible`() = runTest(dispatcher) {
+        val cachedRank = GpaRankInfo(gpa = 3.7, majorRank = 3, majorHeadCount = 120)
+        val source = FakeGradeSource(
+            profileList = listOf(profileOf("primary")),
+            rankResult = AhuResult.Failure(AhuError.Timeout)
+        )
+        val subject = viewModel(source = source)
+        runCurrent()
+        subject.gpaRankInfo = cachedRank
+
+        subject.getGpaRank()
+        advanceUntilIdle()
+
+        assertFalse(subject.rankLoading)
+        assertEquals(cachedRank, subject.gpaRankInfo)
+        assertTrue(subject.rankEmptyMessage?.contains(AhuError.Timeout.toUserMessage()) == true)
         assertTrue(source.savedRanks.isEmpty())
     }
 

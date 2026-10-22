@@ -47,7 +47,8 @@ object RadiantComponentPack : AppComponentPack() {
         miuixInsideMargin: PaddingValues,
         miuixStandalone: Boolean,
         liquidLabelWeight: Float,
-        liquidValueWeight: Float
+        liquidValueWeight: Float,
+        grouped: Boolean
     ) {
         RadiantSelectFieldImpl(
             label = label,
@@ -59,7 +60,8 @@ object RadiantComponentPack : AppComponentPack() {
             enabled = enabled,
             valueTextAlign = valueTextAlign,
             labelWeight = liquidLabelWeight,
-            valueWeight = liquidValueWeight
+            valueWeight = liquidValueWeight,
+            grouped = grouped
         )
     }
 

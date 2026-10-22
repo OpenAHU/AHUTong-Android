@@ -430,4 +430,136 @@ class ScheduleViewModelTest {
         assertEquals(1, source.semestersCount)
         assertEquals(listOf(100), source.semesterRequests)
     }
+
+    @Test
+    fun `an old account background refresh cannot replace the active account timetable`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val response = CompletableDeferred<AhuResult<ScheduleRefreshResult>>()
+        val source = FakeScheduleSource().apply { refreshLoader = { response.await() } }
+        val session = FakeSessionIdentity(user = User().apply { xh = "account-a" })
+        val reminders = FakeCourseReminderControl()
+        val subject = viewModel(source = source, session = session, reminders = reminders)
+        subject.refreshSchedule(isRefresh = true)
+        runCurrent()
+        session.user = User().apply { xh = "account-b" }
+        val current = listOf(Course().apply { name = "当前账号" })
+        subject.schedule.value = AhuResult.Success(current)
+
+        response.complete(AhuResult.Success(ScheduleRefreshResult(
+            listOf(Course().apply { name = "旧账号" }), changed = true, fetchedAt = 123L
+        )))
+        runCurrent()
+
+        assertEquals(current, subject.schedule.value?.valueOrNull())
+        assertNull(subject.scheduleFetchedAt.value)
+        assertEquals(0, reminders.rescheduleCount)
+    }
+
+    @Test
+    fun `an old foreground request cannot repopulate the timetable after clear`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val response = CompletableDeferred<AhuResult<List<Course>>>()
+        val source = FakeScheduleSource().apply { fetchLoader = { response.await() } }
+        val reminders = FakeCourseReminderControl()
+        val subject = viewModel(source = source, reminders = reminders)
+        subject.refreshSchedule()
+        runCurrent()
+        subject.clear()
+        response.complete(AhuResult.Success(listOf(Course())))
+        runCurrent()
+
+        assertEquals(emptyList(), subject.schedule.value?.valueOrNull())
+        assertNull(subject.scheduleFetchedAt.value)
+        assertEquals(0, reminders.rescheduleCount)
+    }
+
+    @Test
+    fun `an old account remote config cannot replace the active account config`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val response = CompletableDeferred<ResolvedConfig?>()
+        val config = FakeScheduleWeekConfig().apply { remoteLoader = { response.await() } }
+        val session = FakeSessionIdentity(user = User().apply { xh = "account-a" })
+        val subject = viewModel(config = config, session = session)
+        subject.loadConfig()
+        runCurrent()
+        session.user = User().apply { xh = "account-b" }
+        val current = ScheduleConfigBean().apply { week = 4 }
+        subject.scheduleConfig.value = current
+        response.complete(ResolvedConfig(ScheduleConfigBean().apply { week = 12 }, ConfigSource.REMOTE))
+        runCurrent()
+
+        assertEquals(current, subject.scheduleConfig.value)
+    }
+
+    @Test
+    fun `a new account can refresh while the previous account request is still pending`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val first = CompletableDeferred<AhuResult<ScheduleRefreshResult>>()
+        val second = CompletableDeferred<AhuResult<ScheduleRefreshResult>>()
+        var calls = 0
+        val source = FakeScheduleSource().apply {
+            refreshLoader = { if (++calls == 1) first.await() else second.await() }
+        }
+        val session = FakeSessionIdentity(user = User().apply { xh = "account-a" })
+        val subject = viewModel(source = source, session = session)
+        subject.refreshSchedule(isRefresh = true)
+        runCurrent()
+        session.user = User().apply { xh = "account-b" }
+        subject.refreshSchedule(isRefresh = true)
+        runCurrent()
+        first.complete(AhuResult.Failure(AhuError.Network))
+        runCurrent()
+
+        assertEquals(2, source.refreshCount)
+        assertTrue(subject.isScheduleRefreshing.value == true)
+        val current = listOf(Course().apply { name = "当前账号" })
+        second.complete(AhuResult.Success(ScheduleRefreshResult(current, true, 456L)))
+        runCurrent()
+        assertEquals(current, subject.schedule.value?.valueOrNull())
+        assertEquals(456L, subject.scheduleFetchedAt.value)
+        assertEquals(false, subject.isScheduleRefreshing.value)
+    }
+
+    @Test
+    fun `a slower old foreground request cannot replace a newer result`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val first = CompletableDeferred<AhuResult<List<Course>>>()
+        val second = CompletableDeferred<AhuResult<List<Course>>>()
+        var calls = 0
+        val source = FakeScheduleSource().apply {
+            fetchLoader = { if (++calls == 1) first.await() else second.await() }
+        }
+        val subject = viewModel(source = source)
+        subject.refreshSchedule()
+        runCurrent()
+        subject.refreshSchedule()
+        runCurrent()
+        val latest = listOf(Course().apply { name = "最新课程" })
+        second.complete(AhuResult.Success(latest))
+        runCurrent()
+        first.complete(AhuResult.Success(listOf(Course().apply { name = "旧课程" })))
+        runCurrent()
+        assertEquals(latest, subject.schedule.value?.valueOrNull())
+    }
+
+    @Test
+    fun `a startup fetch cannot replace a newer background refresh`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val startup = CompletableDeferred<AhuResult<List<Course>>>()
+        val latest = listOf(Course().apply { name = "最新课程" })
+        val source = FakeScheduleSource().apply {
+            fetchLoader = { startup.await() }
+            refreshResult = AhuResult.Success(ScheduleRefreshResult(latest, true, 789L))
+        }
+        val subject = viewModel(source = source)
+        subject.refreshSchedule()
+        runCurrent()
+        subject.refreshSchedule(isRefresh = true)
+        runCurrent()
+        startup.complete(AhuResult.Success(listOf(Course().apply { name = "启动时旧课程" })))
+        runCurrent()
+
+        assertEquals(latest, subject.schedule.value?.valueOrNull())
+        assertEquals(789L, subject.scheduleFetchedAt.value)
+    }
 }

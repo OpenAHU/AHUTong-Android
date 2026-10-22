@@ -2,6 +2,8 @@ package com.ahu.ahutong.data.session
 
 import com.ahu.ahutong.data.model.User
 import com.ahu.ahutong.data.security.SecureStorage
+import com.ahu.ahutong.data.security.SecureReadResult
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import androidx.annotation.Keep
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -20,10 +22,14 @@ internal class SavedAccountStore(
     private val gson = Gson()
 
     @Synchronized
-    fun accounts(): List<SavedAccount> = entries().map { SavedAccount(it.userId, it.name.orEmpty()) }
+    fun accounts(): List<SavedAccount> = runCatching {
+        entries().map { SavedAccount(it.userId, it.name.orEmpty()) }
+    }.getOrDefault(emptyList())
 
     @Synchronized
-    fun password(userId: String): String? = entries().firstOrNull { it.userId == userId }?.password
+    fun password(userId: String): String? = runCatching {
+        entries().firstOrNull { it.userId == userId }?.password
+    }.getOrNull()
 
     @Synchronized
     fun save(user: User, password: String) {
@@ -57,7 +63,16 @@ internal class SavedAccountStore(
 object SavedAccounts {
     private const val KEY = "accounts.saved"
     private val store = SavedAccountStore(
-        read = { SecureStorage.getString(KEY) },
+        read = {
+            when (val stored = SecureStorage.readString(KEY)) {
+                is SecureReadResult.Value -> stored.value
+                SecureReadResult.Missing -> null
+                is SecureReadResult.Unavailable -> {
+                    if (stored.retryable) throw SecureStorageUnavailableException(stored.cause)
+                    throw IllegalStateException("Saved account credentials are unreadable", stored.cause)
+                }
+            }
+        },
         write = { SecureStorage.putString(KEY, it) },
         remove = { SecureStorage.remove(KEY) }
     )

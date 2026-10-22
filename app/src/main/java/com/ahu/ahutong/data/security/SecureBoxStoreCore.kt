@@ -3,6 +3,8 @@ package com.ahu.ahutong.data.security
 /** 可信来源（AES-GCM + Android Keystore）的读写，生产实现是 [SecureStorage]。 */
 internal interface SecureStringStore {
     fun getString(key: String): String?
+    fun readString(key: String): SecureReadResult =
+        getString(key)?.let { SecureReadResult.Value(it) } ?: SecureReadResult.Missing
     fun putString(key: String, value: String)
     fun remove(key: String)
 }
@@ -32,27 +34,45 @@ internal class SecureBoxStoreCore(
         plaintextKv.remove(box, key)
     }
 
-    fun get(box: String, key: String): String? {
-        secure.getString(secureKey(box, key))?.let { value ->
-            // 上一次迁移可能在“写入密文”后、删除旧副本前被中断；命中可信副本时继续收尾。
-            nativeKv.remove(box, key)
-            plaintextKv.remove(box, key)
-            return value
+    fun get(box: String, key: String): String? = read(box, key).valueOrNull()
+
+    fun read(box: String, key: String): SecureReadResult = try {
+        when (val stored = secure.readString(secureKey(box, key))) {
+            is SecureReadResult.Unavailable -> stored
+            is SecureReadResult.Value -> {
+                // 上一次迁移可能在“写入密文”后、删除旧副本前被中断；命中可信副本时继续收尾。
+                nativeKv.remove(box, key)
+                plaintextKv.remove(box, key)
+                stored
+            }
+            SecureReadResult.Missing -> {
+                nativeKv.get(box, key)?.let { value ->
+                    secure.putString(secureKey(box, key), value)
+                    nativeKv.remove(box, key)
+                    plaintextKv.remove(box, key)
+                    SecureReadResult.Value(value)
+                } ?: SecureReadResult.Missing
+            }
         }
-        return nativeKv.get(box, key)?.also { value ->
-            secure.putString(secureKey(box, key), value)
-            nativeKv.remove(box, key)
-            plaintextKv.remove(box, key)
-        }
+    } catch (error: Exception) {
+        SecureReadResult.Unavailable(error)
     }
 
-    fun getOrMigrate(box: String, key: String, fallback: () -> String?): String? {
-        get(box, key)?.let { return it }
-        return fallback()?.also { value ->
-            // 空值不写回可信来源（写了等于凭空造一条已知为空的记录），但明文副本照样要删。
-            if (value.isNotEmpty()) put(box, key, value)
-            plaintextKv.remove(box, key)
+    fun getOrMigrate(box: String, key: String, fallback: () -> String?): String? =
+        readOrMigrate(box, key, fallback).valueOrNull()
+
+    fun readOrMigrate(box: String, key: String, fallback: () -> String?): SecureReadResult = try {
+        when (val stored = read(box, key)) {
+            is SecureReadResult.Unavailable, is SecureReadResult.Value -> stored
+            SecureReadResult.Missing -> fallback()?.let { value ->
+                // 空值不写回可信来源（写了等于凭空造一条已知为空的记录），但明文副本照样要删。
+                if (value.isNotEmpty()) put(box, key, value)
+                plaintextKv.remove(box, key)
+                SecureReadResult.Value(value)
+            } ?: SecureReadResult.Missing
         }
+    } catch (error: Exception) {
+        SecureReadResult.Unavailable(error)
     }
 
     fun remove(box: String, key: String) {

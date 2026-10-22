@@ -39,6 +39,7 @@ import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.ui.components.AppSectionCard
+import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppFilterChip
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppStateCard
@@ -158,8 +159,7 @@ fun Grade(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     gradeViewModel.studentProfiles.forEachIndexed { index, profile ->
@@ -187,7 +187,6 @@ fun Grade(
                     Text(
                         text = "使用常用条件",
                         modifier = Modifier
-                            .padding(horizontal = 16.dp)
                             .clip(ContinuousCapsule)
                             .background(90.a1)
                             .clickable { gradeViewModel.applyPresetCandidate(candidate) }
@@ -200,20 +199,35 @@ fun Grade(
 
             if (!searchExpanded) {
                 val summary: @Composable ColumnScope.() -> Unit = {
+                    val loadingRank = gradeViewModel.rankLoading ||
+                        (gradeViewModel.isLoading && gpaRankInfo == null)
+                    val rankPlaceholder = if (loadingRank) "加载中" else "暂无"
                     val rankMsg = gradeViewModel.rankEmptyMessage
-                    if (gpaRankInfo == null && !rankMsg.isNullOrBlank()) {
+                    if (loadingRank) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AppCircularProgressIndicator(modifier = Modifier.size(16.dp))
+                            Text(
+                                text = if (gpaRankInfo == null) "绩点及排名加载中" else "正在更新绩点及排名",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else if (!rankMsg.isNullOrBlank()) {
                         Text(
                             text = rankMsg,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = 50.n1 withNight 70.n1
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     listOf(
                         "本学期平均绩点" to gradeViewModel.termGradePointAverage,
-                        "全程平均绩点" to gradeViewModel.totalGradePointAverage,
-                        "全程专业排名" to ((gpaRankInfo?.majorRank ?: "暂无").toString() + "/" + (gpaRankInfo?.majorHeadCount ?: "暂无")),
-                        "该学期专业排名" to ((currentRank?.majorRank ?: "暂无").toString() + "/" + (gpaRankInfo?.majorHeadCount ?: "暂无")),
-                        "最后更新时间" to (gpaRankInfo?.updatedDateTimeStr ?: "暂无")
+                        "全程平均绩点" to if (gpaRankInfo != null) gradeViewModel.totalGradePointAverage else rankPlaceholder,
+                        "全程专业排名" to (gpaRankInfo?.let { "${it.majorRank}/${it.majorHeadCount}" } ?: rankPlaceholder),
+                        "该学期专业排名" to (currentRank?.let { "${it.majorRank}/${gpaRankInfo?.majorHeadCount ?: rankPlaceholder}" } ?: rankPlaceholder),
+                        "最后更新时间" to (gpaRankInfo?.updatedDateTimeStr?.takeIf { it.isNotBlank() } ?: rankPlaceholder)
                     ).forEach { (title, value) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -237,7 +251,11 @@ fun Grade(
     val pageContent: LazyListScope.() -> Unit = {
         if (!searchExpanded) {
             item(key = "header") {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp), content = pageHeader)
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    content = pageHeader
+                )
             }
         }
         if (searchExpanded && trimmedQuery.isNotBlank()) {
@@ -257,7 +275,9 @@ fun Grade(
                 }
             }
         } else if (!searchExpanded && gradeViewModel.isLoading && gradeViewModel.grade == null) {
-            item(key = "loading") { AppStateCard.Loading() }
+            item(key = "loading") {
+                AppStateCard.Loading(modifier = Modifier.padding(horizontal = 16.dp))
+            }
         } else if (!searchExpanded && gradeData != null && gradeData.gradeList.isNotEmpty()) {
             itemsIndexed(gradeData.gradeList, key = { index, _ -> "grade-$selectedTermText-$index" }) { _, item ->
                 Box(Modifier.padding(horizontal = 16.dp)) {
@@ -270,7 +290,7 @@ fun Grade(
                 val message = if (gradeViewModel.studentProfiles.size > 1 && profile != null) {
                     "「${profile.displayName}」暂无成绩"
                 } else "该学期目前没有任何成绩"
-                AppStateCard.Empty(message = message)
+                AppStateCard.Empty(message = message, modifier = Modifier.padding(horizontal = 16.dp))
             }
         }
     }
@@ -318,6 +338,7 @@ fun Grade(
             )
         },
         bottomPadding = 48.dp,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         lazyContent = pageContent
     )
 }
@@ -365,9 +386,9 @@ private fun GradeCard(
         modifier = Modifier
             .fillMaxWidth(),
         shape = SmoothRoundedCornerShape(16.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = item.course ?: "",
             color = MaterialTheme.colorScheme.onSurface,

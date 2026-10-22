@@ -97,6 +97,8 @@ class MainActivity : ComponentActivity() {
     /** 最近一次确认的日期：常开跨过午夜时靠它发现「该按新的一天重算了」。 */
     @Volatile
     private var lastKnownDate: LocalDate? = null
+    private var nativeStartupReady = false
+    private var startupDataAccount: String? = null
 
     private val accountLoginLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -263,24 +265,27 @@ class MainActivity : ComponentActivity() {
             }
 
             discoveryViewModel.awaitPaymentQrPreparation()
-            if (AHUCache.isPrivacyAccepted()) {
-                SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }?.let { behaviorRuntime.startProfile(it) }
-            }
-
-            if (SessionStore.isLoggedIn() || AHUCache.getMockData()) {
-//                val user = SessionStore.currentUser()
-//                val pwd = AHUCache.getWisdomPassword()
-
-                discoveryViewModel.loadActivityBean()
-                if (AHUCache.canUseUndergraduateAcademics()) {
-                    scheduleViewModel.loadConfig()
-                    scheduleViewModel.refreshSchedule()
-                }
-            }
+            nativeStartupReady = true
+            onSessionStorageReady()
 
             if (!BuildConfig.DEBUG) {
                 mainViewModel.checkApkUpdate()
             }
+        }
+    }
+
+    /** A later successful storage retry resumes the same account startup work once native is ready. */
+    suspend fun onSessionStorageReady() {
+        if (!nativeStartupReady) return
+        val accountId = SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }
+        if (AHUCache.isPrivacyAccepted() && accountId != null) behaviorRuntime.startProfile(accountId)
+        val startupAccount = accountId ?: if (AHUCache.getMockData()) "mock" else return
+        if (startupDataAccount == startupAccount) return
+        startupDataAccount = startupAccount
+        discoveryViewModel.loadActivityBean()
+        if (AHUCache.canUseUndergraduateAcademics()) {
+            scheduleViewModel.loadConfig()
+            scheduleViewModel.refreshSchedule()
         }
     }
 

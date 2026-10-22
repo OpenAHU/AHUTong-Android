@@ -28,6 +28,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import com.ahu.ahutong.ui.components.AppPageHeader
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -60,6 +62,7 @@ import com.kyant.monet.withNight
 @Composable
 fun Info(
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
+    onBack: (() -> Unit)? = null,
     onSetup: () -> Unit
 ) {
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
@@ -83,11 +86,15 @@ fun Info(
                 .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = stringResource(id = R.string.fill_in_info),
-                modifier = Modifier.padding(24.dp, 32.dp),
-                style = MaterialTheme.typography.headlineLarge
-            )
+            if (!LocalAppUiTheme.current.usesLiquidGlass && onBack != null) {
+                AppPageHeader(title = stringResource(id = R.string.fill_in_info), onBack = onBack)
+            } else {
+                Text(
+                    text = stringResource(id = R.string.fill_in_info),
+                    modifier = Modifier.padding(24.dp, 32.dp),
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
             Spacer(modifier = Modifier)
             Text(
                 text = stringResource(id = R.string.school_year),

@@ -38,11 +38,13 @@ import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCard
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppTextField
+import com.ahu.ahutong.ui.components.AppPageHeader
 import kotlinx.coroutines.launch
 
 @Composable
 fun XuexiaotongLoginScreen(
     login: suspend (account: String, password: String) -> Unit,
+    onBack: (() -> Unit)? = null,
     onLoginSuccess: () -> Unit
 ) {
     var account by remember { mutableStateOf("") }
@@ -64,13 +66,17 @@ fun XuexiaotongLoginScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(80.dp))
-            Text(
-                text = "学习通日历",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            if (onBack == null) {
+                Spacer(modifier = Modifier.height(80.dp))
+                Text(
+                    text = "学习通日历",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            } else {
+                AppPageHeader(title = "学习通日历", onBack = onBack, horizontalPadding = 0.dp)
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "使用学习通账号密码登录",

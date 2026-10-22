@@ -227,6 +227,10 @@
 -keep class androidx.compose.ui.text.style.TextOverflow { *; }
 -keep class androidx.compose.ui.text.style.TextOverflow$Companion { *; }
 -keep class androidx.compose.ui.unit.Dp { *; }
+# Runtime plugins can box TextUnit or access its Companion by the original ABI names.
+# Keeping TextUnitKt alone still lets R8 rename/remove the boxed value class (Sentry ANDROID-1J).
+-keep class androidx.compose.ui.unit.TextUnit { *; }
+-keep class androidx.compose.ui.unit.TextUnit$Companion { *; }
 -keep class androidx.compose.ui.unit.TextUnitKt { *; }
 -keep class androidx.compose.ui.window.PopupProperties { *; }
 -keep class kotlin.NoWhenBranchMatchedException { *; }

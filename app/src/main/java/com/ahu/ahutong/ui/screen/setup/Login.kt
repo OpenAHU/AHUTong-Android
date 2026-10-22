@@ -34,6 +34,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.R
+import com.ahu.ahutong.data.session.AhuSessionState
+import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.ui.components.AppPageHeader
+import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.state.LoginState
@@ -96,6 +101,11 @@ fun Login(
     val activity = LocalActivity.current
     var initialLoginStarted by rememberSaveable { mutableStateOf(false) }
     var loginAttempted by rememberSaveable { mutableStateOf(false) }
+    val originalAccountId = rememberSaveable { SessionStore.currentUser()?.xh.orEmpty() }
+    val sessionStatus by AhuSessionState.status.collectAsState()
+    val canShowBack = onBack != null && canCancelLogin(
+        originalAccountId, SessionStore.currentUser()?.xh, sessionStatus, loginAttempted
+    ) && loginViewModel.state != LoginState.InProgress && loginViewModel.state != LoginState.Succeeded
     LaunchedEffect(Unit) {
         if (autoLogin && !initialLoginStarted && loginViewModel.state == LoginState.Idle) {
             initialLoginStarted = true
@@ -119,20 +129,21 @@ fun Login(
         }
     }
 
-    BackHandler {
+    val handleBack: () -> Unit = {
         if (showWebLoginContent) {
             loginViewModel.failWebVerification("已取消教务安全验证")
         } else if (loginViewModel.state == LoginState.InProgress ||
             loginViewModel.state == LoginState.Succeeded
         ) {
             // 认证与身份落盘完成前，不能返回旧账号的页面。
-            return@BackHandler
+            Unit
         } else if (onBack != null) {
             onBack(loginAttempted)
         } else {
             activity?.finish()
         }
     }
+    BackHandler(onBack = handleBack)
 
     Box(
         modifier = Modifier
@@ -167,11 +178,15 @@ fun Login(
                 .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = stringResource(id = R.string.log_in),
-                modifier = Modifier.padding(24.dp, 32.dp),
-                style = MaterialTheme.typography.headlineLarge
-            )
+            if (!LocalAppUiTheme.current.usesLiquidGlass && canShowBack) {
+                AppPageHeader(title = stringResource(id = R.string.log_in), onBack = handleBack)
+            } else {
+                Text(
+                    text = stringResource(id = R.string.log_in),
+                    modifier = Modifier.padding(24.dp, 32.dp),
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
             Spacer(modifier = Modifier)
             Box(
                 modifier = Modifier

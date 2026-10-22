@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,7 +45,6 @@ import com.ahu.ahutong.data.crawler.PayState
 import com.ahu.ahutong.data.model.ElectricityController
 import com.ahu.ahutong.data.model.ElectricityAlertRoom
 import com.ahu.ahutong.data.model.RoomSelectionInfo
-import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.ui.component.SecurePaymentPasswordDialog
 import com.ahu.ahutong.ui.components.AppSectionCard
@@ -63,7 +63,6 @@ import com.ahu.ahutong.ui.components.AppStateCard
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppTextField
-import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
 import com.kyant.monet.n1
@@ -553,7 +552,8 @@ private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
             onSelected = viewModel::onControllerSelected,
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading,
-            miuixStandalone = true
+            miuixStandalone = false,
+            grouped = true
         )
         if (selectedController.requiresCampus) {
             ElectricitySelectorField(
@@ -598,11 +598,11 @@ private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
             loading = loadingSelector == ElectricitySelectorLevel.Room
         )
     }
-    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = selectorContent)
-    } else {
-        AppSectionCard(content = selectorContent)
-    }
+    AppSectionCard(
+        contentPadding = PaddingValues(vertical = 4.dp, horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        content = selectorContent
+    )
 }
 
 @Composable
@@ -625,7 +625,8 @@ private fun ElectricitySelectorField(
             modifier = Modifier.fillMaxWidth(),
             placeholder = placeholder,
             enabled = enabled,
-            miuixStandalone = true
+            miuixStandalone = false,
+            grouped = true
         )
         if (loading) {
             AppCircularProgressIndicator(
