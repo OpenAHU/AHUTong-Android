@@ -200,7 +200,7 @@ private fun CanteenAskCard(
                                 variant = AppButtonVariant.Secondary,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("不是，我来改")
+                                Text("不是")
                             }
                         }
                         Text(
