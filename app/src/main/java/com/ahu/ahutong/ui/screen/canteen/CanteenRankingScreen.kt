@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -130,7 +131,7 @@ fun CanteenRankingScreen(
                         color = CanteenPalette.accent,
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .clickable { viewModel.load(s.period) }
+                            .clickable { viewModel.load(s.period, s.campus) }
                             .padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
@@ -139,7 +140,9 @@ fun CanteenRankingScreen(
             is CanteenRankingViewModel.UiState.Ready -> RankingContent(
                 data = s.data,
                 currentPeriod = s.period,
-                onPeriodChange = { viewModel.load(it) }
+                currentCampus = s.campus,
+                onPeriodChange = { viewModel.load(it, s.campus) },
+                onCampusChange = { viewModel.load(s.period, it) }
             )
         }
     }
@@ -149,7 +152,9 @@ fun CanteenRankingScreen(
 private fun RankingContent(
     data: InsightsResponse,
     currentPeriod: CanteenRankingViewModel.Period,
-    onPeriodChange: (CanteenRankingViewModel.Period) -> Unit
+    currentCampus: CanteenRankingViewModel.Campus,
+    onPeriodChange: (CanteenRankingViewModel.Period) -> Unit,
+    onCampusChange: (CanteenRankingViewModel.Campus) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -182,6 +187,29 @@ private fun RankingContent(
                 ) {
                     Text(
                         p.label,
+                        style = CaptionText,
+                        color = if (selected) Color.White else CanteenPalette.textSecondary
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CanteenRankingViewModel.Campus.entries.forEach { c ->
+                val selected = c == currentCampus
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (selected) CanteenPalette.accent else CanteenPalette.chip)
+                        .clickable { if (!selected) onCampusChange(c) }
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        c.label,
                         style = CaptionText,
                         color = if (selected) Color.White else CanteenPalette.textSecondary
                     )
