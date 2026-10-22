@@ -6,7 +6,10 @@ import com.ahu.ahutong.data.CanteenWindowStore
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.recharge.analytics.CanteenAsk
+import com.ahu.ahutong.data.recharge.analytics.CanteenAskKind
 import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
+import com.ahu.ahutong.data.recharge.analytics.pickConfirmAsk
 import com.ahu.ahutong.data.recharge.analytics.pickLabelCandidate
 import com.ahu.ahutong.data.recharge.analytics.toDeidentifiedTxns
 import kotlinx.coroutines.Dispatchers
@@ -41,10 +44,10 @@ object CanteenGateway {
     /** 窗口名长度上限，与服务端 `NAME_MAX_LEN`（config.py）对齐，超了服务端会截断。 */
     const val WINDOW_NAME_MAX_LEN = 20
 
-    /** 一次账单同步的结果：`ok` 供节流策略用，`ask` 为「要不要补标注」的候选（可为 null）。 */
+    /** 一次账单同步的结果：`ok` 供节流策略用，`ask` 为补标注/确认题候选（可为 null）。 */
     data class BillsSync(
         val ok: Boolean,
-        val ask: CanteenLabelCandidate? = null,
+        val ask: CanteenAsk? = null,
         /** 诊断用：本次拉到的原始流水条数（开发者自检卡片显示）。 */
         val fetched: Int = 0,
         /** 诊断用：正餐过滤后实际发出去的条数。 */
@@ -86,7 +89,10 @@ object CanteenGateway {
      *
      * @return `ok` = 拉取并上传成功（含窗口内本就零记录）；`ask` = 顺带挑出的补标注候选
      */
-    suspend fun uploadRecentBills(handledMeals: Set<String> = emptySet()): BillsSync =
+    suspend fun uploadRecentBills(
+        handledMeals: Set<String> = emptySet(),
+        handledConfirmations: Set<String> = emptySet()
+    ): BillsSync =
         withContext(Dispatchers.IO) {
             runCatching {
                 val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA)
@@ -126,9 +132,15 @@ object CanteenGateway {
 
                 // 顺手挑候选：映射表先补齐，否则新装/久未同步的机器会把已收录窗口也当成未收录
                 syncWindowMap()
-                val ask = records.pickLabelCandidate(
-                    knownTerminals = CanteenWindowStore.all().keys,
+                val mapping = CanteenWindowStore.all()
+                val labelAsk = records.pickLabelCandidate(
+                    knownTerminals = mapping.keys,
                     handled = handledMeals
+                )?.let { CanteenAsk(CanteenAskKind.LABEL, it) }
+                // 补标注优先（先补齐空缺）；没有空缺时才随机抽查一个已收录映射。
+                val ask = labelAsk ?: records.pickConfirmAsk(
+                    mapping = mapping,
+                    handled = handledConfirmations
                 )
                 Log.i(TAG, "background sync done: from=$timeFrom, fetched=${records.size}")
                 BillsSync(
@@ -167,6 +179,46 @@ object CanteenGateway {
         }
             .onFailure { Log.w(TAG, "window report failed", it) }
             .getOrDefault(false)
+    }
+
+    enum class ConfirmResult { OK, STALE, FAILED }
+
+    /**
+     * 对当前映射投确认/否认票。
+     *
+     * `STALE` = 服务端映射已被管理员改过（409），调用侧应刷新映射并直接收起卡片，
+     * 不要当成网络失败让用户重试。
+     */
+    suspend fun confirmWindow(
+        ask: CanteenAsk,
+        confirmed: Boolean,
+        suggestedName: String?,
+        reporterToken: String
+    ): ConfirmResult = withContext(Dispatchers.IO) {
+        val mappedName = ask.mappedName?.takeIf { it.isNotBlank() }
+            ?: return@withContext ConfirmResult.FAILED
+        runCatching {
+            val response = CanteenApi.API.windowConfirm(
+                body = WindowConfirmBody(
+                    terminal = ask.candidate.terminal,
+                    mappedName = mappedName,
+                    verdict = if (confirmed) "confirm" else "reject",
+                    suggestedName = suggestedName?.trim()?.takeIf { it.isNotEmpty() },
+                    merchant = ask.candidate.merchant,
+                    sampleCount = ask.candidate.sampleCount
+                ),
+                reporterToken = reporterToken
+            )
+            when {
+                response.isSuccessful -> ConfirmResult.OK
+                response.code() == 409 -> {
+                    syncWindowMap()
+                    ConfirmResult.STALE
+                }
+                else -> ConfirmResult.FAILED
+            }
+        }.onFailure { Log.w(TAG, "window confirm failed", it) }
+            .getOrDefault(ConfirmResult.FAILED)
     }
 
     /** 分页拉取一个时间窗的账单（不去重：服务端幂等键单点负责）。false = 任一页失败。 */

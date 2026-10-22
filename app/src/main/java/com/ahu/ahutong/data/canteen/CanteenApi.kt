@@ -47,6 +47,13 @@ interface CanteenApi {
         @Header("X-Reporter-Token") reporterToken: String? = null
     ): Response<Unit>
 
+    /** 对已发布映射投确认/否认票；不携带任何交易时间、金额或身份信息。 */
+    @POST("/api/canteen/window-confirm")
+    suspend fun windowConfirm(
+        @Body body: WindowConfirmBody,
+        @Header("X-Reporter-Token") reporterToken: String? = null
+    ): Response<Unit>
+
     companion object {
         /** 80 口（Caddy 反代）；8000 口安全组规则已删除，公网不可达（2026-10-07 服务端 v1.4.0）。 */
         const val BASE_URL = "https://inchangejiang.cn/"
@@ -112,6 +119,19 @@ data class WindowReportBody(
     val merchant: String,
     val suggestedName: String,
     val sampleCount: Int
+)
+
+/**
+ * 确认/否认票。`mappedName` 是客户端当前看到的映射名；服务端发现映射已变会返回 409。
+ * `suggestedName` 只在否认时可选，填了会同时进入待审纠正队列。
+ */
+data class WindowConfirmBody(
+    val terminal: String,
+    val mappedName: String,
+    val verdict: String,
+    val suggestedName: String? = null,
+    val merchant: String = "",
+    val sampleCount: Int = 0
 )
 
 /* ---------------- insights ---------------- */

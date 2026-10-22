@@ -103,6 +103,21 @@ interface SettingsStore {
 
     suspend fun setCanteenHandledMeals(value: Set<String>) {}
 
+    /**
+     * 已处理过的「确认题」：键 `confirm:终端@映射名`。
+     * 映射表改名后键就不匹配了，会重新提问。
+     */
+    val canteenHandledConfirmations: Flow<Set<String>>
+        get() = kotlinx.coroutines.flow.flowOf(emptySet())
+
+    suspend fun setCanteenHandledConfirmations(value: Set<String>) {}
+
+    /** 最近展示确认题的时刻（毫秒）：用来限制每天 1 次、每周 3 次。 */
+    val canteenConfirmationTimes: Flow<Set<Long>>
+        get() = kotlinx.coroutines.flow.flowOf(emptySet())
+
+    suspend fun setCanteenConfirmationTimes(value: Set<Long>) {}
+
     val predictivePrefetchEnabled: Flow<Boolean>
     suspend fun setPredictivePrefetchEnabled(value: Boolean)
 

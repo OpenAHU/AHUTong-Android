@@ -12,7 +12,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.data.canteen.CanteenGateway
-import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
+import com.ahu.ahutong.data.recharge.analytics.CanteenAsk
+import com.ahu.ahutong.data.recharge.analytics.CanteenAskKind
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
@@ -50,9 +51,9 @@ class CanteenConsentViewModel @Inject constructor(
     private val _shouldAsk = MutableStateFlow<Boolean?>(null)
     val shouldAsk: StateFlow<Boolean?> = _shouldAsk.asStateFlow()
 
-    /** 众包补标注候选；非空 = 主页卡片显示，回答（提交/不记得）后归空。 */
-    private val _pendingAsk = MutableStateFlow<CanteenLabelCandidate?>(null)
-    val pendingAsk: StateFlow<CanteenLabelCandidate?> = _pendingAsk.asStateFlow()
+    /** 补标注 / 确认题候选；非空 = 主页卡片显示，回答（提交/不记得）后归空。 */
+    private val _pendingAsk = MutableStateFlow<CanteenAsk?>(null)
+    val pendingAsk: StateFlow<CanteenAsk?> = _pendingAsk.asStateFlow()
 
     private val _submitState = MutableStateFlow(CanteenSubmitState.Idle)
     val submitState: StateFlow<CanteenSubmitState> = _submitState.asStateFlow()
@@ -77,15 +78,28 @@ class CanteenConsentViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 if (settings.canteenUploadConsent.first() == true) {
-                    val sync = CanteenGateway.uploadRecentBills(settings.canteenHandledMeals.first())
+                    val sync = CanteenGateway.uploadRecentBills(
+                        handledMeals = settings.canteenHandledMeals.first(),
+                        handledConfirmations = settings.canteenHandledConfirmations.first()
+                    )
                     nextAllowedSyncAt.set(
                         System.currentTimeMillis() + if (sync.ok) SYNC_THROTTLE_MS else RETRY_AFTER_MS
                     )
+                    var ask = sync.ask
+                    if (ask?.kind == CanteenAskKind.CONFIRM) {
+                        val now = System.currentTimeMillis()
+                        val times = settings.canteenConfirmationTimes.first()
+                        if (canAskConfirmation(times, now)) {
+                            recordConfirmationPrompt(times, now)
+                        } else {
+                            ask = null
+                        }
+                    }
                     // 换题才重置提交态：同一个候选上失败过的提示要留着，别被后台静默同步清掉
-                    if (sync.ask?.mealKey != _pendingAsk.value?.mealKey) {
+                    if (ask?.handledKey != _pendingAsk.value?.handledKey) {
                         _submitState.value = CanteenSubmitState.Idle
                     }
-                    _pendingAsk.value = sync.ask
+                    _pendingAsk.value = ask
                 } else {
                     nextAllowedSyncAt.set(System.currentTimeMillis() + SYNC_THROTTLE_MS)
                 }
@@ -101,34 +115,95 @@ class CanteenConsentViewModel @Inject constructor(
      * - 失败 → 保留卡片与已输入内容，可重试
      */
     fun submitLabel(name: String) {
-        val ask = _pendingAsk.value ?: return
+        val ask = _pendingAsk.value?.takeIf { it.kind == CanteenAskKind.LABEL } ?: return
         if (_submitState.value == CanteenSubmitState.Submitting) return
         val trimmed = name.trim().take(CanteenGateway.WINDOW_NAME_MAX_LEN)
         if (trimmed.isEmpty()) return
         _submitState.value = CanteenSubmitState.Submitting
         viewModelScope.launch(Dispatchers.IO) {
-            if (!CanteenGateway.reportWindow(ask, trimmed, reporterToken())) {
+            if (!CanteenGateway.reportWindow(ask.candidate, trimmed, reporterToken())) {
                 _submitState.value = CanteenSubmitState.Failed
                 return@launch
             }
-            rememberHandled(ask)
+            rememberHandledMeal(ask)
             _submitState.value = CanteenSubmitState.Done
             delay(THANKS_LINGER_MS)
             dismissAsk()
         }
     }
 
-    /** 「不记得」：**不上报**，只记「这一顿已处理」，卡片直接收起。只静音这一顿。 */
-    fun skipLabel() {
+    /**
+     * 确认题：是 / 不是。`suggestedName` 只在否认时可选；
+     * 服务端若返回映射已变（409），直接收起卡片，不当成网络失败。
+     */
+    fun submitConfirmation(confirmed: Boolean, suggestedName: String? = null) {
+        val ask = _pendingAsk.value?.takeIf { it.kind == CanteenAskKind.CONFIRM } ?: return
+        if (_submitState.value == CanteenSubmitState.Submitting) return
+        _submitState.value = CanteenSubmitState.Submitting
+        viewModelScope.launch(Dispatchers.IO) {
+            when (
+                CanteenGateway.confirmWindow(
+                    ask = ask,
+                    confirmed = confirmed,
+                    suggestedName = suggestedName
+                        ?.trim()
+                        ?.take(CanteenGateway.WINDOW_NAME_MAX_LEN)
+                        ?.takeIf { it.isNotEmpty() },
+                    reporterToken = reporterToken()
+                )
+            ) {
+                CanteenGateway.ConfirmResult.OK -> {
+                    rememberHandledConfirmation(ask)
+                    _submitState.value = CanteenSubmitState.Done
+                    delay(THANKS_LINGER_MS)
+                    dismissAsk()
+                }
+                CanteenGateway.ConfirmResult.STALE -> dismissAsk()
+                CanteenGateway.ConfirmResult.FAILED -> _submitState.value = CanteenSubmitState.Failed
+            }
+        }
+    }
+
+    /** 「不记得」：**不上报**，只记这一顿/这道题已处理，卡片直接收起。 */
+    fun skipAsk() {
         val ask = _pendingAsk.value ?: return
         viewModelScope.launch(Dispatchers.IO) {
-            rememberHandled(ask)
+            when (ask.kind) {
+                CanteenAskKind.LABEL -> rememberHandledMeal(ask)
+                CanteenAskKind.CONFIRM -> rememberHandledConfirmation(ask)
+            }
             dismissAsk()
         }
     }
 
-    private suspend fun rememberHandled(ask: CanteenLabelCandidate) {
-        settings.setCanteenHandledMeals(settings.canteenHandledMeals.first() + ask.mealKey)
+    private suspend fun rememberHandledMeal(ask: CanteenAsk) {
+        settings.setCanteenHandledMeals(settings.canteenHandledMeals.first() + ask.candidate.mealKey)
+    }
+
+    private suspend fun rememberHandledConfirmation(ask: CanteenAsk) {
+        settings.setCanteenHandledConfirmations(
+            settings.canteenHandledConfirmations.first() + ask.handledKey
+        )
+    }
+
+    private fun canAskConfirmation(times: Set<Long>, now: Long): Boolean {
+        val weekAgo = now - 7 * 24 * 3600 * 1000L
+        val calendar = java.util.Calendar.getInstance(java.util.Locale.CHINA).apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val todayStart = calendar.timeInMillis
+        val recent = times.filter { it in weekAgo..now }
+        return recent.none { it >= todayStart } && recent.size < 3
+    }
+
+    private suspend fun recordConfirmationPrompt(times: Set<Long>, now: Long) {
+        val weekAgo = now - 7 * 24 * 3600 * 1000L
+        val kept = times.filter { it >= weekAgo }
+        settings.setCanteenConfirmationTimes((kept + now).toSet())
     }
 
     private fun dismissAsk() {

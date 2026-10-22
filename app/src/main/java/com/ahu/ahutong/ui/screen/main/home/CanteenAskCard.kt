@@ -12,10 +12,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.canteen.CanteenGateway
+import com.ahu.ahutong.data.recharge.analytics.CanteenAsk
+import com.ahu.ahutong.data.recharge.analytics.CanteenAskKind
 import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
@@ -58,7 +62,7 @@ fun CanteenAskCardHost(enabled: Boolean = true, modifier: Modifier = Modifier) {
     val viewModel: CanteenConsentViewModel = hiltViewModel()
     val ask by viewModel.pendingAsk.collectAsState()
 
-    var lastAsk by remember { mutableStateOf<CanteenLabelCandidate?>(null) }
+    var lastAsk by remember { mutableStateOf<CanteenAsk?>(null) }
     if (ask != null) lastAsk = ask
 
     AnimatedVisibility(
@@ -84,16 +88,18 @@ fun CanteenAskCardHost(enabled: Boolean = true, modifier: Modifier = Modifier) {
  */
 @Composable
 private fun CanteenAskCard(
-    ask: CanteenLabelCandidate,
+    ask: CanteenAsk,
     viewModel: CanteenConsentViewModel
 ) {
     val submitState by viewModel.submitState.collectAsState()
 
-    // 换一顿就重置输入框（mealKey 变了说明换题了）
-    var input by remember(ask.mealKey) { mutableStateOf("") }
+    // 换题就重置输入框/纠正态
+    var input by remember(ask.handledKey) { mutableStateOf("") }
+    var correcting by remember(ask.handledKey) { mutableStateOf(false) }
 
     val busy = submitState == CanteenSubmitState.Submitting
     val done = submitState == CanteenSubmitState.Done
+    val confirm = ask.kind == CanteenAskKind.CONFIRM
 
     AppSectionCard {
         // 表单 ↔ 感谢：和校园卡同款——两种内容交叉淡化，同时容器高度平滑过渡
@@ -114,11 +120,18 @@ private fun CanteenAskCard(
                 if (isDone) {
                     Text("谢谢！", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "已经记下「${input}」了，审核通过后大家都能在榜单里看到。",
+                        text = if (confirm) {
+                            "你的反馈会帮助提高这个窗口映射的可信度。"
+                        } else {
+                            "已经记下「${input}」了，审核通过后大家都能在榜单里看到。"
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
                 } else {
-                    Text("帮我们认一个窗口", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (confirm) "帮我们确认一个窗口" else "帮我们认一个窗口",
+                        style = MaterialTheme.typography.titleMedium
+                    )
 
                     // 回忆线索：真实交易时间（今天/昨天 + 中午/晚上 + 秒级时刻）+ 金额 + 食堂楼层
                     Text(
@@ -132,36 +145,113 @@ private fun CanteenAskCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    AppTextField(
-                        value = input,
-                        onValueChange = {
-                            if (it.length <= CanteenGateway.WINDOW_NAME_MAX_LEN) input = it
-                        },
-                        label = "这个窗口叫什么？（如 烤盘饭）",
-                        enabled = !busy,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        AppButton(
-                            onClick = viewModel::skipLabel,
+                    if (!confirm) {
+                        AppTextField(
+                            value = input,
+                            onValueChange = {
+                                if (it.length <= CanteenGateway.WINDOW_NAME_MAX_LEN) input = it
+                            },
+                            label = "这个窗口叫什么？（如 烤盘饭）",
                             enabled = !busy,
-                            variant = AppButtonVariant.Secondary,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("不记得")
+                            AppButton(
+                                onClick = viewModel::skipAsk,
+                                enabled = !busy,
+                                variant = AppButtonVariant.Secondary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("不记得")
+                            }
+                            AppButton(
+                                onClick = { viewModel.submitLabel(input) },
+                                enabled = input.isNotBlank() && !busy,
+                                variant = AppButtonVariant.Primary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (busy) "提交中…" else "提交")
+                            }
                         }
-                        AppButton(
-                            onClick = { viewModel.submitLabel(input) },
-                            enabled = input.isNotBlank() && !busy,
-                            variant = AppButtonVariant.Primary,
-                            modifier = Modifier.weight(1f)
+                    } else if (!correcting) {
+                        Text(
+                            "这顿是在「${ask.mappedName.orEmpty()}」吃的吗？",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(if (busy) "提交中…" else "提交")
+                            AppButton(
+                                onClick = { viewModel.submitConfirmation(confirmed = true) },
+                                enabled = !busy,
+                                variant = AppButtonVariant.Primary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (busy) "提交中…" else "是的")
+                            }
+                            AppButton(
+                                onClick = { correcting = true },
+                                enabled = !busy,
+                                variant = AppButtonVariant.Secondary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("不是，我来改")
+                            }
                         }
+                        Text(
+                            "不记得",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .clickable(enabled = !busy) { viewModel.skipAsk() }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    } else {
+                        AppTextField(
+                            value = input,
+                            onValueChange = {
+                                if (it.length <= CanteenGateway.WINDOW_NAME_MAX_LEN) input = it
+                            },
+                            label = "那它叫什么？（如 烤盘饭）",
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            AppButton(
+                                onClick = { correcting = false },
+                                enabled = !busy,
+                                variant = AppButtonVariant.Secondary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("取消")
+                            }
+                            AppButton(
+                                onClick = { viewModel.submitConfirmation(false, input) },
+                                enabled = input.isNotBlank() && !busy,
+                                variant = AppButtonVariant.Primary,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(if (busy) "提交中…" else "提交纠正")
+                            }
+                        }
+                        Text(
+                            "只否认，不填名字",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .clickable(enabled = !busy) { viewModel.submitConfirmation(false) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
                     }
 
                     // 失败不丢贡献：卡片留着、输入留着，只多一句提示让用户再点一次
@@ -174,7 +264,11 @@ private fun CanteenAskCard(
                     }
 
                     Text(
-                        text = "只会把你填的窗口名上报（公共信息，不含你的任何账号数据），审核通过后大家都能看到。",
+                        text = if (confirm) {
+                            "只上报「这个终端是不是这个名字」，不含你的账号、交易时间或金额。"
+                        } else {
+                            "只会把你填的窗口名上报（公共信息，不含你的任何账号数据），审核通过后大家都能看到。"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -195,3 +289,7 @@ internal fun CanteenLabelCandidate.recallLine(): String =
 
 /** 要用户去认的那个终端。 */
 internal fun CanteenLabelCandidate.terminalLine(): String = "$terminal 号窗口"
+
+internal fun CanteenAsk.recallLine(): String = candidate.recallLine()
+
+internal fun CanteenAsk.terminalLine(): String = candidate.terminalLine()

@@ -5,6 +5,7 @@ import com.ahu.ahutong.data.debug.DebugClock
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.random.Random
 
 /*
  * 干饭足迹统计引擎（必吃榜个人端 V1）。
@@ -367,6 +368,84 @@ fun List<TurnoverRecord>.pickLabelCandidate(
 
     val best = candidates.maxByOrNull { it.first } ?: return null
     return best.second.copy(sampleCount = perTerminalCount[best.second.terminal] ?: 1)
+}
+
+/* ---------------- 已收录窗口的社区确认题 ---------------- */
+
+enum class CanteenAskKind { LABEL, CONFIRM }
+
+/** 主页卡片的一道题：补标注（未收录）或确认（已收录）。 */
+data class CanteenAsk(
+    val kind: CanteenAskKind,
+    val candidate: CanteenLabelCandidate,
+    /** 仅 CONFIRM 有值：当前映射表里的窗口名。 */
+    val mappedName: String? = null
+) {
+    val mealKey: String get() = candidate.mealKey
+
+    /** 本地「这题处理过」的键；确认题按终端+名字去重，映射改名后可以重新问。 */
+    val handledKey: String
+        get() = when (kind) {
+            CanteenAskKind.LABEL -> candidate.mealKey
+            CanteenAskKind.CONFIRM -> "confirm:${candidate.terminal}@${mappedName.orEmpty()}"
+        }
+}
+
+/**
+ * 随机抽查最近 24h 内**已收录终端**的一顿，用于验证映射名。
+ *
+ * 这里只挑候选，问不问由 ViewModel 的频率闸门决定；返回 null 表示没有可问的。
+ * 用随机而不是「最新」，避免总是问同一批高频窗口。
+ */
+fun List<TurnoverRecord>.pickConfirmAsk(
+    mapping: Map<String, String>,
+    handled: Set<String> = emptySet(),
+    now: Long = System.currentTimeMillis(),
+    windowMs: Long = LABEL_WINDOW_MS,
+    random: Random = Random.Default
+): CanteenAsk? {
+    val perTerminalCount = mutableMapOf<String, Int>()
+    val candidates = mutableListOf<CanteenAsk>()
+
+    forEach { record ->
+        if (!record.isExpenseRecord()) return@forEach
+        val terminal = record.locationName?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+        val mappedName = mapping[terminal]?.trim()?.takeIf { it.isNotEmpty() } ?: return@forEach
+        val raw = record.merchantText()
+        val canteen = extractCanteenName(raw) ?: return@forEach
+        val time = parseDateTime(record.effectdateStr) ?: return@forEach
+        val slot = mealSlotOf(time) ?: return@forEach
+
+        perTerminalCount[terminal] = (perTerminalCount[terminal] ?: 0) + 1
+
+        val at = time.time
+        if (at > now || now - at > windowMs) return@forEach
+        val ts = normalizeTs(record.effectdateStr) ?: return@forEach
+        val ask = CanteenAsk(
+            kind = CanteenAskKind.CONFIRM,
+            mappedName = mappedName,
+            candidate = CanteenLabelCandidate(
+                terminal = terminal,
+                ts = ts,
+                dayLabel = dayLabelOf(at, now),
+                dayPart = slot.dayPart,
+                amountCents = record.tranamt,
+                canteen = canteen,
+                floor = extractFloor(raw),
+                merchant = raw,
+                sampleCount = 0
+            )
+        )
+        if (ask.handledKey in handled) return@forEach
+        candidates += ask
+    }
+
+    val chosen = candidates.randomOrNull(random) ?: return null
+    return chosen.copy(
+        candidate = chosen.candidate.copy(
+            sampleCount = perTerminalCount[chosen.candidate.terminal] ?: 1
+        )
+    )
 }
 
 /** "yyyy-MM-dd HH:mm[:ss]" → 秒级补齐；无法解析返回 null。 */

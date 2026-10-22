@@ -33,6 +33,30 @@ class CanteenFootprintTest {
     }.time
 
     @Test
+    fun `confirm ask picks a mapped recent meal and skips handled mappings`() {
+        val records = listOf(record("2026-10-06 12:05:00", "77-139", 1300))
+        val mapping = mapOf("77-139" to "古法炸鸡腿")
+
+        val ask = assertNotNull(
+            records.pickConfirmAsk(mapping, now = fixedToday.time, random = kotlin.random.Random(0))
+        )
+        assertEquals(CanteenAskKind.CONFIRM, ask.kind)
+        assertEquals("古法炸鸡腿", ask.mappedName)
+        assertEquals("77-139@2026-10-06 12:05:00", ask.mealKey)
+        assertEquals("confirm:77-139@古法炸鸡腿", ask.handledKey)
+
+        assertNull(
+            records.pickConfirmAsk(
+                mapping,
+                handled = setOf("confirm:77-139@古法炸鸡腿"),
+                now = fixedToday.time
+            )
+        )
+        // 未收录窗口只走补标注，不生成确认题
+        assertNull(records.pickConfirmAsk(emptyMap(), now = fixedToday.time))
+    }
+
+    @Test
     fun `only meal slots are counted`() {
         val records = listOf(
             record("2026-10-06 07:30:00", "77-139", 400),   // 早餐：排除

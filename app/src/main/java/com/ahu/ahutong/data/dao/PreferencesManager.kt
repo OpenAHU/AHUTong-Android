@@ -52,6 +52,12 @@ object PreferencesKeys {
 
     /** 已处理过的顿（`终端码@时间`）：提交过或点过「不记得」的不再问。 */
     val CANTEEN_HANDLED_MEALS = stringSetPreferencesKey("canteen_handled_meals")
+
+    /** 已处理过的确认题（`confirm:终端@映射名`）。 */
+    val CANTEEN_HANDLED_CONFIRMATIONS = stringSetPreferencesKey("canteen_handled_confirmations")
+
+    /** 最近展示确认题的时刻（毫秒字符串），用于每天/每周频率上限。 */
+    val CANTEEN_CONFIRMATION_TIMES = stringSetPreferencesKey("canteen_confirmation_times")
     val PREDICTIVE_PREFETCH_ENABLED = booleanPreferencesKey("predictive_prefetch_enabled")
     val WIFI_ONLY_PREFETCH = booleanPreferencesKey("wifi_only_prefetch")
     val MODEL_QUALITY_TELEMETRY_PROFILES = stringSetPreferencesKey("model_quality_telemetry_profiles")
@@ -372,6 +378,28 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
     override suspend fun setCanteenHandledMeals(value: Set<String>) {
         editPreferences { prefs ->
             prefs[PreferencesKeys.CANTEEN_HANDLED_MEALS] = value
+        }
+    }
+
+    override val canteenHandledConfirmations: Flow<Set<String>> = preferences { prefs ->
+        prefs[PreferencesKeys.CANTEEN_HANDLED_CONFIRMATIONS] ?: emptySet()
+    }
+
+    override suspend fun setCanteenHandledConfirmations(value: Set<String>) {
+        editPreferences { prefs ->
+            prefs[PreferencesKeys.CANTEEN_HANDLED_CONFIRMATIONS] = value
+        }
+    }
+
+    override val canteenConfirmationTimes: Flow<Set<Long>> = preferences { prefs ->
+        (prefs[PreferencesKeys.CANTEEN_CONFIRMATION_TIMES] ?: emptySet())
+            .mapNotNull { it.toLongOrNull() }
+            .toSet()
+    }
+
+    override suspend fun setCanteenConfirmationTimes(value: Set<Long>) {
+        editPreferences { prefs ->
+            prefs[PreferencesKeys.CANTEEN_CONFIRMATION_TIMES] = value.map { it.toString() }.toSet()
         }
     }
 

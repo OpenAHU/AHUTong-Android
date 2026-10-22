@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** 政策内容变更时递增，已有用户需要重新同意。 */
-internal const val CURRENT_PRIVACY_POLICY_VERSION = 2
+internal const val CURRENT_PRIVACY_POLICY_VERSION = 3
 
 sealed interface TelemetryOnboardingState {
     data object Loading : TelemetryOnboardingState
