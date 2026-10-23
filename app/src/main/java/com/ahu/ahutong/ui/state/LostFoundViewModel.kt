@@ -1,5 +1,7 @@
 package com.ahu.ahutong.ui.state
 
+import com.ahu.ahutong.core.common.UserNoticeHolder
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -143,7 +145,7 @@ class LostFoundViewModel @Inject constructor(
             // 没缓存时才报错
             if (allCampus == null) {
                 errorMessage =
-                    t.message ?: "获取校区失败"
+                    if (UserNoticeHolder.reportUnexpected(t)) null else t.message ?: "获取校区失败"
             }
         } finally {
             campusLoading = false
@@ -192,7 +194,7 @@ class LostFoundViewModel @Inject constructor(
             if (t is CancellationException) throw t
             if (allLostFoundType == null) {
                 errorMessage =
-                    t.message ?: "获取类型失败"
+                    if (UserNoticeHolder.reportUnexpected(t)) null else t.message ?: "获取类型失败"
             }
         } finally {
             typeLoading = false
@@ -264,7 +266,7 @@ class LostFoundViewModel @Inject constructor(
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
                 if (currentState == requestedState) {
-                    errorMessage = t.message ?: "获取列表失败"
+                    errorMessage = if (UserNoticeHolder.reportUnexpected(t)) null else t.message ?: "获取列表失败"
                     reportListError()
                 }
             } finally {
@@ -322,7 +324,7 @@ class LostFoundViewModel @Inject constructor(
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
                 errorMessage =
-                    t.message ?: "刷新失败"
+                    if (UserNoticeHolder.reportUnexpected(t)) null else t.message ?: "刷新失败"
                 reportListError()
             } finally {
                 isRefreshing = false
@@ -368,7 +370,7 @@ class LostFoundViewModel @Inject constructor(
                 }
             } catch (t: Throwable) {
                 if (t is CancellationException) throw t
-                errorMessage = t.message ?: "加载更多失败"
+                errorMessage = if (UserNoticeHolder.reportUnexpected(t)) null else t.message ?: "加载更多失败"
             } finally {
                 isLoadingMore = false
             }

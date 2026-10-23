@@ -52,6 +52,9 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
     @Override
     public void onCreate() {
         super.onCreate();
+        // The isolated mailbox also has a foreground error dialog; this installs no login services.
+        ToastUserNotice.INSTANCE.initialize(this);
+        UserNoticeHolder.INSTANCE.install(ToastUserNotice.INSTANCE);
         AliyunDns.INSTANCE.initializeCache(new File(getCacheDir(), "aliyun-doh"));
 
         // Isolated WebViews have their own profiles; do not initialize login services or analytics.
@@ -68,7 +71,6 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
         // 插件注册表兜底初始化（不依赖页面组合时序；进程内幂等）
         com.ahu.ahutong.ui.plugin.PluginRegistry.INSTANCE.initAsync(this);
         DebugTimeSourceHolder.INSTANCE.install(CacheDebugTimeSource.INSTANCE);
-        UserNoticeHolder.INSTANCE.install(ToastUserNotice.INSTANCE);
 
         CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG);
 

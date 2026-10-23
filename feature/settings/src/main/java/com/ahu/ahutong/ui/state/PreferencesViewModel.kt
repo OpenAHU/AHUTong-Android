@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.ahu.ahutong.core.common.CourseReminderControl
+import com.ahu.ahutong.core.common.UserNoticeHolder
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.data.repository.RepositoryAccelerationSource
 import com.ahu.ahutong.data.repository.RepositoryIndex
+import com.ahu.ahutong.data.repository.RepositorySourceHealth
+import com.ahu.ahutong.data.repository.resolveRepositoryAccelerationSourceId
 import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
@@ -19,6 +22,8 @@ import com.ahu.ahutong.ui.theme.pack.SlotSource
 import com.ahu.ahutong.ui.theme.pack.parseSlotOverrides
 import com.ahu.ahutong.ui.theme.pack.serializeSlotOverrides
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -132,6 +137,10 @@ class PreferencesViewModel @Inject constructor(
     val repositoryAccelerationSource: StateFlow<String> =
         _repositoryAccelerationSource.asStateFlow()
 
+    val repositoryAccelerationSourceHealth: StateFlow<Map<String, RepositorySourceHealth>> =
+        repository.accelerationSourceHealth
+    private var repositorySourceTestJob: Job? = null
+
     val bootstrapContributionStatus: StateFlow<BootstrapContributionStatus> =
         personalization.contributionStatus
 
@@ -195,7 +204,12 @@ class PreferencesViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            settings.repositoryAccelerationSource.collect {
+            combine(
+                settings.repositoryAccelerationSource,
+                repository.accelerationSourceHealth
+            ) { preferredId, health ->
+                resolveRepositoryAccelerationSourceId(preferredId, accelerationSources, health)
+            }.collect {
                 _repositoryAccelerationSource.value = it
             }
         }
@@ -388,7 +402,15 @@ class PreferencesViewModel @Inject constructor(
 
     fun setRepositoryAccelerationSource(value: String) {
         writeSetting {
+            // A disabled fallback cannot be selected through a stale click or another caller.
+            if (resolveRepositoryAccelerationSourceId(
+                    value,
+                    accelerationSources,
+                    repository.accelerationSourceHealth.value
+                ) != value
+            ) return@writeSetting
             val oldValue = _repositoryAccelerationSource.value
+            if (oldValue == value) return@writeSetting
             settings.setRepositoryAccelerationSource(value)
             behavior.reportCommittedMutation(
                 MutationId.REPOSITORY_ACCELERATION_CHANGED,
@@ -396,6 +418,19 @@ class PreferencesViewModel @Inject constructor(
                 value,
                 coarseValueBucket = "SOURCE_CHANGED"
             )
+        }
+    }
+
+    fun testRepositoryAccelerationSources(force: Boolean = false) {
+        if (repositorySourceTestJob?.isActive == true) return
+        repositorySourceTestJob = viewModelScope.launch {
+            try {
+                repository.testAccelerationSources(force)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                UserNoticeHolder.showFailure(error)
+            }
         }
     }
 

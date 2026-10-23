@@ -20,13 +20,14 @@ import com.ahu.ahutong.data.session.SavedAccounts
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.ui.screen.setup.Login
+import com.ahu.ahutong.ui.UnexpectedErrorDialogHost
+import com.ahu.ahutong.ext.launchSafe
 import com.ahu.ahutong.ui.screen.setup.canCancelLogin
 import com.ahu.ahutong.ui.state.LoginViewModel
 import com.ahu.ahutong.ui.state.PreferencesViewModel
 import com.ahu.ahutong.ui.theme.AHUTheme
 import com.ahu.ahutong.ui.theme.AhuThemeConfig
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -50,7 +51,7 @@ class AccountLoginActivity : ComponentActivity() {
         if (initialUserId.isNotEmpty() && initialPassword.isEmpty()) {
             notice("登录信息不可用，请重新输入密码")
         }
-        lifecycleScope.launch {
+        lifecycleScope.launchSafe {
             clearWebViewCookies()
             ready = true
         }
@@ -99,6 +100,7 @@ class AccountLoginActivity : ComponentActivity() {
                         CircularProgressIndicator()
                     }
                 }
+                UnexpectedErrorDialogHost()
             }
         }
     }

@@ -59,7 +59,8 @@ data class RepositoryAccelerationSource(
     val name: String,
     val description: String,
     val proxyPrefix: String? = null,
-    val useJsDelivr: Boolean = false
+    val useJsDelivr: Boolean = false,
+    val isFallback: Boolean = false
 )
 
 /**

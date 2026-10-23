@@ -40,6 +40,9 @@ import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.data.network.AhuHttp
 import com.ahu.ahutong.ui.components.AppButton
+import com.ahu.ahutong.ui.UnexpectedErrorDialogHost
+import com.ahu.ahutong.ToastUserNotice
+import com.ahu.ahutong.ext.launchSafe
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.LiquidGlassAppHost
@@ -53,6 +56,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
 
 /** The full official mailbox has a private WebView profile, separate from all campus login WebViews. */
 class StudentMailWebActivity : ComponentActivity() {
@@ -73,22 +78,32 @@ class StudentMailWebActivity : ComponentActivity() {
         val download = pendingDownload
         pendingDownload = null
         if (destination != null && download != null && validLease()) {
-            lifecycleScope.launch {
+            lifecycleScope.launchSafe {
+                var unexpected = false
                 val saved = withContext(Dispatchers.IO) {
-                    runCatching {
+                    val result = runCatching {
                         downloadClient.newCall(Request.Builder().url(download.first)
                             .header("Cookie", download.second).build()).execute().use { response ->
-                            check(response.isSuccessful && validLease())
+                            if (!response.isSuccessful) throw IOException("附件下载失败（HTTP ${response.code}）")
+                            if (!validLease()) throw IOException("邮箱登录已变化")
                             val body = response.body ?: error("missing body")
                             contentResolver.openOutputStream(destination, "wt")!!.use { output ->
                                 body.byteStream().use { it.copyTo(output) }
                             }
-                            check(validLease())
+                            if (!validLease()) throw IOException("邮箱登录已变化")
                         }
-                    }.isSuccess
+                    }
+                    result.exceptionOrNull()?.let {
+                        if (it is CancellationException) {
+                            runCatching { contentResolver.delete(destination, null, null) }
+                            throw it
+                        }
+                        unexpected = ToastUserNotice.reportUnexpected(it)
+                    }
+                    result.isSuccess
                 }
                 if (!saved) runCatching { contentResolver.delete(destination, null, null) }
-                toast(if (saved) "附件已保存" else "附件下载未完成，请重新连接后重试")
+                if (!unexpected) toast(if (saved) "附件已保存" else "附件下载未完成，请重新连接后重试")
             }
         }
     }
@@ -185,6 +200,7 @@ class StudentMailWebActivity : ComponentActivity() {
                 StudentMailWebPage(view, onBack = { finish() }, onFit = {
                     if (validLease() && trustedMailUrl(view.url.orEmpty())) StudentMailWebViewport.fit(view)
                 })
+                UnexpectedErrorDialogHost()
             }
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {

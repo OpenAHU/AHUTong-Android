@@ -4,6 +4,7 @@ import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * [RepositoryIndex] 的生产实现：委托给 :app 的 [RepositoryManager]。
@@ -20,6 +21,12 @@ class ManagerRepositoryIndex @Inject constructor() : RepositoryIndex {
 
     override val accelerationSources: List<RepositoryAccelerationSource>
         get() = RepositoryManager.accelerationSources
+
+    override val accelerationSourceHealth: StateFlow<Map<String, RepositorySourceHealth>>
+        get() = RepositoryManager.accelerationSourceHealth
+
+    override suspend fun testAccelerationSources(force: Boolean) =
+        RepositoryManager.testAccelerationSources(force)
 
     override suspend fun getContents(path: String, forceRefresh: Boolean): List<GitHubContentItem> =
         RepositoryManager.getContents(path, forceRefresh)

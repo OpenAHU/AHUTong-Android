@@ -1,5 +1,8 @@
 package com.ahu.ahutong.ui.state
 
+import com.ahu.ahutong.core.common.UserNoticeHolder
+import kotlinx.coroutines.CancellationException
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.personalization.preset.PresetCandidate
@@ -191,7 +194,8 @@ class FreeClassroomViewModel @Inject constructor(
                 resultCount = resultCountBucket(freeRooms.value.size)
             )
         }.onFailure {
-            errorMessage.value = it.message ?: "查询失败"
+            if (it is CancellationException) throw it
+            errorMessage.value = if (UserNoticeHolder.reportUnexpected(it)) null else it.message ?: "查询失败"
             behaviorRuntime.onContentStateChanged(
                 SemanticDomain.FREE_CLASSROOM,
                 ContentStateBucket.ERROR,
@@ -309,8 +313,9 @@ class FreeClassroomViewModel @Inject constructor(
             buildingsCache[campusId] = sortedData
             buildings.value = sortedData
         }.onFailure {
+            if (it is CancellationException) throw it
             buildings.value = emptyList()
-            errorMessage.value = it.message ?: "获取教学楼失败"
+            errorMessage.value = if (UserNoticeHolder.reportUnexpected(it)) null else it.message ?: "获取教学楼失败"
         }
         isLoadingBuildings.value = false
     }

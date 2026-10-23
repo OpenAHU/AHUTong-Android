@@ -18,10 +18,12 @@ import com.tencent.mmkv.MMKV
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -106,27 +108,6 @@ internal suspend fun resolveStorageIndex(
     throw IllegalStateException("索引服务器均不可用", lastError)
 }
 
-internal fun <T> readStorageDownload(
-    client: OkHttpClient,
-    servers: List<StorageServer>,
-    fileId: String,
-    read: (Response) -> T?
-): T? {
-    for (server in servers) {
-        try {
-            client.newCall(Request.Builder().url("${server.baseUrl}/api/download?id=$fileId").build())
-                .execute().use { response ->
-                    if (response.isSuccessful) read(response)?.let { return it }
-                }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            // 当前节点请求或读取失败，继续尝试另一节点。
-        }
-    }
-    return null
-}
-
 internal fun readStorageIndex(
     body: ResponseBody,
     gson: Gson,
@@ -168,9 +149,6 @@ object RepositoryManager {
         StorageServer("de", "https://de-ahutong-storage.muxyang.com"),
         StorageServer("hk", "https://hk-ahutong-storage.muxyang.com")
     )
-    private const val HEADER_DOWNLOAD_TYPE = "X-Download-Type"
-    private const val HEADER_FILE_SIZE = "X-File-Size"
-    private const val DOWNLOAD_TYPE_LINK = "link"
     private const val DIR_STATE_UNSUPPORTED = "unsupported"
 
     private val repositorySources = listOf(
@@ -228,10 +206,10 @@ object RepositoryManager {
             useJsDelivr = true
         ),
         RepositoryAccelerationSource(
-            id = "moeyy",
-            name = "Moeyy",
-            description = "通过 github.moeyy.xyz 加速 GitHub 原始文件",
-            proxyPrefix = "https://github.moeyy.xyz/"
+            id = "ghfast",
+            name = "GHFast",
+            description = "通过 ghfast.top 加速 GitHub 原始文件",
+            proxyPrefix = "https://ghfast.top/"
         ),
         RepositoryAccelerationSource(
             id = "gh-proxy",
@@ -243,6 +221,12 @@ object RepositoryManager {
             id = "direct",
             name = "GitHub 直连",
             description = "不使用加速源，直接连接 GitHub"
+        ),
+        RepositoryAccelerationSource(
+            id = REPOSITORY_FALLBACK_SOURCE_ID,
+            name = "备用源",
+            description = "四个常规源均不可用时自动启用",
+            isFallback = true
         )
     )
 
@@ -262,6 +246,24 @@ object RepositoryManager {
         readTimeoutSeconds = 120,
         callTimeoutSeconds = 180
     ).build()
+
+    private val probeClient = AhuHttp.plain(
+        connectTimeoutSeconds = 4,
+        readTimeoutSeconds = 5,
+        callTimeoutSeconds = 12
+    ).build()
+    private val sourceHealthMonitor = RepositorySourceHealthMonitor(
+        accelerationSources,
+        probe = { source -> probeRepositorySource(probeClient, source) }
+    )
+    val accelerationSourceHealth: StateFlow<Map<String, RepositorySourceHealth>>
+        get() = sourceHealthMonitor.health
+
+    suspend fun testAccelerationSources(force: Boolean = false) = sourceHealthMonitor.test(force)
+
+    private val downloadTransport = RepositoryDownloadTransport(
+        downloadClient, storageServers, accelerationSources, sourceHealthMonitor, gson
+    )
 
     // === GitHub API ===
 
@@ -444,43 +446,25 @@ object RepositoryManager {
             val fileId = resolveStorageFileId(path)
                 ?: throw IllegalStateException("索引中不存在该文件")
 
-            val content = withStorageDownloadResponse(fileId) { apiResponse ->
-                when (apiResponse.header(HEADER_DOWNLOAD_TYPE)) {
-                    DOWNLOAD_TYPE_LINK -> {
-                        val rawUrl = parseStorageLink(apiResponse)
-                            ?: resolved.source.rawUrl(resolved.repositoryPath)
-                        fetchTextWithFallback(
-                            prioritizedDownloadUrls(rawUrl, resolved, selectedAccelerationSource)
-                        )
-                    }
-                    // file：服务端已回源 LFS 并直接传输内容
-                    else -> apiResponse.body?.string()
+            val content = downloadTransport.read(
+                fileId = fileId,
+                rawUrl = resolved.source.rawUrl(resolved.repositoryPath),
+                cdnUrl = resolved.source.cdnUrl(resolved.repositoryPath),
+                preferredSourceId = selectedAccelerationSource.id
+            ) { response, expectedBytes ->
+                val body = response.body ?: throw IOException("Markdown 响应为空")
+                val bytes = body.bytes()
+                if (expectedBytes >= 0L && bytes.size.toLong() != expectedBytes) {
+                    throw IOException("Markdown 未完整下载: ${bytes.size}/$expectedBytes 字节")
                 }
-            } ?: throw IllegalStateException("无法读取 Markdown")
+                bytes.toString(body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8)
+            }
             RepositoryMarkdownDocument(
                 title = File(resolved.repositoryPath).name.ifBlank { "Markdown" },
                 path = path,
                 content = content
             )
         }
-    }
-
-    /**
-     * 生成按当前加速源排序的候选下载地址：选中的源优先，jsDelivr 与 GitHub 直连兜底。
-     * rawUrl 来自服务端 /api/download 的 link 应答，客户端只负责拼接加速前缀。
-     */
-    private fun prioritizedDownloadUrls(
-        rawUrl: String,
-        resolved: ResolvedRepositoryPath,
-        selectedSource: RepositoryAccelerationSource
-    ): List<String> {
-        val cdnUrl = resolved.source.cdnUrl(resolved.repositoryPath)
-        val selectedUrl = when {
-            selectedSource.useJsDelivr -> cdnUrl
-            selectedSource.proxyPrefix != null -> selectedSource.proxyPrefix + rawUrl
-            else -> rawUrl
-        }
-        return listOf(selectedUrl, cdnUrl, rawUrl).distinct()
     }
 
     // === 下载管理 ===
@@ -521,69 +505,24 @@ object RepositoryManager {
         val target = createDownloadTarget(path, appContext)
 
         try {
-            val downloaded = withStorageDownloadResponse(fileId) { apiResponse ->
-                when (apiResponse.header(HEADER_DOWNLOAD_TYPE)) {
-                    DOWNLOAD_TYPE_LINK -> {
-                        // link：服务端返回 GitHub 直链，客户端按当前加速源拼接后下载
-                        val rawUrl = parseStorageLink(apiResponse)
-                            ?: resolved.source.rawUrl(resolved.repositoryPath)
-                        val urls = prioritizedDownloadUrls(rawUrl, resolved, selectedAccelerationSource)
-                        for (url in urls) {
-                            val downloaded = runCatching {
-                                downloadClient.newCall(Request.Builder().url(url).build())
-                                    .execute().use { response ->
-                                        if (!response.isSuccessful) return@use null
-                                        streamResponseToTarget(
-                                            response = response,
-                                            target = target,
-                                            totalBytes = response.body?.contentLength() ?: -1L,
-                                            onProgress = onProgress
-                                        )
-                                    }
-                            }.getOrNull()
-                            if (downloaded != null) {
-                                return@withStorageDownloadResponse downloaded
-                            }
-                        }
-                        null
-                    }
-                    else -> {
-                        // file：LFS 文件由服务端直接传输，X-File-Size 给出总大小
-                        val totalBytes = apiResponse.header(HEADER_FILE_SIZE)?.toLongOrNull()
-                            ?: apiResponse.body?.contentLength() ?: -1L
-                        streamResponseToTarget(apiResponse, target, totalBytes, onProgress)
-                    }
-                }
-            }
-            if (downloaded == null) {
-                target.delete()
-                return@withContext null
+            val downloaded = downloadTransport.read(
+                fileId = fileId,
+                rawUrl = resolved.source.rawUrl(resolved.repositoryPath),
+                cdnUrl = resolved.source.cdnUrl(resolved.repositoryPath),
+                preferredSourceId = selectedAccelerationSource.id
+            ) { response, expectedBytes ->
+                streamResponseToTarget(response, target, expectedBytes, onProgress)
             }
             completeDownload(path, target, previousRecord, appContext, downloaded)
-        } catch (e: CancellationException) {
-            target.delete()
-            throw e
         } catch (e: Exception) {
-            target.delete()
-            return@withContext null
+            try {
+                target.delete()
+            } catch (cleanupError: Exception) {
+                e.addSuppressed(cleanupError)
+            }
+            // 取消也原样重抛，清理失败不能覆盖下载/取消的原始原因。
+            throw e
         }
-    }
-
-    private fun <T> withStorageDownloadResponse(
-        fileId: String,
-        read: (Response) -> T?
-    ): T? = readStorageDownload(
-        downloadClient,
-        storageServers,
-        fileId,
-        read
-    )
-
-    private fun parseStorageLink(response: Response): String? {
-        val link = runCatching {
-            gson.fromJson(response.body?.string().orEmpty(), StorageLinkResponse::class.java)
-        }.getOrNull()
-        return link?.url?.takeIf { it.isNotBlank() }
     }
 
     private suspend fun fetchStorageUpdatedAt(server: StorageServer): Long = withContext(Dispatchers.IO) {
@@ -626,25 +565,13 @@ object RepositoryManager {
     /** 从目录缓存里找文件的服务端索引 id；找不到时强制刷新一次索引再试。 */
     private suspend fun resolveStorageFileId(path: String): String? {
         findStorageFileId(path)?.let { return it }
-        runCatching { warmUpAllContentCaches(forceRefresh = true) }
+        warmUpAllContentCaches(forceRefresh = true)
         return findStorageFileId(path)
     }
 
     private fun findStorageFileId(path: String): String? {
         val parent = normalizeRepositoryPath(path).substringBeforeLast('/', "")
         return getCachedContents(parent)?.items?.firstOrNull { it.path == path }?.id
-    }
-
-    private fun fetchTextWithFallback(urls: List<String>): String? {
-        for (url in urls) {
-            val content = runCatching {
-                downloadClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                    if (response.isSuccessful) response.body?.string() else null
-                }
-            }.getOrNull()
-            if (content != null) return content
-        }
-        return null
     }
 
     /** 把响应体写入下载目标并回报进度，返回写入字节数。 */
@@ -671,7 +598,7 @@ object RepositoryManager {
                 output.flush()
             }
         }
-        return downloadedBytes.takeIf { totalBytes <= 0L || it == totalBytes }
+        return downloadedBytes.takeIf { totalBytes < 0L || it == totalBytes }
     }
 
     private fun completeDownload(
@@ -942,7 +869,9 @@ object RepositoryManager {
         val selectedId = PreferencesManager(context.applicationContext)
             .repositoryAccelerationSource
             .first()
-        return accelerationSources.firstOrNull { it.id == selectedId } ?: accelerationSources.first()
+        // 保留常规源偏好；备用源的启用由健康状态及本次下载结果统一决定。
+        return accelerationSources.firstOrNull { it.id == selectedId && !it.isFallback }
+            ?: accelerationSources.first { !it.isFallback }
     }
 
     private fun matchesCurrentRepositorySources(items: List<GitHubContentItem>): Boolean {

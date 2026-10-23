@@ -29,6 +29,8 @@ android {
 }
 
 dependencies {
+    // Source health is observed by feature ViewModels through the repository contract.
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     // 数据结构用 @SerializedName 描述线上字段名（Gson 反射使用，属于契约的一部分）。
     implementation(libs.gson)
 }

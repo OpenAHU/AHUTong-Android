@@ -1,5 +1,7 @@
 package com.ahu.ahutong.ui.state
 
+import com.ahu.ahutong.core.common.UserNotice
+import com.ahu.ahutong.core.common.UserNoticeHolder
 import com.ahu.ahutong.data.repository.CachedRepositoryContents
 import com.ahu.ahutong.data.repository.DownloadedFile
 import com.ahu.ahutong.data.repository.GitHubContentItem
@@ -7,6 +9,8 @@ import com.ahu.ahutong.data.repository.RepositoryAccelerationSource
 import com.ahu.ahutong.data.repository.RepositoryDirectorySummary
 import com.ahu.ahutong.data.repository.RepositoryIndex
 import com.ahu.ahutong.data.repository.RepositoryMarkdownDocument
+import com.ahu.ahutong.data.repository.RepositorySourceHealth
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -21,6 +25,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -48,6 +53,21 @@ class RepositoryViewModelTest {
     }
 
     private fun viewModel() = RepositoryViewModel(repository, fileAccess, dispatcher)
+
+    @Test
+    fun `entering study materials starts source checks without blocking the directory`() = runTest(dispatcher) {
+        val probeGate = CompletableDeferred<Unit>()
+        repository.sourceProbeGate = probeGate
+        repository.cached[""] = CachedRepositoryContents(listOf(file("a.md")), updateTime = 123L)
+        val vm = viewModel()
+        vm.ensureLoaded("")
+        runCurrent()
+        assertEquals(1, repository.sourceProbeCalls)
+        assertTrue(vm.directoryStates.value.getValue("").isLoaded)
+        assertEquals(listOf("a.md"), vm.directoryStates.value.getValue("").items.map { it.name })
+        probeGate.complete(Unit)
+        advanceUntilIdle()
+    }
 
     @Test
     fun `a cached directory is served without touching the port fetch`() = runTest(dispatcher) {
@@ -177,6 +197,50 @@ class RepositoryViewModelTest {
     }
 
     @Test
+    fun `an unexpected download failure preserves the original throwable for the dialog`() = runTest(dispatcher) {
+        val failure = IllegalStateException("synthetic failure", IllegalArgumentException("nested cause"))
+        repository.downloadFailure = failure
+        val reported = mutableListOf<Throwable>()
+        UserNoticeHolder.install(object : UserNotice {
+            override fun showFailure(error: Throwable) = Unit
+            override fun reportUnexpected(error: Throwable): Boolean {
+                reported += error
+                return true
+            }
+        })
+        try {
+            val vm = viewModel()
+            vm.downloadFile(file("a.pdf", path = "repo/a.pdf"))
+            advanceUntilIdle()
+            assertSame(failure, reported.single())
+            assertEquals("下载失败，请查看错误详情", vm.directoryStates.value.getValue("repo").error)
+            assertNull(vm.sharedState.value.downloadingPath)
+        } finally {
+            UserNoticeHolder.install(object : UserNotice { override fun showFailure(error: Throwable) = Unit })
+        }
+    }
+
+    @Test
+    fun `cancelled download clears progress without reporting an unexpected failure`() = runTest(dispatcher) {
+        repository.downloadFailure = kotlinx.coroutines.CancellationException("cancelled")
+        val reported = mutableListOf<Throwable>()
+        UserNoticeHolder.install(object : UserNotice {
+            override fun showFailure(error: Throwable) { reported += error }
+            override fun reportUnexpected(error: Throwable): Boolean { reported += error; return true }
+        })
+        try {
+            val vm = viewModel()
+            vm.downloadFile(file("a.pdf", path = "repo/a.pdf"))
+            advanceUntilIdle()
+            assertTrue(reported.isEmpty())
+            assertNull(vm.sharedState.value.downloadingPath)
+            assertTrue(vm.sharedState.value.downloadProgress.isEmpty())
+        } finally {
+            UserNoticeHolder.install(object : UserNotice { override fun showFailure(error: Throwable) = Unit })
+        }
+    }
+
+    @Test
     fun `opening a file that was never downloaded asks the user to download first`() = runTest(dispatcher) {
         // 非 markdown：markdown 会先走"取文档内容"的分支。
         val vm = viewModel()
@@ -214,10 +278,18 @@ class RepositoryViewModelTest {
         var failNextGetContents = false
         var failNextWarmUp = false
         var downloadResult: DownloadedFile? = null
+        var downloadFailure: Throwable? = null
+        var sourceProbeGate: CompletableDeferred<Unit>? = null
+        var sourceProbeCalls = 0
         var warmUpGate: CompletableDeferred<Unit>? = null
         var downloadProgress: Pair<Long, Long>? = null
 
         override val accelerationSources: List<RepositoryAccelerationSource> = emptyList()
+        override val accelerationSourceHealth = MutableStateFlow<Map<String, RepositorySourceHealth>>(emptyMap())
+        override suspend fun testAccelerationSources(force: Boolean) {
+            sourceProbeCalls++
+            sourceProbeGate?.await()
+        }
 
         override suspend fun getContents(path: String, forceRefresh: Boolean): List<GitHubContentItem> {
             getContentsCalls++
@@ -269,7 +341,10 @@ class RepositoryViewModelTest {
         override suspend fun downloadFile(
             path: String,
             onProgress: (Float) -> Unit
-        ): DownloadedFile? = downloadResult
+        ): DownloadedFile? {
+            downloadFailure?.let { throw it }
+            return downloadResult
+        }
 
         override fun getDownloadedFiles(): List<DownloadedFile> = downloaded.toList()
 

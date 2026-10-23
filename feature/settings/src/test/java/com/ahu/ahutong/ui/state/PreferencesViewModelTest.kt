@@ -1,10 +1,13 @@
 package com.ahu.ahutong.ui.state
 
+import com.ahu.ahutong.core.common.UserNotice
+import com.ahu.ahutong.core.common.UserNoticeHolder
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.core.storage.StartupThemePreferences
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
 import com.ahu.ahutong.data.model.AppUiTheme
+import com.ahu.ahutong.data.repository.RepositorySourceHealth
 import com.ahu.ahutong.personalization.bootstrap.BootstrapContributionStatus
 import com.ahu.ahutong.personalization.semantic.MutationId
 import com.ahu.ahutong.personalization.settings.PersonalizationSettings
@@ -19,8 +22,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -50,6 +55,9 @@ class PreferencesViewModelTest {
 
     @AfterTest
     fun tearDown() {
+        UserNoticeHolder.install(object : UserNotice {
+            override fun showFailure(error: Throwable) = Unit
+        })
         Dispatchers.resetMain()
     }
 
@@ -143,7 +151,7 @@ class PreferencesViewModelTest {
             showQRCode.value = true
             isShowAllCourse.value = true
             courseReminderEnabled.value = true
-            repositoryAccelerationSource.value = "github"
+            repositoryAccelerationSource.value = "direct"
         }
 
         val viewModel = viewModel(store, FakePersonalizationSettings())
@@ -151,7 +159,160 @@ class PreferencesViewModelTest {
         assertTrue(viewModel.showQRCode.value)
         assertTrue(viewModel.isShowAllCourse.value)
         assertTrue(viewModel.courseReminderEnabled.value)
-        assertEquals("github", viewModel.repositoryAccelerationSource.value)
+        assertEquals("direct", viewModel.repositoryAccelerationSource.value)
+    }
+
+    @Test
+    fun `unknown or testing primary results never enable a saved fallback`() {
+        val store = FakeSettingsStore().apply {
+            repositoryAccelerationSource.value = "muxyang-fallback"
+        }
+        val repository = FakeRepositoryIndex()
+        val subject = viewModel(store, repository = repository)
+
+        assertEquals("jsdelivr", subject.repositoryAccelerationSource.value)
+        repository.accelerationSourceHealth.value = repository.accelerationSources
+            .filterNot { it.isFallback }
+            .associate { it.id to RepositorySourceHealth.UNAVAILABLE }
+            .plus("direct" to RepositorySourceHealth.TESTING)
+        assertEquals("jsdelivr", subject.repositoryAccelerationSource.value)
+
+        repository.accelerationSourceHealth.value = repository.accelerationSourceHealth.value
+            .minus("direct")
+        assertEquals("jsdelivr", subject.repositoryAccelerationSource.value)
+        assertEquals("muxyang-fallback", store.repositoryAccelerationSource.value)
+    }
+
+    @Test
+    fun `all failed sources select fallback without replacing the preferred primary source`() {
+        val store = FakeSettingsStore().apply {
+            repositoryAccelerationSource.value = "ghfast"
+        }
+        val repository = FakeRepositoryIndex()
+        val subject = viewModel(store, repository = repository)
+        val failed = repository.accelerationSources.filterNot { it.isFallback }
+            .associate { it.id to RepositorySourceHealth.UNAVAILABLE }
+
+        repository.accelerationSourceHealth.value = failed
+            .plus("ghfast" to RepositorySourceHealth.AVAILABLE)
+        assertEquals("ghfast", subject.repositoryAccelerationSource.value)
+
+        repository.accelerationSourceHealth.value = failed
+        assertEquals("muxyang-fallback", subject.repositoryAccelerationSource.value)
+        assertEquals("ghfast", store.repositoryAccelerationSource.value)
+        subject.setRepositoryAccelerationSource("muxyang-fallback")
+        assertEquals("ghfast", store.repositoryAccelerationSource.value)
+        assertTrue(behavior.reports.isEmpty())
+
+        repository.accelerationSourceHealth.value = failed
+            .plus("ghfast" to RepositorySourceHealth.AVAILABLE)
+        assertEquals("ghfast", subject.repositoryAccelerationSource.value)
+        assertEquals(repository.accelerationSourceHealth.value, subject.repositoryAccelerationSourceHealth.value)
+    }
+
+    @Test
+    fun `a saved removed Moeyy preference selects a current source and allows choosing GHFast`() {
+        val store = FakeSettingsStore().apply {
+            repositoryAccelerationSource.value = "moeyy"
+        }
+        val repository = FakeRepositoryIndex()
+        val subject = viewModel(store, repository = repository)
+
+        assertFalse(subject.accelerationSources.any { it.id == "moeyy" })
+        assertTrue(subject.accelerationSources.any { it.id == "ghfast" && it.name == "GHFast" })
+        assertEquals("jsdelivr", subject.repositoryAccelerationSource.value)
+
+        // A legacy health entry must not reintroduce a removed source into the selection.
+        repository.accelerationSourceHealth.value = mapOf("moeyy" to RepositorySourceHealth.AVAILABLE)
+        assertEquals("jsdelivr", subject.repositoryAccelerationSource.value)
+        subject.setRepositoryAccelerationSource("moeyy")
+        assertEquals("jsdelivr", subject.repositoryAccelerationSource.value)
+        assertTrue(behavior.reports.isEmpty())
+
+        subject.setRepositoryAccelerationSource("ghfast")
+        assertEquals("ghfast", subject.repositoryAccelerationSource.value)
+        assertEquals("ghfast", store.repositoryAccelerationSource.value)
+    }
+
+    @Test
+    fun `disabled fallback and unknown source cannot be selected by a stale caller`() {
+        val store = FakeSettingsStore()
+        val subject = viewModel(store)
+
+        subject.setRepositoryAccelerationSource("muxyang-fallback")
+        subject.setRepositoryAccelerationSource("missing")
+
+        assertEquals("jsdelivr", store.repositoryAccelerationSource.value)
+        assertTrue(behavior.reports.isEmpty())
+    }
+
+    @Test
+    fun `source checks stay asynchronous deduplicate and allow selecting a source while pending`() {
+        val store = FakeSettingsStore()
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakeRepositoryIndex().apply {
+            onSourceTest = { gate.await() }
+        }
+        val subject = viewModel(store, repository = repository)
+        assertTrue(repository.sourceTestRequests.isEmpty())
+
+        subject.testRepositoryAccelerationSources()
+        subject.testRepositoryAccelerationSources()
+        subject.testRepositoryAccelerationSources(force = true)
+        assertEquals(listOf(false), repository.sourceTestRequests)
+
+        subject.setRepositoryAccelerationSource("gh-proxy")
+        assertEquals("gh-proxy", store.repositoryAccelerationSource.value)
+        assertEquals("gh-proxy", subject.repositoryAccelerationSource.value)
+
+        gate.complete(Unit)
+        subject.testRepositoryAccelerationSources(force = true)
+        assertEquals(listOf(false, true), repository.sourceTestRequests)
+    }
+
+    @Test
+    fun `unexpected source check failures preserve the original throwable and allow retry`() {
+        val failures = mutableListOf<Throwable>()
+        UserNoticeHolder.install(object : UserNotice {
+            override fun showFailure(error: Throwable) {
+                failures += error
+            }
+        })
+        val failure = IllegalStateException("source probe failed", IllegalArgumentException("cause"))
+        val repository = FakeRepositoryIndex().apply {
+            onSourceTest = { throw failure }
+        }
+        val subject = viewModel(repository = repository)
+
+        subject.testRepositoryAccelerationSources(force = true)
+        assertSame(failure, failures.single())
+
+        repository.onSourceTest = {}
+        subject.testRepositoryAccelerationSources(force = true)
+        assertEquals(listOf(true, true), repository.sourceTestRequests)
+        assertEquals(1, failures.size)
+    }
+
+    @Test
+    fun `cancelled source checks do not report an error and allow retry`() {
+        val failures = mutableListOf<Throwable>()
+        UserNoticeHolder.install(object : UserNotice {
+            override fun showFailure(error: Throwable) {
+                failures += error
+            }
+        })
+        val repository = FakeRepositoryIndex().apply {
+            onSourceTest = { throw CancellationException("source check cancelled") }
+        }
+        val subject = viewModel(repository = repository)
+
+        subject.testRepositoryAccelerationSources()
+        assertTrue(failures.isEmpty())
+
+        repository.onSourceTest = {}
+        subject.testRepositoryAccelerationSources(force = true)
+        assertEquals(listOf(false, true), repository.sourceTestRequests)
+        assertTrue(failures.isEmpty())
     }
 
     @Test

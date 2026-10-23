@@ -1,6 +1,7 @@
 package com.ahu.ahutong.data.repository
 
 import java.io.File
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 仓库索引与文档下载的对外接口（计划 §3.2 的 RepositoryIndex）。
@@ -15,6 +16,11 @@ interface RepositoryIndex {
 
     /** 可选的下载加速源，供设置界面展示。 */
     val accelerationSources: List<RepositoryAccelerationSource>
+
+    val accelerationSourceHealth: StateFlow<Map<String, RepositorySourceHealth>>
+
+    /** 以完整 1 MiB 文件验证四个常规源；本次进程内完成后复用，force 可手动重测。 */
+    suspend fun testAccelerationSources(force: Boolean = false)
 
     suspend fun getContents(path: String = "", forceRefresh: Boolean = false): List<GitHubContentItem>
 

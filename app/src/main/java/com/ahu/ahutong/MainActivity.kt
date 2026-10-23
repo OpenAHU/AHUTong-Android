@@ -32,6 +32,8 @@ import com.ahu.ahutong.ext.launchSafe
 import com.ahu.ahutong.sdk.LocalServiceClient
 import com.ahu.ahutong.sdk.RustSDK
 import com.ahu.ahutong.ui.component.ApkUpdateDialog
+import com.ahu.ahutong.ui.UnexpectedErrorDialogHost
+import com.ahu.ahutong.core.common.UserNoticeHolder
 import com.ahu.ahutong.ui.screen.Main
 import com.ahu.ahutong.ui.screen.setup.canUseAuthenticatedPages
 import com.ahu.ahutong.ui.screen.setup.LoginNavigationGate
@@ -239,6 +241,7 @@ class MainActivity : ComponentActivity() {
                     isReLoginShown = isReLoginDialogShown,
                     onReLoginDismiss = { dismissedExpiredSession = true }
                 )
+                UnexpectedErrorDialogHost()
             }
         }
 
@@ -526,7 +529,9 @@ class MainActivity : ComponentActivity() {
             Log.e("ApkUpdate", "start install activity failed", e)
             val message = "无法打开系统安装器，请稍后重试"
             mainViewModel.reportApkInstallError(message)
-            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            if (!UserNoticeHolder.reportUnexpected(e)) {
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
         }
     }
     private fun startLocalService(): Boolean {

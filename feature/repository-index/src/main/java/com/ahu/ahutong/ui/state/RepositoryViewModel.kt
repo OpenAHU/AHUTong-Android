@@ -2,6 +2,8 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.ViewModel
+import com.ahu.ahutong.core.common.UserNoticeHolder
+import com.ahu.ahutong.ext.launchSafe
 import com.ahu.ahutong.data.repository.RepositoryIndex
 import com.ahu.ahutong.data.repository.DownloadedFile
 import com.ahu.ahutong.data.repository.GitHubContentItem
@@ -93,9 +95,14 @@ class RepositoryViewModel @Inject constructor(
     }
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launchSafe {
             val downloadedPaths = withContext(ioDispatcher) { refreshDownloadedSet() }
             _sharedState.value = _sharedState.value.copy(downloadedPaths = downloadedPaths)
+        }
+        // The app-scoped repository coalesces calls and keeps the completed result
+        // until this process ends. Starting it here never blocks the directory.
+        viewModelScope.launchSafe {
+            repository.testAccelerationSources()
         }
     }
 
@@ -168,8 +175,11 @@ class RepositoryViewModel @Inject constructor(
                 }
                 if (pathRequestIds[path] != requestId) return@launch
                 setDirectoryState(path, resolvedState)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 if (pathRequestIds[path] != requestId) return@launch
+                val unexpected = UserNoticeHolder.reportUnexpected(e)
                 val fallbackState = withContext(ioDispatcher) {
                     repository.getCachedContents(path)?.let { fallback ->
                         directoryStateFromCache(path, fallback.items, fallback.updateTime).copy(
@@ -185,7 +195,7 @@ class RepositoryViewModel @Inject constructor(
                         (_directoryStates.value[path] ?: RepositoryUiState(currentPath = path)).copy(
                             isLoading = false,
                             isRefreshing = false,
-                            error = "加载失败: ${e.message}"
+                            error = if (unexpected) "加载失败，请查看错误详情" else "加载失败: ${e.message}"
                         )
                     )
                 }
@@ -243,7 +253,16 @@ class RepositoryViewModel @Inject constructor(
                     indexDownloadBytes = null,
                     indexDownloadTotalBytes = null
                 )
+            } catch (cancelled: CancellationException) {
+                hasStartedWarmUp = false
+                _sharedState.value = _sharedState.value.copy(
+                    isCacheWarming = false,
+                    indexDownloadBytes = null,
+                    indexDownloadTotalBytes = null
+                )
+                throw cancelled
             } catch (error: Exception) {
+                UserNoticeHolder.reportUnexpected(error)
                 warmUpFailure = error
                 hasStartedWarmUp = false
                 _sharedState.value = _sharedState.value.copy(
@@ -296,12 +315,19 @@ class RepositoryViewModel @Inject constructor(
                     )
                     setPathError(item.parentPath(), buildDownloadErrorMessage(item.name))
                 }
+            } catch (cancelled: CancellationException) {
+                _sharedState.value = _sharedState.value.copy(
+                    downloadingPath = null,
+                    downloadProgress = _sharedState.value.downloadProgress - path
+                )
+                throw cancelled
             } catch (e: Exception) {
                 _sharedState.value = _sharedState.value.copy(
                     downloadingPath = null,
                     downloadProgress = _sharedState.value.downloadProgress - path
                 )
-                setPathError(item.parentPath(), buildDownloadErrorMessage(e.message))
+                val unexpected = UserNoticeHolder.reportUnexpected(e)
+                setPathError(item.parentPath(), if (unexpected) "下载失败，请查看错误详情" else buildDownloadErrorMessage(e.message))
             }
         }
     }
@@ -340,6 +366,7 @@ class RepositoryViewModel @Inject constructor(
                 } catch (exception: CancellationException) {
                     throw exception
                 } catch (exception: Exception) {
+                    UserNoticeHolder.reportUnexpected(exception)
                     Result.failure(exception)
                 }
                 result.onSuccess { deletion ->
@@ -367,13 +394,16 @@ class RepositoryViewModel @Inject constructor(
     fun loadMarkdown(path: String) {
         _markdownState.value = RepositoryMarkdownUiState(isLoading = true)
         viewModelScope.launch {
-            runCatching {
-                repository.getMarkdownDocument(path)
-            }.onSuccess { document ->
+            try {
+                val document = repository.getMarkdownDocument(path)
                 _markdownState.value = RepositoryMarkdownUiState(document = document)
-            }.onFailure { e ->
+            } catch (cancelled: CancellationException) {
+                _markdownState.value = RepositoryMarkdownUiState()
+                throw cancelled
+            } catch (e: Exception) {
+                val unexpected = UserNoticeHolder.reportUnexpected(e)
                 _markdownState.value = RepositoryMarkdownUiState(
-                    error = "Markdown 加载失败: ${e.message}"
+                    error = if (unexpected) "Markdown 加载失败，请查看错误详情" else "Markdown 加载失败: ${e.message}"
                 )
             }
         }

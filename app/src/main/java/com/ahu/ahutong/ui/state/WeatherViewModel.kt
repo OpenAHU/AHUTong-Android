@@ -1,5 +1,8 @@
 package com.ahu.ahutong.ui.state
 
+import com.ahu.ahutong.core.common.UserNoticeHolder
+import kotlinx.coroutines.CancellationException
+
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -135,8 +138,9 @@ class WeatherViewModel @Inject constructor(
                 Log.d("Weather", "Weather content loaded")
                 reportReady()
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("Weather", "Failed to fetch weather", e)
-                errorMessage = e.message ?: "获取天气失败"
+                errorMessage = if (UserNoticeHolder.reportUnexpected(e)) null else e.message ?: "获取天气失败"
                 reportError()
             } finally {
                 isLoading = false
@@ -167,8 +171,9 @@ class WeatherViewModel @Inject constructor(
                 Log.d("Weather", "Weather content loaded by saved location")
                 reportReady()
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("Weather", "Failed to fetch weather by saved location", e)
-                errorMessage = e.message ?: "获取天气失败"
+                errorMessage = if (UserNoticeHolder.reportUnexpected(e)) null else e.message ?: "获取天气失败"
                 reportError()
             } finally {
                 isLoading = false
@@ -219,6 +224,7 @@ class WeatherViewModel @Inject constructor(
                     reportReady()
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("Weather", "Failed to fetch weather by location", e)
                 try {
                     val result = WeatherApi.API.getWeather()
@@ -226,8 +232,10 @@ class WeatherViewModel @Inject constructor(
                     errorMessage = null
                     reportReady()
                 } catch (e2: Exception) {
+                    if (e2 is CancellationException) throw e2
                     Log.e("Weather", "IP weather fallback failed", e2)
-                    errorMessage = e2.message ?: "获取天气失败"
+                    if (e2 !== e) e2.addSuppressed(e)
+                    errorMessage = if (UserNoticeHolder.reportUnexpected(e2)) null else e2.message ?: "获取天气失败"
                     reportError()
                 }
             } finally {

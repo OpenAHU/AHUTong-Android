@@ -39,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import com.ahu.ahutong.core.common.toUserMessage
+import com.ahu.ahutong.core.common.UserNoticeHolder
 import com.ahu.ahutong.data.session.SessionIdentity
 
 @HiltViewModel
@@ -136,6 +137,7 @@ class GradeViewModel @Inject constructor(
                 if (requestSequence == rankRequestSequence) {
                     rankEmptyMessage = "绩点排名加载失败，请稍后重试"
                     Log.w(tag, "getGpaRank failed", t)
+                    UserNoticeHolder.reportUnexpected(t)
                 }
             } finally {
                 if (requestSequence == rankRequestSequence) rankLoading = false
@@ -184,8 +186,10 @@ class GradeViewModel @Inject constructor(
                 errorMessage = result.errorOrNull()?.toUserMessage() ?: "获取成绩失败"
                 reportGradeError()
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (t: Throwable) {
-            errorMessage = t.message ?: "获取成绩失败"
+            errorMessage = if (UserNoticeHolder.reportUnexpected(t)) null else t.message ?: "获取成绩失败"
             reportGradeError()
         } finally {
             isLoading = false
