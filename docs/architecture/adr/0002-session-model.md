@@ -2,7 +2,7 @@
 
 - 状态：已决定（P0），P2 落地
 - 日期：2026-09-12
-- 关联：`docs/architecture/decoupling-plan.md` P2.2
+- 关联：`docs/architecture/CONTEXT.md`
 
 ## 背景
 

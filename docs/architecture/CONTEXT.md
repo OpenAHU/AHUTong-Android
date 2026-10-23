@@ -1,7 +1,7 @@
 # AHUTong 架构上下文（模块职责与依赖规则）
 
 > 本文档是"改代码前先看这里"的入口：它说明**每个模块负责什么、不负责什么、对外接口是什么**。
-> 配套阅读：`docs/architecture/decoupling-plan.md`（执行计划）、`docs/architecture/adr/`（关键决策）。
+> 配套阅读：`docs/architecture/adr/`（关键决策）。
 > 基线：`upstream/master` @ `aa40c6a4`。
 
 ## 1. 名词
@@ -53,7 +53,7 @@
 
 表里 `:data:personalization` 的对外接口曾写成 `SuggestionProvider`、`TelemetrySink`：前者后来定名 `PresetSuggestions`，
 后者**刻意没有建**——P4 收尾核对了调用点，非个性化层今天没有任何地方需要上报遥测，凭空造一个没有使用者的接口
-违反「接口由使用者定义」。真出现第二个使用者再抽，理由记在 `decoupling-plan.md` 的 P4 范围修正里。
+违反「接口由使用者定义」。真出现第二个使用者再抽。
 
 > 第 3 节的接口名是**目标词汇表**，不是今天的实现清单：`HttpTransport`、`CampusGateway`、`ChaoxingGateway`、
 > `AppUpdater`、`HumanChallenge`、`ProfileCache`、`:data:ahu`、`:integration:native-sdk` 至今没有落地。
