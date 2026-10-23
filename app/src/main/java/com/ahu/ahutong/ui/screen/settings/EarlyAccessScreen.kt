@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.settings
 
+import android.util.Log
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.preview.EarlyAccessChoice
 import com.ahu.ahutong.data.preview.EarlyAccessManager
 import com.ahu.ahutong.data.preview.EarlyAccessState
@@ -27,7 +29,10 @@ import com.ahu.ahutong.ui.components.SettingsBackdropContainer
 import com.ahu.ahutong.ui.components.SettingsInfoRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val earlyAccessIntroduction = "加入抢先体验计划后，你可以提前收到新功能版本。抢先版本仍在测试，可能出现功能异常、性能或兼容性问题。\n\n" +
     "你可以随时在 设置 → 应用 → 抢先体验 中退出。退出后只检查正式版本，已安装的抢先版本不会自动降级。"
@@ -114,13 +119,27 @@ fun EarlyAccessInvitationHost(eligible: Boolean, accountRevision: Int) {
     val state by EarlyAccessManager.state.collectAsState()
     val scope = rememberCoroutineScope()
     val account = SessionStore.currentUser()?.xh
+    var legalConsentAccepted by remember(account, eligible, accountRevision) { mutableStateOf(false) }
     var error by remember(state.subject) { mutableStateOf<String?>(null) }
     var joining by remember(state.subject) { mutableStateOf(false) }
     LaunchedEffect(account, eligible, accountRevision) {
-        EarlyAccessManager.synchronizeIdentity()
-        if (eligible) EarlyAccessManager.refresh()
+        // These reads decrypt through Keystore. Recomposition must only read the result;
+        // a new account, eligibility or foreground revision starts with the gate closed.
+        legalConsentAccepted = try {
+            withContext(Dispatchers.IO) {
+                EarlyAccessManager.synchronizeIdentity()
+                eligible && AHUCache.isPrivacyAccepted() && AHUCache.isAgreementAccepted() &&
+                    AHUCache.isBusinessAccepted()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w("EarlyAccessInvitation", "Eligibility unavailable (${failure.javaClass.simpleName})")
+            false
+        }
+        if (legalConsentAccepted) EarlyAccessManager.refresh()
     }
-    if (!eligible || !state.shouldPrompt || (state.isLoading && !joining)) return
+    if (!eligible || !legalConsentAccepted || !state.shouldPrompt || (state.isLoading && !joining)) return
     AppDialog(
         title = "加入抢先体验计划？",
         onDismiss = { if (!state.isLoading) EarlyAccessManager.defer() },

@@ -890,8 +890,7 @@ fun Main(
             isReLoginShown || suggestionOverlayBlocked || imeVisible
         EarlyAccessInvitationHost(
             eligible = canUseBusinessPages && currentRoute == "home" &&
-                AHUCache.isPrivacyAccepted() && AHUCache.isAgreementAccepted() &&
-                AHUCache.isBusinessAccepted() && !productUiBlocked &&
+                !productUiBlocked &&
                 !mainViewModel.showApkUpdateDialog.value,
             accountRevision = sessionCheckRevision
         )

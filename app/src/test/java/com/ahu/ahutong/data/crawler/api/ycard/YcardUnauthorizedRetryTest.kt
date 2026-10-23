@@ -48,6 +48,22 @@ class YcardUnauthorizedRetryTest {
         response.errorBody()?.close()
     }
 
+    @Test fun `a retried payment still returning 401 is not submitted again`() = runTest {
+        var refreshes = 0
+        var retries = 0
+        val second = Response.error<String>(401, TrackingBody("still expired"))
+        val result = retryYcardUnauthorized(
+            Response.error<String>(401, TrackingBody("expired")),
+            refresh = { refreshes++; true },
+            retry = { retries++; second }
+        )
+
+        assertSame(second, result)
+        assertEquals(1, refreshes)
+        assertEquals(1, retries)
+        result.errorBody()?.close()
+    }
+
     @Test fun `cancelled refresh closes the abandoned response and propagates cancellation`() = runTest {
         val body = TrackingBody("expired")
         var cancelled = false

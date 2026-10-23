@@ -33,18 +33,17 @@ object TokenManager {
             !SessionRefreshCoordinator.isExplicitlySignedOut()
     }?.value
 
-    private fun fetchToken(): TokenFetchResult {
+    private fun fetchToken(): CampusCardTokenAttempt {
         return try {
             val loginResult = probeCampusCardLogin()
             if (loginResult.ticketUrl == null) {
-                return TokenFetchResult(
-                    requiresSessionRefresh = loginResult.casLoginUrl != null,
+                return CampusCardTokenAttempt(
                     casLoginUrl = loginResult.casLoginUrl
                 )
             }
 
             val ticket = extractCampusCardCredential(loginResult.ticketUrl)
-                ?: return TokenFetchResult()
+                ?: return CampusCardTokenAttempt()
 
             val tokenResponse = YcardApi.API.getToken(
                 username = ticket,
@@ -54,14 +53,15 @@ object TokenManager {
             if (tokenResponse.isSuccessful) {
                 val refreshed = tokenResponse.body()?.access_token
                 Log.i(TAG, "getToken: token acquired")
-                TokenFetchResult(token = refreshed)
+                CampusCardTokenAttempt(token = refreshed)
             } else {
                 Log.w(TAG, "getToken: credential exchange failed (${tokenResponse.code()})")
-                TokenFetchResult()
+                tokenResponse.errorBody()?.close()
+                CampusCardTokenAttempt()
             }
         } catch (e: Exception) {
             Log.e(TAG, "getToken: request failed (${e.javaClass.simpleName})")
-            TokenFetchResult()
+            CampusCardTokenAttempt()
         }
     }
 
@@ -129,15 +129,23 @@ object TokenManager {
         val observedIdentity = SessionRefreshCoordinator.currentIdentityGeneration()
         val observedTokenVersion = synchronized(tokenLock) { tokenVersion }
         val observedGeneration = SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.CENTRAL_CAS)
-        val firstAttempt = withContext(Dispatchers.IO) { fetchToken() }
-        val result = if (firstAttempt.requiresSessionRefresh &&
-            refreshStoredSession(observedGeneration, firstAttempt.casLoginUrl)
-        ) {
-            withContext(Dispatchers.IO) { fetchToken() }
-        } else {
-            firstAttempt
+        fun isCurrentRequest(): Boolean = synchronized(tokenLock) {
+            tokenVersion == observedTokenVersion &&
+                SessionRefreshCoordinator.currentIdentityGeneration() == observedIdentity &&
+                !SessionRefreshCoordinator.isExplicitlySignedOut()
         }
-        val refreshedToken = result.token?.takeIf { it.isNotBlank() } ?: return null
+        val refreshedToken = fetchCampusCardTokenWithRecovery(
+            fetchToken = {
+                if (isCurrentRequest()) {
+                    withContext(Dispatchers.IO) { fetchToken() }
+                } else {
+                    CampusCardTokenAttempt()
+                }
+            },
+            refreshSession = { casLoginUrl ->
+                isCurrentRequest() && refreshStoredSession(observedGeneration, casLoginUrl)
+            }
+        ) ?: return null
         return synchronized(tokenLock) {
             // A blocking exchange can finish after clear(), sign-out, or an account change.
             if (tokenVersion != observedTokenVersion ||
@@ -247,12 +255,6 @@ object TokenManager {
     }
 
     private class CachedToken(val value: String, val identityGeneration: Long)
-
-    private data class TokenFetchResult(
-        val token: String? = null,
-        val requiresSessionRefresh: Boolean = false,
-        val casLoginUrl: String? = null
-    )
 
     private data class CampusCardLoginProbe(
         val ticketUrl: String? = null,
