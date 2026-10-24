@@ -129,6 +129,7 @@ import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.ahu.ahutong.ui.components.AppButton
+import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppDialogSurface
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.captureLiquidGlassContent
@@ -154,6 +155,7 @@ import com.ahu.ahutong.personalization.recorder.BehaviorRecorder
 import com.ahu.ahutong.ui.suggestion.SmartSuggestionHost
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
@@ -177,6 +179,7 @@ internal fun shouldNormalizePreferencesParent(
 @Composable
 fun Main(
     navController: NavHostController,
+    session: AhuSession,
     mainViewModel: MainViewModel = hiltViewModel(),
     loginViewModel: LoginViewModel = viewModel(),
     postgraduateScheduleViewModel: com.ahu.ahutong.ui.state.PostgraduateScheduleViewModel = viewModel(),
@@ -231,12 +234,29 @@ fun Main(
     }
     val protectedRouteBlocked = currentRoute != null &&
         currentRoute !in setOf("login", "splash") && !canUseBusinessPages
-    LaunchedEffect(protectedRouteBlocked, currentRoute) {
-        if (protectedRouteBlocked) {
-            navController.navigate(if (SessionStore.isUserRestoreUnavailable()) "splash" else "login") {
-                popUpTo(navController.graph.id) { inclusive = true }
-                launchSingleTop = true
+    var sessionProbeInProgress by remember { mutableStateOf(false) }
+    LaunchedEffect(protectedRouteBlocked, currentRoute, sessionStatus) {
+        if (!protectedRouteBlocked) {
+            sessionProbeInProgress = false
+            return@LaunchedEffect
+        }
+        // A rejected refresh can be a misclassification (flaky upstream / reused error code).
+        // Before kicking the user to login, give the session one bounded chance to prove it
+        // is still usable. This is the same reset a process restart performs, but in-process.
+        if (sessionStatus == AhuSessionState.Status.Expired &&
+            !SessionStore.isUserRestoreUnavailable()
+        ) {
+            sessionProbeInProgress = true
+            val recovered = try {
+                session.recoverExpired()
+            } finally {
+                sessionProbeInProgress = false
             }
+            if (recovered) return@LaunchedEffect
+        }
+        navController.navigate(if (SessionStore.isUserRestoreUnavailable()) "splash" else "login") {
+            popUpTo(navController.graph.id) { inclusive = true }
+            launchSingleTop = true
         }
     }
     val suggestionOverlayBlocked by behaviorRuntime.suggestionOverlayBlocked.collectAsState()
@@ -374,7 +394,16 @@ fun Main(
         }
         val backdrop = navBackdrop
         if (protectedRouteBlocked) {
-            com.ahu.ahutong.ui.screen.setup.Splash()
+            if (sessionProbeInProgress) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AppCircularProgressIndicator()
+                }
+            } else {
+                com.ahu.ahutong.ui.screen.setup.Splash()
+            }
         } else {
         NavHost(
             navController = navController,
@@ -934,7 +963,7 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
-        if (isReLoginShown && currentRoute != "login" && !paymentQrVisible) {
+        if (isReLoginShown && currentRoute != "login" && !paymentQrVisible && !sessionProbeInProgress) {
             AppDialogSurface(
                 onDismissRequest = { onReLoginDismiss() },
                 properties = DialogProperties(

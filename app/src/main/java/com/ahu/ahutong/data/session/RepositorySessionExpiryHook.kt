@@ -18,6 +18,9 @@ class RepositorySessionExpiryHook(
         session.ensureFresh(observedGeneration)
 
     override suspend fun onExpired(observedGeneration: Long) {
+        // Only the academic lane owns the global login state. Payment/balance (WISDOM)
+        // and campus-card (CENTRAL_CAS) failures must not kick the whole app to login.
+        if (scope != SessionRefreshCoordinator.Scope.ACADEMIC) return
         // The authenticator also reports exhausted retries and transient failures.
         // Neither proves the user's stored credential was rejected.
         if (SessionRefreshCoordinator.failureKindOf(observedGeneration, scope) !=

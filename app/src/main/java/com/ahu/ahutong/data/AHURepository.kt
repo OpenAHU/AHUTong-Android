@@ -401,9 +401,12 @@ object AHURepository {
     suspend fun getCardMoney() = withContext(Dispatchers.IO) {
         try {
             var result = dataSource.getCardMoney()
-            // 钱包接口可能以 HTTP 200 + 业务错误码返回登录失效，不会触发 401 拦截器。
-            // 与付款码一致，失败时显式恢复一次智慧安大会话再重试，避免余额一直停在旧值。
-            if (result.isFailure && SessionStore.isLoggedIn()) {
+            // Wallet auth expiry often arrives as HTTP 200 + business code, which the
+            // authenticator cannot see. Only an explicit Unauthorized may trigger a
+            // full login; ordinary network/upstream failures stay on the balance screen.
+            if (result.isFailure && result.errorOrNull() is AhuError.Unauthorized &&
+                SessionStore.isLoggedIn()
+            ) {
                 val refreshed = withTimeoutOrNull(BALANCE_SESSION_RECOVERY_TIMEOUT_MS) {
                     DefaultWisdomSession.ensureFresh(
                         SessionRefreshCoordinator.currentGeneration(
@@ -870,9 +873,9 @@ object AHURepository {
             PaymentQrRequest(
                 firstParty = {
                     var response = AdwmhApi.QR_API.getQrcode()
-                    if (response.code != 10000 && !wisdomRefreshAttempted && SessionStore.isLoggedIn()) {
-                        // API-level rejection may arrive as HTTP 200 and bypass the
-                        // redirect authenticator. Try Wisdom recovery once per display.
+                    if (response.code == 401 && !wisdomRefreshAttempted && SessionStore.isLoggedIn()) {
+                        // Only an explicit auth signal (401) may trigger a full credential login.
+                        // Other business errors (busy/risk-control/upstream outage) must not.
                         wisdomRefreshAttempted = true
                         if (DefaultWisdomSession.ensureFresh(SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM))) {
                             response = AdwmhApi.QR_API.getQrcode()

@@ -31,4 +31,12 @@ interface AhuSession {
      * [observedGeneration] 由请求发出时打点，避免旧响应触发重复登录。
      */
     suspend fun ensureFresh(observedGeneration: Long): Boolean
+
+    /**
+     * 界面在因 [AhuSessionState.Status.Expired] 跳登录前调用一次：绕过"已拒绝"的
+     * 失败记忆做一次有界探测。返回 true 表示会话其实还能用，不应跳登录。
+     *
+     * 只允许成功一次；探测失败或已用完就不再重复，避免把误判变成反复尝试密码。
+     */
+    suspend fun recoverExpired(): Boolean
 }

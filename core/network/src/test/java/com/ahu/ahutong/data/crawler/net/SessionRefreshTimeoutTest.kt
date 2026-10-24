@@ -17,7 +17,7 @@ import kotlinx.coroutines.yield
  *
  * 失败记忆分两类（防惊群但不封死自愈）：
  * - 瞬时失败（TRANSIENT）：冷却窗内同代请求快速失败，窗外放行一次新尝试；
- * - 凭据被拒（REJECTED）：封禁到下一次真实登录。
+ * - 凭据被拒（REJECTED）：更长的冷却窗后允许一次重探，连续两次被拒才封到人工登录。
  *
  * 超时值与冷却窗都走参数，测试不必真等；生产调用点用默认值。
  */
@@ -178,26 +178,102 @@ class SessionRefreshTimeoutTest {
     }
 
     @Test
-    fun aRejectedFailureStaysBlockedBeyondTheCooldown() = runBlocking {
+    fun aRejectedFailureAllowsOneRetryAfterItsCooldown() = runBlocking {
         val generation = SessionRefreshCoordinator.currentGeneration()
         var attempts = 0
         val t0 = 1_000_000L
 
         SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = t0
+            generation,
+            timeoutMillis = 5_000L,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = t0
+        ) {
+            attempts += 1
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+        val inCooldown = SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            timeoutMillis = 5_000L,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = t0 + 10_000L
+        ) {
+            attempts += 1
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        }
+        val afterCooldown = SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            timeoutMillis = 5_000L,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = t0 + 31_000L
+        ) {
+            attempts += 1
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        }
+
+        assertFalse(inCooldown, "冷却窗内仍要快速失败")
+        assertTrue(afterCooldown, "第一次被拒后允许一次冷却重探")
+        assertEquals(2, attempts)
+        assertEquals(generation + 1, SessionRefreshCoordinator.currentGeneration())
+    }
+
+    @Test
+    fun aSecondRejectionIsTerminalUntilManualLogin() = runBlocking {
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        var attempts = 0
+        val t0 = 1_000_000L
+
+        SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            timeoutMillis = 5_000L,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = t0
+        ) {
+            attempts += 1
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+        SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            timeoutMillis = 5_000L,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = t0 + 31_000L
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.REJECTED
         }
         val wayPastCooldown = SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = t0 + 600_000L
+            generation,
+            timeoutMillis = 5_000L,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = t0 + 600_000L
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
         }
 
         assertFalse(wayPastCooldown)
-        assertEquals(1, attempts, "凭据被拒只能等人工重登，冷却窗不适用")
+        assertEquals(2, attempts, "连续两次被拒后只能等人工重登")
+    }
+
+    @Test
+    fun aForcedProbeBypassesTheRejectedCooldownOnce() = runBlocking {
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        var attempts = 0
+
+        SessionRefreshCoordinator.refreshIfNeeded(generation) {
+            attempts += 1
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+        val forced = SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            forceRejected = true
+        ) {
+            attempts += 1
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        }
+
+        assertTrue(forced)
+        assertEquals(2, attempts)
     }
 
     @Test

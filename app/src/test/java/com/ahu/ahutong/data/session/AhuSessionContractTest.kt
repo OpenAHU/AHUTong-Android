@@ -396,6 +396,101 @@ class AhuSessionContractTest {
         assertTrue(refreshed)
         assertTrue(login.calls.isEmpty())
     }
+
+    @Test
+    fun `a wisdom rejection does not expire the global session`() = runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        AhuSessionState.markAuthenticated()
+        val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("rejected")))
+        val subject = RepositoryAhuSession(
+            login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user))),
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user),
+            residue = FakeSessionResidue(),
+            refreshLogin = login,
+            refreshScope = SessionRefreshCoordinator.Scope.WISDOM
+        )
+
+        assertFalse(subject.ensureFresh(
+            SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM)
+        ))
+
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `a wisdom success does not clear an academic expiry`() = runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        AhuSessionState.markExpired()
+        val subject = RepositoryAhuSession(
+            login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user))),
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user),
+            residue = FakeSessionResidue(),
+            refreshLogin = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user))),
+            refreshScope = SessionRefreshCoordinator.Scope.WISDOM
+        )
+
+        assertTrue(subject.ensureFresh(
+            SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM)
+        ))
+
+        assertEquals(AhuSessionState.Status.Expired, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `recover expired retries the rejected credential once and restores authentication`() = runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        AhuSessionState.markAuthenticated()
+        val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("rejected")))
+        val subject = session(
+            login = login,
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+
+        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+        assertEquals(AhuSessionState.Status.Expired, AhuSessionState.status.value)
+
+        login.result = AhuResult.Success(LoginOutcome.Success(user))
+        assertTrue(subject.recoverExpired())
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `recover expired is only attempted once per episode`() = runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        AhuSessionState.markAuthenticated()
+        val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("rejected")))
+        val subject = session(
+            login = login,
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+
+        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+        assertFalse(subject.recoverExpired())
+        assertEquals(2, login.calls.size)
+
+        login.result = AhuResult.Success(LoginOutcome.Success(user))
+        assertFalse(subject.recoverExpired())
+        assertEquals(2, login.calls.size, "one probe per expiry episode")
+    }
+
+    @Test
+    fun `recover expired is a no-op for a healthy session`() = runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        AhuSessionState.markAuthenticated()
+        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
+        val subject = session(
+            login = login,
+            credentials = FakeCredentialVault("stored-secret"),
+            account = FakeSessionAccount(user)
+        )
+
+        assertTrue(subject.recoverExpired())
+        assertTrue(login.calls.isEmpty())
+    }
 }
 
 /**
@@ -512,6 +607,23 @@ class SessionExpiryHookContractTest {
         SessionRefreshCoordinator.onAuthenticated()
 
         hook.onExpired(oldGeneration)
+
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `a wisdom hook rejection cannot expire the global session`() = runBlocking {
+        SessionRefreshCoordinator.onAuthenticated()
+        AhuSessionState.markAuthenticated()
+        val generation = SessionRefreshCoordinator.currentGeneration(SessionRefreshCoordinator.Scope.WISDOM)
+        SessionRefreshCoordinator.refreshIfNeeded(generation, scope = SessionRefreshCoordinator.Scope.WISDOM) {
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+
+        RepositorySessionExpiryHook(
+            FakeAhuSession(),
+            SessionRefreshCoordinator.Scope.WISDOM
+        ).onExpired(generation)
 
         assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
     }

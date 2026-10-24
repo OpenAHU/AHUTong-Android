@@ -131,4 +131,14 @@ class FakeAhuSession : AhuSession {
         refreshGenerations += observedGeneration
         return refreshed
     }
+
+    override suspend fun recoverExpired(): Boolean {
+        recoveryCalls += 1
+        if (recovered) _state.value = AhuSessionState.Status.Authenticated
+        return recovered
+    }
+
+    var recovered = false
+    var recoveryCalls = 0
+        private set
 }

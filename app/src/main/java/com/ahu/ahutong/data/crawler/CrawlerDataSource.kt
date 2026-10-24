@@ -460,8 +460,14 @@ class CrawlerDataSource(
     override suspend fun getCardMoney(): AhuResult<Card> {
         val response = adwmh.getBalance()
         if (response.code != 10000) {
-            // 登录失效常以 HTTP 200 + 业务错误码返回；不要把 null 当成 0 元成功。
-            return AhuResult.Failure(AhuError.Server(response.code, response.msg))
+            // 登录失效常以 HTTP 200 + 业务错误码返回；只有 401 才是明确鉴权信号，
+            // 其余错误码（服务繁忙/风控/上游故障）不能被上层当成会话失效。
+            val error = if (response.code == 401) {
+                AhuError.Unauthorized(response.msg.ifBlank { "校园卡登录已失效" })
+            } else {
+                AhuError.Server(response.code, response.msg)
+            }
+            return AhuResult.Failure(error)
         }
         val card = Card()
         card.balance = response.`object`

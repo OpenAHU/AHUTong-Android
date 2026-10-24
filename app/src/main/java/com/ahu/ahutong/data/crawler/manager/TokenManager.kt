@@ -6,7 +6,6 @@ import com.ahu.ahutong.data.crawler.api.ycard.YcardApi
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.session.SecureCredentialVault
-import com.ahu.ahutong.data.session.AhuSessionState
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
@@ -193,30 +192,8 @@ object TokenManager {
                 SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
             }
         }
-        // 与 RepositoryAhuSession 同一约定：续期成功由会话层写登录态。
-        if (refreshed) {
-            SessionRefreshCoordinator.commitIfCurrent(observedGeneration + 1, SessionRefreshCoordinator.Scope.CENTRAL_CAS) {
-                if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
-                    SessionStore.currentUser() != null
-                ) {
-                    AhuSessionState.markAuthenticated()
-                }
-            }
-        } else {
-            val rejected = SessionRefreshCoordinator.failureKindOf(
-                observedGeneration, SessionRefreshCoordinator.Scope.CENTRAL_CAS
-            ) == SessionRefreshCoordinator.FailureKind.REJECTED
-            SessionRefreshCoordinator.commitIfCurrent(observedGeneration, SessionRefreshCoordinator.Scope.CENTRAL_CAS) {
-                // 只有凭据被明确拒绝才宣告过期；瞬时失败保持静默，冷却窗外自愈。
-                // 若手动登录已推进代号，这个旧失败不会进入提交块，也就不能覆盖新会话。
-                if (rejected &&
-                    (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
-                        SessionStore.currentUser() != null)
-                ) {
-                    AhuSessionState.markExpired()
-                }
-            }
-        }
+        // Central CAS is a derived service lane: its outcome must not rewrite the global
+        // login state. A campus-card/CAS failure surfaces on the payment screen instead.
         return refreshed
     }
 

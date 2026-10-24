@@ -230,6 +230,7 @@ class MainActivity : ComponentActivity() {
 
                 Main(
                     navController = navController,
+                    session = session,
                     loginViewModel = loginViewModel,
                     discoveryViewModel = discoveryViewModel,
                     scheduleViewModel = scheduleViewModel,

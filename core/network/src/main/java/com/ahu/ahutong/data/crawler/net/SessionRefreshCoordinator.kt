@@ -22,8 +22,9 @@ object SessionRefreshCoordinator {
      * - [TRANSIENT]：网络抖动、超时、上游 5xx 等可自愈失败。封禁带冷却窗
      *   （[TRANSIENT_COOLDOWN_MS]），窗外第一个请求获准再试——旧实现（0492acc 之前）
      *   正是靠"下个请求再试"自愈的，永久封禁会把一次校园网抖动变成强制重新登录；
-     * - [REJECTED]：凭据被明确拒绝或本机没有凭据。
-     *   重试无意义且可能触发风控，封禁到下一次真实登录（[onAuthenticated]）。
+     * - [REJECTED]：凭据被明确拒绝或本机没有凭据。**冷却窗后允许一次重探**，
+     *   再被拒绝才封禁到下一次真实登录（[onAuthenticated]）。上游偶发把风控/验证码/
+     *   服务异常归成凭据拒绝时，这一次重探就是自愈窗口；连续两次拒绝才认定凭据真的无效。
      */
     enum class RefreshOutcome { SUCCESS, TRANSIENT, REJECTED }
 
@@ -43,9 +44,14 @@ object SessionRefreshCoordinator {
 
     /**
      * 失败记忆：防惊群（同一代的并发 401 只真正续期一次），但不再永久封禁——
-     * [TRANSIENT] 失败过了冷却窗就放行一次新尝试；只有 [REJECTED] 才封到人工重登。
+     * [TRANSIENT] 失败过了冷却窗就放行一次新尝试；[REJECTED] 在更长的冷却窗后
+     * 也放行一次重探，连续两次被拒才封到人工重登（见 [MAX_REJECTED_ATTEMPTS]）。
      */
-    private data class Failure(val kind: FailureKind, val atMillis: Long)
+    private data class Failure(
+        val kind: FailureKind,
+        val atMillis: Long,
+        val attempts: Int = 1
+    )
     private val failures = mutableMapOf<Scope, Failure>()
 
     /** 登出后置真：匿名代号禁止自动续期，直到下一次真实登录。 */
@@ -132,14 +138,30 @@ object SessionRefreshCoordinator {
         transientCooldownMillis: Long = TRANSIENT_COOLDOWN_MS,
         nowMillis: Long = System.currentTimeMillis(),
         scope: Scope = Scope.ACADEMIC,
+        forceRejected: Boolean = false,
+        rejectedCooldownMillis: Long = REJECTED_RETRY_DELAY_MS,
         refresh: suspend () -> RefreshOutcome
     ): Boolean = refreshLocks.getValue(scope).withLock serviceLock@{
         val expectedIdentity = stateMutex.withLock {
             if (refreshDisabled) return@serviceLock false
             if (currentGeneration(scope) != observedGeneration) return@serviceLock true
             failures[scope]?.let { failure ->
-                if (failure.kind == FailureKind.REJECTED) return@serviceLock false
-                if (nowMillis - failure.atMillis < transientCooldownMillis) return@serviceLock false
+                when (failure.kind) {
+                    FailureKind.REJECTED -> {
+                        // 连续两次被拒才封死；第一次被拒后给一次冷却重探的机会。
+                        // forceRejected 用于界面在真正跳登录前做一次有界探测。
+                        if (!forceRejected &&
+                            (failure.attempts >= MAX_REJECTED_ATTEMPTS ||
+                                nowMillis - failure.atMillis < rejectedCooldownMillis)
+                        ) {
+                            return@serviceLock false
+                        }
+                    }
+                    FailureKind.TRANSIENT ->
+                        if (nowMillis - failure.atMillis < transientCooldownMillis) {
+                            return@serviceLock false
+                        }
+                }
             }
             identityGeneration
         }
@@ -160,7 +182,13 @@ object SessionRefreshCoordinator {
                     false
                 }
                 RefreshOutcome.REJECTED -> {
-                    failures[scope] = Failure(FailureKind.REJECTED, nowMillis)
+                    val previous = failures[scope]
+                    val attempts = if (previous?.kind == FailureKind.REJECTED) {
+                        previous.attempts + 1
+                    } else {
+                        1
+                    }
+                    failures[scope] = Failure(FailureKind.REJECTED, nowMillis, attempts)
                     false
                 }
             }
@@ -180,6 +208,12 @@ object SessionRefreshCoordinator {
 
     /** 瞬时失败的冷却窗：窗内同代请求快速失败防惊群，窗外放行一次自愈尝试。 */
     const val TRANSIENT_COOLDOWN_MS = 15_000L
+
+    /** 凭据被拒后的重探冷却窗：给上游抖动/误判留一次自愈机会，又不会高频重试密码。 */
+    const val REJECTED_RETRY_DELAY_MS = 30_000L
+
+    /** 连续被拒达到此次数后不再自动重试，必须人工登录或重启进程。 */
+    const val MAX_REJECTED_ATTEMPTS = 2
 }
 
 internal data class SessionRequestGeneration(
