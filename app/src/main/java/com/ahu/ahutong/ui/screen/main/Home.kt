@@ -458,8 +458,9 @@ fun Home(
             }
             currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
             graduateToday = DebugClock.nowLocalDate()
-            delay(HOME_REFRESH_INTERVAL_MS)
+            // 进入/回到主页先立即对一次余额，别把首次刷新拖到 30 秒后。
             discoveryViewModel.refreshCardBalance()
+            delay(HOME_REFRESH_INTERVAL_MS)
           }
         }
     }

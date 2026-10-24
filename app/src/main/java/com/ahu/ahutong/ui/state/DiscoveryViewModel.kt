@@ -150,10 +150,9 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun refreshCardBalance() {
-        // 刷新时不能先把缓存写回界面：请求一旦失败就会把刚充值后的余额又盖回旧值。
-        // 首次进入的缓存展示由 loadActivityBean() 负责。
+        // 手动刷新/回到主页时必须立即取数；余额走的是 Ycard 实时接口，不再依赖
+        // 二维码预热任务，等待它只会把刷新拖到下一个周期。
         viewModelScope.launchSafe {
-            qrWarmJob?.join()
             AHURepository.getCardMoney().onSuccess {
                 applyCardBalance(it.balance, it.transitionBalance)
             }
@@ -178,8 +177,9 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun loadQrCode(forceRefresh: Boolean = false) {
-        // 手动刷新通常发生在刚充值/刚消费之后。余额必须等二维码刷新
-        //（以及它可能触发的会话恢复）完成后再取，否则会拿到刷新前的旧余额。
+        // 手动点按必须立即刷新余额：二维码 loader 在加载中会吞掉这次 start，
+        // 等它的回调会把余额拖到下一轮。回调里仍会再取一次以覆盖会话恢复后的值。
+        if (forceRefresh) refreshCardBalance()
         qrLoader.start(forceRefresh)
     }
 
