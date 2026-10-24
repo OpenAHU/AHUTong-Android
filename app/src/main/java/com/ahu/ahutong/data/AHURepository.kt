@@ -398,9 +398,9 @@ object AHURepository {
     /**
      *  获取余额
      */
-    suspend fun getCardMoney() = withContext(Dispatchers.IO) {
+    suspend fun getCardMoney(preferRealtime: Boolean = false) = withContext(Dispatchers.IO) {
         try {
-            var result = dataSource.getCardMoney()
+            var result = dataSource.getCardMoney(preferRealtime)
             // Wallet auth expiry often arrives as HTTP 200 + business code, which the
             // authenticator cannot see. Only an explicit Unauthorized may trigger a
             // full login; ordinary network/upstream failures stay on the balance screen.
@@ -414,7 +414,7 @@ object AHURepository {
                         )
                     )
                 } == true
-                if (refreshed) result = dataSource.getCardMoney()
+                if (refreshed) result = dataSource.getCardMoney(preferRealtime)
             }
             result
         } catch (e: Exception) {

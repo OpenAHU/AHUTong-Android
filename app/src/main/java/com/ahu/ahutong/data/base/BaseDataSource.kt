@@ -75,7 +75,11 @@ interface BaseDataSource {
         id: String
     ): AhuResult<Any>
 
-    suspend fun getCardMoney(): AhuResult<Card>
+    /**
+     * @param preferRealtime true 时走 Ycard queryCard（与充值页同源）；
+     *   默认 false 走旧链路，作为周期/首屏兜底。
+     */
+    suspend fun getCardMoney(preferRealtime: Boolean = false): AhuResult<Card>
 
     suspend fun getBathRooms(): AhuResult<List<BathRoom>>
 

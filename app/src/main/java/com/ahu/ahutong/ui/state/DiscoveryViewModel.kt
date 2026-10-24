@@ -61,13 +61,20 @@ class DiscoveryViewModel @Inject constructor(
     private val qrLoader = PaymentQrLoader(
         paymentQrRepository,
         viewModelScope,
-        onFirstRefreshFinished = ::refreshCardBalance,
-        onManualRefreshFinished = ::refreshCardBalance
+        onFirstRefreshFinished = ::refreshCardBalance
     )
     private var qrWarmJob: Job? = null
     private var warmOwner: PaymentQrOwner? = null
     private var renderedQrKey: Pair<String, Long>? = null
     private var qrRenderFailed = false
+
+    private enum class BalanceSource { None, Fallback, Realtime }
+
+    /**
+     * 一旦手动刷新拿到实时余额，旧链路（本地服务 / ADWMH 快照）就不能再覆盖它；
+     * 旧链路只作为首屏和周期兜底。
+     */
+    private var balanceSource = BalanceSource.None
 
     init {
         viewModelScope.launch {
@@ -138,7 +145,10 @@ class DiscoveryViewModel @Inject constructor(
                 card.await() to bathrooms.await()
             }
             cardResult.onSuccess {
-                applyCardBalance(it.balance, it.transitionBalance)
+                if (balanceSource != BalanceSource.Realtime) {
+                    balanceSource = BalanceSource.Fallback
+                    applyCardBalance(it.balance, it.transitionBalance)
+                }
             }
             bathroomResult.onSuccess {
                 bathroom.clear()
@@ -149,11 +159,16 @@ class DiscoveryViewModel @Inject constructor(
         }
     }
 
-    fun refreshCardBalance() {
-        // 手动刷新/回到主页时必须立即取数；余额走的是 Ycard 实时接口，不再依赖
-        // 二维码预热任务，等待它只会把刷新拖到下一个周期。
+    fun refreshCardBalance(preferRealtime: Boolean = false) {
+        // Periodic/home fallback must never replace a value already read from queryCard.
+        if (!preferRealtime && balanceSource == BalanceSource.Realtime) return
         viewModelScope.launchSafe {
-            AHURepository.getCardMoney().onSuccess {
+            AHURepository.getCardMoney(preferRealtime).onSuccess {
+                balanceSource = if (preferRealtime) {
+                    BalanceSource.Realtime
+                } else {
+                    BalanceSource.Fallback
+                }
                 applyCardBalance(it.balance, it.transitionBalance)
             }
         }
@@ -177,9 +192,8 @@ class DiscoveryViewModel @Inject constructor(
     }
 
     fun loadQrCode(forceRefresh: Boolean = false) {
-        // 手动点按必须立即刷新余额：二维码 loader 在加载中会吞掉这次 start，
-        // 等它的回调会把余额拖到下一轮。回调里仍会再取一次以覆盖会话恢复后的值。
-        if (forceRefresh) refreshCardBalance()
+        // 只有用户手动刷新才走官网 queryCard；周期/首屏走旧链路兜底。
+        if (forceRefresh) refreshCardBalance(preferRealtime = true)
         qrLoader.start(forceRefresh)
     }
 

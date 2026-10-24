@@ -331,15 +331,15 @@ class SdkDataSource : BaseDataSource {
     private fun convertGradeResponse(data: GradeResponse): AhuResult<Grade> =
         AhuResult.Success(GradeMapper.fromNativeResponse(data))
 
-    override suspend fun getCardMoney(): AhuResult<Card> {
-        // Home balance must match the recharge page. The legacy local-service route
-        // (/ycard/balance -> ADWMH /xzxcard/yue) can serve a stale snapshot, while
-        // queryCard is the real-time source the recharge page already uses.
-        val realtime = getCardInfo()
-        val cents = realtime.valueOrNull()?.primaryAccountBalanceCents()
-        if (cents != null) {
-            Log.d("LocalServiceClient", "[getCardMoney] Using realtime queryCard")
-            return AhuResult.Success(Card().apply { balance = cents / 100.0 })
+    override suspend fun getCardMoney(preferRealtime: Boolean): AhuResult<Card> {
+        // Manual refresh uses the same real-time queryCard as the recharge page.
+        // Periodic/home fallback deliberately keeps the legacy route to avoid polling it.
+        if (preferRealtime) {
+            val cents = getCardInfo().valueOrNull()?.primaryAccountBalanceCents()
+            if (cents != null) {
+                Log.d("LocalServiceClient", "[getCardMoney] Using realtime queryCard")
+                return AhuResult.Success(Card().apply { balance = cents / 100.0 })
+            }
         }
 
         getHttpClient()?.let { httpClient ->
@@ -357,7 +357,7 @@ class SdkDataSource : BaseDataSource {
         }
 
         Log.w("LocalServiceClient", "[getCardMoney] JNI failed, fallback to Android crawler: ${jniResult.exceptionOrNull()?.message}")
-        return crawlerFallback.getCardMoney()
+        return crawlerFallback.getCardMoney(preferRealtime = false)
     }
 
     override suspend fun getBathRooms(): AhuResult<List<BathRoom>> {

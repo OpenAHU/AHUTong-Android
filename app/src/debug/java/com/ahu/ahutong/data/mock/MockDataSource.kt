@@ -80,7 +80,7 @@ class MockDataSource : BaseDataSource {
     override suspend fun getGrade(): AhuResult<Grade> =
         scenarioResponse(MockEditableEndpoint.Grade, Grade::class.java) { it.academic.grade }
 
-    override suspend fun getCardMoney(): AhuResult<Card> =
+    override suspend fun getCardMoney(preferRealtime: Boolean): AhuResult<Card> =
         scenarioResponse(MockEditableEndpoint.CardMoney, Card::class.java) { it.payment.cardMoney }
 
     override suspend fun getBathRooms(): AhuResult<List<BathRoom>> =

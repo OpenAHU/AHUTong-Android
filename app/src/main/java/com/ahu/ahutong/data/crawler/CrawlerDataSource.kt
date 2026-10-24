@@ -18,6 +18,7 @@ import com.ahu.ahutong.data.crawler.model.ycard.BathroomPaymentRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomCurrentTimeRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomPayInfoRequest
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
+import com.ahu.ahutong.data.crawler.model.ycard.primaryAccountBalanceCents
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverPage
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverCount
 import com.ahu.ahutong.data.crawler.model.ycard.RequestBody
@@ -457,7 +458,14 @@ class CrawlerDataSource(
         return adwmh.deleteLostFound(id).toAhuResult()
     }
 
-    override suspend fun getCardMoney(): AhuResult<Card> {
+    override suspend fun getCardMoney(preferRealtime: Boolean): AhuResult<Card> {
+        if (preferRealtime) {
+            val cents = getCardInfo().valueOrNull()?.primaryAccountBalanceCents()
+            if (cents != null) {
+                return AhuResult.Success(Card().apply { balance = cents / 100.0 })
+            }
+        }
+
         val response = adwmh.getBalance()
         if (response.code != 10000) {
             // 登录失效常以 HTTP 200 + 业务错误码返回；只有 401 才是明确鉴权信号，

@@ -59,7 +59,7 @@ class MockDataSource : BaseDataSource {
 
     override suspend fun deleteLostFound(id: String): AhuResult<Any> = unavailable()
 
-    override suspend fun getCardMoney(): AhuResult<Card> = unavailable()
+    override suspend fun getCardMoney(preferRealtime: Boolean): AhuResult<Card> = unavailable()
 
     override suspend fun getBathRooms(): AhuResult<List<BathRoom>> = unavailable()
 
