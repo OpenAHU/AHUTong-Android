@@ -13,6 +13,7 @@ import com.ahu.ahutong.data.crawler.model.ycard.BathroomPaymentRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomCurrentTimeRequest
 import com.ahu.ahutong.data.crawler.model.ycard.BathroomPayInfoRequest
 import com.ahu.ahutong.data.crawler.model.ycard.CardInfo
+import com.ahu.ahutong.data.crawler.model.ycard.primaryAccountBalanceCents
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverPage
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverCount
 import com.ahu.ahutong.data.crawler.model.ycard.RequestBody
@@ -331,6 +332,16 @@ class SdkDataSource : BaseDataSource {
         AhuResult.Success(GradeMapper.fromNativeResponse(data))
 
     override suspend fun getCardMoney(): AhuResult<Card> {
+        // Home balance must match the recharge page. The legacy local-service route
+        // (/ycard/balance -> ADWMH /xzxcard/yue) can serve a stale snapshot, while
+        // queryCard is the real-time source the recharge page already uses.
+        val realtime = getCardInfo()
+        val cents = realtime.valueOrNull()?.primaryAccountBalanceCents()
+        if (cents != null) {
+            Log.d("LocalServiceClient", "[getCardMoney] Using realtime queryCard")
+            return AhuResult.Success(Card().apply { balance = cents / 100.0 })
+        }
+
         getHttpClient()?.let { httpClient ->
             Log.d("LocalServiceClient", "[getCardMoney] Using HTTP client")
             val result = httpClient.getBalance()

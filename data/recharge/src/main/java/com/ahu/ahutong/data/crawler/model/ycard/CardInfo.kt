@@ -73,3 +73,10 @@ data class Accinfo(
     val singlelimit: Any,
     val type: String
 )
+
+/**
+ * 主账户余额（分），与充值页「账户余额」取的是同一个字段。
+ * 首页余额也用它，保证两处看到的是同一份实时数据。
+ */
+fun CardInfo.primaryAccountBalanceCents(): Int? =
+    data.card.firstOrNull()?.accinfo?.firstOrNull()?.balance
