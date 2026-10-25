@@ -11,6 +11,7 @@ import com.ahu.ahutong.testing.FakeSessionAccount
 import com.ahu.ahutong.testing.FakeSessionResidue
 import com.ahu.ahutong.testing.FakeSessionSignIn
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import com.ahu.ahutong.data.crawler.api.adwmh.createAdwmhApi
 import com.ahu.ahutong.data.network.AhuHttp
@@ -38,7 +39,7 @@ class AhuSessionContractTest {
     private val user = User("测试同学", "20210001")
 
     @Test
-    fun `temporarily unreadable credentials preserve the session and remain retryable`() = runBlocking {
+    fun `temporarily unreadable credentials preserve the session and remain retryable`() = runTest {
         val unavailable = com.ahu.ahutong.data.security.SecureStorageUnavailableException(
             java.security.ProviderException("Keystore temporarily unavailable")
         )
@@ -60,7 +61,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `temporarily unreadable persisted identity is not treated as a rejected account`() = runBlocking {
+    fun `temporarily unreadable persisted identity is not treated as a rejected account`() = runTest {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val account = SessionAccount {
             throw com.ahu.ahutong.data.security.SecureStorageUnavailableException(
@@ -84,7 +85,7 @@ class AhuSessionContractTest {
      * 免得测试顺序影响断言。
      */
     @BeforeTest
-    fun resetSessionState() = runBlocking {
+    fun resetSessionState() = runTest {
         AhuSessionState.markAnonymous()
         // 协调器同样是进程内单例，而且现在会记住"这一代已经失败过"（ADR 0002 的一次性续期）；
         // 真实世界里由一次成功登录清掉，这里显式复位。
@@ -102,7 +103,7 @@ class AhuSessionContractTest {
     ) = RepositoryAhuSession(login, credentials, account, residue)
 
     @Test
-    fun `a successful sign in marks the session authenticated`() = runBlocking {
+    fun `a successful sign in marks the session authenticated`() = runTest {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val residue = FakeSessionResidue()
         val subject = session(login = login, residue = residue)
@@ -117,7 +118,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a rejected sign in leaves the state alone`() = runBlocking {
+    fun `a rejected sign in leaves the state alone`() = runTest {
         val subject = session(
             login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("密码错误")))
         )
@@ -129,7 +130,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `web verification is a domain state, not a failure`() = runBlocking {
+    fun `web verification is a domain state, not a failure`() = runTest {
         val subject = session(
             login = FakeSessionSignIn(
                 AhuResult.Success(LoginOutcome.JwxtWebVerificationRequired(user))
@@ -142,7 +143,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `sign out returns to anonymous and clears the local residue`() = runBlocking {
+    fun `sign out returns to anonymous and clears the local residue`() = runTest {
         val residue = FakeSessionResidue()
         val subject = session(residue = residue)
         AhuSessionState.markAuthenticated()
@@ -154,7 +155,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a refresh response from before sign out cannot restore authentication`() = runBlocking {
+    fun `a refresh response from before sign out cannot restore authentication`() = runTest {
         val subject = session()
         AhuSessionState.markAuthenticated()
         val oldGeneration = SessionRefreshCoordinator.currentGeneration()
@@ -167,7 +168,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `refresh without a stored account or credential does not call the gateway`() = runBlocking {
+    fun `refresh without a stored account or credential does not call the gateway`() = runTest {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val subject = session(
             login = login,
@@ -187,7 +188,7 @@ class AhuSessionContractTest {
 
     @Test
     fun `completing web verification authenticates the session and invalidates old requests`() =
-        runBlocking {
+        runTest {
             val residue = FakeSessionResidue()
             val subject = session(residue = residue)
             val oldGeneration = SessionRefreshCoordinator.currentGeneration()
@@ -201,7 +202,7 @@ class AhuSessionContractTest {
 
     @Test
     fun `a successful refresh reuses the stored credential and marks the session authenticated`() =
-        runBlocking {
+        runTest {
             val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
             val residue = FakeSessionResidue()
             val subject = session(
@@ -225,24 +226,7 @@ class AhuSessionContractTest {
         }
 
     @Test
-    fun `a rejected refresh expires the session`() = runBlocking {
-        val subject = session(
-            login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("密码错误"))),
-            credentials = FakeCredentialVault("stored-secret"),
-            account = FakeSessionAccount(user)
-        )
-        AhuSessionState.markAuthenticated()
-
-        val refreshed = withTimeout(5_000) {
-            subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
-        }
-
-        assertFalse(refreshed)
-        assertEquals(AhuSessionState.Status.Expired, subject.state.value)
-    }
-
-    @Test
-    fun `a persisted session becomes authenticated after cold start recovery`() = runBlocking {
+    fun `a persisted session becomes authenticated after cold start recovery`() = runTest {
         val subject = session(
             login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user))),
             credentials = FakeCredentialVault("stored-secret"),
@@ -255,7 +239,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a rejected persisted session requires login after cold start`() = runBlocking {
+    fun `a rejected persisted session requires login after cold start`() = runTest {
         val subject = session(
             login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("密码错误"))),
             credentials = FakeCredentialVault("stored-secret"),
@@ -268,7 +252,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a cold start network failure preserves the persisted session`() = runBlocking {
+    fun `a cold start network failure preserves the persisted session`() = runTest {
         val subject = session(
             login = FakeSessionSignIn(AhuResult.Failure(AhuError.Network)),
             credentials = FakeCredentialVault("stored-secret"),
@@ -281,7 +265,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `an anonymous installation without an account does not request login`() = runBlocking {
+    fun `an anonymous installation without an account does not request login`() = runTest {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val subject = session(login = login, credentials = FakeCredentialVault("stored-secret"))
 
@@ -292,7 +276,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `an explicit sign out cannot restore a retained persisted account`() = runBlocking {
+    fun `an explicit sign out cannot restore a retained persisted account`() = runTest {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val subject = session(
             login = login,
@@ -308,25 +292,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a transient refresh failure does not expire the session`() = runBlocking {
-        val subject = session(
-            login = FakeSessionSignIn(AhuResult.Failure(AhuError.Network)),
-            credentials = FakeCredentialVault("stored-secret"),
-            account = FakeSessionAccount(user)
-        )
-        AhuSessionState.markAuthenticated()
-
-        val refreshed = withTimeout(5_000) {
-            subject.ensureFresh(SessionRefreshCoordinator.currentGeneration())
-        }
-
-        assertFalse(refreshed)
-        // 网络抖动不该弹重新登录：保持已认证，冷却窗外下个请求会自愈
-        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
-    }
-
-    @Test
-    fun `a failed refresh leaves the local residue untouched`() = runBlocking {
+    fun `a failed refresh leaves the local residue untouched`() = runTest {
         val residue = FakeSessionResidue()
         val subject = session(
             login = FakeSessionSignIn(AhuResult.Failure(AhuError.Network)),
@@ -345,7 +311,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `wisdom recovery does not call academic login`() = runBlocking {
+    fun `wisdom recovery does not call academic login`() = runTest {
         val academic = FakeSessionSignIn(AhuResult.Failure(AhuError.ProtocolChanged("academic unavailable")))
         val wisdom = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val subject = RepositoryAhuSession(
@@ -361,7 +327,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `WAF timeout and throttling responses preserve the stored session`() = runBlocking {
+    fun `WAF timeout and throttling responses preserve the stored session`() = runTest {
         for (code in listOf(403, 408, 429)) {
             SessionRefreshCoordinator.onAuthenticated()
             val subject = session(
@@ -383,7 +349,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a stale generation reuses the refresh someone else already did`() = runBlocking {
+    fun `a stale generation reuses the refresh someone else already did`() = runTest {
         val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
         val subject = session(
             login = login,
@@ -398,7 +364,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a wisdom rejection does not expire the global session`() = runBlocking {
+    fun `a wisdom rejection does not expire the global session`() = runTest {
         SessionRefreshCoordinator.onAuthenticated()
         AhuSessionState.markAuthenticated()
         val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("rejected")))
@@ -419,7 +385,7 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a wisdom success does not clear an academic expiry`() = runBlocking {
+    fun `a wisdom success does not clear an academic expiry`() = runTest {
         SessionRefreshCoordinator.onAuthenticated()
         AhuSessionState.markExpired()
         val subject = RepositoryAhuSession(
@@ -438,59 +404,6 @@ class AhuSessionContractTest {
         assertEquals(AhuSessionState.Status.Expired, AhuSessionState.status.value)
     }
 
-    @Test
-    fun `recover expired retries the rejected credential once and restores authentication`() = runBlocking {
-        SessionRefreshCoordinator.onAuthenticated()
-        AhuSessionState.markAuthenticated()
-        val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("rejected")))
-        val subject = session(
-            login = login,
-            credentials = FakeCredentialVault("stored-secret"),
-            account = FakeSessionAccount(user)
-        )
-
-        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
-        assertEquals(AhuSessionState.Status.Expired, AhuSessionState.status.value)
-
-        login.result = AhuResult.Success(LoginOutcome.Success(user))
-        assertTrue(subject.recoverExpired())
-        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
-    }
-
-    @Test
-    fun `recover expired is only attempted once per episode`() = runBlocking {
-        SessionRefreshCoordinator.onAuthenticated()
-        AhuSessionState.markAuthenticated()
-        val login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("rejected")))
-        val subject = session(
-            login = login,
-            credentials = FakeCredentialVault("stored-secret"),
-            account = FakeSessionAccount(user)
-        )
-
-        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
-        assertFalse(subject.recoverExpired())
-        assertEquals(2, login.calls.size)
-
-        login.result = AhuResult.Success(LoginOutcome.Success(user))
-        assertFalse(subject.recoverExpired())
-        assertEquals(2, login.calls.size, "one probe per expiry episode")
-    }
-
-    @Test
-    fun `recover expired is a no-op for a healthy session`() = runBlocking {
-        SessionRefreshCoordinator.onAuthenticated()
-        AhuSessionState.markAuthenticated()
-        val login = FakeSessionSignIn(AhuResult.Success(LoginOutcome.Success(user)))
-        val subject = session(
-            login = login,
-            credentials = FakeCredentialVault("stored-secret"),
-            account = FakeSessionAccount(user)
-        )
-
-        assertTrue(subject.recoverExpired())
-        assertTrue(login.calls.isEmpty())
-    }
 }
 
 /**
@@ -572,7 +485,7 @@ class SessionExpiryHookContractTest {
                 assertEquals(401, error.code())
             }
         }
-        assertEquals(1, login.calls.size)
+        assertEquals(3, login.calls.size)
         assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
     }
 

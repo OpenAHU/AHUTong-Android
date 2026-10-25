@@ -76,86 +76,12 @@ class FakeCardRechargeSource(
     override fun mockRefreshRevisions(): Flow<Long> = mockRevisions
 }
 
-/**
- * 校园卡账户 fixture：按线上 JSON 造，而不是手工拼四十多个字段——
- * 字段名与嵌套形状本就是协议契约的一部分，用 Gson 解析顺带证明搬迁没有改变它。
- */
+/** 只提供 ViewModel 使用的卡类型和余额；协议解析由 data/recharge 的测试覆盖。 */
 fun fakeCardInfo(cardType: String = "1", balance: Int = 12345): CardInfo =
     Gson().fromJson(
-        CARD_JSON.replace("__TYPE__", cardType).replace("__BALANCE__", balance.toString()),
+        """{"code":0,"msg":"ok","success":true,"data":{"retcode":"0","card":[
+            {"account":"2021001","name":"张三","sno":"2021001","cardtype":"$cardType",
+             "accinfo":[{"name":"电子账户","type":"$cardType","balance":$balance}]}
+        ]}}""",
         CardInfo::class.java
     )
-
-private val CARD_JSON = """
-{
-  "code": 0,
-  "msg": "ok",
-  "success": true,
-  "data": {
-    "account": null,
-    "errmsg": null,
-    "retcode": "0",
-    "sno": null,
-    "card": [
-      {
-        "acc_status": 0,
-        "account": "2021001",
-        "acctId": null,
-        "auth_code_background": null,
-        "auth_code_font_color": null,
-        "autotrans_amt": 0,
-        "autotrans_flag": 0,
-        "autotrans_limite": 0,
-        "bankacc": "",
-        "barflag": 0,
-        "card_background": null,
-        "card_font_color": null,
-        "card_logo": "",
-        "card_name": "校园卡",
-        "card_name_en": "Campus Card",
-        "cardname": "校园卡",
-        "cardtype": "__TYPE__",
-        "cert": "",
-        "createdate": "",
-        "custId": null,
-        "custMemberId": null,
-        "daycostlimit": 0,
-        "db_balance": 0,
-        "debitamt": 0,
-        "department_name": null,
-        "elec_accamt": 0,
-        "expdate": "",
-        "flag": "",
-        "freezeflag": 0,
-        "idflag": 0,
-        "lostflag": 0,
-        "mscard": 0,
-        "name": "张三",
-        "nonpwdlimit": 0,
-        "phone": "",
-        "scbkbs": 0,
-        "schcode": "",
-        "singlelimit": 0,
-        "sno": "2021001",
-        "unsettle_amount": 0,
-        "voucher": "",
-        "voucherStatus": 0,
-        "accinfo": [
-          {
-            "autotrans_amt": null,
-            "autotrans_flag": 0,
-            "autotrans_limite": null,
-            "balance": __BALANCE__,
-            "daycostamt": null,
-            "daycostlimit": null,
-            "name": "电子账户",
-            "nonpwdlimit": null,
-            "singlelimit": null,
-            "type": "__TYPE__"
-          }
-        ]
-      }
-    ]
-  }
-}
-""".trimIndent()

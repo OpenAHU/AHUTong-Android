@@ -13,9 +13,6 @@ class FakeBathroomDepositSource : BathroomDepositSource {
 
     var infoHook: (suspend (String, String) -> AhuResult<BathroomTelInfo>)? = null
 
-    var infoCalls = 0
-        private set
-
     var paymentHook: (suspend (BathroomPayment) -> AhuResult<RechargeReceipt>)? = null
 
     val payments = mutableListOf<BathroomPayment>()
@@ -23,7 +20,6 @@ class FakeBathroomDepositSource : BathroomDepositSource {
     var savedPhoneValue: String? = null
 
     override suspend fun bathroomInfo(bathroom: String, tel: String): AhuResult<BathroomTelInfo> {
-        infoCalls++
         return requireNotNull(infoHook) { "infoHook 未设置" }.invoke(bathroom, tel)
     }
 

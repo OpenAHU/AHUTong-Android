@@ -34,9 +34,9 @@ class CardAnalyticsTest {
             academicSemesters = listOf(semester)
         )
 
-        assertEquals(1, report.semesterPeriods.size)
-        assertEquals("2026-02-23", report.semesterPeriods.single().startDay)
-        assertEquals("2026-07-05", report.semesterPeriods.single().endDay)
+        val period = report.semesterPeriods.single()
+        assertEquals("2026-02-23", period.startDay)
+        assertEquals("2026-07-05", period.endDay)
         assertEquals(1, report.summary(report.currentSemesterId)?.expenseCount)
     }
 

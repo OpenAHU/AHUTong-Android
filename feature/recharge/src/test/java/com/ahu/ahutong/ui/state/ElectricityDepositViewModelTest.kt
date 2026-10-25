@@ -51,21 +51,8 @@ class ElectricityDepositViewModelTest {
 
     @Test
     fun `restored room and payment cross typed seams`() = runTest(dispatcher) {
-        val selection = selection()
-        val source = FakeElectricityDepositSource(
-            controller = ElectricityController.C,
-            selection = selection,
-            optionsResult = AhuResult.Success(listOfNotNull(selection.room)),
-            roomResult = AhuResult.Success(room()),
-            payResult = AhuResult.Success(RechargeReceipt("order-1"))
-        )
-        val subject = ElectricityDepositViewModel(
-            source,
-            FakeBehaviorRecorder(),
-            EmptyPresetSuggestions,
-            FakePaymentKeyboardSetting(),
-            FakeElectricityAlertSettings()
-        )
+        val source = source(selection())
+        val subject = viewModel(source)
         advanceUntilIdle()
 
         subject.pay("10", "012345")

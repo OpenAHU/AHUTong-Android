@@ -5,7 +5,6 @@ import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.inference.NextActionProbabilityVector
 import com.ahu.ahutong.personalization.ui.OrdinaryNextActionGateReason
 import com.ahu.ahutong.personalization.ui.SuggestionPolicy
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -156,126 +155,6 @@ class SuggestionPolicyTest {
         assertEquals(0f, SuggestionPolicy.remainingVisibilityFraction(1_000L, 1_000L, 1_000L))
     }
 
-    @Test
-    fun suggestionClickIsOwnedByParentAndDismissHasNoPenalty() {
-        val sourceRoot = File(repositoryRoot(), "app/src/main/java")
-        val host = File(
-            sourceRoot,
-            "com/ahu/ahutong/ui/suggestion/SmartSuggestionHost.kt"
-        ).readText()
-        val main = File(sourceRoot, "com/ahu/ahutong/ui/screen/Main.kt").readText()
-        val runtime = File(
-            sourceRoot,
-            "com/ahu/ahutong/personalization/runtime/PredictionRuntime.kt"
-        ).readText()
-        val prefetch = File(
-            sourceRoot,
-            "com/ahu/ahutong/personalization/prefetch/PrefetchCoordinator.kt"
-        ).readText()
-        val preferences = File(
-            sourceRoot,
-            "com/ahu/ahutong/data/dao/PreferencesManager.kt"
-        ).readText()
-
-        assertTrue(host.contains("val animationScope = rememberCoroutineScope()"))
-        assertTrue(host.contains("onClick = { onSuggestionClick(suggestion) }"))
-        assertTrue(host.contains("highlightRadiusMultiplier = 0.9f"))
-        assertTrue(host.contains("fixedHighlightPressProgress = 0.8f"))
-        assertTrue(host.contains("drawGlobalPressOverlay = false"))
-        assertTrue(host.contains("holdHighlightPositionOnRelease = true"))
-        assertTrue(host.contains("positionReturnDampingRatio = 0.75f"))
-        assertTrue(host.contains("releaseAnimationDurationMillis = 120"))
-        assertTrue(host.contains("onPressStart ="))
-        assertTrue(host.contains("animationScope.launch { lifetimeOpacity.snapTo(1f) }"))
-        assertTrue(host.contains("onPressEnd ="))
-        assertTrue(
-            Regex("if \\(suggestion\\.visibilityPaused\\) \\{\\s*lifetimeOpacity\\.snapTo\\(1f\\)\\s*return@LaunchedEffect\\s*}")
-                .containsMatchIn(host)
-        )
-        assertTrue(host.contains(".then(interactiveHighlight.modifier)"))
-        assertTrue(host.contains(".then(interactiveHighlight.gestureModifier)"))
-        assertTrue(host.contains("interactiveHighlight.pressProgress"))
-        assertTrue(host.contains("runtime.pauseSuggestionVisibility(suggestion.executionId)"))
-        assertTrue(host.contains("runtime.restartSuggestionVisibility(suggestion.executionId)"))
-        assertTrue(host.contains("if (suggestion.visibilityPaused)"))
-        assertFalse(host.contains("MutableInteractionSource"))
-        assertFalse(host.contains("PressInteraction"))
-        assertTrue(host.contains(".clip(suggestionShape)"))
-        assertFalse(host.contains("interaction.pressPosition"))
-        assertFalse(host.contains("drawCircle("))
-        assertFalse(host.contains("waveVisible"))
-        assertTrue(host.contains("lifetimeOpacity.animateTo"))
-        assertTrue(host.contains("Modifier.drawBackdrop"))
-        assertTrue(host.contains("vibrancy()"))
-        assertTrue(host.contains("blur(8f.dp.toPx())"))
-        assertTrue(host.contains("lens(24f.dp.toPx(), 24f.dp.toPx())"))
-        assertTrue(host.contains("opacity(lifetimeOpacity.value)"))
-        assertTrue(host.contains("val suggestionShape = ContinuousCapsule"))
-        assertTrue(host.contains("Dialog("))
-        assertTrue(host.contains("DialogProperties("))
-        assertTrue(host.contains("WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE"))
-        assertTrue(host.contains("WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL"))
-        assertTrue(host.contains("WindowManager.LayoutParams.WRAP_CONTENT"))
-        assertTrue(host.contains("window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)"))
-        assertTrue(host.contains("dismissOnClickOutside = false"))
-        assertFalse(host.contains("Popup("))
-        assertFalse(host.contains("PopupProperties("))
-        assertTrue(host.contains("onGloballyPositioned"))
-        assertTrue(host.contains("withFrameNanos"))
-        assertTrue(host.contains("dialogView.isAttachedToWindow"))
-        assertTrue(host.contains("dialogView.windowVisibility == View.VISIBLE"))
-        assertTrue(host.contains("runtime.confirmSuggestionVisible(suggestion.executionId)"))
-        assertTrue(host.contains("MaterialTheme.colorScheme.surfaceContainerHigh"))
-        assertFalse(host.contains("isSystemInDarkTheme"))
-        assertFalse(host.contains("Color(0xFFFAFAFA)"))
-        assertFalse(host.contains("Color(0xFF121212)"))
-        assertFalse(host.contains("layerBlock = { alpha = lifetimeOpacity.value }"))
-        assertFalse(host.contains("graphicsLayer { alpha = lifetimeOpacity.value }"))
-        assertFalse(host.contains("Surface("))
-        assertFalse(host.contains("LocalIndication"))
-        assertFalse(host.contains("DoNotDisturbOn"))
-        assertFalse(host.contains("suppressSuggestedActionByUser"))
-        assertTrue(
-            Regex("onSuggestionClick\\s*=\\s*\\{ suggestion ->[\\s\\S]*?scope\\.launch[\\s\\S]*?acceptSuggestion")
-                .containsMatchIn(main)
-        )
-        val dismissBody = Regex("fun dismissSuggestionByUser\\(\\) \\{([\\s\\S]*?)\\n    }")
-            .find(runtime)
-            ?.groupValues
-            ?.get(1)
-            .orEmpty()
-        assertTrue(dismissBody.contains("cancelSuggestionDeliveryState"))
-        assertTrue(
-            Regex("acceptSuggestion[\\s\\S]*?recordActionIntent\\([\\s\\S]*?deferNextOpportunity = true")
-                .containsMatchIn(runtime)
-        )
-        assertTrue(runtime.contains("SuggestionPolicy.TARGETED_CHANGE_DEBOUNCE_MS"))
-        assertTrue(runtime.contains("SuggestionDeliveryLane.TARGETED"))
-        val showBody = Regex("suspend fun showSuggestion[\\s\\S]*?\\n    }\\n\\n    suspend fun confirmSuggestionVisible")
-            .find(runtime)
-            ?.value
-            .orEmpty()
-        assertFalse(showBody.contains("consumeIntervention"))
-        assertTrue(
-            Regex("confirmSuggestionVisible[\\s\\S]*?consumeIntervention[\\s\\S]*?lastOrdinarySuggestionElapsedMs = shownAtElapsedMs")
-                .containsMatchIn(runtime)
-        )
-        assertTrue(runtime.contains("fun setInlineSensitiveUiVisible(visible: Boolean)"))
-        assertTrue(runtime.contains("!foreground || !interactive || _suggestionOverlayBlocked.value"))
-        assertTrue(main.contains("suggestionOverlayBlocked"))
-        assertTrue(host.contains("runtime.setSuggestionHostBlocked(blocked)"))
-        assertFalse(main.contains("isReLoginShown || sensitiveUiVisible || imeVisible"))
-        assertTrue(runtime.contains("fun pauseSuggestionVisibility(executionId: String)"))
-        assertTrue(runtime.contains("fun restartSuggestionVisibility(executionId: String)"))
-        assertTrue(runtime.contains("suggestionVisibilityGeneration.incrementAndGet()"))
-        assertTrue(runtime.contains("shownAtElapsedMs = restartedAtElapsedMs"))
-        assertTrue(runtime.contains("prefetchCoordinator.prefetchSuggestedAction"))
-        assertTrue(prefetch.contains("suspend fun prefetchSuggestedAction"))
-        assertTrue(prefetch.contains("FileUtils.saveResponseBodyToFile(context, body, \"xiaoli.jpg\")"))
-        assertTrue(prefetch.contains("AHUCache.saveLostFoundList(1, response.data.list)"))
-        assertFalse(preferences.contains("SUGGESTION_ACTION_SUPPRESSIONS"))
-    }
-
     private fun vector(vararg actionProbabilities: Pair<AppActionId, Float>): NextActionProbabilityVector {
         val values = FloatArray(AppActionCatalog.outputIds.size)
         actionProbabilities.forEach { (action, probability) ->
@@ -284,11 +163,5 @@ class SuggestionPolicyTest {
         values[AppActionCatalog.outputIndex.getValue(AppActionCatalog.NONE_OUTPUT_ID)] =
             1f - actionProbabilities.sumOf { it.second.toDouble() }.toFloat()
         return NextActionProbabilityVector(AppActionCatalog.outputIds, values, modelVersion = 1)
-    }
-
-    private fun repositoryRoot(): File {
-        val userDirectory = requireNotNull(System.getProperty("user.dir"))
-        return generateSequence(File(userDirectory)) { it.parentFile }
-            .first { File(it, "app/src/main/java").isDirectory }
     }
 }

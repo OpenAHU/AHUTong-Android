@@ -29,8 +29,6 @@ class FakeChaoxingSession(
         private set
     var syncWorksCount = 0
         private set
-    var syncCourseProgressCount = 0
-        private set
 
     override fun hasSession(): Boolean = hasSession
 
@@ -60,7 +58,6 @@ class FakeChaoxingSession(
     override suspend fun syncCourseProgress(
         onProgress: (Int, Int, String) -> Unit
     ): List<CourseProgress> {
-        syncCourseProgressCount++
         syncFailure?.let { throw it }
         onProgress(1, 1, "同步完成")
         return courseProgress
@@ -137,8 +134,6 @@ class FakeChaoxingReminders : ChaoxingReminders {
         private set
     var rescheduleCount = 0
         private set
-    var sendTestCount = 0
-        private set
 
     override fun cancelAll() {
         cancelCount++
@@ -152,7 +147,5 @@ class FakeChaoxingReminders : ChaoxingReminders {
         rescheduleCount++
     }
 
-    override fun sendTest() {
-        sendTestCount++
-    }
+    override fun sendTest() = Unit
 }

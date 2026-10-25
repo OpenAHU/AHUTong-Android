@@ -39,10 +39,6 @@ class FakeGradeSource(
     var mockData: Boolean = false
 ) : GradeSource {
 
-    var fetchGradeCount = 0
-        private set
-    var lastIsRefresh: Boolean? = null
-        private set
     var cachedProfileList: List<GradeStudentProfile> = emptyList()
     var perProfile: Map<String, Grade?> = emptyMap()
     var rankFetcher: (suspend (String) -> AhuResult<GpaRankInfo>)? = null
@@ -54,11 +50,7 @@ class FakeGradeSource(
     override fun cachedPerProfileGrades(): Map<String, Grade?> = perProfile
     override fun cachedGpaRank(studentId: String): GpaRankInfo? = null
 
-    override suspend fun fetchGrade(isRefresh: Boolean): AhuResult<Grade> {
-        fetchGradeCount++
-        lastIsRefresh = isRefresh
-        return gradeResult
-    }
+    override suspend fun fetchGrade(isRefresh: Boolean): AhuResult<Grade> = gradeResult
 
     override suspend fun fetchProfiles(): List<GradeStudentProfile> = profileList
 
@@ -174,28 +166,18 @@ class FakeGradeBehavior : BehaviorRecorder {
 
 /** [PresetSuggestions] 的 fake：默认「没有可推荐的候选」，用例需要时再编排。 */
 class FakePresetSuggestions(
-    var candidates: List<PresetCandidate> = emptyList(),
-    var applied: AppliedPreset? = null,
-    var exposedToken: PresetInteractionToken? = null
+    var applied: AppliedPreset? = null
 ) : PresetSuggestions {
 
-    var rankCalls = 0
-        private set
     val submissions = mutableListOf<PresetSubmission>()
-    val expiredTokens = mutableListOf<PresetInteractionToken?>()
 
-    override suspend fun rank(domain: SemanticDomain): List<PresetCandidate> {
-        rankCalls++
-        return candidates
-    }
+    override suspend fun rank(domain: SemanticDomain): List<PresetCandidate> = emptyList()
 
-    override suspend fun markExposed(candidate: PresetCandidate): PresetInteractionToken? = exposedToken
+    override suspend fun markExposed(candidate: PresetCandidate): PresetInteractionToken? = null
 
     override suspend fun apply(candidate: PresetCandidate): AppliedPreset? = applied
 
-    override fun expire(token: PresetInteractionToken?) {
-        expiredTokens += token
-    }
+    override fun expire(token: PresetInteractionToken?) = Unit
 
     override suspend fun recordNaturalSubmission(
         submission: PresetSubmission,

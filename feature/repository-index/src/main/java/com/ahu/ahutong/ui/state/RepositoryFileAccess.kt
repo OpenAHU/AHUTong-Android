@@ -11,6 +11,17 @@ import com.ahu.ahutong.data.repository.DownloadedFile
  */
 interface RepositoryFileAccess {
 
+    /** 系统目录选择器的初始位置；没有自选目录时为 null。 */
+    fun downloadDirectoryUri(): String? = null
+
+    /** 保存用户通过系统选择器授予的持久读写权限，并验证目录可写。 */
+    fun rememberDownloadDirectory(uri: String) {
+        throw SecurityException("无法保存下载目录授权")
+    }
+
+    /** 重新授权后，在所选目录中重新定位原文件；不隐式重新下载。 */
+    fun recoverDownloadedFile(file: DownloadedFile): DownloadedFile? = file
+
     /** 读取文件内容（内容 URI 或本地路径）。 */
     fun read(file: DownloadedFile): FileReadOutcome
 
@@ -22,8 +33,10 @@ sealed interface FileReadOutcome {
 
     data class Text(val content: String) : FileReadOutcome
 
-    /** 文件已经不在了（内容 URI 失效或本地文件被删）。 */
+    /** 已确认文件被删除；失去读取权限不属于 Missing。 */
     data object Missing : FileReadOutcome
+
+    data object PermissionRequired : FileReadOutcome
 
     data class Failed(val message: String?) : FileReadOutcome
 }
@@ -33,6 +46,8 @@ sealed interface FileOpenOutcome {
     data object Opened : FileOpenOutcome
 
     data object Missing : FileOpenOutcome
+
+    data object PermissionRequired : FileOpenOutcome
 
     data object NoViewerApp : FileOpenOutcome
 

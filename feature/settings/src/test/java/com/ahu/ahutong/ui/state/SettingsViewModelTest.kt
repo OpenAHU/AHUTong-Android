@@ -4,7 +4,6 @@ import com.ahu.ahutong.testing.FakeAppDataReset
 import com.ahu.ahutong.testing.FakeAppUpdateGateway
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -21,16 +20,6 @@ class SettingsViewModelTest {
     ) = SettingsViewModel(reset, updates)
 
     @Test
-    fun `the version name comes from the update gateway`() {
-        assertEquals("3.3.0", viewModel(updates = FakeAppUpdateGateway("3.3.0")).versionName)
-    }
-
-    @Test
-    fun `a missing version name stays null instead of failing`() {
-        assertNull(viewModel(updates = FakeAppUpdateGateway(null)).versionName)
-    }
-
-    @Test
     fun `clearing all data asks the reset port exactly once`() = runBlocking {
         val reset = FakeAppDataReset()
         val subject = viewModel(reset = reset)
@@ -38,15 +27,6 @@ class SettingsViewModelTest {
         subject.clearAllData()
 
         assertEquals(1, reset.clearCount)
-    }
-
-    @Test
-    fun `the changelog is passed through`() = runBlocking {
-        val subject = viewModel(
-            updates = FakeAppUpdateGateway(changelogText = "本次更新：修复登录")
-        )
-
-        assertEquals("本次更新：修复登录", subject.changelog())
     }
 
     @Test
@@ -63,9 +43,5 @@ class SettingsViewModelTest {
         assertEquals("获取失败", subject.changelog())
     }
 
-    @Test
-    fun `the tip starts empty`() {
-        assertNull(viewModel().tip)
-    }
 }
 

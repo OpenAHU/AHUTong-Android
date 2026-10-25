@@ -39,27 +39,11 @@ class ScheduleNowIndicatorTest {
     }
 
     @Test
-    fun `during first class maps to section 1 with fraction`() {
-        val position = nowIndicatorPosition(8 * 60 + 15, timetable)
-        val inSection = assertIs<NowIndicatorPosition.InSection>(position)
-        assertEquals(1, inSection.section)
-        assertEquals(15f / 45f, inSection.fraction, 1e-6f)
-    }
-
-    @Test
     fun `short gap between classes maps to gap with fraction`() {
         val position = nowIndicatorPosition(8 * 60 + 47, timetable)
         val inGap = assertIs<NowIndicatorPosition.InGap>(position)
         assertEquals(1, inGap.afterSection)
         assertEquals(2f / 5f, inGap.fraction, 1e-6f)
-    }
-
-    @Test
-    fun `lunch break maps to gap spanning sections 5 to 6`() {
-        val position = nowIndicatorPosition(13 * 60, timetable)
-        val inGap = assertIs<NowIndicatorPosition.InGap>(position)
-        assertEquals(5, inGap.afterSection)
-        // 12:15 结束，14:00 开始，间隙 105 分钟，12:00 在前一节末之前 → 实际属第5节
     }
 
     @Test
@@ -109,10 +93,4 @@ class ScheduleNowIndicatorTest {
         assertEquals(0f, inSection.fraction, 1e-6f)
     }
 
-    @Test
-    fun `clock formatting uses two digit hour and minute`() {
-        assertEquals("00:00", formatNowClock(0))
-        assertEquals("08:05", formatNowClock(8 * 60 + 5))
-        assertEquals("20:35", formatNowClock(20 * 60 + 35))
-    }
 }

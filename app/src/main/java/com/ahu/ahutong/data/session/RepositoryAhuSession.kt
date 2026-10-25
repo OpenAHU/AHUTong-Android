@@ -6,10 +6,11 @@ import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import com.ahu.ahutong.data.model.LoginOutcome
 import com.ahu.ahutong.data.security.SecureStorageUnavailableException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * [AhuSession] 的生产实现：行为与原流程逐条对应，只是把散落的会话操作收进一处。
+ * [AhuSession] 的生产实现：统一手动登录、退出和有界续期。
  *
  * 协作方全部经构造注入（[SessionSignIn] / [CredentialVault] / [SessionAccount] / [SessionResidue]），
  * 因此这个类可以在 JVM 单测里被完整驱动（见 AhuSessionContractTest）；生产装配见 [DefaultAhuSession]。
@@ -39,16 +40,11 @@ class RepositoryAhuSession(
     private val canChangeGlobalStatus =
         refreshScope == SessionRefreshCoordinator.Scope.ACADEMIC
 
-    /** 每次 Expired 只允许一次有界重探，避免把误判变成反复尝试密码。 */
-    @Volatile
-    private var recoveryProbeUsed = false
-
     override suspend fun signIn(username: String, password: String): AhuResult<LoginOutcome> {
         val result = login.signIn(username, password, preferNative = true)
         if (result.valueOrNull() is LoginOutcome.Success) {
             // 先在协调器里推进代号，再发布已认证状态：并发中的旧续期不能覆盖这次新登录。
             SessionRefreshCoordinator.onAuthenticated {
-                recoveryProbeUsed = false
                 residue.clearRetainedServiceSessions()
                 AhuSessionState.markAuthenticated()
             }
@@ -58,7 +54,6 @@ class RepositoryAhuSession(
 
     override suspend fun completeWebVerification() {
         SessionRefreshCoordinator.onAuthenticated {
-            recoveryProbeUsed = false
             residue.clearRetainedServiceSessions()
             AhuSessionState.markAuthenticated()
         }
@@ -66,7 +61,6 @@ class RepositoryAhuSession(
 
     override suspend fun signOut() {
         SessionRefreshCoordinator.onSignedOut {
-            recoveryProbeUsed = false
             AhuSessionState.markAnonymous()
         }
         residue.clear()
@@ -75,69 +69,13 @@ class RepositoryAhuSession(
     override suspend fun ensureFresh(observedGeneration: Long): Boolean =
         refresh(observedGeneration)
 
-    override suspend fun recoverExpired(): Boolean {
-        if (AhuSessionState.status.value != AhuSessionState.Status.Expired) {
-            recoveryProbeUsed = false
-            return true
-        }
-        // 派生服务的实例无权改写全局状态，也就不需要替全局做恢复探测。
-        if (!canChangeGlobalStatus || recoveryProbeUsed) return false
-        recoveryProbeUsed = true
-
-        val observedGeneration = SessionRefreshCoordinator.currentGeneration(refreshScope)
-        return try {
-            refresh(
-                observedGeneration = observedGeneration,
-                forceRejected = true,
-                timeoutMillis = RECOVERY_PROBE_TIMEOUT_MS
-            )
-        } catch (error: kotlinx.coroutines.CancellationException) {
-            // The screen left before the probe finished; let the next entry try once again.
-            recoveryProbeUsed = false
-            throw error
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    private suspend fun refresh(
-        observedGeneration: Long,
-        forceRejected: Boolean = false,
-        timeoutMillis: Long = SessionRefreshCoordinator.REFRESH_TIMEOUT_MS
-    ): Boolean {
+    private suspend fun refresh(observedGeneration: Long): Boolean {
         val refreshed = SessionRefreshCoordinator.refreshIfNeeded(
             observedGeneration,
-            timeoutMillis = timeoutMillis,
-            forceRejected = forceRejected,
             scope = refreshScope
-        ) {
-            val (user, password) = try {
-                val user = account.currentUser()
-                    ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
-                val password = credentials.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
-                    ?: return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.REJECTED
-                user to password
-            } catch (_: SecureStorageUnavailableException) {
-                return@refreshIfNeeded SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
-            }
-
-            Log.i(TAG, "Refreshing expired first-party session")
-            val loginResult = refreshLogin.signIn(
-                username = user.xh.toString(),
-                password = password,
-                preferNative = false
-            )
-            if (loginResult.valueOrNull() is LoginOutcome.Success) {
-                residue.clearDerivedToken()
-                SessionRefreshCoordinator.RefreshOutcome.SUCCESS
-            } else {
-                Log.w(TAG, "Session refresh failed: ${loginResult.errorOrNull()}")
-                loginResult.errorOrNull().toRefreshOutcome()
-            }
-        }
+        ) { refreshWithRetry() }
         // 续期成功即回到已认证：协调器只负责并发与代号，登录态的写入留在会话层。
         if (refreshed) {
-            recoveryProbeUsed = false
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration + 1, refreshScope) {
                 // A restarted process begins Anonymous even when its account was persisted.
                 if (canChangeGlobalStatus &&
@@ -167,19 +105,59 @@ class RepositoryAhuSession(
         return refreshed
     }
 
-    private fun AhuError?.toRefreshOutcome(): SessionRefreshCoordinator.RefreshOutcome =
-        when (this) {
-            is AhuError.Unauthorized -> SessionRefreshCoordinator.RefreshOutcome.REJECTED
-            // HTTP 403/408/429 can be WAF, timeout or rate limiting. Only a parsed
-            // credential rejection (Unauthorized) warrants stopping automatic login.
-            // Network / Timeout / ProtocolChanged / Unknown / null：一律按瞬时可自愈处理。
-            else -> SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+    /** Runs inside the coordinator's service lock and its single 30-second budget. */
+    private suspend fun refreshWithRetry(): SessionRefreshCoordinator.RefreshOutcome {
+        var consecutiveRejections = 0
+        for (attempt in 0..RETRY_DELAYS_MS.size) {
+            val loginResult = try {
+                val user = account.currentUser()
+                    ?: return SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
+                val password = credentials.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
+                    ?: return SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
+                Log.i(TAG, "Refreshing first-party session (attempt=${attempt + 1})")
+                refreshLogin.signIn(user.xh.toString(), password, preferNative = false)
+            } catch (_: SecureStorageUnavailableException) {
+                // An unreadable Keystore is not evidence that a credential is absent or wrong.
+                consecutiveRejections = 0
+                if (attempt == RETRY_DELAYS_MS.size) break
+                delay(RETRY_DELAYS_MS[attempt])
+                continue
+            }
+
+            if (loginResult.valueOrNull() is LoginOutcome.Success) {
+                residue.clearDerivedToken()
+                return SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+            }
+            val error = loginResult.errorOrNull()
+            Log.w(TAG, "Session refresh did not succeed (${error?.javaClass?.simpleName})")
+            if (error is AhuError.Unauthorized) {
+                consecutiveRejections++
+                if (consecutiveRejections >= 2) {
+                    return SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
+                }
+            } else {
+                consecutiveRejections = 0
+                // Human verification, WAF and protocol changes need user/server action.
+                // Retrying those would only submit the same password unnecessarily.
+                if (!error.isRetryableRefreshFailure()) {
+                    return SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+                }
+            }
+            if (attempt < RETRY_DELAYS_MS.size) delay(RETRY_DELAYS_MS[attempt])
         }
+        // A final single rejection separated by transport failures remains unconfirmed.
+        return SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+    }
+
+    private fun AhuError?.isRetryableRefreshFailure(): Boolean = when (this) {
+        AhuError.Network, AhuError.Timeout -> true
+        is AhuError.Server -> code == 408 || code == 429 || code in 500..599
+        else -> false
+    }
 
     private companion object {
         const val TAG = "AhuSession"
 
-        /** 跳登录前的恢复探测预算：比常规续期短，避免用户长时间停在占位页。 */
-        const val RECOVERY_PROBE_TIMEOUT_MS = 12_000L
+        val RETRY_DELAYS_MS = longArrayOf(500L, 1_500L)
     }
 }

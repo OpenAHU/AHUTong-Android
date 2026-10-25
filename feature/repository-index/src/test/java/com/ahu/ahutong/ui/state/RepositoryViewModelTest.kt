@@ -24,6 +24,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -64,24 +65,13 @@ class RepositoryViewModelTest {
         runCurrent()
         assertEquals(1, repository.sourceProbeCalls)
         assertTrue(vm.directoryStates.value.getValue("").isLoaded)
-        assertEquals(listOf("a.md"), vm.directoryStates.value.getValue("").items.map { it.name })
-        probeGate.complete(Unit)
-        advanceUntilIdle()
-    }
-
-    @Test
-    fun `a cached directory is served without touching the port fetch`() = runTest(dispatcher) {
-        repository.cached[""] = CachedRepositoryContents(listOf(file("a.md")), updateTime = 123L)
-        val vm = viewModel()
-
-        vm.loadContents("")
-        advanceUntilIdle()
-
         val state = vm.directoryStates.value.getValue("")
+        assertEquals(listOf("a.md"), state.items.map { it.name })
         assertTrue(state.isShowingCachedContents)
         assertEquals(123L, state.cacheUpdatedAt)
-        assertEquals(listOf("a.md"), state.items.map { it.name })
         assertEquals(0, repository.getContentsCalls)
+        probeGate.complete(Unit)
+        advanceUntilIdle()
     }
 
     @Test
@@ -265,6 +255,109 @@ class RepositoryViewModelTest {
         assertTrue(repository.downloaded.isEmpty())
     }
 
+    @Test
+    fun `cancelled directory selection keeps the failed download stopped`() = runTest(dispatcher) {
+        repository.downloadFailure = SecurityException("directory grant revoked")
+        val vm = viewModel()
+        vm.downloadFile(file("a.pdf"))
+        advanceUntilIdle()
+        assertNotNull(vm.storagePermissionRequest.value)
+        assertNull(vm.sharedState.value.downloadingPath)
+        assertTrue(vm.sharedState.value.downloadProgress.isEmpty())
+
+        vm.onStoragePickerOpened()
+        vm.onDownloadDirectorySelected(null)
+        vm.onDownloadDirectorySelected("content://documents/tree/selected")
+        advanceUntilIdle()
+
+        assertEquals(1, repository.downloadCalls)
+        assertTrue(fileAccess.rememberedDirectories.isEmpty())
+        assertNull(vm.storagePermissionRequest.value)
+    }
+
+    @Test
+    fun `a valid directory grant resumes the pending download only once`() = runTest(dispatcher) {
+        repository.downloadFailure = SecurityException("directory grant revoked")
+        val vm = viewModel()
+        vm.downloadFile(file("a.pdf"))
+        advanceUntilIdle()
+        fileAccess.rememberDirectory = {
+            repository.downloadFailure = null
+            repository.downloadResult = DownloadedFile("a.pdf", "a.pdf", "/downloads/a.pdf")
+        }
+
+        vm.onDownloadDirectorySelected("content://documents/tree/selected")
+        vm.onDownloadDirectorySelected("content://documents/tree/selected")
+        advanceUntilIdle()
+
+        assertEquals(2, repository.downloadCalls)
+        assertEquals(1, fileAccess.rememberedDirectories.size)
+        assertEquals("下载完成: a.pdf", vm.message.value)
+        assertNull(vm.storagePermissionRequest.value)
+    }
+
+    @Test
+    fun `a second failed download cannot replace the action while its directory picker is open`() = runTest(dispatcher) {
+        repository.downloadFailure = SecurityException("directory grant revoked")
+        val vm = viewModel()
+        vm.downloadFile(file("first.pdf"))
+        advanceUntilIdle()
+        vm.onStoragePickerOpened()
+
+        vm.downloadFile(file("second.pdf"))
+        advanceUntilIdle()
+        assertNull(vm.storagePermissionRequest.value)
+        fileAccess.rememberDirectory = {
+            repository.downloadFailure = null
+            repository.downloadResult = DownloadedFile("first.pdf", "first.pdf", "/downloads/first.pdf")
+        }
+
+        vm.onDownloadDirectorySelected("content://documents/tree/selected")
+        advanceUntilIdle()
+
+        assertEquals(listOf("first.pdf", "second.pdf", "first.pdf"), repository.downloadRequests)
+        assertEquals(1, fileAccess.rememberedDirectories.size)
+        assertNull(vm.storagePermissionRequest.value)
+    }
+
+    @Test
+    fun `a still inaccessible file keeps its record without reopening the directory picker`() = runTest(dispatcher) {
+        val downloaded = DownloadedFile("a.pdf", "repo/a.pdf", "/downloads/a.pdf")
+        repository.downloaded += downloaded
+        fileAccess.openOutcome = FileOpenOutcome.PermissionRequired
+        val vm = viewModel()
+        vm.openDownloadedFile(downloaded)
+        advanceUntilIdle()
+        assertNotNull(vm.storagePermissionRequest.value)
+
+        vm.onDownloadDirectorySelected("content://documents/tree/selected")
+        advanceUntilIdle()
+
+        assertEquals(2, fileAccess.openCalls)
+        assertEquals(listOf(downloaded), repository.downloaded)
+        assertNull(vm.storagePermissionRequest.value)
+        assertTrue(vm.message.value.orEmpty().contains("重新下载"))
+    }
+
+    @Test
+    fun `lost markdown permission preserves the download record and cancellation stops recovery`() = runTest(dispatcher) {
+        val downloaded = DownloadedFile("a.md", "repo/a.md", "/downloads/a.md")
+        repository.downloaded += downloaded
+        fileAccess.readOutcome = FileReadOutcome.PermissionRequired
+        val vm = viewModel()
+        vm.openDownloadedFile(downloaded)
+        advanceUntilIdle()
+        assertNotNull(vm.storagePermissionRequest.value)
+        assertTrue(!vm.markdownState.value.isLoading)
+
+        vm.cancelStoragePermission()
+        advanceUntilIdle()
+
+        assertEquals(1, fileAccess.readCalls)
+        assertEquals(listOf(downloaded), repository.downloaded)
+        assertNull(vm.storagePermissionRequest.value)
+    }
+
     private fun file(name: String, path: String = name) =
         GitHubContentItem(name = name, path = path, type = "file")
 
@@ -279,6 +372,8 @@ class RepositoryViewModelTest {
         var failNextWarmUp = false
         var downloadResult: DownloadedFile? = null
         var downloadFailure: Throwable? = null
+        val downloadRequests = mutableListOf<String>()
+        val downloadCalls: Int get() = downloadRequests.size
         var sourceProbeGate: CompletableDeferred<Unit>? = null
         var sourceProbeCalls = 0
         var warmUpGate: CompletableDeferred<Unit>? = null
@@ -342,6 +437,7 @@ class RepositoryViewModelTest {
             path: String,
             onProgress: (Float) -> Unit
         ): DownloadedFile? {
+            downloadRequests += path
             downloadFailure?.let { throw it }
             return downloadResult
         }
@@ -362,9 +458,24 @@ class RepositoryViewModelTest {
     private class FakeRepositoryFileAccess : RepositoryFileAccess {
         var readOutcome: FileReadOutcome = FileReadOutcome.Text("内容")
         var openOutcome: FileOpenOutcome = FileOpenOutcome.Opened
+        var readCalls = 0
+        var openCalls = 0
+        var rememberDirectory: () -> Unit = {}
+        val rememberedDirectories = mutableListOf<String>()
 
-        override fun read(file: DownloadedFile): FileReadOutcome = readOutcome
+        override fun rememberDownloadDirectory(uri: String) {
+            rememberedDirectories += uri
+            rememberDirectory()
+        }
 
-        override fun open(file: DownloadedFile): FileOpenOutcome = openOutcome
+        override fun read(file: DownloadedFile): FileReadOutcome {
+            readCalls++
+            return readOutcome
+        }
+
+        override fun open(file: DownloadedFile): FileOpenOutcome {
+            openCalls++
+            return openOutcome
+        }
     }
 }

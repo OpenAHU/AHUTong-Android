@@ -47,7 +47,6 @@ import com.ahu.ahutong.background.backgroundCourseDate
 import com.ahu.ahutong.background.backgroundHolidayForDate
 import com.ahu.ahutong.background.backgroundEntryPoint
 import com.ahu.ahutong.background.loadBackgroundHoliday
-import com.ahu.ahutong.background.widgetScheduleReadModel
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.scheduleHolidayLabel
@@ -61,7 +60,10 @@ import com.kyant.monet.n1
 import com.kyant.monet.toColor
 import com.kyant.monet.toSrgb
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.collections.filter
 import kotlin.collections.orEmpty
 import kotlin.collections.sortedBy
@@ -72,19 +74,27 @@ class ScheduleAppWidget : GlanceAppWidget() {
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
         // 只读缓存（P4 的验收标准）：本地优先解析会在本地未确认过时问一次远端并写缓存，
         // 那正是"小组件冷启动不该触发登录"要挡住的事，所以这里只读缓存配置。
-        val snapshot = widgetScheduleReadModel().cachedSnapshot()
-        val currentMinutes = DebugClock.currentMinutes()
+        val data = loadWidgetRenderData()
+        val snapshot = data.schedule
+        val currentMinutes = data.currentMinutes
         val todayCourses = todayWidgetCourses(snapshot.courses, snapshot.config)
-        val today = backgroundCourseDate(DebugClock.nowDate().time)!!
-        val holidaySource = backgroundEntryPoint(context).scheduleHolidaySource()
-        loadBackgroundHoliday(holidaySource, today)
-        val keyColor = resolveWidgetKeyColor(context)
+        val today = backgroundCourseDate(data.now.time)!!
+        val holidaySource = withContext(Dispatchers.IO) {
+            backgroundEntryPoint(context).scheduleHolidaySource().also {
+                loadBackgroundHoliday(it, today)
+            }
+        }
+        val keyColor = withContext(Dispatchers.IO) { resolveWidgetKeyColor(context) }
+        val openAppIntent = withContext(Dispatchers.IO) {
+            launchIntent(context).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        }
         provideContent {
             val holidays by holidaySource.holidays.collectAsState()
             ScheduleWidgetContent(
-                context = context,
+                openAppIntent = openAppIntent,
                 todayCourses = todayCourses,
                 currentMinutes = currentMinutes,
+                now = data.now,
                 fetchedAt = snapshot.fetchedAt,
                 unavailableMessage = snapshot.unavailableMessage,
                 notice = snapshot.notice,
@@ -124,8 +134,10 @@ class RefreshAction : ActionCallback {
         parameters: ActionParameters
     ) {
         Log.e("ScheduleAppWidget", "provideGlance: 更新小组件", )
-        backgroundCourseDate(DebugClock.nowDate().time)?.let {
-            backgroundHolidayForDate(context, it, refresh = true)
+        withContext(Dispatchers.IO) {
+            backgroundCourseDate(DebugClock.nowDate().time)?.let {
+                backgroundHolidayForDate(context, it, refresh = true)
+            }
         }
         ScheduleAppWidget().update(context, glanceId)
         WidgetUpdateScheduler.requestScheduleRefresh(context)
@@ -134,21 +146,18 @@ class RefreshAction : ActionCallback {
 
 @Composable
 private fun ScheduleWidgetContent(
-    context: Context,
+    openAppIntent: Intent,
     todayCourses: List<Course>,
     currentMinutes: Int,
+    now: Date,
     fetchedAt: Long?,
     unavailableMessage: String?,
     notice: String?,
     keyColor: Color,
     holiday: ScheduleHoliday?
 ) {
-    val openAppAction = actionStartActivity(
-        launchIntent(context).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-    )
-    val dateText = SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(DebugClock.nowDate())
+    val openAppAction = actionStartActivity(openAppIntent)
+    val dateText = SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(now)
     val remainingCourses = todayCourses.filter {
         val range = ScheduleSectionTimes.getCourseTimeRangeInMinutes(it)
         currentMinutes <= range.last

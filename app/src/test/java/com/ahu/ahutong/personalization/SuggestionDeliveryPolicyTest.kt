@@ -7,7 +7,6 @@ import com.ahu.ahutong.personalization.ui.PendingSuggestionOffer
 import com.ahu.ahutong.personalization.ui.SuggestionDeliveryBlockReason
 import com.ahu.ahutong.personalization.ui.SuggestionDeliveryLane
 import com.ahu.ahutong.personalization.ui.SuggestionPolicy
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -33,38 +32,6 @@ class SuggestionDeliveryPolicyTest {
 
         assertTrue(result.canDisplay)
         assertTrue(SuggestionDeliveryLane.TARGETED.priority > SuggestionDeliveryLane.ORDINARY_JOURNEY.priority)
-    }
-
-    @Test
-    fun weatherTargetCannotBeExpandedByHigherScheduleProbability() {
-        val targeted = offer(SuggestionDeliveryLane.TARGETED, AppActionId.OPEN_HOME)
-
-        assertEquals(setOf(AppActionId.OPEN_HOME), targeted.targetActions)
-        assertFalse(AppActionId.VIEW_SCHEDULE in targeted.targetActions)
-    }
-
-    @Test
-    fun journeyLaneCannotPenetrateTargetedCandidateScope() {
-        val targeted = offer(SuggestionDeliveryLane.TARGETED, AppActionId.OPEN_HOME)
-
-        assertFalse(AppActionId.VIEW_SCHEDULE in targeted.targetActions)
-        assertTrue(SuggestionDeliveryLane.TARGETED.priority > SuggestionDeliveryLane.ORDINARY_JOURNEY.priority)
-    }
-
-    @Test
-    fun enabledCmbPreferenceContainsOnlyCmbRechargeEntry() {
-        val targeted = offer(SuggestionDeliveryLane.TARGETED, AppActionId.OPEN_CMB_CARD_RECHARGE)
-
-        assertEquals(setOf(AppActionId.OPEN_CMB_CARD_RECHARGE), targeted.targetActions)
-        assertFalse(AppActionId.OPEN_CARD_RECHARGE in targeted.targetActions)
-    }
-
-    @Test
-    fun disabledCmbPreferenceContainsOnlyOrdinaryRechargeEntry() {
-        val targeted = offer(SuggestionDeliveryLane.TARGETED, AppActionId.OPEN_CARD_RECHARGE)
-
-        assertEquals(setOf(AppActionId.OPEN_CARD_RECHARGE), targeted.targetActions)
-        assertFalse(AppActionId.OPEN_CMB_CARD_RECHARGE in targeted.targetActions)
     }
 
     @Test
@@ -168,91 +135,10 @@ class SuggestionDeliveryPolicyTest {
     }
 
     @Test
-    fun suggestionWindowIsNonModalAndDoesNotDimBusinessSheets() {
-        val host = File(
-            repositoryRoot(),
-            "app/src/main/java/com/ahu/ahutong/ui/suggestion/SmartSuggestionHost.kt"
-        ).readText()
-
-        assertTrue(host.contains("WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE"))
-        assertTrue(host.contains("WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL"))
-        assertTrue(host.contains("window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)"))
-        assertTrue(host.contains("width = WindowManager.LayoutParams.WRAP_CONTENT"))
-        assertTrue(host.contains("height = WindowManager.LayoutParams.WRAP_CONTENT"))
-        assertTrue(host.contains("gravity = Gravity.END or Gravity.BOTTOM"))
-    }
-
-    @Test
-    fun rapidToggleIntegrationKeepsOnlyLatestGenerationAndOneChangeSetExposure() {
-        val runtime = File(
-            repositoryRoot(),
-            "app/src/main/java/com/ahu/ahutong/personalization/runtime/PredictionRuntime.kt"
-        ).readText()
-
-        assertTrue(runtime.contains("contextGeneration.incrementAndGet()"))
-        assertTrue(runtime.contains("settingSubmissionSequence.incrementAndGet()"))
-        assertTrue(runtime.contains("settingSubmissionOrder < latestAppliedSettingSubmission.get()"))
-        assertTrue(runtime.contains("cancelSuggestionDeliveryState("))
-        assertTrue(runtime.contains("SuggestionPolicy.TARGETED_CHANGE_DEBOUNCE_MS"))
-        assertFalse(runtime.contains("SEMANTIC_CHANGE_SET_WINDOW_MS + SuggestionPolicy.OCCUPIED_RETRY_DELAY_MS"))
-        assertTrue(runtime.contains("exposedTargetedChangeSets"))
-        assertTrue(runtime.contains("changeSet.changeSetId in exposedTargetedChangeSets"))
-        assertTrue(runtime.contains("const val HOLDOUT_PERCENT = 15"))
-        assertTrue(runtime.contains("candidateHoldout = deliveryLane != SuggestionDeliveryLane.TARGETED"))
-    }
-
-    @Test
     fun targetedAndOrdinaryLanesUseIndependentIntervals() {
         assertEquals(10_000L, SuggestionPolicy.minimumIntervalMillis(SuggestionDeliveryLane.TARGETED))
         assertEquals(30_000L, SuggestionPolicy.minimumIntervalMillis(SuggestionDeliveryLane.ORDINARY_JOURNEY))
         assertEquals(30_000L, SuggestionPolicy.minimumIntervalMillis(SuggestionDeliveryLane.ORDINARY_NEXT_ACTION))
-    }
-
-    @Test
-    fun passiveReadyIntegrationPreservesActiveTargetedContextAndWeatherRequiresReadback() {
-        val root = repositoryRoot()
-        val runtime = File(
-            root,
-            "app/src/main/java/com/ahu/ahutong/personalization/runtime/PredictionRuntime.kt"
-        ).readText()
-        val weather = File(
-            root,
-            "app/src/main/java/com/ahu/ahutong/ui/state/WeatherViewModel.kt"
-        ).readText()
-
-        assertTrue(runtime.contains("isPassiveContentEvent &&"))
-        assertTrue(runtime.contains("hasActiveTargetedContext(nowElapsed)"))
-        assertTrue(runtime.contains("if (preserveActiveTargetedContext) return@withLock"))
-        assertTrue(weather.contains("val committed = WeatherHomeConfig.fromCache()"))
-        assertTrue(weather.contains("if (committed != config) return"))
-    }
-
-    @Test
-    fun diagnosticsRouteObservesWithoutCancellingOrExposingSuggestion() {
-        val root = repositoryRoot()
-        val runtime = File(
-            root,
-            "app/src/main/java/com/ahu/ahutong/personalization/runtime/PredictionRuntime.kt"
-        ).readText()
-        val main = File(
-            root,
-            "app/src/main/java/com/ahu/ahutong/ui/screen/Main.kt"
-        ).readText()
-        val host = File(
-            root,
-            "app/src/main/java/com/ahu/ahutong/ui/suggestion/SmartSuggestionHost.kt"
-        ).readText()
-        val diagnostics = File(
-            root,
-            "app/src/debug/java/com/ahu/ahutong/personalization/diagnostics/DebugDiagnosticsContribution.kt"
-        ).readText()
-
-        assertTrue(runtime.contains("if (source == ActionSource.DEBUG)"))
-        assertTrue(runtime.contains("setDiagnosticsObservationActive(true)"))
-        assertTrue(runtime.contains("setDiagnosticsObservationActive(false)"))
-        assertTrue(main.contains("hiddenForDiagnostics = diagnosticsRouteVisible"))
-        assertTrue(host.contains("if (blocked || hiddenForDiagnostics) return"))
-        assertTrue(diagnostics.contains("进入调试或未跟踪页面，当前建议已取消"))
     }
 
     private fun assess(
@@ -290,11 +176,4 @@ class SuggestionDeliveryPolicyTest {
         targetActions = setOf(action),
         earliestDisplayElapsedMs = earliestDisplayElapsedMs,
         deadlineElapsedMs = deadlineElapsedMs
-    )
-
-    private fun repositoryRoot(): File {
-        val userDirectory = requireNotNull(System.getProperty("user.dir"))
-        return generateSequence(File(userDirectory)) { it.parentFile }
-            .first { File(it, "app/src/main/java").isDirectory }
-    }
-}
+    )}

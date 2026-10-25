@@ -99,9 +99,7 @@ class ElectricityForecastModelTest {
                 oldError += abs(ElectricityForecastModel.legacyRate(prefix) * 3 - actual) / 3
                 newError += abs(model.path(model.fit(prefix), 3).sum() - actual) / 3
             }
-            val chosen = ElectricityForecastModel.select(values)
-            println("HAR $label: nested rolling MAE/day old=${oldError / 7}, new=${newError / 7}, model=$chosen")
-            assertTrue(oldError.isFinite() && newError.isFinite())
+            assertTrue(oldError.isFinite() && newError.isFinite(), "HAR $label must produce finite errors")
         }
     }
 }

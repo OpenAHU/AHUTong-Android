@@ -14,7 +14,6 @@ import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.compose.ui.graphics.toArgb
-import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.background.R
 import com.ahu.ahutong.background.backgroundCourseDate
 import com.ahu.ahutong.background.backgroundHolidayForDate
@@ -23,10 +22,12 @@ import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.scheduleHolidayLabel
 import com.ahu.ahutong.data.schedule.scheduleHolidayNotice
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import com.ahu.ahutong.background.widgetScheduleReadModel
 import com.ahu.ahutong.background.launchIntent
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -43,7 +44,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
                 ?: appWidgetManager.getAppWidgetIds(
                     ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
                 )
-            renderWidgets(context, appWidgetManager, ids)
+            renderWidgets(context, ids)
             return
         }
         super.onReceive(context, intent)
@@ -54,12 +55,12 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
                 AppWidgetManager.INVALID_APPWIDGET_ID
             )
             if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId), refreshHoliday = true)
+                renderWidgets(context, intArrayOf(appWidgetId), refreshHoliday = true)
             } else {
                 val ids = appWidgetManager.getAppWidgetIds(
                     ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
                 )
-                renderWidgets(context, appWidgetManager, ids, refreshHoliday = true)
+                renderWidgets(context, ids, refreshHoliday = true)
             }
             WidgetUpdateScheduler.requestScheduleRefresh(context)
         }
@@ -91,7 +92,7 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        renderWidgets(context, appWidgetManager, appWidgetIds)
+        renderWidgets(context, appWidgetIds)
         if (appWidgetIds.isNotEmpty()) WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
 
@@ -101,32 +102,44 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         newOptions: android.os.Bundle
     ) {
-        renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+        renderWidgets(context, intArrayOf(appWidgetId))
         WidgetUpdateScheduler.requestScheduleRefresh(context)
     }
 
     private fun renderWidgets(
         context: Context,
-        appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
         refreshHoliday: Boolean = false
     ) {
         if (appWidgetIds.isEmpty()) return
+        val appContext = context.applicationContext
         val pendingResult = goAsync()
         widgetScope.launch {
             try {
-                val holiday = backgroundCourseDate(DebugClock.nowDate().time)?.let {
-                    backgroundHolidayForDate(context, it, refresh = refreshHoliday)
+                runWidgetBroadcast(finish = { pendingResult.finish() }) {
+                    WidgetRenderWorker.enqueue(appContext, refreshHoliday)
                 }
-                appWidgetIds.forEach { updateAppWidget(context, appWidgetManager, it, holiday) }
-            } finally {
-                try {
-                    pendingResult.finish()
-                } catch (_: IllegalStateException) {
-                    // A completed broadcast must not turn a background widget redraw into an app crash.
-                    Log.w(TAG, "Widget broadcast was already finished")
-                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to enqueue cached widget render", error)
             }
+        }
+    }
+
+    internal suspend fun renderCachedWidgets(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        if (appWidgetIds.isEmpty()) return
+        val data = loadWidgetRenderData()
+        val holiday = backgroundCourseDate(data.now.time)?.let {
+            backgroundHolidayForDate(context, it)
+        }
+        appWidgetIds.forEach {
+            currentCoroutineContext().ensureActive()
+            updateAppWidget(context, appWidgetManager, it, holiday, data)
         }
     }
 
@@ -134,7 +147,8 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        holiday: ScheduleHoliday?
+        holiday: ScheduleHoliday?,
+        data: WidgetRenderData
     ) {
         Log.e(TAG, "updateAppWidget: 小组件刷新", )
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
@@ -161,8 +175,8 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
             R.id.adaptive_test_items_small
         }
         // 教务课表仍然只读缓存；公开日历在 IO 协程中查询，不触发教务登录。
-        val snapshot = widgetScheduleReadModel().cachedSnapshot()
-        val currentMinutes = DebugClock.currentMinutes()
+        val snapshot = data.schedule
+        val currentMinutes = data.currentMinutes
         val todayCourses = todayWidgetCourses(snapshot.courses, snapshot.config)
         val remainingCourses = todayCourses.filter {
             currentMinutes <= ScheduleSectionTimes.getCourseTimeRangeInMinutes(it).last
@@ -174,17 +188,17 @@ class ScheduleAdaptiveWidgetProvider : AppWidgetProvider() {
         val subtitleText: String
         if (snapshot.unavailableMessage != null) {
             titleText = "课表待更新"
-            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
+            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(data.now)
         } else if (displayCourses.isEmpty()) {
             titleText = "没课啦🎉"
-            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
+            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(data.now)
         } else {
             titleText = "还剩 ${remainingCourses.size} 节"
-            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(DebugClock.nowDate())
+            subtitleText = SimpleDateFormat("MM-dd/EE", Locale.CHINA).format(data.now)
         }
         // 断网会撤销 StateFlow 并请求重绘；旧的并发渲染也不能重新写回已撤销的标记。
         val currentHoliday = holiday?.takeIf {
-            val today = backgroundCourseDate(DebugClock.nowDate().time)
+            val today = backgroundCourseDate(data.now.time)
             today?.let { date -> backgroundEntryPoint(context).scheduleHolidaySource().holidays.value[date] } == it
         }
         val remoteViews = RemoteViews(context.packageName, layoutRes)

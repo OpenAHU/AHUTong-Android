@@ -1,9 +1,7 @@
 package com.ahu.ahutong.data.network
 
-import com.ahu.ahutong.data.crawler.net.AutoLoginInterceptor
 import com.ahu.ahutong.data.crawler.net.SessionExpiryHook
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
-import com.ahu.ahutong.data.crawler.net.TokenAuthenticator
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -54,18 +52,6 @@ class CampusHttpAssemblyTest {
         assertSame(fakeCookieJar, client.cookieJar)
         assertTrue(!client.followRedirects)
         assertTrue(!client.followSslRedirects)
-    }
-
-    @Test
-    fun `campus session refresh wires auto login and session authenticator`() {
-        val hook = FakeSessionExpiryHook()
-        val client = OkHttpClient.Builder()
-            .campusAutoLogin()
-            .campusSessionRefresh(hook)
-            .build()
-
-        assertTrue(client.networkInterceptors.any { it is AutoLoginInterceptor })
-        assertTrue(client.authenticator is TokenAuthenticator)
     }
 
     /**

@@ -237,6 +237,7 @@ internal class RepositoryDownloadTransport(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
+                    if (error is SecurityException) throw error
                     errors += IOException("${server.id} 资料接口失败", error)
                 }
             }
@@ -262,6 +263,7 @@ internal class RepositoryDownloadTransport(
                         } catch (error: CancellationException) {
                             throw error
                         } catch (error: Exception) {
+                            if (error is SecurityException) throw error
                             monitor.record(source.id, false)
                             errors += IOException("${source.name} 下载失败", error)
                         }
@@ -291,6 +293,7 @@ internal class RepositoryDownloadTransport(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
+                    if (error is SecurityException) throw error
                     errors += IOException("${server.id} 备用源下载失败", error)
                 }
             }

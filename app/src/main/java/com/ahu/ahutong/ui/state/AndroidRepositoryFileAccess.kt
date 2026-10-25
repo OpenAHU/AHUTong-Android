@@ -8,63 +8,115 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
+import com.ahu.ahutong.data.repository.RepositoryManager
 import com.ahu.ahutong.data.repository.DownloadedFile
+import com.ahu.ahutong.data.repository.isStoragePermissionFailure
+import android.provider.OpenableColumns
+import android.provider.DocumentsContract
+import java.io.FileNotFoundException
+import kotlinx.coroutines.CancellationException
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * [RepositoryFileAccess] 的生产实现：内容 URI 读取、FileProvider 授权、交给系统查看器打开。
- *
- * 代码与迁移前逐字一致，只是从 ViewModel 搬到适配器里——ViewModel 因此不再持有 Context，
- * 也就第一次能在 JVM 单测里被 fake 驱动。
- */
+/** 检查本地可读性后再读取/共享文件；失权与文件删除分别返回，不清除下载记录。 */
 @Singleton
 class AndroidRepositoryFileAccess @Inject constructor() : RepositoryFileAccess {
 
     private val context: Context get() = AppEnvironmentHolder.context()
 
+    override fun downloadDirectoryUri(): String? = RepositoryManager.downloadDirectoryUri()
+
+    override fun rememberDownloadDirectory(uri: String) {
+        RepositoryManager.rememberDownloadDirectory(context, uri)
+    }
+
+    override fun recoverDownloadedFile(file: DownloadedFile): DownloadedFile? =
+        if (availability(file) == Availability.READABLE) file
+        else RepositoryManager.recoverDownloadedFile(file.path, context)
+
     override fun read(file: DownloadedFile): FileReadOutcome {
+        when (availability(file)) {
+            Availability.MISSING -> return FileReadOutcome.Missing
+            Availability.PERMISSION_REQUIRED -> return FileReadOutcome.PermissionRequired
+            Availability.UNAVAILABLE -> return FileReadOutcome.Failed("文件暂不可读，请稍后重试")
+            Availability.READABLE -> Unit
+        }
         return try {
-            val uri = file.uri?.let { Uri.parse(it) }
-            if (uri != null) {
-                val text = context.contentResolver.openInputStream(uri)
-                    ?.bufferedReader()
-                    ?.use { it.readText() }
-                if (text != null) FileReadOutcome.Text(text)
-                else FileReadOutcome.Failed("无法读取本地 Markdown")
-            } else {
-                val localFile = File(file.localPath)
-                if (!localFile.exists()) {
-                    FileReadOutcome.Missing
-                } else {
-                    FileReadOutcome.Text(localFile.readText())
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("RepoViewer", "读取失败: " + e.message, e)
-            FileReadOutcome.Failed(e.message)
+            val text = file.uri?.let { value ->
+                context.contentResolver.openInputStream(Uri.parse(value))?.bufferedReader()?.use { it.readText() }
+            } ?: if (file.uri == null) File(file.localPath).readText() else null
+            text?.let { FileReadOutcome.Text(it) } ?: FileReadOutcome.Failed("无法读取本地 Markdown")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: SecurityException) {
+            FileReadOutcome.PermissionRequired
+        } catch (error: Exception) {
+            if (error.isStoragePermissionFailure()) return FileReadOutcome.PermissionRequired
+            Log.e("RepoViewer", "读取失败", error)
+            FileReadOutcome.Failed(error.message)
         }
     }
 
     override fun open(file: DownloadedFile): FileOpenOutcome {
-        val uri = file.uri?.let { Uri.parse(it) }
-        if (uri != null) return startViewer(uri, file.name)
-
-        val localFile = File(file.localPath)
-        if (!localFile.exists()) return FileOpenOutcome.Missing
-
-        val fileUri = try {
-            FileProvider.getUriForFile(
-                context,
-                context.packageName + ".fileprovider",
-                localFile
-            )
-        } catch (e: Exception) {
-            Log.e("RepoViewer", "打开失败: " + e.message, e)
-            return FileOpenOutcome.Failed(e.message)
+        when (availability(file)) {
+            Availability.MISSING -> return FileOpenOutcome.Missing
+            Availability.PERMISSION_REQUIRED -> return FileOpenOutcome.PermissionRequired
+            Availability.UNAVAILABLE -> return FileOpenOutcome.Failed("文件暂不可读，请稍后重试")
+            Availability.READABLE -> Unit
         }
-        return startViewer(fileUri, localFile.name)
+        val uri = file.uri?.let(Uri::parse) ?: try {
+            FileProvider.getUriForFile(context, context.packageName + ".fileprovider", File(file.localPath))
+        } catch (_: SecurityException) {
+            return FileOpenOutcome.PermissionRequired
+        } catch (error: Exception) {
+            return FileOpenOutcome.Failed(error.message)
+        }
+        return startViewer(uri, file.name)
+    }
+
+    private enum class Availability { READABLE, MISSING, PERMISSION_REQUIRED, UNAVAILABLE }
+
+    private fun availability(file: DownloadedFile): Availability {
+        val uri = file.uri?.let(Uri::parse)
+        if (uri == null) {
+            val local = File(file.localPath)
+            return when {
+                local.exists() && local.canRead() -> Availability.READABLE
+                local.exists() || local.parentFile?.canRead() != true -> Availability.PERMISSION_REQUIRED
+                else -> Availability.MISSING
+            }
+        }
+        if (DocumentsContract.isTreeUri(uri)) {
+            val tree = DocumentsContract.buildTreeDocumentUri(uri.authority, DocumentsContract.getTreeDocumentId(uri))
+            if (context.contentResolver.persistedUriPermissions.none { it.uri == tree && it.isReadPermission }) {
+                return Availability.PERMISSION_REQUIRED
+            }
+        }
+        return try {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { Availability.READABLE }
+                ?: Availability.UNAVAILABLE
+        } catch (_: SecurityException) {
+            Availability.PERMISSION_REQUIRED
+        } catch (error: FileNotFoundException) {
+            if (error.isStoragePermissionFailure()) return Availability.PERMISSION_REQUIRED
+            // 元数据仍在但内容暂不可读（例如离线文档提供器），不能据此删除记录。
+            try {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                    if (it.moveToFirst()) Availability.UNAVAILABLE else Availability.MISSING
+                } ?: Availability.UNAVAILABLE
+            } catch (_: SecurityException) {
+                Availability.PERMISSION_REQUIRED
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (error.isStoragePermissionFailure()) Availability.PERMISSION_REQUIRED else Availability.UNAVAILABLE
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            if (error.isStoragePermissionFailure()) Availability.PERMISSION_REQUIRED else Availability.UNAVAILABLE
+        }
     }
 
     private fun startViewer(uri: Uri, fileName: String): FileOpenOutcome {
@@ -73,6 +125,10 @@ class AndroidRepositoryFileAccess @Inject constructor() : RepositoryFileAccess {
             val opened = startFileViewer(uri, fileName, mimeType) ||
                 (mimeType != "*/*" && startFileViewer(uri, fileName, "*/*"))
             if (opened) FileOpenOutcome.Opened else FileOpenOutcome.NoViewerApp
+        } catch (_: SecurityException) {
+            FileOpenOutcome.PermissionRequired
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Log.e("RepoViewer", "打开失败: " + e.message, e)
             FileOpenOutcome.Failed(e.message)

@@ -30,25 +30,6 @@ class SessionRefreshTimeoutTest {
     }
 
     @Test
-    fun aFailedRefreshIsNotRetriedByEveryWaiter() = runBlocking {
-        val generation = SessionRefreshCoordinator.currentGeneration()
-        var attempts = 0
-
-        val first = SessionRefreshCoordinator.refreshIfNeeded(generation, timeoutMillis = 5_000L) {
-            attempts += 1
-            SessionRefreshCoordinator.RefreshOutcome.REJECTED
-        }
-        val second = SessionRefreshCoordinator.refreshIfNeeded(generation, timeoutMillis = 5_000L) {
-            attempts += 1
-            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
-        }
-
-        assertFalse(first)
-        assertFalse(second)
-        assertEquals(1, attempts, "一次会话失效只许自动续期一次（ADR 0002）")
-    }
-
-    @Test
     fun aNewLoginLetsAutomaticRefreshHappenAgain() = runBlocking {
         val generation = SessionRefreshCoordinator.currentGeneration()
         SessionRefreshCoordinator.refreshIfNeeded(generation, timeoutMillis = 5_000L) {
@@ -115,56 +96,27 @@ class SessionRefreshTimeoutTest {
     }
 
     @Test
-    fun refreshThatNeverReturnsIsCutOffAndCountedAsFailed() = runBlocking {
-        val generation = SessionRefreshCoordinator.currentGeneration()
-
-        val refreshed = SessionRefreshCoordinator.refreshIfNeeded(
-            observedGeneration = generation,
-            timeoutMillis = 50L
-        ) {
-            delay(10_000L)
-            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
-        }
-
-        assertFalse(refreshed)
-        assertEquals(generation, SessionRefreshCoordinator.currentGeneration())
-    }
-
-    @Test
-    fun refreshInsideTheBudgetStillReportsSuccess() = runBlocking {
-        val generation = SessionRefreshCoordinator.currentGeneration()
-
-        val refreshed = SessionRefreshCoordinator.refreshIfNeeded(
-            observedGeneration = generation,
-            timeoutMillis = 5_000L
-        ) { SessionRefreshCoordinator.RefreshOutcome.SUCCESS }
-
-        assertTrue(refreshed)
-        assertEquals(generation + 1, SessionRefreshCoordinator.currentGeneration())
-    }
-
-    @Test
     fun aTransientFailureRetriesAfterTheCooldown() = runBlocking {
         val generation = SessionRefreshCoordinator.currentGeneration()
         var attempts = 0
         val t0 = 1_000_000L
 
         val first = SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = t0
+            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = { t0 }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
         }
         // 冷却窗内：快速失败，不再尝试
         val inCooldown = SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = t0 + 5_000L
+            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = { t0 + 5_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
         }
         // 冷却窗外：放行一次新尝试，成功即推进代号
         val afterCooldown = SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = t0 + 16_000L
+            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = { t0 + 16_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
@@ -183,11 +135,11 @@ class SessionRefreshTimeoutTest {
         var attempts = 0
         val t0 = 1_000_000L
 
-        SessionRefreshCoordinator.refreshIfNeeded(
+        val rejected = SessionRefreshCoordinator.refreshIfNeeded(
             generation,
             timeoutMillis = 5_000L,
             rejectedCooldownMillis = 30_000L,
-            nowMillis = t0
+            nowMillis = { t0 }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.REJECTED
@@ -196,7 +148,7 @@ class SessionRefreshTimeoutTest {
             generation,
             timeoutMillis = 5_000L,
             rejectedCooldownMillis = 30_000L,
-            nowMillis = t0 + 10_000L
+            nowMillis = { t0 + 10_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
@@ -205,12 +157,13 @@ class SessionRefreshTimeoutTest {
             generation,
             timeoutMillis = 5_000L,
             rejectedCooldownMillis = 30_000L,
-            nowMillis = t0 + 31_000L
+            nowMillis = { t0 + 31_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
         }
 
+        assertFalse(rejected)
         assertFalse(inCooldown, "冷却窗内仍要快速失败")
         assertTrue(afterCooldown, "第一次被拒后允许一次冷却重探")
         assertEquals(2, attempts)
@@ -227,7 +180,7 @@ class SessionRefreshTimeoutTest {
             generation,
             timeoutMillis = 5_000L,
             rejectedCooldownMillis = 30_000L,
-            nowMillis = t0
+            nowMillis = { t0 }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.REJECTED
@@ -236,7 +189,7 @@ class SessionRefreshTimeoutTest {
             generation,
             timeoutMillis = 5_000L,
             rejectedCooldownMillis = 30_000L,
-            nowMillis = t0 + 31_000L
+            nowMillis = { t0 + 31_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.REJECTED
@@ -245,7 +198,7 @@ class SessionRefreshTimeoutTest {
             generation,
             timeoutMillis = 5_000L,
             rejectedCooldownMillis = 30_000L,
-            nowMillis = t0 + 600_000L
+            nowMillis = { t0 + 600_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
@@ -256,24 +209,24 @@ class SessionRefreshTimeoutTest {
     }
 
     @Test
-    fun aForcedProbeBypassesTheRejectedCooldownOnce() = runBlocking {
+    fun aConfirmedCredentialRejectionCannotBeRetriedAfterCooldown() = runBlocking {
         val generation = SessionRefreshCoordinator.currentGeneration()
         var attempts = 0
 
         SessionRefreshCoordinator.refreshIfNeeded(generation) {
             attempts += 1
-            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+            SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
         }
-        val forced = SessionRefreshCoordinator.refreshIfNeeded(
+        val retried = SessionRefreshCoordinator.refreshIfNeeded(
             generation,
-            forceRejected = true
+            nowMillis = { System.currentTimeMillis() + 600_000L }
         ) {
             attempts += 1
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
         }
 
-        assertTrue(forced)
-        assertEquals(2, attempts)
+        assertFalse(retried)
+        assertEquals(1, attempts)
     }
 
     @Test
@@ -282,17 +235,37 @@ class SessionRefreshTimeoutTest {
         val t0 = 1_000_000L
 
         val timedOut = SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 50L, transientCooldownMillis = 15_000L, nowMillis = t0
+            generation, timeoutMillis = 50L, transientCooldownMillis = 15_000L, nowMillis = { t0 }
         ) {
             delay(10_000L)
             SessionRefreshCoordinator.RefreshOutcome.SUCCESS
         }
+        assertFalse(timedOut)
+        assertEquals(generation, SessionRefreshCoordinator.currentGeneration())
+
         val healed = SessionRefreshCoordinator.refreshIfNeeded(
-            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = t0 + 16_000L
+            generation, timeoutMillis = 5_000L, transientCooldownMillis = 15_000L, nowMillis = { t0 + 16_000L }
         ) { SessionRefreshCoordinator.RefreshOutcome.SUCCESS }
 
-        assertFalse(timedOut)
         assertTrue(healed, "超时算瞬时失败：冷却窗外必须允许自愈")
+    }
+
+    @Test
+    fun aSlowFailedRefreshStartsItsCooldownWhenItFinishes() = runBlocking {
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        var now = 1_000_000L
+        assertFalse(SessionRefreshCoordinator.refreshIfNeeded(generation, nowMillis = { now }) {
+            now += 30_000L
+            SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
+        })
+        now += 1_000L
+        assertFalse(SessionRefreshCoordinator.refreshIfNeeded(generation, nowMillis = { now }) {
+            error("A queued waiter must observe the full cooldown after the slow refresh")
+        })
+        now += 15_000L
+        assertTrue(SessionRefreshCoordinator.refreshIfNeeded(generation, nowMillis = { now }) {
+            SessionRefreshCoordinator.RefreshOutcome.SUCCESS
+        })
     }
 
     @Test

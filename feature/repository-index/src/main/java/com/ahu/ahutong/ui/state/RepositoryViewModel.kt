@@ -62,6 +62,8 @@ data class RepositoryMarkdownUiState(
     val error: String? = null
 )
 
+data class RepositoryStoragePermissionRequest(val initialDirectoryUri: String?)
+
 @HiltViewModel
 class RepositoryViewModel @Inject constructor(
     private val repository: RepositoryIndex,
@@ -76,6 +78,77 @@ class RepositoryViewModel @Inject constructor(
     private var warmUpJob: Job? = null
     private var warmUpFailure: Exception? = null
     private val deletionMutex = Mutex()
+    private sealed interface PendingStorageAction {
+        data class Download(val item: GitHubContentItem) : PendingStorageAction
+        data class Open(val file: DownloadedFile) : PendingStorageAction
+    }
+    private var pendingStorageAction: PendingStorageAction? = null
+    private var storageGrantJob: Job? = null
+    private val _storagePermissionRequest = MutableStateFlow<RepositoryStoragePermissionRequest?>(null)
+    val storagePermissionRequest = _storagePermissionRequest.asStateFlow()
+
+    fun cancelStoragePermission() {
+        pendingStorageAction = null
+        _storagePermissionRequest.value = null
+        storageGrantJob?.cancel()
+        storageGrantJob = null
+    }
+
+    fun onStoragePickerOpened() {
+        _storagePermissionRequest.value = null
+    }
+
+    fun onDownloadDirectorySelected(uri: String?) {
+        if (uri == null) {
+            cancelStoragePermission()
+            return
+        }
+        val action = pendingStorageAction ?: return
+        if (storageGrantJob?.isActive == true) return
+        _storagePermissionRequest.value = null
+        storageGrantJob = viewModelScope.launch {
+            try {
+                withContext(ioDispatcher) { fileAccess.rememberDownloadDirectory(uri) }
+                if (pendingStorageAction !== action) return@launch
+                when (action) {
+                    is PendingStorageAction.Download -> downloadFile(action.item, allowStoragePrompt = false)
+                    is PendingStorageAction.Open -> {
+                        val file = withContext(ioDispatcher) { fileAccess.recoverDownloadedFile(action.file) }
+                        if (pendingStorageAction !== action) return@launch
+                        if (file == null) {
+                            _message.value = "所选目录中未找到原文件，请选择原下载目录或重新下载"
+                        } else {
+                            openDownloadedFile(file, allowStoragePrompt = false)
+                        }
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (pendingStorageAction === action) {
+                    _message.value = "目录授权未完成：${error.message ?: "请重新选择可读写的文件夹"}"
+                }
+            } finally {
+                if (pendingStorageAction === action) {
+                    pendingStorageAction = null
+                    storageGrantJob = null
+                }
+            }
+        }
+    }
+
+    private suspend fun requestStoragePermission(action: PendingStorageAction, allowed: Boolean) {
+        if (!allowed) {
+            _message.value = "仍无法访问文件，请确认已选择原下载目录，或重新下载"
+            return
+        }
+        // 指引、系统 picker、授权 IO 共用一个待恢复动作，后来的失败不能抢占它。
+        if (pendingStorageAction != null) return
+        pendingStorageAction = action
+        val initialUri = withContext(ioDispatcher) { fileAccess.downloadDirectoryUri() }
+        if (pendingStorageAction !== action) return
+        _storagePermissionRequest.value = RepositoryStoragePermissionRequest(initialUri)
+    }
 
     private val _directoryStates = MutableStateFlow<Map<String, RepositoryUiState>>(emptyMap())
     val directoryStates: StateFlow<Map<String, RepositoryUiState>> = _directoryStates.asStateFlow()
@@ -287,7 +360,9 @@ class RepositoryViewModel @Inject constructor(
         return scrollPositions[path] ?: RepositoryScrollPosition()
     }
 
-    fun downloadFile(item: GitHubContentItem) {
+    fun downloadFile(item: GitHubContentItem) = downloadFile(item, allowStoragePrompt = true)
+
+    private fun downloadFile(item: GitHubContentItem, allowStoragePrompt: Boolean) {
         viewModelScope.launch {
             val path = item.path
             _sharedState.value = _sharedState.value.copy(
@@ -321,6 +396,12 @@ class RepositoryViewModel @Inject constructor(
                     downloadProgress = _sharedState.value.downloadProgress - path
                 )
                 throw cancelled
+            } catch (_: SecurityException) {
+                _sharedState.value = _sharedState.value.copy(
+                    downloadingPath = null,
+                    downloadProgress = _sharedState.value.downloadProgress - path
+                )
+                requestStoragePermission(PendingStorageAction.Download(item), allowStoragePrompt)
             } catch (e: Exception) {
                 _sharedState.value = _sharedState.value.copy(
                     downloadingPath = null,
@@ -337,11 +418,10 @@ class RepositoryViewModel @Inject constructor(
             loadMarkdown(item.path)
             return
         }
-        val file = repository.getDownloadedFile(item.path)
-        if (file != null) {
-            openDownloadedFile(file)
-        } else {
-            _message.value = "文件不存在，请先下载"
+        viewModelScope.launch {
+            val file = withContext(ioDispatcher) { repository.getDownloadedFile(item.path) }
+            if (file != null) openDownloadedFile(file)
+            else _message.value = "文件不存在，请先下载"
         }
     }
 
@@ -413,10 +493,10 @@ class RepositoryViewModel @Inject constructor(
         _markdownState.value = RepositoryMarkdownUiState()
     }
 
-    private fun loadDownloadedMarkdown(file: DownloadedFile) {
+    private fun loadDownloadedMarkdown(file: DownloadedFile, allowStoragePrompt: Boolean) {
         _markdownState.value = RepositoryMarkdownUiState(isLoading = true)
         viewModelScope.launch {
-            when (val outcome = fileAccess.read(file)) {
+            when (val outcome = withContext(ioDispatcher) { fileAccess.read(file) }) {
                 is FileReadOutcome.Text -> _markdownState.value = RepositoryMarkdownUiState(
                     document = RepositoryMarkdownDocument(
                         title = file.name,
@@ -430,6 +510,11 @@ class RepositoryViewModel @Inject constructor(
                     _markdownState.value = RepositoryMarkdownUiState(
                         error = "Markdown 加载失败: 文件已被删除"
                     )
+                }
+
+                FileReadOutcome.PermissionRequired -> {
+                    _markdownState.value = RepositoryMarkdownUiState()
+                    requestStoragePermission(PendingStorageAction.Open(file), allowStoragePrompt)
                 }
 
                 is FileReadOutcome.Failed -> _markdownState.value = RepositoryMarkdownUiState(
@@ -447,23 +532,25 @@ class RepositoryViewModel @Inject constructor(
         return repository.getLocalFile(path)
     }
 
-    fun openDownloadedFile(file: DownloadedFile) {
+    fun openDownloadedFile(file: DownloadedFile) = openDownloadedFile(file, allowStoragePrompt = true)
+
+    private fun openDownloadedFile(file: DownloadedFile, allowStoragePrompt: Boolean) {
         if (isMarkdownFile(file.name)) {
-            loadDownloadedMarkdown(file)
+            loadDownloadedMarkdown(file, allowStoragePrompt)
             return
         }
-
-        when (val outcome = fileAccess.open(file)) {
-            FileOpenOutcome.Opened -> Unit
-
-            FileOpenOutcome.Missing -> {
-                deleteFile(file.path)
-                _message.value = "文件已被删除"
+        viewModelScope.launch {
+            when (val outcome = withContext(ioDispatcher) { fileAccess.open(file) }) {
+                FileOpenOutcome.Opened -> Unit
+                FileOpenOutcome.Missing -> {
+                    deleteFile(file.path)
+                    _message.value = "文件已被删除"
+                }
+                FileOpenOutcome.PermissionRequired ->
+                    requestStoragePermission(PendingStorageAction.Open(file), allowStoragePrompt)
+                FileOpenOutcome.NoViewerApp -> _message.value = "没有找到可打开此文件的软件"
+                is FileOpenOutcome.Failed -> _message.value = "打开失败: ${outcome.message}"
             }
-
-            FileOpenOutcome.NoViewerApp -> _message.value = "没有找到可打开此文件的软件"
-
-            is FileOpenOutcome.Failed -> _message.value = "打开失败: ${outcome.message}"
         }
     }
 

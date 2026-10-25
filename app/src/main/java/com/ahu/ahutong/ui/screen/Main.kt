@@ -53,7 +53,6 @@ import androidx.compose.ui.platform.LocalContext
 import android.net.Uri
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
@@ -128,9 +127,6 @@ import com.ahu.ahutong.ui.components.AppPageHeader
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
-import com.ahu.ahutong.ui.components.AppButton
-import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
-import com.ahu.ahutong.ui.components.AppDialogSurface
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.captureLiquidGlassContent
 import com.ahu.ahutong.ui.state.AboutViewModel
@@ -189,9 +185,7 @@ fun Main(
     behaviorRuntime: BehaviorPredictionRuntime,
     behaviorRecorder: BehaviorRecorder,
     diagnosticsContribution: DiagnosticsContribution,
-    paymentQrCommands: PaymentQrOpenCommandStore,
-    isReLoginShown: Boolean,
-    onReLoginDismiss: () -> Unit
+    paymentQrCommands: PaymentQrOpenCommandStore
 ) {
     val electricityAlertViewModel: ElectricityAlertViewModel = hiltViewModel()
     val electricityRechargeSelection by electricityAlertViewModel.rechargeSelection.collectAsState()
@@ -213,8 +207,7 @@ fun Main(
     var navigationObservationRevision by remember { mutableIntStateOf(0) }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
-    val sessionStatus by AhuSessionState.status.collectAsState()
-    val paymentQrVisible by paymentQrCommands.visible.collectAsState()
+    val sessionStatus by session.state.collectAsState()
     val earlyAccessState by EarlyAccessManager.state.collectAsState()
     LaunchedEffect(earlyAccessState.subject, earlyAccessState.joined) {
         mainViewModel.onUpdateChannelChanged()
@@ -234,26 +227,14 @@ fun Main(
     }
     val protectedRouteBlocked = currentRoute != null &&
         currentRoute !in setOf("login", "splash") && !canUseBusinessPages
-    var sessionProbeInProgress by remember { mutableStateOf(false) }
     LaunchedEffect(protectedRouteBlocked, currentRoute, sessionStatus) {
-        if (!protectedRouteBlocked) {
-            sessionProbeInProgress = false
-            return@LaunchedEffect
-        }
-        // A rejected refresh can be a misclassification (flaky upstream / reused error code).
-        // Before kicking the user to login, give the session one bounded chance to prove it
-        // is still usable. This is the same reset a process restart performs, but in-process.
-        if (sessionStatus == AhuSessionState.Status.Expired &&
-            !SessionStore.isUserRestoreUnavailable()
-        ) {
-            sessionProbeInProgress = true
-            val recovered = try {
-                session.recoverExpired()
-            } finally {
-                sessionProbeInProgress = false
-            }
-            if (recovered) return@LaunchedEffect
-        }
+        if (!protectedRouteBlocked) return@LaunchedEffect
+        // Refresh and confirmation finish before the session publishes Expired.
+        // A queued effect must not navigate using a stale composition snapshot.
+        if (canUseAuthenticatedPages(
+                SessionStore.isLoggedIn(), session.state.value,
+                LoginNavigationGate.authenticationRequired.value
+            )) return@LaunchedEffect
         navController.navigate(if (SessionStore.isUserRestoreUnavailable()) "splash" else "login") {
             popUpTo(navController.graph.id) { inclusive = true }
             launchSingleTop = true
@@ -394,16 +375,7 @@ fun Main(
         }
         val backdrop = navBackdrop
         if (protectedRouteBlocked) {
-            if (sessionProbeInProgress) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    AppCircularProgressIndicator()
-                }
-            } else {
-                com.ahu.ahutong.ui.screen.setup.Splash()
-            }
+            com.ahu.ahutong.ui.screen.setup.Splash()
         } else {
         NavHost(
             navController = navController,
@@ -916,7 +888,7 @@ fun Main(
             effectiveRoute == "splash" || effectiveRoute?.contains("deposit") == true ||
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
-            isReLoginShown || suggestionOverlayBlocked || imeVisible
+            suggestionOverlayBlocked || imeVisible
         EarlyAccessInvitationHost(
             eligible = canUseBusinessPages && currentRoute == "home" &&
                 !productUiBlocked &&
@@ -963,42 +935,6 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
-        if (isReLoginShown && currentRoute != "login" && !paymentQrVisible && !sessionProbeInProgress) {
-            AppDialogSurface(
-                onDismissRequest = { onReLoginDismiss() },
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false,
-                    usePlatformDefaultWidth = false
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Text(
-                        text = "当前登录状态已过期，请重新登录!",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    AppButton(
-                        onClick = {
-                            navController.navigate("login")
-                            onReLoginDismiss()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("重新登录", style = MaterialTheme.typography.titleMedium)
-                    }
-                    AppButton(
-                        onClick = onReLoginDismiss,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("继续使用", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
-            }
-        }
     }
     }
 }

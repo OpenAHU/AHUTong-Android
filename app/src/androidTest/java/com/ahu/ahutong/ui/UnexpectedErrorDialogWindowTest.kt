@@ -45,6 +45,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class UnexpectedErrorDialogWindowTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val dialogMessage = "出现意料外的错误，请联系开发者。以下为错误信息"
 
     @Test(timeout = 90_000)
     fun realHostDefersBackgroundErrorSurvivesRecreationAndCopiesSanitizedTrace() {
@@ -68,9 +69,9 @@ class UnexpectedErrorDialogWindowTest {
                     UnexpectedErrors.queue.reports.value.any { it.id == report.id })
 
                 scenario.moveToState(Lifecycle.State.RESUMED)
-                awaitVisibleBounds("出现意料外的错误，请联系开发者。以下为错误信息")
+                awaitVisibleBounds(dialogMessage)
                 scenario.recreate()
-                awaitVisibleBounds("出现意料外的错误，请联系开发者。以下为错误信息")
+                awaitVisibleBounds(dialogMessage)
                 assertTrue("Activity recreation lost the pending report",
                     UnexpectedErrors.queue.reports.value.any { it.id == report.id })
 
@@ -141,7 +142,7 @@ class UnexpectedErrorDialogWindowTest {
                         }
                     }
                 }
-                awaitVisibleBounds("出现意料外的错误，请联系开发者。以下为错误信息")
+                awaitVisibleBounds(dialogMessage)
                 tap(awaitVisibleBounds("复制"))
                 tap(awaitVisibleBounds("反馈"))
                 assertEquals("Copy action ($theme)", 1, copies.get())
@@ -175,7 +176,7 @@ class UnexpectedErrorDialogWindowTest {
         do {
             val root = instrumentation.uiAutomation.rootInActiveWindow
             if (root != null) {
-                val visible = visibleBounds(root, "意外错误")
+                val visible = visibleBounds(root, dialogMessage)
                 @Suppress("DEPRECATION")
                 root.recycle()
                 assertTrue("An unexpected-error Dialog was visible while the Activity was stopped", visible == null)

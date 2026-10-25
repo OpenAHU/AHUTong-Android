@@ -18,15 +18,20 @@ object SessionRefreshCoordinator {
     /**
      * 一次续期尝试的结局。
      *
-     * 失败分两类，待遇不同：
+     * 失败按确认程度处理：
      * - [TRANSIENT]：网络抖动、超时、上游 5xx 等可自愈失败。封禁带冷却窗
      *   （[TRANSIENT_COOLDOWN_MS]），窗外第一个请求获准再试——旧实现（0492acc 之前）
      *   正是靠"下个请求再试"自愈的，永久封禁会把一次校园网抖动变成强制重新登录；
-     * - [REJECTED]：凭据被明确拒绝或本机没有凭据。**冷却窗后允许一次重探**，
-     *   再被拒绝才封禁到下一次真实登录（[onAuthenticated]）。上游偶发把风控/验证码/
-     *   服务异常归成凭据拒绝时，这一次重探就是自愈窗口；连续两次拒绝才认定凭据真的无效。
+     * - [REJECTED]：调用方只观察到一次拒绝。冷却窗后允许一次重探，
+     *   再被拒绝才封禁到下一次真实登录（[onAuthenticated]）；
+     * - [CREDENTIALS_REJECTED]：确认本机没有凭据，或调用方已在本轮有界恢复中确认
+     *   连续拒绝。直接停止自动尝试，避免协调器再次开放密码重试。
      */
-    enum class RefreshOutcome { SUCCESS, TRANSIENT, REJECTED }
+    enum class RefreshOutcome {
+        SUCCESS, TRANSIENT, REJECTED,
+        /** The credential is missing or has already been rejected by a bounded confirmation. */
+        CREDENTIALS_REJECTED
+    }
 
     enum class FailureKind { TRANSIENT, REJECTED }
 
@@ -43,9 +48,9 @@ object SessionRefreshCoordinator {
     fun currentIdentityGeneration(): Long = identityGeneration
 
     /**
-     * 失败记忆：防惊群（同一代的并发 401 只真正续期一次），但不再永久封禁——
+     * 失败记忆：防惊群（同一代的并发 401 只真正续期一轮）。
      * [TRANSIENT] 失败过了冷却窗就放行一次新尝试；[REJECTED] 在更长的冷却窗后
-     * 也放行一次重探，连续两次被拒才封到人工重登（见 [MAX_REJECTED_ATTEMPTS]）。
+     * 也放行一次重探，连续两次或已经确认的拒绝封到人工重登（见 [MAX_REJECTED_ATTEMPTS]）。
      */
     private data class Failure(
         val kind: FailureKind,
@@ -136,9 +141,8 @@ object SessionRefreshCoordinator {
         observedGeneration: Long,
         timeoutMillis: Long = REFRESH_TIMEOUT_MS,
         transientCooldownMillis: Long = TRANSIENT_COOLDOWN_MS,
-        nowMillis: Long = System.currentTimeMillis(),
+        nowMillis: () -> Long = System::currentTimeMillis,
         scope: Scope = Scope.ACADEMIC,
-        forceRejected: Boolean = false,
         rejectedCooldownMillis: Long = REJECTED_RETRY_DELAY_MS,
         refresh: suspend () -> RefreshOutcome
     ): Boolean = refreshLocks.getValue(scope).withLock serviceLock@{
@@ -149,16 +153,13 @@ object SessionRefreshCoordinator {
                 when (failure.kind) {
                     FailureKind.REJECTED -> {
                         // 连续两次被拒才封死；第一次被拒后给一次冷却重探的机会。
-                        // forceRejected 用于界面在真正跳登录前做一次有界探测。
-                        if (!forceRejected &&
-                            (failure.attempts >= MAX_REJECTED_ATTEMPTS ||
-                                nowMillis - failure.atMillis < rejectedCooldownMillis)
-                        ) {
+                        if (failure.attempts >= MAX_REJECTED_ATTEMPTS ||
+                            nowMillis() - failure.atMillis < rejectedCooldownMillis) {
                             return@serviceLock false
                         }
                     }
                     FailureKind.TRANSIENT ->
-                        if (nowMillis - failure.atMillis < transientCooldownMillis) {
+                        if (nowMillis() - failure.atMillis < transientCooldownMillis) {
                             return@serviceLock false
                         }
                 }
@@ -178,17 +179,19 @@ object SessionRefreshCoordinator {
                     true
                 }
                 RefreshOutcome.TRANSIENT -> {
-                    failures[scope] = Failure(FailureKind.TRANSIENT, nowMillis)
+                    failures[scope] = Failure(FailureKind.TRANSIENT, nowMillis())
                     false
                 }
-                RefreshOutcome.REJECTED -> {
+                RefreshOutcome.REJECTED, RefreshOutcome.CREDENTIALS_REJECTED -> {
                     val previous = failures[scope]
-                    val attempts = if (previous?.kind == FailureKind.REJECTED) {
+                    val attempts = if (outcome == RefreshOutcome.CREDENTIALS_REJECTED) {
+                        MAX_REJECTED_ATTEMPTS
+                    } else if (previous?.kind == FailureKind.REJECTED) {
                         previous.attempts + 1
                     } else {
                         1
                     }
-                    failures[scope] = Failure(FailureKind.REJECTED, nowMillis, attempts)
+                    failures[scope] = Failure(FailureKind.REJECTED, nowMillis(), attempts)
                     false
                 }
             }

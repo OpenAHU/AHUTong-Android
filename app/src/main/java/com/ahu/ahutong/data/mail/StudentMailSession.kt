@@ -195,10 +195,6 @@ object StudentMailSession {
                     throw MailServiceFailure("无法续期智慧安大邮箱登录，请重新登录后重试")
                 }
                 StudentMailDiagnostics.record("portal.cas.refresh.success")
-                portalStamp.commit {
-                    checkCurrent()
-                    AhuSessionState.markAuthenticated()
-                }
                 page = follow(portal, portalLogin, true, ::checkCurrent)
             }
             if (page.url.encodedPath.substringBefore(';') == "/cas/login") {

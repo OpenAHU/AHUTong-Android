@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Base64
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
@@ -492,6 +493,20 @@ object RepositoryManager {
         return getDownloadedFile(path, context) != null
     }
 
+    fun downloadDirectoryUri(): String? = RepositoryDownloadDirectory.selectedUri()?.toString()
+
+    fun rememberDownloadDirectory(context: Context, uri: String) {
+        RepositoryDownloadDirectory.remember(context, Uri.parse(uri))
+    }
+
+    fun recoverDownloadedFile(path: String, context: Context): DownloadedFile? {
+        val record = getDownloadRecord(path) ?: return null
+        val uri = RepositoryDownloadDirectory.findFile(context, record.localName) ?: return null
+        val restored = record.copy(uri = uri.toString(), localPath = uri.toString())
+        saveDownloadRecord(restored)
+        return restored.toDownloadedFile(context)
+    }
+
     suspend fun downloadFile(
         path: String,
         context: Context,
@@ -499,10 +514,11 @@ object RepositoryManager {
     ): DownloadedFile? = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
         val resolved = resolveVirtualPath(path) ?: return@withContext null
+        withRepositoryStorageAccess { RepositoryDownloadDirectory.checkDownloadAccess(appContext) }
         val fileId = resolveStorageFileId(path) ?: return@withContext null
         val selectedAccelerationSource = getSelectedAccelerationSource(appContext)
         val previousRecord = getDownloadRecord(path)
-        val target = createDownloadTarget(path, appContext)
+        val target = withRepositoryStorageAccess { createDownloadTarget(path, appContext) }
 
         try {
             val downloaded = downloadTransport.read(
@@ -584,18 +600,20 @@ object RepositoryManager {
         val body = response.body ?: return null
         var downloadedBytes = 0L
         body.byteStream().use { input ->
-            target.openOutputStream().use { output ->
-                val buffer = ByteArray(8 * 1024)
-                var read = input.read(buffer)
-                while (read >= 0) {
-                    output.write(buffer, 0, read)
-                    downloadedBytes += read
-                    if (totalBytes > 0) {
-                        onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+            withRepositoryStorageAccess {
+                target.openOutputStream().use { output ->
+                    val buffer = ByteArray(8 * 1024)
+                    var read = input.read(buffer)
+                    while (read >= 0) {
+                        output.write(buffer, 0, read)
+                        downloadedBytes += read
+                        if (totalBytes > 0) {
+                            onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+                        }
+                        read = input.read(buffer)
                     }
-                    read = input.read(buffer)
+                    output.flush()
                 }
-                output.flush()
             }
         }
         return downloadedBytes.takeIf { totalBytes < 0L || it == totalBytes }
@@ -609,8 +627,16 @@ object RepositoryManager {
         downloadedBytes: Long
     ): DownloadedFile? {
         target.markCompleted()
-        if (target is DownloadTarget.MediaStoreTarget || previousRecord?.uri != null) {
-            previousRecord?.delete(context)
+        if (target.uri != null || previousRecord?.uri != null) {
+            try {
+                previousRecord?.delete(context)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: SecurityException) {
+                // 新目录的下载已成功；旧目录失权不能使新文件回滚或丢失记录。
+            } catch (_: java.io.FileNotFoundException) {
+                // 旧文件已被外部删除。
+            }
         }
         removeDownloadRecord(path)
         val record = DownloadRecord(
@@ -807,6 +833,10 @@ object RepositoryManager {
 
     private fun createDownloadTarget(path: String, context: Context): DownloadTarget {
         val relativePath = safeRelativeFilePath(path)
+        if (RepositoryDownloadDirectory.selectedUri() != null) {
+            val (uri, actualRelativePath) = RepositoryDownloadDirectory.createFile(context, relativePath)
+            return DownloadTarget.DocumentTarget(context, uri, actualRelativePath)
+        }
         val parent = relativePath.substringBeforeLast('/', "")
         val displayName = relativePath.substringAfterLast('/').ifEmpty { "repository_file" }
         val relativeDirectory = listOf(
@@ -839,6 +869,9 @@ object RepositoryManager {
                 "$DOWNLOAD_RELATIVE_ROOT/$relativePath"
             )
             file.parentFile?.mkdirs()
+            if (file.parentFile?.canWrite() != true) {
+                throw SecurityException("系统下载目录不可写，请授权一个下载子文件夹")
+            }
             DownloadTarget.FileTarget(file, relativePath)
         }
     }
@@ -952,7 +985,8 @@ object RepositoryManager {
             }
 
             val file = File(localPath ?: File(getLegacyDownloadDir(context), localName).absolutePath)
-            if (!file.exists()) return null
+            // exists() 在失去目录权限时也会返回 false；只有父目录可读时才能确认文件丢失。
+            if (!file.exists() && file.parentFile?.canRead() == true) return null
             return DownloadedFile(
                 name = File(path).name,
                 path = path,
@@ -965,10 +999,17 @@ object RepositoryManager {
         fun delete(context: Context): Boolean {
             val uriValue = uri?.let { Uri.parse(it) }
             if (uriValue != null) {
-                return context.contentResolver.delete(uriValue, null, null) > 0
+                return if (DocumentsContract.isDocumentUri(context, uriValue)) {
+                    DocumentsContract.deleteDocument(context.contentResolver, uriValue)
+                } else {
+                    context.contentResolver.delete(uriValue, null, null) > 0
+                }
             }
 
             val file = File(localPath ?: File(getLegacyDownloadDir(context), localName).absolutePath)
+            if (!file.exists() && file.parentFile?.canRead() != true) {
+                throw SecurityException("文件所在目录的访问权限已失效")
+            }
             return !file.exists() || file.delete()
         }
 
@@ -1024,6 +1065,20 @@ object RepositoryManager {
 
             override fun delete() {
                 context.contentResolver.delete(uri!!, null, null)
+            }
+        }
+
+        class DocumentTarget(
+            private val context: Context,
+            uri: Uri,
+            relativePath: String
+        ) : DownloadTarget(relativePath, uri.toString(), uri) {
+            override fun openOutputStream(): OutputStream =
+                context.contentResolver.openOutputStream(uri!!, "wt")
+                    ?: throw IOException("无法写入所选下载目录")
+
+            override fun delete() {
+                DocumentsContract.deleteDocument(context.contentResolver, uri!!)
             }
         }
 

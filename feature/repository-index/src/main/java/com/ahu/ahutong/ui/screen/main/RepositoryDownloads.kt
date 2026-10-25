@@ -217,6 +217,8 @@ fun RepositoryDownloads(
         }
     }
 
+    RepositoryStoragePermissionDialog(viewModel)
+
     RepositoryMarkdownReader(
         markdownState = markdownState,
         onDismiss = { viewModel.clearMarkdown() }

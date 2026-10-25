@@ -81,14 +81,12 @@ class ApkUpdateCheckerTest {
     }
 
     @Test
-    fun `metadata with a bad digest is reported as invalid rather than as a request failure`() {
-        val result = kotlinx.coroutines.runBlocking {
-            checker(validInfo(versionCode = 101, sha256 = "nope"))
-                .check(currentVersionCode = 100, entry = UpdateCheckEntry.STARTUP)
-        }
-
-        val failed = result as UpdateCheck.Failed
-        assertTrue(failed.invalidMetadata)
+    fun `both entries classify a bad digest as invalid metadata rather than a request failure`() = kotlinx.coroutines.runBlocking {
+        val checker = checker(validInfo(versionCode = 101, sha256 = "nope"))
+        val startup = checker.check(currentVersionCode = 100, entry = UpdateCheckEntry.STARTUP)
+        val manual = checker.check(currentVersionCode = 100, entry = UpdateCheckEntry.MANUAL)
+        assertTrue((startup as UpdateCheck.Failed).invalidMetadata)
+        assertTrue((manual as UpdateCheck.Failed).invalidMetadata)
     }
 
     @Test
@@ -106,26 +104,6 @@ class ApkUpdateCheckerTest {
         val failed = result as UpdateCheck.Failed
         assertEquals("host not found", failed.reason)
         assertTrue(!failed.invalidMetadata)
-    }
-
-    /**
-     * 两个入口共用同一套分类：入口只决定日志标签，不决定"这是什么情况"。
-     */
-    @Test
-    fun bothEntriesClassifyIdentically() {
-        val startup = kotlinx.coroutines.runBlocking {
-            checker(validInfo(versionCode = 101, sha256 = "nope"))
-                .check(currentVersionCode = 100, entry = UpdateCheckEntry.STARTUP)
-        }
-        val manual = kotlinx.coroutines.runBlocking {
-            checker(validInfo(versionCode = 101, sha256 = "nope"))
-                .check(currentVersionCode = 100, entry = UpdateCheckEntry.MANUAL)
-        }
-
-        assertEquals(
-            (startup as UpdateCheck.Failed).invalidMetadata,
-            (manual as UpdateCheck.Failed).invalidMetadata
-        )
     }
 
     @Test

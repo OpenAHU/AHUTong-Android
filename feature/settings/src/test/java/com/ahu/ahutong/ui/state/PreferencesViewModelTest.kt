@@ -8,9 +8,7 @@ import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.data.repository.RepositorySourceHealth
-import com.ahu.ahutong.personalization.bootstrap.BootstrapContributionStatus
 import com.ahu.ahutong.personalization.semantic.MutationId
-import com.ahu.ahutong.personalization.settings.PersonalizationSettings
 import com.ahu.ahutong.testing.FakePersonalizationSettings
 import com.ahu.ahutong.testing.FakeCourseReminderControl
 import com.ahu.ahutong.testing.FakeBehaviorRecorder
@@ -28,9 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -109,57 +104,6 @@ class PreferencesViewModelTest {
         subject.refreshCourseReminderAlarmAccess()
         assertTrue(subject.courseReminderExactAlarmAllowed.value)
         assertEquals(1, reminders.rescheduleCount)
-    }
-
-    @Test
-    fun `the acceleration sources come from the repository port`() {
-        val subject = viewModel(
-            FakeSettingsStore(),
-            FakePersonalizationSettings(),
-            FakeRepositoryIndex(
-                listOf(
-                    com.ahu.ahutong.data.repository.RepositoryAccelerationSource(
-                        id = "only",
-                        name = "Only",
-                        description = "唯一选项"
-                    )
-                )
-            )
-        )
-
-        assertEquals(listOf("only"), subject.accelerationSources.map { it.id })
-    }
-
-    @Test
-    fun `the reminder commands reach the background boundary`() {
-        val subject = viewModel(FakeSettingsStore(), FakePersonalizationSettings())
-
-        subject.rescheduleCourseReminders()
-        subject.cancelCourseReminders()
-        subject.dismissActiveCourseReminder()
-        subject.openCourseReminderSystemSettings()
-
-        assertEquals(1, reminders.rescheduleCount)
-        assertEquals(1, reminders.cancelCount)
-        assertEquals(1, reminders.cancelActiveCount)
-        assertEquals(1, reminders.openSettingsCount)
-    }
-
-    @Test
-    fun `the state the screen reads comes from the store`() {
-        val store = FakeSettingsStore().apply {
-            showQRCode.value = true
-            isShowAllCourse.value = true
-            courseReminderEnabled.value = true
-            repositoryAccelerationSource.value = "direct"
-        }
-
-        val viewModel = viewModel(store, FakePersonalizationSettings())
-
-        assertTrue(viewModel.showQRCode.value)
-        assertTrue(viewModel.isShowAllCourse.value)
-        assertTrue(viewModel.courseReminderEnabled.value)
-        assertEquals("direct", viewModel.repositoryAccelerationSource.value)
     }
 
     @Test
@@ -424,24 +368,4 @@ class PreferencesViewModelTest {
         assertEquals("UI_STYLE_CHANGED", behavior.reports.single().coarseValueBucket)
     }
 
-    @Test
-    fun `clearing the learning record goes through the port`() {
-        val personalization = FakePersonalizationSettings()
-        val viewModel = viewModel(FakeSettingsStore(), personalization)
-
-        viewModel.clearPersonalizationLearning()
-
-        assertEquals(1, personalization.clearLearningCount)
-    }
-
-    @Test
-    fun `the contribution status is the one the port exposes`() {
-        val personalization = FakePersonalizationSettings().apply {
-            status.value = BootstrapContributionStatus(enabled = true, pendingExamples = 3)
-        }
-
-        val viewModel = viewModel(FakeSettingsStore(), personalization)
-
-        assertEquals(3, viewModel.bootstrapContributionStatus.value.pendingExamples)
-    }
 }

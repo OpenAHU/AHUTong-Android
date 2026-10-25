@@ -1,7 +1,6 @@
 package com.ahu.ahutong.ui.screen.xuexiaotong
 
 import com.ahu.ahutong.data.xuexiaotong.Course
-import com.ahu.ahutong.data.xuexiaotong.CourseProgress
 import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.RemindSetting
 import com.ahu.ahutong.data.xuexiaotong.Work
@@ -55,40 +54,6 @@ class XuexiaotongViewModelTest {
     }
 
     @Test
-    fun `refresh state reads every field from the store`() = runTest(dispatcher) {
-        val store = FakeChaoxingStore(
-            works = listOf(Work(title = "作业一")),
-            courses = listOf(Course(courseId = "c1", name = "高等数学")),
-            courseProgress = listOf(
-                CourseProgress(courseId = "c1", name = "高等数学", doneCount = 3, totalCount = 10)
-            ),
-            lastSync = 42L,
-            remindSetting = RemindSetting(enabled = true, leadMinutes = 30),
-            customEvents = listOf(CustomEvent(id = "e1", title = "考试")),
-            showDone = true,
-            doneGray = true,
-            showEmptyCourses = true
-        )
-        val subject = XuexiaotongViewModel(FakeChaoxingSession(), store, FakeChaoxingReminders(), dispatcher)
-        advanceUntilIdle()
-
-        subject.refreshState()
-        advanceUntilIdle()
-
-        assertTrue(subject.loggedIn.value)
-        assertEquals(listOf(Work(title = "作业一")), subject.works.value)
-        assertEquals(1, subject.courses.value.size)
-        assertEquals(1, subject.progress.value.size)
-        assertEquals(42L, subject.lastSync.value)
-        assertTrue(subject.remindSetting.value.enabled)
-        assertEquals(30, subject.remindSetting.value.leadMinutes)
-        assertEquals(1, subject.customEvents.value.size)
-        assertTrue(subject.showDone.value)
-        assertTrue(subject.doneGray.value)
-        assertTrue(subject.showEmptyCourses.value)
-    }
-
-    @Test
     fun `toggles are persisted through the store`() = runTest(dispatcher) {
         val store = FakeChaoxingStore()
         val subject = XuexiaotongViewModel(FakeChaoxingSession(), store, FakeChaoxingReminders(), dispatcher)
@@ -129,8 +94,6 @@ class XuexiaotongViewModelTest {
         val reminders = FakeChaoxingReminders()
         val subject = XuexiaotongViewModel(session, store, reminders, dispatcher)
         advanceUntilIdle()
-        subject.refreshState()
-        advanceUntilIdle()
 
         subject.logout()
 
@@ -150,8 +113,6 @@ class XuexiaotongViewModelTest {
         val reminders = FakeChaoxingReminders()
         val subject = XuexiaotongViewModel(session, store, reminders, dispatcher)
         advanceUntilIdle()
-        subject.refreshState()
-        advanceUntilIdle()
 
         subject.syncWorks()
         advanceUntilIdle()
@@ -170,8 +131,6 @@ class XuexiaotongViewModelTest {
         val reminders = FakeChaoxingReminders()
         val subject = XuexiaotongViewModel(session, FakeChaoxingStore(), reminders, dispatcher)
         advanceUntilIdle()
-        subject.refreshState()
-        advanceUntilIdle()
 
         subject.syncWorks()
         advanceUntilIdle()
@@ -186,8 +145,6 @@ class XuexiaotongViewModelTest {
     fun `a sync without a session does nothing`() = runTest(dispatcher) {
         val session = FakeChaoxingSession(hasSession = false)
         val subject = XuexiaotongViewModel(session, FakeChaoxingStore(), FakeChaoxingReminders(), dispatcher)
-        advanceUntilIdle()
-        subject.refreshState()
         advanceUntilIdle()
 
         subject.syncWorks()

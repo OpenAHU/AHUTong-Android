@@ -18,7 +18,7 @@ class CanteenFootprintTest {
         fen: Long,
         merchant: String = "北二区食堂一楼-扫码支付"
     ) = TurnoverRecord(
-        orderId = "$dateTime-$terminal-$fen-${fen.hashCode()}${dateTime.hashCode()}",
+        orderId = "$dateTime-$terminal-$fen",
         tranamt = fen,
         typeFrom = "2",
         resume = merchant,
@@ -139,11 +139,7 @@ class CanteenFootprintTest {
         )
         val fp = records.toCanteenFootprint(weeksBack = 2, today = fixedToday)
         assertEquals(2, fp.weeks.size)                       // 本周 + 上一周
-        assertEquals(7, fp.weeks.last().size)
-        // 2026-10-05 是周一：最后一列（本周）的第 0 格=1 餐，第 1 格（周二）=2 餐
-        assertEquals(1, fp.weeks.last()[0])
-        assertEquals(2, fp.weeks.last()[1])
-        assertEquals(0, fp.weeks.last()[2])                  // 周三（未来）=0
+        assertEquals(listOf(1, 2, 0, 0, 0, 0, 0), fp.weeks.last())
         assertEquals("2026-10-05", fp.weekStartDays.last())
     }
 
@@ -182,12 +178,11 @@ class CanteenFootprintTest {
             TurnoverRecord(orderId = "x1", tranamt = 5000, typeFrom = "1",
                 resume = "北二区食堂一楼", effectdateStr = "2026-10-05 12:30:00", locationName = "77-139")  // 收入：不上传
         )
-        val txns = records.toDeidentifiedTxns()
-        assertEquals(1, txns.size)
-        assertEquals("2026-10-05 12:00:00", txns[0].ts)      // 秒级原样
-        assertEquals(1000, txns[0].amountCents)
-        assertEquals("榴园", txns[0].canteen)      // 上传字段保持食堂名（食堂榜分组键）
-        assertEquals("一楼", txns[0].floor)        // 楼层为纯展示透传字段
+        val txn = records.toDeidentifiedTxns().single()
+        assertEquals("2026-10-05 12:00:00", txn.ts)      // 秒级原样
+        assertEquals(1000, txn.amountCents)
+        assertEquals("榴园", txn.canteen)      // 上传字段保持食堂名（食堂榜分组键）
+        assertEquals("一楼", txn.floor)        // 楼层为纯展示透传字段
     }
 
     @Test

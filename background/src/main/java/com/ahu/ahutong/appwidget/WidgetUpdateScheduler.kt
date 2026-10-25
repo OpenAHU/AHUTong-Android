@@ -2,24 +2,18 @@ package com.ahu.ahutong.appwidget
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import androidx.glance.appwidget.updateAll
-import com.ahu.ahutong.data.debug.DebugClock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneId
-
-import android.os.Handler
-import android.os.Looper
 
 class WidgetUpdateScheduler : BroadcastReceiver() {
 
@@ -31,13 +25,17 @@ class WidgetUpdateScheduler : BroadcastReceiver() {
         val pendingResult = goAsync()
         receiverScope.launch {
             try {
-                renderWidgets(appContext)
-                if (shouldRefresh) requestScheduleRefresh(appContext)
+                runWidgetBroadcast(
+                    finish = { pendingResult.finish() },
+                    scheduleNext = { if (shouldRefresh) scheduleNext(appContext) }
+                ) {
+                    WidgetRenderWorker.enqueue(appContext)
+                    if (shouldRefresh) requestScheduleRefresh(appContext)
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to render widgets", e)
-            } finally {
-                if (shouldRefresh) scheduleNext(appContext)
-                pendingResult.finish()
+                Log.e(TAG, "Failed to enqueue widget update", e)
             }
         }
     }
@@ -63,24 +61,6 @@ class WidgetUpdateScheduler : BroadcastReceiver() {
                     "com.ahu.ahutong.appwidget.WidgetScheduleRefreshReceiver"
                 )
             )
-        }
-
-        private suspend fun renderWidgets(context: Context) {
-            try {
-                ScheduleAppWidget().updateAll(context)
-            } catch (error: Exception) {
-                Log.e(TAG, "Failed to render Glance widgets", error)
-            }
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val ids = appWidgetManager.getAppWidgetIds(
-                ComponentName(context, ScheduleAdaptiveWidgetProvider::class.java)
-            )
-            if (ids.isNotEmpty()) {
-                context.sendBroadcast(Intent(context, ScheduleAdaptiveWidgetProvider::class.java).apply {
-                    action = ScheduleAdaptiveWidgetProvider.ACTION_RENDER_CACHED
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                })
-            }
         }
 
         fun scheduleNext(context: Context) {

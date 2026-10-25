@@ -91,6 +91,7 @@ class ApkStreamingCancellationTest {
             val progress = events.filterIsInstance<ApkDownloadEvent.Progress>().map { it.fraction }
             assertEquals(0f, progress.first())
             assertEquals(1f, progress.last())
+            assertTrue(progress.any { it != null && it > 0f && it < 1f })
             assertTrue(progress.zipWithNext().all { (a, b) -> a != null && b != null && a <= b })
         } finally {
             downloader.cancel()

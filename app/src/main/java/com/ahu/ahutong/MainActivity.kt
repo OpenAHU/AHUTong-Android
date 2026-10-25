@@ -19,9 +19,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
@@ -60,7 +57,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.notification.CampusNoticeNotifier
-import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.update.ApkVerifier
 import com.ahu.ahutong.data.debug.DebugClock
@@ -159,16 +155,6 @@ class MainActivity : ComponentActivity() {
                 )
             ) {
                 val navController = rememberNavController()
-                val sessionStatus by session.state.collectAsState()
-                var dismissedExpiredSession by rememberSaveable { mutableStateOf(false) }
-                LaunchedEffect(sessionStatus) {
-                    if (sessionStatus != AhuSessionState.Status.Expired) {
-                        dismissedExpiredSession = false
-                    }
-                }
-                val isReLoginDialogShown =
-                    sessionStatus == AhuSessionState.Status.Expired && !dismissedExpiredSession
-
                 // 日界守望：前台常开跨过午夜时，每分钟对一次日期，跨天即按新的一天重算
                 // （周次/星期几/今日课程/课程提醒排期都挂在 loadConfig 上）。
                 LaunchedEffect(Unit) {
@@ -238,9 +224,7 @@ class MainActivity : ComponentActivity() {
                     behaviorRuntime = behaviorRuntime,
                     behaviorRecorder = behaviorRecorder,
                     diagnosticsContribution = diagnosticsContribution,
-                    paymentQrCommands = paymentQrCommands,
-                    isReLoginShown = isReLoginDialogShown,
-                    onReLoginDismiss = { dismissedExpiredSession = true }
+                    paymentQrCommands = paymentQrCommands
                 )
                 UnexpectedErrorDialogHost()
             }

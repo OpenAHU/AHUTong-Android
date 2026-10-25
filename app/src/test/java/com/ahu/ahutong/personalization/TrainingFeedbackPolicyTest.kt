@@ -5,7 +5,6 @@ import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.storage.TrainingSampleEntity
 import com.ahu.ahutong.personalization.training.TrainingFeedbackPolicy
 import com.ahu.ahutong.personalization.training.TrainingReplayPolicy
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -40,22 +39,6 @@ class TrainingFeedbackPolicyTest {
         )
     }
 
-    @Test
-    fun acceptedSuggestionRewardIsIsolatedFromNaturalEvaluationAndPromotion() {
-        val runtime = File(
-            repositoryRoot(),
-            "app/src/main/java/com/ahu/ahutong/personalization/runtime/PredictionRuntime.kt"
-        ).readText()
-        val rewardBody = Regex(
-            "private suspend fun recordAcceptedSuggestionReward[\\s\\S]*?\\n    }"
-        ).find(runtime)?.value.orEmpty()
-
-        assertTrue(rewardBody.contains("TrainingFeedbackPolicy.SUGGESTION_POSITIVE_WEIGHT"))
-        assertTrue(rewardBody.contains("TrainingFeedbackPolicy.SUGGESTION_ACCEPTED"))
-        assertTrue(!rewardBody.contains("evaluator.resolve"))
-        assertTrue(!rewardBody.contains("promotionManager.evaluate"))
-    }
-
     private fun sample(rowId: Long, source: String) = TrainingSampleEntity(
         rowId = rowId,
         sampleId = "sample-$rowId",
@@ -72,11 +55,4 @@ class TrainingFeedbackPolicyTest {
         replayPriority = 1f,
         trainingCount = 0,
         labelSource = source
-    )
-
-    private fun repositoryRoot(): File {
-        val userDirectory = requireNotNull(System.getProperty("user.dir"))
-        return generateSequence(File(userDirectory)) { it.parentFile }
-            .first { File(it, "app/src/main/java").isDirectory }
-    }
-}
+    )}

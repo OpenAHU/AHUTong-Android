@@ -48,11 +48,6 @@ class FakeSettingsStore : SettingsStore {
 
     var startupTheme: StartupThemePreferences? = null
 
-    var clearAllCount = 0
-        private set
-
-    val claimedProfiles = mutableListOf<String>()
-
     private val modelQualityTelemetryProfiles = mutableMapOf<String, MutableStateFlow<Boolean>>()
     private val bootstrapTrainingProfiles = mutableMapOf<String, MutableStateFlow<Boolean>>()
 
@@ -66,9 +61,7 @@ class FakeSettingsStore : SettingsStore {
         startupTheme = StartupThemePreferences(appUiTheme, themeColor, themeMode)
     }
 
-    override suspend fun clearAll() {
-        clearAllCount++
-    }
+    override suspend fun clearAll() = Unit
 
     override suspend fun setAppUiTheme(value: AppUiTheme) { appUiTheme.value = value }
 
@@ -136,10 +129,7 @@ class FakeSettingsStore : SettingsStore {
         bootstrapTrainingProfiles.getValue(profileKey).value = enabled
     }
 
-    override suspend fun claimBootstrapTrainingOnboardingForProfile(profileKey: String): Boolean {
-        claimedProfiles += profileKey
-        return true
-    }
+    override suspend fun claimBootstrapTrainingOnboardingForProfile(profileKey: String): Boolean = true
 }
 
 /** [BehaviorRecorder] 的 fake：把上报记下来，不训练也不推理。 */
@@ -153,11 +143,8 @@ class FakeBehaviorRecorder : BehaviorRecorder {
     )
 
     val reports = mutableListOf<Report>()
-    val organicActions = mutableListOf<AppActionId>()
 
-    override fun recordOrganicAction(action: AppActionId) {
-        organicActions += action
-    }
+    override fun recordOrganicAction(action: AppActionId) = Unit
 
     override fun recordContentState(
         domain: SemanticDomain,
@@ -186,15 +173,10 @@ class FakePersonalizationSettings : PersonalizationSettings {
 
     override val contributionStatus: StateFlow<BootstrapContributionStatus> = status
 
-    val contributions = mutableListOf<Pair<Boolean, Boolean>>()
-
     var dismissedCount = 0
         private set
 
     var cancelledPrefetchCount = 0
-        private set
-
-    var clearLearningCount = 0
         private set
 
     override fun dismissSuggestion() {
@@ -205,16 +187,12 @@ class FakePersonalizationSettings : PersonalizationSettings {
         cancelledPrefetchCount++
     }
 
-    override suspend fun clearLearningRecord() {
-        clearLearningCount++
-    }
+    override suspend fun clearLearningRecord() = Unit
 
     override suspend fun setBootstrapTrainingContribution(
         enabled: Boolean,
         includeHistorical: Boolean
-    ) {
-        contributions += enabled to includeHistorical
-    }
+    ) = Unit
 }
 
 /** [CourseReminderControl] 的 fake：只记下命令，不排期、不通知。 */
@@ -226,12 +204,6 @@ class FakeCourseReminderControl : CourseReminderControl {
     var cancelCount = 0
         private set
 
-    var cancelActiveCount = 0
-        private set
-
-    var openSettingsCount = 0
-        private set
-
     override fun reschedule() {
         rescheduleCount++
     }
@@ -240,13 +212,9 @@ class FakeCourseReminderControl : CourseReminderControl {
         cancelCount++
     }
 
-    override fun cancelActiveReminder() {
-        cancelActiveCount++
-    }
+    override fun cancelActiveReminder() = Unit
 
-    override fun openSystemSettings() {
-        openSettingsCount++
-    }
+    override fun openSystemSettings() = Unit
 
     var exactAlarmAllowed = true
     var openExactAlarmSettingsCount = 0
@@ -275,11 +243,7 @@ class FakeAppUpdateGateway(
     var failChangelog: Boolean = false
 ) : AppUpdateGateway {
 
-    var changelogCount = 0
-        private set
-
     override suspend fun changelog(): String {
-        changelogCount++
         if (failChangelog) throw IllegalStateException("offline")
         return changelogText
     }

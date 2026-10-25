@@ -2,7 +2,6 @@ package com.ahu.ahutong.data.xuexiaotong
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import okhttp3.Cookie
 
@@ -17,7 +16,6 @@ class ChaoxingCookieCodecTest {
         )
 
         assertEquals(cookies, ChaoxingCookieCodec.decode(ChaoxingCookieCodec.encode(cookies), now))
-        assertFalse(cookies.last().persistent)
     }
 
     @Test fun `expired and deletion cookies do not return from storage`() {

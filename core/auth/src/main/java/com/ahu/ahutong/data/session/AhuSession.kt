@@ -27,16 +27,9 @@ interface AhuSession {
     suspend fun signOut()
 
     /**
-     * 会话失效时续期一次；返回 true 表示已续期、可重试原请求。
+     * 会话失效时执行一轮有界续期（含必要的退避重试）；返回 true 表示可重试原请求。
+     * 并发请求共享同一轮续期，只有确认凭据不可用后才发布 Expired。
      * [observedGeneration] 由请求发出时打点，避免旧响应触发重复登录。
      */
     suspend fun ensureFresh(observedGeneration: Long): Boolean
-
-    /**
-     * 界面在因 [AhuSessionState.Status.Expired] 跳登录前调用一次：绕过"已拒绝"的
-     * 失败记忆做一次有界探测。返回 true 表示会话其实还能用，不应跳登录。
-     *
-     * 只允许成功一次；探测失败或已用完就不再重复，避免把误判变成反复尝试密码。
-     */
-    suspend fun recoverExpired(): Boolean
 }

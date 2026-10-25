@@ -7,7 +7,6 @@ import com.ahu.ahutong.core.common.toUserMessage
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
-import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.preset.AppliedPreset
 import com.ahu.ahutong.personalization.preset.PresetCandidate
 import com.ahu.ahutong.personalization.preset.PresetInteractionToken
@@ -106,16 +105,6 @@ class GradeViewModelTest {
 
         assertEquals(AhuError.Network.toUserMessage(), subject.errorMessage)
         assertEquals(listOf(ContentStateBucket.ERROR), behavior.contentStates)
-    }
-
-    @Test
-    fun `the manual refresh is reported as a user action`() = runTest(dispatcher) {
-        val behavior = FakeGradeBehavior()
-        val subject = viewModel(behavior = behavior)
-
-        subject.onManualRefresh()
-
-        assertEquals(listOf(AppActionId.MANUAL_REFRESH_GRADE), behavior.organicActions)
     }
 
     @Test

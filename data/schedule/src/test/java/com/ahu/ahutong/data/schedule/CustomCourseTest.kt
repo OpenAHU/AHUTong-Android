@@ -64,9 +64,7 @@ class CustomCourseTest {
             )
         )
 
-        val courses = CustomCourseMapper.toCourses(custom)
-        assertEquals(1, courses.size)
-        val course = courses.single()
+        val course = CustomCourseMapper.toCourses(custom).single()
         assertEquals("晚自习", course.name)
         assertEquals(2, course.weekday)
         assertEquals(listOf(1, 2, 3, 4), course.weekIndexes)
@@ -92,11 +90,10 @@ class CustomCourseTest {
             )
         )
 
-        val merged = CustomCourseMapper.merge(null, listOf(custom))
-        assertEquals(1, merged?.size)
-        assertEquals(11, merged!!.single().startTime)
-        assertEquals(2, merged.single().length)
-        assertNull(merged.single().clockRange)
+        val merged = assertNotNull(CustomCourseMapper.merge(null, listOf(custom))).single()
+        assertEquals(11, merged.startTime)
+        assertEquals(2, merged.length)
+        assertNull(merged.clockRange)
     }
 
     @Test
@@ -127,7 +124,6 @@ class CustomCourseTest {
             ) as List<CustomCourseSlot>
         )
         val normalized = assertNotNull(course.normalized())
-        assertEquals(1, normalized.slots.size)
         assertEquals(1, normalized.slots.single().weekday)
     }
 

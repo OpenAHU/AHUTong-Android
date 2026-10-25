@@ -373,6 +373,34 @@ class RepositorySourceTransportTest {
     }
 
     @Test
+    fun `storage permission failure stops every download lane without marking sources unavailable`() = runBlocking {
+        for (lane in 0..2) {
+            val monitor = RepositorySourceHealthMonitor(sources, probe = { lane != 2 })
+            monitor.test()
+            val initialHealth = monitor.health.value
+            val visited = mutableListOf<String>()
+            val denied = SecurityException("download directory revoked")
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                val request = chain.request()
+                visited += request.url.toString()
+                if (lane == 1 && request.url.host.endsWith("muxyang.com")) linkResponse(request)
+                else response(request, "document".toResponseBody()).newBuilder()
+                    .header("X-Download-Type", "file").build()
+            }.build()
+
+            assertFailsWith<SecurityException> {
+                RepositoryDownloadTransport(client, servers, sources, monitor).read<String>(
+                    "a", "https://raw.githubusercontent.com/example/repo/main/a.pdf",
+                    "https://cdn.jsdelivr.net/gh/example/repo@main/a.pdf", "jsdelivr"
+                ) { _, _ -> throw denied }
+            }
+
+            assertEquals(if (lane == 1) 2 else 1, visited.size)
+            assertEquals(initialHealth, monitor.health.value)
+        }
+    }
+
+    @Test
     fun `cancellation cancels the request and never enables force`() = runBlocking {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)

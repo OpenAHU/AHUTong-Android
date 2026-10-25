@@ -187,6 +187,14 @@ fun Login(
                     style = MaterialTheme.typography.headlineLarge
                 )
             }
+            if (sessionStatus == AhuSessionState.Status.Expired) {
+                Text(
+                    text = "登录已过期，请重新登录",
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             Spacer(modifier = Modifier)
             Box(
                 modifier = Modifier

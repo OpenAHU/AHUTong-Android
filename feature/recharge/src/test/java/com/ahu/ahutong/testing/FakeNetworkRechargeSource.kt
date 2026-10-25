@@ -10,16 +10,10 @@ class FakeNetworkRechargeSource(
     var payResult: AhuResult<RechargeReceipt>
 ) : NetworkRechargeSource {
 
-    var loadCalls = 0
-        private set
-
     data class Payment(val snapshot: NetworkRechargeSnapshot, val amount: String, val password: String)
     val payments = mutableListOf<Payment>()
 
-    override suspend fun load(): AhuResult<NetworkRechargeSnapshot> {
-        loadCalls++
-        return loadResult
-    }
+    override suspend fun load(): AhuResult<NetworkRechargeSnapshot> = loadResult
 
     override suspend fun pay(
         snapshot: NetworkRechargeSnapshot,

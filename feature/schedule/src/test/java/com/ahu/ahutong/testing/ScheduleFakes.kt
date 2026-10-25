@@ -30,7 +30,6 @@ class FakeScheduleSource : ScheduleSource {
         AhuResult.Success(
             ScheduleRefreshResult(schedule = emptyList(), changed = false, fetchedAt = 0L)
         )
-    var nextResult: AhuResult<List<Course>> = AhuResult.Success(emptyList())
     var semestersResult: AhuResult<List<ScheduleSemester>> = AhuResult.Success(emptyList())
     var semesterResult: AhuResult<List<Course>> = AhuResult.Success(emptyList())
     var fetchLoader: (suspend () -> AhuResult<List<Course>>)? = null
@@ -43,8 +42,6 @@ class FakeScheduleSource : ScheduleSource {
     var fetchCount = 0
         private set
     var refreshCount = 0
-        private set
-    var nextCount = 0
         private set
 
     override fun usesMockData(): Boolean = mockData
@@ -63,10 +60,7 @@ class FakeScheduleSource : ScheduleSource {
         return refreshLoader?.invoke() ?: refreshResult
     }
 
-    override suspend fun next(isRefresh: Boolean): AhuResult<List<Course>> {
-        nextCount++
-        return nextResult
-    }
+    override suspend fun next(isRefresh: Boolean): AhuResult<List<Course>> = AhuResult.Success(emptyList())
 
     override suspend fun semesters(): AhuResult<List<ScheduleSemester>> {
         semestersCount++
@@ -87,8 +81,6 @@ class FakeScheduleWeekConfig : ScheduleWeekConfig {
     var showAllCourse = true
     var localResult: ResolvedConfig = ResolvedConfig(ScheduleConfigBean(), ConfigSource.LOCAL)
     var remoteResult: ResolvedConfig? = null
-    var mockedTime = false
-    var localLoader: (suspend () -> ResolvedConfig)? = null
     var remoteLoader: (suspend () -> ResolvedConfig?)? = null
 
     val calls = mutableListOf<String>()
@@ -108,7 +100,7 @@ class FakeScheduleWeekConfig : ScheduleWeekConfig {
 
     override suspend fun resolveLocalFirst(): ResolvedConfig {
         calls += "resolve"
-        return localLoader?.invoke() ?: localResult
+        return localResult
     }
 
     override suspend fun syncRemote(): ResolvedConfig? {
@@ -149,30 +141,15 @@ class FakeCourseReminderControl : CourseReminderControl {
     var rescheduleCount = 0
         private set
 
-    var cancelCount = 0
-        private set
-
-    var cancelActiveCount = 0
-        private set
-
-    var openSettingsCount = 0
-        private set
-
     override fun reschedule() {
         rescheduleCount++
     }
 
-    override fun cancel() {
-        cancelCount++
-    }
+    override fun cancel() = Unit
 
-    override fun cancelActiveReminder() {
-        cancelActiveCount++
-    }
+    override fun cancelActiveReminder() = Unit
 
-    override fun openSystemSettings() {
-        openSettingsCount++
-    }
+    override fun openSystemSettings() = Unit
 
     override fun canScheduleExactReminders(): Boolean = true
 
