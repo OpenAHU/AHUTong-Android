@@ -1,5 +1,18 @@
 # Third-Party Notices
 
+## Breezy Weather (weather layout reference)
+
+The Material and RadiantUI weather layouts are independent Jetpack Compose
+implementations informed by the screenshots and UI source of
+[Breezy Weather](https://github.com/breezy-weather/breezy-weather/tree/0851e22c94ab48e0350fb1c8132fcffc88789c4a),
+at commit `0851e22c94ab48e0350fb1c8132fcffc88789c4a`.
+The adaptation uses AHUTong's weather models, navigation, and static drawing.
+Breezy Weather's upstream source is licensed under
+[LGPL-3.0](https://github.com/breezy-weather/breezy-weather/blob/0851e22c94ab48e0350fb1c8132fcffc88789c4a/LICENSE)
+with its
+[additional notice](https://github.com/breezy-weather/breezy-weather/blob/0851e22c94ab48e0350fb1c8132fcffc88789c4a/LICENSE_ADDITIONAL).
+Its source code, icons, fonts, and animated rendering library are not bundled.
+
 ## GuiXu (Rust rewrite)
 
 AHUTong Android includes the GuiXu Rust embedded database implementation from:

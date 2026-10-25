@@ -7,7 +7,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.location.Location
 import android.location.LocationManager
+import android.os.Build
+import android.os.CancellationSignal
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +22,7 @@ import androidx.core.content.ContextCompat
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.weather.WeatherApi
 import com.ahu.ahutong.data.weather.WeatherResponse
+import com.ahu.ahutong.data.weather.WeatherQueryException
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.semantic.ContentStateBucket
 import com.ahu.ahutong.personalization.semantic.ErrorTypeBucket
@@ -27,8 +32,11 @@ import com.ahu.ahutong.personalization.semantic.SemanticDomain
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
+import kotlin.coroutines.resume
 import javax.inject.Inject
 import com.ahu.ahutong.data.session.SessionStore
 
@@ -120,36 +128,28 @@ class WeatherViewModel @Inject constructor(
     var homeConfig by mutableStateOf(WeatherHomeConfig())
         private set
 
+    private var lastCoordinates: Pair<Double, Double>? = null
+    private var locationStreet: String? = null
+
     init {
         homeConfig = WeatherHomeConfig.fromCache()
     }
 
     fun fetchWeather(city: String? = null) {
         if (isLoading) return
-        isLoading = true
-        errorMessage = null
-
-        viewModelScope.launch {
-            try {
-                val result = WeatherApi.API.getWeather(city = city)
-                weather = result
-                lastCity = city
-                lastAdcode = null
-                Log.d("Weather", "Weather content loaded")
-                reportReady()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e("Weather", "Failed to fetch weather", e)
-                errorMessage = if (UserNoticeHolder.reportUnexpected(e)) null else e.message ?: "获取天气失败"
-                reportError()
-            } finally {
-                isLoading = false
-            }
-        }
+        lastCity = city?.trim()?.takeIf { it.isNotEmpty() }
+        lastAdcode = null
+        lastCoordinates = null
+        locationStreet = null
+        loadWeather { WeatherApi.API.getWeather(city = lastCity) }
     }
 
     fun refresh() {
-        if (lastAdcode != null) {
+        if (isLoading) return
+        val coordinates = lastCoordinates
+        if (coordinates != null) {
+            loadWeather { WeatherApi.API.getWeatherAt(coordinates.first, coordinates.second) }
+        } else if (lastAdcode != null) {
             fetchWeatherByAdcode(lastAdcode!!)
         } else {
             fetchWeather(lastCity)
@@ -158,22 +158,60 @@ class WeatherViewModel @Inject constructor(
 
     private fun fetchWeatherByAdcode(adcode: String) {
         if (isLoading) return
+        lastAdcode = adcode
+        lastCity = null
+        lastCoordinates = null
+        loadWeather { WeatherApi.API.getWeather(adcode = adcode) }
+    }
+
+    /**
+     * 系统近期位置或限时单次定位匹配区县天气，不启动持续定位。
+     * 街道名是限时可选信息，失败不影响天气结果。
+     * 无新鲜位置时使用上次成功的城市；首次无定位时显示校区所在的蜀山区。
+     */
+    fun fetchWeatherByLocation(context: Context) {
+        if (isLoading) return
+        loadWeather {
+            val location = withContext(Dispatchers.IO) { getLocation(context) }
+            lastCity = null
+            locationStreet = null
+            // 旧接口的行政区码不能当作小米天气 locationKey。
+            lastAdcode = AHUCache.getWeatherAdcode()?.takeIf { ':' in it }
+            lastCoordinates = location?.let { it.latitude to it.longitude }
+            if (location != null) {
+                val result = WeatherApi.API.getWeatherAt(location.latitude, location.longitude)
+                locationStreet = withContext(Dispatchers.IO) { getStreetName(context, location) }
+                result
+            } else {
+                WeatherApi.API.getWeather(adcode = lastAdcode)
+            }
+        }
+    }
+
+    private fun loadWeather(request: suspend () -> WeatherResponse) {
         isLoading = true
         errorMessage = null
-
         viewModelScope.launch {
             try {
-                val result = WeatherApi.API.getWeather(adcode = adcode)
+                val result = request()
                 weather = result
-                lastAdcode = adcode
-                lastCity = null
-                result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
-                Log.d("Weather", "Weather content loaded by saved location")
+                val district = listOfNotNull(result.district, result.city, result.province)
+                    .firstOrNull { it.isNotBlank() }
+                lastLocationName = listOfNotNull(district, locationStreet)
+                    .filter { it.isNotBlank() }.distinct().joinToString(" ")
+                result.adcode?.takeIf { ':' in it }?.let {
+                    lastAdcode = it
+                    lastCity = null
+                    AHUCache.saveWeatherAdcode(it)
+                }
                 reportReady()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.e("Weather", "Failed to fetch weather by saved location", e)
-                errorMessage = if (UserNoticeHolder.reportUnexpected(e)) null else e.message ?: "获取天气失败"
+                Log.e("Weather", "Failed to fetch weather", e)
+                if (e !is WeatherQueryException) UserNoticeHolder.reportUnexpected(e)
+                // 保留已加载内容，并始终提供本页重试入口。
+                errorMessage = if (e is WeatherQueryException) e.message
+                    else "天气暂时无法更新，请检查网络后重试"
                 reportError()
             } finally {
                 isLoading = false
@@ -181,74 +219,7 @@ class WeatherViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 通过 GPS 定位获取天气（比 IP 定位精准）
-     * 降级策略：GPS → 网络定位 → Geocoder 反查城市名 → 调用 API
-     */
-    fun fetchWeatherByLocation(context: Context) {
-        if (isLoading) return
-        isLoading = true
-        errorMessage = null
-
-        viewModelScope.launch {
-            try {
-                val cachedAdcode = AHUCache.getWeatherAdcode()
-                if (cachedAdcode != null) {
-                    // 有缓存的区级 adcode，直接用
-                    val result = WeatherApi.API.getWeather(adcode = cachedAdcode)
-                    weather = result
-                    lastAdcode = cachedAdcode
-                    lastCity = null
-                    // 刷新缓存
-                    result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
-                    reportReady()
-                    return@launch
-                }
-
-                // 无缓存，GPS 定位获取城市名
-                val city = withContext(Dispatchers.IO) { getCityNameFromGps(context) }
-                if (city != null) {
-                    lastCity = city
-                    lastAdcode = null
-                    lastLocationName = city
-                    val result = WeatherApi.API.getWeather(city = city)
-                    weather = result
-                    // 保存 adcode 供后续精准查询
-                    result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
-                    reportReady()
-                } else {
-                    Log.w("Weather", "GPS failed, fallback to IP")
-                    val result = WeatherApi.API.getWeather()
-                    weather = result
-                    result.adcode?.let { AHUCache.saveWeatherAdcode(it) }
-                    reportReady()
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e("Weather", "Failed to fetch weather by location", e)
-                try {
-                    val result = WeatherApi.API.getWeather()
-                    weather = result
-                    errorMessage = null
-                    reportReady()
-                } catch (e2: Exception) {
-                    if (e2 is CancellationException) throw e2
-                    Log.e("Weather", "IP weather fallback failed", e2)
-                    if (e2 !== e) e2.addSuppressed(e)
-                    errorMessage = if (UserNoticeHolder.reportUnexpected(e2)) null else e2.message ?: "获取天气失败"
-                    reportError()
-                }
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-
-    /**
-     * GPS 定位 → Geocoder 反查城市名
-     * 尝试获取区级名称（locality = 蜀山区），否则市（subAdminArea = 合肥市）
-     */
-    private fun getCityNameFromGps(context: Context): String? {
+    private suspend fun getLocation(context: Context): Location? {
         val hasFineLocation = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -259,21 +230,62 @@ class WeatherViewModel @Inject constructor(
         ) == PackageManager.PERMISSION_GRANTED
         if (!hasFineLocation && !hasCoarseLocation) return null
 
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val location = runCatching {
-            locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        }.getOrNull() ?: runCatching {
-            locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        }.getOrNull() ?: return null
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return null
+        val now = SystemClock.elapsedRealtimeNanos()
+        val recent = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .mapNotNull { provider ->
+                runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
+            }
+            .filter { now - it.elapsedRealtimeNanos in 0L..600_000_000_000L }
+            .maxByOrNull { it.elapsedRealtimeNanos }
+        if (recent != null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return recent
+        val provider = listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
+            .filter { it != LocationManager.GPS_PROVIDER || hasFineLocation }
+            .firstOrNull { runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false) }
+            ?: return null
+        return withTimeoutOrNull(6_000L) {
+            suspendCancellableCoroutine { continuation ->
+                val signal = CancellationSignal()
+                continuation.invokeOnCancellation { signal.cancel() }
+                try {
+                    locationManager.getCurrentLocation(provider, signal, ContextCompat.getMainExecutor(context)) {
+                        if (continuation.isActive) continuation.resume(it)
+                    }
+                } catch (_: Exception) {
+                    if (continuation.isActive) continuation.resume(null)
+                }
+            }
+        }
+    }
 
-        val geocoder = Geocoder(context, Locale.CHINA)
-        val addresses = runCatching {
-            geocoder.getFromLocation(location.latitude, location.longitude, 1)
-        }.getOrNull() ?: return null
+    private suspend fun getStreetName(context: Context, location: Location): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !Geocoder.isPresent()) return null
+        if (!location.hasAccuracy() || location.accuracy > 200f || ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED) return null
+        return withTimeoutOrNull(2_000L) {
+            suspendCancellableCoroutine { continuation ->
+                try {
+                    Geocoder(context, Locale.SIMPLIFIED_CHINESE).getFromLocation(
+                        location.latitude, location.longitude, 1,
+                        object : Geocoder.GeocodeListener {
+                            override fun onGeocode(addresses: MutableList<android.location.Address>) {
+                                val address = addresses.firstOrNull()
+                                val street = address?.thoroughfare?.takeIf { it.isNotBlank() }
+                                if (continuation.isActive) continuation.resume(street)
+                            }
 
-        val address = addresses.firstOrNull() ?: return null
-        // 优先市名（API 更稳定），区名做 fallback
-        return address.subAdminArea ?: address.locality
+                            override fun onError(errorMessage: String?) {
+                                if (continuation.isActive) continuation.resume(null)
+                            }
+                        }
+                    )
+                } catch (_: Exception) {
+                    if (continuation.isActive) continuation.resume(null)
+                }
+            }
+        }
     }
 
     fun updateHomeConfig(config: WeatherHomeConfig) {
@@ -312,7 +324,6 @@ class WeatherViewModel @Inject constructor(
 
     val locationName: String
         get() {
-            // 优先 GPS 反查的区位名
             lastLocationName?.let { return it }
             val w = weather ?: return ""
             return listOfNotNull(w.district, w.city, w.province)

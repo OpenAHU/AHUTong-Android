@@ -1,7 +1,7 @@
 # 插件相机能力开放：本次改动开放的权限清单
 
 > 范围：**只改安大通宿主本体**（权限、契约接口、装载链）。插件本体（`feature/docscan`）另行开发。
-> 设计稿：`docs/plugin-camera-capability.md`。
+> 插件接入方式见[插件开发指南](plugin-dev-guide.md)。
 
 ## 一、Android 系统权限（宿主 Manifest 新增）
 

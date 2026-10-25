@@ -62,7 +62,7 @@ fun ApkUpdateDialog(
                 label = when {
                     downloading -> "下载中…"
                     apkLocalReady -> "安装"
-                    else -> "下载并安装"
+                    else -> "下载更新"
                 },
                 enabled = !downloading,
                 style = AppDialogActionStyle.Primary,

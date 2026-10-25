@@ -19,6 +19,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -37,10 +40,11 @@ class MainViewModel @Inject constructor(
         // 下载器说的话翻译成界面状态：这里只做映射，规则（校验、镜像、重定向）都在 :data:update 里。
         viewModelScope.launch {
             downloader.events.collect { event ->
-                if (selectedUpdate == null) return@collect
+                if (selectedUpdate == null || downloadRequestedFor !== selectedUpdate) return@collect
                 when (event) {
                     ApkDownloadEvent.Started -> {
                         apkDownloading.value = true
+                        apkDownloadFailed.value = false
                         apkErrorText.value = null
                         apkProgress.value = null
                         apkDownloadElapsedText.value = null
@@ -49,32 +53,36 @@ class MainViewModel @Inject constructor(
                     is ApkDownloadEvent.Succeeded -> {
                         val update = selectedUpdate ?: return@collect
                         val revision = updateChannelRevision
-                        val verified = withContext(Dispatchers.IO) {
-                            downloader.cachedApk(update.info.versionCode, update.sha256)
+                        val verified = try {
+                            withContext(Dispatchers.IO) {
+                                downloader.cachedApk(update.info.versionCode, update.sha256)?.takeIf {
+                                    it.canonicalFile == event.apkFile.canonicalFile
+                                }
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            null
                         }
-                        if (revision != updateChannelRevision || selectedUpdate !== update ||
-                            verified == null || verified.canonicalFile != event.apkFile.canonicalFile
-                        ) return@collect
+                        if (revision != updateChannelRevision || selectedUpdate !== update) return@collect
+                        if (verified == null) {
+                            onApkDownloadFailed("文件校验失败，请重新下载", fromDownloader = false)
+                            return@collect
+                        }
+                        downloadRequestedFor = null
+                        consecutiveAutoRetries = 0
+                        retryJob?.cancel()
+                        retryJob = null
                         apkDownloading.value = false
                         apkProgress.value = null
                         apkDownloadElapsedText.value = event.elapsedText
                         apkLocalReady.value = true
-                        if (installAfterApkDownload) {
-                            downloadedApkFile.value = event.apkFile
-                        } else if (showDialogWhenApkDownloadCompletes) {
-                            showDialogWhenApkDownloadCompletes = false
-                            showApkUpdateDialog.value = true
-                        }
+                        apkDownloadFailed.value = false
+                        apkErrorText.value = null
+                        // Installation and reopening the dialog both require a subsequent user/lifecycle action.
                     }
                     is ApkDownloadEvent.Failed -> {
-                        apkDownloading.value = false
-                        apkProgress.value = null
-                        apkDownloadElapsedText.value = null
-                        apkErrorText.value = event.message
-                        if (showDialogWhenApkDownloadCompletes) {
-                            showDialogWhenApkDownloadCompletes = false
-                            showApkUpdateDialog.value = true
-                        }
+                        onApkDownloadFailed(event.message)
                     }
                 }
             }
@@ -85,6 +93,7 @@ class MainViewModel @Inject constructor(
     var showApkUpdateDialog = mutableStateOf(false)
     var apkUpdateInfo = mutableStateOf<ApkUpdateInfo?>(null)
     var apkDownloading = mutableStateOf(false)
+    val apkDownloadFailed = mutableStateOf(false)
     var apkProgress = mutableStateOf<Float?>(null)
     var apkDownloadElapsedText = mutableStateOf<String?>(null)
     var apkErrorText = mutableStateOf<String?>(null)
@@ -93,21 +102,27 @@ class MainViewModel @Inject constructor(
     /** 本地已存在目标版本 APK，可直接安装 */
     var apkLocalReady = mutableStateOf(false)
 
-    private var installAfterApkDownload = false
-    private var showDialogWhenApkDownloadCompletes = false
     private var selectedUpdate: UpdateCheck.Available? = null
+    private var downloadRequestedFor: UpdateCheck.Available? = null
+    private var appInForeground = false
+    private val forcedCountdown = ApkUpdateForegroundCountdown()
+    private var forcedDownloadJob: Job? = null
+    private var retryJob: Job? = null
+    private var consecutiveAutoRetries = 0
     @Volatile private var updateChannelRevision = 0L
 
     /** Membership and account changes invalidate any update offered by the previous channel. */
     fun onUpdateChannelChanged() {
         updateChannelRevision++
         downloader.cancel()
+        cancelScheduledDownloads()
         selectedUpdate = null
-        installAfterApkDownload = false
-        showDialogWhenApkDownloadCompletes = false
+        downloadRequestedFor = null
+        consecutiveAutoRetries = 0
         showApkUpdateDialog.value = false
         apkUpdateInfo.value = null
         apkDownloading.value = false
+        apkDownloadFailed.value = false
         apkLocalReady.value = false
         apkProgress.value = null
         apkErrorText.value = null
@@ -129,20 +144,116 @@ class MainViewModel @Inject constructor(
         when (val check = updateChecker.check(BuildConfig.VERSION_CODE, UpdateCheckEntry.STARTUP)) {
             is UpdateCheck.Available -> withContext(Dispatchers.Main) {
                 if (revision != updateChannelRevision) return@withContext
-                selectedUpdate = check
-                apkUpdateInfo.value = check.info
-                apkErrorText.value = null
-                apkLocalReady.value = check.localApk != null
-                if (check.localApk == null) {
-                    apkDownloadElapsedText.value = null
-                }
-                showApkUpdateDialog.value = true
-                if (check.localApk == null && !apkDownloading.value) {
-                    startApkDownload(installAfterDownload = false)
-                }
+                acceptApkUpdate(check, manual = false)
             }
             // 启动检查对"没有更新"与"检查失败"都保持安静（与迁移前一致）。
             UpdateCheck.UpToDate, is UpdateCheck.Failed -> Unit
+        }
+    }
+
+    private fun acceptApkUpdate(check: UpdateCheck.Available, manual: Boolean) {
+        val previous = selectedUpdate
+        val sameOffer = previous != null && previous.info.versionCode == check.info.versionCode &&
+            previous.sha256 == check.sha256 && previous.downloadUrl == check.downloadUrl &&
+            previous.info.force == check.info.force && previous.info.channel == check.info.channel
+        if (!sameOffer) {
+            if (apkDownloading.value) downloader.cancel()
+            cancelScheduledDownloads()
+            selectedUpdate = check
+            downloadRequestedFor = null
+            consecutiveAutoRetries = 0
+            apkDownloading.value = false
+            apkDownloadFailed.value = false
+            apkProgress.value = null
+            apkDownloadElapsedText.value = null
+            downloadedApkFile.value = null
+            apkLocalReady.value = check.localApk != null
+            forcedCountdown.reset(if (check.info.force && check.localApk == null) 3_000L else null)
+        } else if (check.localApk != null && !apkDownloading.value) {
+            apkLocalReady.value = true
+            apkDownloadFailed.value = false
+            consecutiveAutoRetries = 0
+            retryJob?.cancel()
+            retryJob = null
+            forcedCountdown.reset(null)
+            forcedDownloadJob?.cancel()
+            forcedDownloadJob = null
+        }
+        apkUpdateInfo.value = check.info
+        apkErrorText.value = null
+        showApkUpdateDialog.value = manual || (check.info.force && apkLocalReady.value && appInForeground)
+        scheduleForcedDownload()
+    }
+
+    fun onAppForeground() {
+        if (appInForeground) return
+        appInForeground = true
+        if (selectedUpdate?.info?.force == true && apkLocalReady.value) {
+            showApkUpdateDialog.value = true
+        }
+        scheduleForcedDownload()
+    }
+
+    fun onAppBackground() {
+        if (!appInForeground) return
+        appInForeground = false
+        forcedCountdown.pause()
+        forcedDownloadJob?.cancel()
+        forcedDownloadJob = null
+    }
+
+    fun openApkUpdateDialog() {
+        if (selectedUpdate != null) showApkUpdateDialog.value = true
+    }
+
+    fun dismissApkUpdateDialog() {
+        if (selectedUpdate?.info?.force == true) return
+        showApkUpdateDialog.value = false
+    }
+
+    private fun scheduleForcedDownload() {
+        val update = selectedUpdate ?: return
+        if (!appInForeground || !update.info.force || apkLocalReady.value || apkDownloading.value ||
+            forcedDownloadJob?.isActive == true
+        ) return
+        val remaining = forcedCountdown.resume() ?: return
+        val revision = updateChannelRevision
+        forcedDownloadJob = viewModelScope.launch {
+            delay(remaining)
+            forcedDownloadJob = null
+            if (appInForeground && revision == updateChannelRevision && selectedUpdate === update &&
+                !apkLocalReady.value && !apkDownloading.value
+            ) startApkDownloadAttempt(forceRedownload = false, resetRetries = false)
+        }
+    }
+
+    private fun cancelScheduledDownloads() {
+        forcedDownloadJob?.cancel()
+        forcedDownloadJob = null
+        forcedCountdown.reset(null)
+        retryJob?.cancel()
+        retryJob = null
+    }
+
+    private fun onApkDownloadFailed(message: String, fromDownloader: Boolean = true) {
+        val update = selectedUpdate ?: return
+        downloadRequestedFor = null
+        apkDownloading.value = false
+        apkDownloadFailed.value = fromDownloader
+        apkLocalReady.value = false
+        apkProgress.value = null
+        apkDownloadElapsedText.value = null
+        apkErrorText.value = message
+        if (consecutiveAutoRetries >= 3 || !canAutomaticallyRetryApkDownload(message)) return
+        consecutiveAutoRetries++
+        retryJob?.cancel()
+        val revision = updateChannelRevision
+        retryJob = viewModelScope.launch {
+            delay(1_000)
+            retryJob = null
+            if (revision == updateChannelRevision && selectedUpdate === update &&
+                !apkDownloading.value && !apkLocalReady.value
+            ) startApkDownloadAttempt(forceRedownload = false, resetRetries = false)
         }
     }
     /**
@@ -157,6 +268,7 @@ class MainViewModel @Inject constructor(
                 withContext(Dispatchers.Main) {
                     if (revision != updateChannelRevision || selectedUpdate !== update) return@withContext
                     apkLocalReady.value = false
+                    apkDownloadFailed.value = false
                     apkDownloadElapsedText.value = null
                     apkErrorText.value = "本地文件已丢失或损坏，请重新下载"
                 }
@@ -164,20 +276,33 @@ class MainViewModel @Inject constructor(
             }
             withContext(Dispatchers.Main) {
                 if (revision == updateChannelRevision && selectedUpdate === update) {
+                    showApkUpdateDialog.value = false
                     downloadedApkFile.value = localApk
                 }
             }
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun startApkDownload(
         forceRedownload: Boolean = false,
         installAfterDownload: Boolean = false
     ) {
+        // Kept for existing callers: downloading always ends at ready, including the old "installAfterDownload" flow.
+        startApkDownloadAttempt(forceRedownload, resetRetries = true)
+    }
+
+    private fun startApkDownloadAttempt(forceRedownload: Boolean, resetRetries: Boolean) {
         val update = selectedUpdate ?: return
         if (apkDownloading.value) return
+        showApkUpdateDialog.value = false
+        cancelScheduledDownloads()
+        if (resetRetries) consecutiveAutoRetries = 0
+        downloadRequestedFor = update
+        downloadedApkFile.value = null
         // 同步立起界面状态（与迁移前一致）：下载器随后用事件接管后续变化。
         apkDownloading.value = true
+        apkDownloadFailed.value = false
         apkErrorText.value = null
         apkProgress.value = null
         apkDownloadElapsedText.value = null
@@ -186,7 +311,6 @@ class MainViewModel @Inject constructor(
         if (forceRedownload) {
             apkLocalReady.value = false
         }
-        installAfterApkDownload = installAfterDownload
         downloader.start(
             versionCode = update.info.versionCode,
             downloadUrl = update.downloadUrl,
@@ -196,9 +320,6 @@ class MainViewModel @Inject constructor(
     }
 
     fun continueApkDownloadInBackground() {
-        if (apkDownloading.value) {
-            showDialogWhenApkDownloadCompletes = true
-        }
         showApkUpdateDialog.value = false
     }
 
@@ -208,18 +329,22 @@ class MainViewModel @Inject constructor(
         if (update.info.force) return
 
         downloader.cancel()
-        installAfterApkDownload = false
-        showDialogWhenApkDownloadCompletes = false
+        cancelScheduledDownloads()
+        downloadRequestedFor = null
+        consecutiveAutoRetries = 0
         apkDownloading.value = false
+        apkDownloadFailed.value = false
         apkProgress.value = null
         downloadedApkFile.value = null
 
+        val revision = updateChannelRevision
         viewModelScope.launch(Dispatchers.IO) {
             val saved = updateChecker.skipVersion(update.info.versionCode)
             withContext(Dispatchers.Main) {
+                if (revision != updateChannelRevision || selectedUpdate !== update) return@withContext
                 if (!saved) {
                     apkErrorText.value = "保存跳过设置失败，请重试"
-                } else if (selectedUpdate?.info?.versionCode == update.info.versionCode) {
+                } else {
                     selectedUpdate = null
                     apkUpdateInfo.value = null
                     apkLocalReady.value = false
@@ -253,11 +378,7 @@ class MainViewModel @Inject constructor(
                     is UpdateCheck.Available -> {
                         withContext(Dispatchers.Main) {
                             if (revision != updateChannelRevision) return@withContext
-                            selectedUpdate = check
-                            apkUpdateInfo.value = check.info
-                            apkErrorText.value = null
-                            apkLocalReady.value = check.localApk != null
-                            showApkUpdateDialog.value = true
+                            acceptApkUpdate(check, manual = true)
                         }
                         "发现新版本 ${check.info.versionName}"
                     }
@@ -271,6 +392,8 @@ class MainViewModel @Inject constructor(
                             )
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.w("ApkUpdate", "manual update check failed", e)
                 "检查更新失败：${e.message ?: "请稍后重试"}"
@@ -294,6 +417,7 @@ class MainViewModel @Inject constructor(
 
     fun reportApkInstallError(message: String) {
         apkLocalReady.value = false
+        apkDownloadFailed.value = false
         apkErrorText.value = message
     }
 
@@ -302,6 +426,7 @@ class MainViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        cancelScheduledDownloads()
         downloader.cancel()
         super.onCleared()
     }

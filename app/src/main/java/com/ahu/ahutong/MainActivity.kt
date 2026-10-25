@@ -183,9 +183,7 @@ class MainActivity : ComponentActivity() {
                         errorText = mainViewModel.apkErrorText.value,
                         apkLocalReady = mainViewModel.apkLocalReady.value,
                         onConfirm = {
-                            mainViewModel.startApkDownload(
-                                installAfterDownload = true
-                            )
+                            mainViewModel.startApkDownload()
                         },
                         onInstallLocal = {
                             mainViewModel.installLocalApk()
@@ -195,7 +193,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onSkipVersion = mainViewModel::skipCurrentApkVersion,
                         onDismiss = {
-                            mainViewModel.showApkUpdateDialog.value = false
+                            mainViewModel.dismissApkUpdateDialog()
                         },
                         onCancel = {
                             mainViewModel.continueApkDownloadInBackground()
@@ -279,6 +277,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        mainViewModel.onAppForeground()
         behaviorRuntime.setForeground(true, true)
         if (AHUCache.isPrivacyAccepted() && SessionStore.isLoggedIn()) {
             SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() }?.let {
@@ -318,6 +317,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        if (!isChangingConfigurations) mainViewModel.onAppBackground()
         behaviorRuntime.setForeground(false, false)
         paymentQrCommands.clear()
         discoveryViewModel.clearQrCode()

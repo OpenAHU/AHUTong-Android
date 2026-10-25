@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import com.ahu.ahutong.restartMainAfterLogin
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -135,6 +136,9 @@ import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
 import com.ahu.ahutong.ui.state.ElectricityAlertViewModel
 import com.ahu.ahutong.ui.state.LoginViewModel
 import com.ahu.ahutong.ui.state.MainViewModel
+import com.ahu.ahutong.ui.component.UpdateStatusStrip
+import com.ahu.ahutong.ui.component.UpdateStatusStripHeight
+import com.ahu.ahutong.ui.component.UpdateStripPhase
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.utils.animatedComposable
 import com.ahu.ahutong.utils.NavigationObservationPolicy
@@ -374,6 +378,15 @@ fun Main(
             contentBackdrop
         }
         val backdrop = navBackdrop
+        val updateInfo = mainViewModel.apkUpdateInfo.value
+        val primaryPageVisible = !protectedRouteBlocked && currentRoute in visiblePrimaryRoutes
+        val showUpdateStrip = primaryPageVisible && updateInfo != null
+        val updateInset by animateDpAsState(
+            if (showUpdateStrip) UpdateStatusStripHeight else 0.dp,
+            tween(300),
+            label = "Update strip space",
+        )
+        Box(Modifier.fillMaxSize().padding(bottom = if (primaryPageVisible) updateInset else 0.dp)) {
         if (protectedRouteBlocked) {
             com.ahu.ahutong.ui.screen.setup.Splash()
         } else {
@@ -935,6 +948,25 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
+        }
+        if (showUpdateStrip && updateInfo != null) {
+            val phase = when {
+                mainViewModel.apkDownloading.value -> UpdateStripPhase.DOWNLOADING
+                mainViewModel.apkLocalReady.value -> UpdateStripPhase.READY
+                mainViewModel.apkDownloadFailed.value -> UpdateStripPhase.FAILED
+                else -> UpdateStripPhase.AVAILABLE
+            }
+            UpdateStatusStrip(
+                phase = phase,
+                progress = mainViewModel.apkProgress.value,
+                mandatory = updateInfo.force,
+                onClick = {
+                    if (phase == UpdateStripPhase.READY) mainViewModel.installLocalApk()
+                    else mainViewModel.openApkUpdateDialog()
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
     }
     }
 }

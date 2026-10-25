@@ -3,156 +3,159 @@ package com.ahu.ahutong.data.weather
 import com.google.gson.annotations.SerializedName
 
 data class WeatherResponse(
-    val province: String?,
-    val city: String?,
-    val district: String?,
-    val adcode: String?,
-    val weather: String?,
+    val province: String? = null,
+    val city: String? = null,
+    val district: String? = null,
+    val adcode: String? = null,
+    val weather: String? = null,
     @SerializedName("weather_icon")
-    val weatherIcon: String?,
+    val weatherIcon: String? = null,
     @SerializedName("weather_code")
-    val weatherCode: String?,
-    val temperature: Double?,
+    val weatherCode: String? = null,
+    val temperature: Double? = null,
     @SerializedName("wind_direction")
-    val windDirection: String?,
+    val windDirection: String? = null,
     @SerializedName("wind_power")
-    val windPower: String?,
-    val humidity: Int?,
+    val windPower: String? = null,
+    val humidity: Int? = null,
     @SerializedName("report_time")
-    val reportTime: String?,
+    val reportTime: String? = null,
 
-    // extended=true
     @SerializedName("feels_like")
-    val feelsLike: Double?,
-    val visibility: Double?,
-    val pressure: Double?,
-    val uv: Double?,
-    val precipitation: Double?,
-    val cloud: Int?,
-    val aqi: Int?,
+    val feelsLike: Double? = null,
+    val visibility: Double? = null,
+    val pressure: Double? = null,
+    val uv: Double? = null,
+    val precipitation: Double? = null,
+    val cloud: Int? = null,
+    val aqi: Int? = null,
     @SerializedName("aqi_level")
-    val aqiLevel: Int?,
+    val aqiLevel: Int? = null,
     @SerializedName("aqi_category")
-    val aqiCategory: String?,
+    val aqiCategory: String? = null,
     @SerializedName("aqi_primary")
-    val aqiPrimary: String?,
+    val aqiPrimary: String? = null,
     @SerializedName("air_pollutants")
-    val airPollutants: AirPollutants?,
-    val alerts: List<WeatherAlert>?,
+    val airPollutants: AirPollutants? = null,
+    val alerts: List<WeatherAlert>? = null,
 
-    // forecast=true
     @SerializedName("temp_max")
-    val tempMax: Double?,
+    val tempMax: Double? = null,
     @SerializedName("temp_min")
-    val tempMin: Double?,
-    val forecast: List<ForecastDay>?,
+    val tempMin: Double? = null,
+    val forecast: List<ForecastDay>? = null,
 
-    // hourly=true
     @SerializedName("hourly_forecast")
-    val hourlyForecast: List<HourlyForecast>?,
+    val hourlyForecast: List<HourlyForecast>? = null,
 
-    // indices=true
     @SerializedName("life_indices")
-    val lifeIndices: LifeIndices?
+    val lifeIndices: LifeIndices? = null,
+    val source: String? = null,
+    val isDaylight: Boolean? = null,
+    val precipitationDescription: String? = null,
+    @SerializedName("wind_speed")
+    val windSpeed: Double? = null
 )
 
 data class AirPollutants(
-    val pm25: Double?,
-    val pm10: Double?,
-    val o3: Double?,
-    val no2: Double?,
-    val so2: Double?,
-    val co: Double?
+    val pm25: Double? = null,
+    val pm10: Double? = null,
+    val o3: Double? = null,
+    val no2: Double? = null,
+    val so2: Double? = null,
+    val co: Double? = null
 )
 
 data class WeatherAlert(
-    val title: String?,
-    val type: String?,
-    val level: String?,
-    val text: String?,
+    val title: String? = null,
+    val type: String? = null,
+    val level: String? = null,
+    val text: String? = null,
     @SerializedName("publish_time")
-    val publishTime: String?,
-    val publisher: String?,
-    val guidance: List<String>?
+    val publishTime: String? = null,
+    val publisher: String? = null,
+    val guidance: List<String>? = null
 )
 
 data class ForecastDay(
-    val date: String?,
-    val week: String?,
+    val date: String? = null,
+    val week: String? = null,
     @SerializedName("temp_max")
-    val tempMax: Double?,
+    val tempMax: Double? = null,
     @SerializedName("temp_min")
-    val tempMin: Double?,
+    val tempMin: Double? = null,
     @SerializedName("weather_day")
-    val weatherDay: String?,
+    val weatherDay: String? = null,
     @SerializedName("weather_night")
-    val weatherNight: String?,
+    val weatherNight: String? = null,
     @SerializedName("wind_dir_day")
-    val windDirDay: String?,
+    val windDirDay: String? = null,
     @SerializedName("wind_dir_night")
-    val windDirNight: String?,
+    val windDirNight: String? = null,
     @SerializedName("wind_scale_day")
-    val windScaleDay: String?,
+    val windScaleDay: String? = null,
     @SerializedName("wind_scale_night")
-    val windScaleNight: String?,
+    val windScaleNight: String? = null,
     @SerializedName("wind_speed_day")
-    val windSpeedDay: Double?,
-    val humidity: Int?,
-    val precip: Double?,
-    val visibility: Double?,
+    val windSpeedDay: Double? = null,
+    val humidity: Int? = null,
+    val precip: Double? = null,
+    val visibility: Double? = null,
     @SerializedName("uv_index")
-    val uvIndex: Int?,
-    val sunrise: String?,
-    val sunset: String?
+    val uvIndex: Int? = null,
+    val sunrise: String? = null,
+    val sunset: String? = null,
+    val aqi: Int? = null
 )
 
 data class HourlyForecast(
-    val time: String?,
-    val temperature: Double?,
-    val weather: String?,
+    val time: String? = null,
+    val temperature: Double? = null,
+    val weather: String? = null,
     @SerializedName("wind_direction")
-    val windDirection: String?,
+    val windDirection: String? = null,
     @SerializedName("wind_speed")
-    val windSpeed: Double?,
+    val windSpeed: Double? = null,
     @SerializedName("wind_scale")
-    val windScale: String?,
-    val humidity: Int?,
-    val precip: Double?,
+    val windScale: String? = null,
+    val humidity: Int? = null,
+    val precip: Double? = null,
     @SerializedName("feels_like")
-    val feelsLike: Double?,
-    val visibility: Double?,
-    val pop: Int?,
+    val feelsLike: Double? = null,
+    val visibility: Double? = null,
+    val pop: Int? = null,
     @SerializedName("uv_index")
-    val uvIndex: Int?
+    val uvIndex: Int? = null,
+    val aqi: Int? = null
 )
 
 data class LifeIndices(
-    val clothing: LifeIndexItem?,
-    val uv: LifeIndexItem?,
+    val clothing: LifeIndexItem? = null,
+    val uv: LifeIndexItem? = null,
     @SerializedName("car_wash")
-    val carWash: LifeIndexItem?,
-    val drying: LifeIndexItem?,
+    val carWash: LifeIndexItem? = null,
+    val drying: LifeIndexItem? = null,
     @SerializedName("air_conditioner")
-    val airConditioner: LifeIndexItem?,
+    val airConditioner: LifeIndexItem? = null,
     @SerializedName("cold_risk")
-    val coldRisk: LifeIndexItem?,
-    val exercise: LifeIndexItem?,
-    val comfort: LifeIndexItem?,
-    val travel: LifeIndexItem?,
-    val fishing: LifeIndexItem?,
-    val allergy: LifeIndexItem?,
-    val sunscreen: LifeIndexItem?,
-    val mood: LifeIndexItem?,
-    val beer: LifeIndexItem?,
-    val umbrella: LifeIndexItem?,
-    val traffic: LifeIndexItem?,
+    val coldRisk: LifeIndexItem? = null,
+    val exercise: LifeIndexItem? = null,
+    val comfort: LifeIndexItem? = null,
+    val travel: LifeIndexItem? = null,
+    val fishing: LifeIndexItem? = null,
+    val allergy: LifeIndexItem? = null,
+    val sunscreen: LifeIndexItem? = null,
+    val mood: LifeIndexItem? = null,
+    val beer: LifeIndexItem? = null,
+    val umbrella: LifeIndexItem? = null,
+    val traffic: LifeIndexItem? = null,
     @SerializedName("air_purifier")
-    val airPurifier: LifeIndexItem?,
-    val pollen: LifeIndexItem?
+    val airPurifier: LifeIndexItem? = null,
+    val pollen: LifeIndexItem? = null
 )
 
 data class LifeIndexItem(
-    val level: String?,
-    val brief: String?,
-    val advice: String?
+    val level: String? = null,
+    val brief: String? = null,
+    val advice: String? = null
 )
