@@ -101,6 +101,8 @@ class MainViewModel @Inject constructor(
     var apkUpdateChecking = mutableStateOf(false)
     /** 本地已存在目标版本 APK，可直接安装 */
     var apkLocalReady = mutableStateOf(false)
+    /** 用户点过「稍后更新」的版本；本次运行内隐藏底部提示条，下次启动重新出现。 */
+    var apkUpdateStripDismissedVersion = mutableStateOf<Int?>(null)
 
     private var selectedUpdate: UpdateCheck.Available? = null
     private var downloadRequestedFor: UpdateCheck.Available? = null
@@ -120,6 +122,7 @@ class MainViewModel @Inject constructor(
         downloadRequestedFor = null
         consecutiveAutoRetries = 0
         showApkUpdateDialog.value = false
+        apkUpdateStripDismissedVersion.value = null
         apkUpdateInfo.value = null
         apkDownloading.value = false
         apkDownloadFailed.value = false
@@ -209,6 +212,7 @@ class MainViewModel @Inject constructor(
     fun dismissApkUpdateDialog() {
         if (selectedUpdate?.info?.force == true) return
         showApkUpdateDialog.value = false
+        apkUpdateStripDismissedVersion.value = selectedUpdate?.info?.versionCode
     }
 
     private fun scheduleForcedDownload() {
@@ -296,6 +300,7 @@ class MainViewModel @Inject constructor(
         val update = selectedUpdate ?: return
         if (apkDownloading.value) return
         showApkUpdateDialog.value = false
+        apkUpdateStripDismissedVersion.value = null
         cancelScheduledDownloads()
         if (resetRetries) consecutiveAutoRetries = 0
         downloadRequestedFor = update

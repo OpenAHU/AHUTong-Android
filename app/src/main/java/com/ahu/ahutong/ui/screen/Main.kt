@@ -9,8 +9,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import com.ahu.ahutong.restartMainAfterLogin
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -49,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import android.net.Uri
@@ -380,13 +382,21 @@ fun Main(
         val backdrop = navBackdrop
         val updateInfo = mainViewModel.apkUpdateInfo.value
         val primaryPageVisible = !protectedRouteBlocked && currentRoute in visiblePrimaryRoutes
-        val showUpdateStrip = primaryPageVisible && updateInfo != null
-        val updateInset by animateDpAsState(
-            if (showUpdateStrip) UpdateStatusStripHeight else 0.dp,
-            tween(300),
-            label = "Update strip space",
-        )
-        Box(Modifier.fillMaxSize().padding(bottom = if (primaryPageVisible) updateInset else 0.dp)) {
+        val showUpdateStrip = primaryPageVisible && updateInfo != null &&
+            mainViewModel.apkUpdateStripDismissedVersion.value != updateInfo.versionCode
+        val updateStripProgress = remember { Animatable(0f) }
+        LaunchedEffect(showUpdateStrip) {
+            updateStripProgress.animateTo(
+                targetValue = if (showUpdateStrip) 1f else 0f,
+                animationSpec = tween(
+                    durationMillis = if (showUpdateStrip) 380 else 300,
+                    easing = FastOutSlowInEasing,
+                ),
+            )
+        }
+        val updateInset = UpdateStatusStripHeight * updateStripProgress.value
+        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().padding(bottom = updateInset)) {
         if (protectedRouteBlocked) {
             com.ahu.ahutong.ui.screen.setup.Splash()
         } else {
@@ -863,6 +873,33 @@ fun Main(
             onScanClick = { scanOpen = true }
         )
         }
+        }
+
+        if (showUpdateStrip || updateStripProgress.value > 0f) {
+            val phase = when {
+                mainViewModel.apkDownloading.value -> UpdateStripPhase.DOWNLOADING
+                mainViewModel.apkLocalReady.value -> UpdateStripPhase.READY
+                mainViewModel.apkDownloadFailed.value -> UpdateStripPhase.FAILED
+                else -> UpdateStripPhase.AVAILABLE
+            }
+            val fade = (updateStripProgress.value / 0.7f).coerceIn(0f, 1f)
+            val stripAlpha = fade * fade * (3f - 2f * fade)
+            UpdateStatusStrip(
+                phase = phase,
+                progress = mainViewModel.apkProgress.value,
+                mandatory = updateInfo?.force == true,
+                onClick = {
+                    if (phase == UpdateStripPhase.READY) mainViewModel.installLocalApk()
+                    else mainViewModel.openApkUpdateDialog()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .graphicsLayer {
+                        translationY = UpdateStatusStripHeight.toPx() * (1f - updateStripProgress.value)
+                        alpha = stripAlpha
+                    },
+            )
+        }
 
         // 一键扫码：同页浮层（不跳导航页）。这里只把原文收下，分类与显式 Intent 直启下一步接。
         BackHandler(enabled = scanOpen) { scanOpen = false }
@@ -914,7 +951,7 @@ fun Main(
             blocked = productUiBlocked,
             hiddenForDiagnostics = diagnosticsRouteVisible,
             bottomSpacing = if (effectiveRoute in visiblePrimaryRoutes) {
-                88.dp
+                88.dp + updateInset
             } else {
                 16.dp
             },
@@ -948,24 +985,6 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
-        }
-        if (showUpdateStrip && updateInfo != null) {
-            val phase = when {
-                mainViewModel.apkDownloading.value -> UpdateStripPhase.DOWNLOADING
-                mainViewModel.apkLocalReady.value -> UpdateStripPhase.READY
-                mainViewModel.apkDownloadFailed.value -> UpdateStripPhase.FAILED
-                else -> UpdateStripPhase.AVAILABLE
-            }
-            UpdateStatusStrip(
-                phase = phase,
-                progress = mainViewModel.apkProgress.value,
-                mandatory = updateInfo.force,
-                onClick = {
-                    if (phase == UpdateStripPhase.READY) mainViewModel.installLocalApk()
-                    else mainViewModel.openApkUpdateDialog()
-                },
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
         }
     }
     }

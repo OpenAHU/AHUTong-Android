@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -38,8 +39,11 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
@@ -54,6 +58,7 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -70,6 +75,9 @@ enum class UpdateStripPhase { AVAILABLE, DOWNLOADING, FAILED, READY }
 
 val UpdateStatusStripHeight = 52.dp
 
+/** Height and radius of the inverted corners that let the page above sit inside the strip. */
+val UpdateStatusStripCornerRadius = 16.dp
+
 /** The background extends under system navigation; the top strip alone handles update actions. */
 @Composable
 fun UpdateStatusStrip(
@@ -78,6 +86,7 @@ fun UpdateStatusStrip(
     mandatory: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = UpdateStatusStripCornerRadius,
 ) {
     val scheme = MaterialTheme.colorScheme
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -187,6 +196,7 @@ fun UpdateStatusStrip(
     val clickAction = onClick
 
     val navigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val corner = cornerRadius.coerceAtLeast(0.dp)
     val contentModifier = Modifier
             .fillMaxWidth()
             .height(UpdateStatusStripHeight)
@@ -215,56 +225,90 @@ fun UpdateStatusStrip(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(UpdateStatusStripHeight + navigationInset)
+            .height(UpdateStatusStripHeight + corner + navigationInset)
             .clipToBounds(),
         contentAlignment = Alignment.TopCenter,
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            drawRect(background)
-            if (fill.value > 0f) {
-                drawRect(green, size = Size(size.width * fill.value, size.height))
+            val cornerPx = corner.toPx()
+            val tray = Path().apply {
+                moveTo(0f, 0f)
+                cubicTo(
+                    0f, cornerPx * 0.5523f,
+                    cornerPx * 0.4477f, cornerPx,
+                    cornerPx, cornerPx,
+                )
+                lineTo(size.width - cornerPx, cornerPx)
+                cubicTo(
+                    size.width - cornerPx * 0.4477f, cornerPx,
+                    size.width, cornerPx * 0.5523f,
+                    size.width, 0f,
+                )
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
             }
-            if (phase == UpdateStripPhase.DOWNLOADING && actualProgress == null) {
-                stripWave(unknownWave.value, green, strength = 0.3f, fromLeft = true)
-            }
-            if (phase == UpdateStripPhase.AVAILABLE) {
-                stripWave(entrance.value, scheme.primary, strength = 0.28f)
-            }
-            if (phase == UpdateStripPhase.READY && mandatory) {
-                stripWave(firstWave.value, waveGreen, strength = 0.7f)
-                stripWave(secondWave.value, waveGreen, strength = 0.7f)
+            clipPath(tray) {
+                drawRect(background)
+                if (fill.value > 0f) {
+                    drawRect(green, size = Size(size.width * fill.value, size.height))
+                }
+                if (phase == UpdateStripPhase.DOWNLOADING && actualProgress == null) {
+                    stripWave(unknownWave.value, green, strength = 0.3f, fromLeft = true)
+                }
+                if (phase == UpdateStripPhase.AVAILABLE) {
+                    stripWave(entrance.value, scheme.primary, strength = 0.28f)
+                }
+                if (phase == UpdateStripPhase.READY && mandatory) {
+                    stripWave(firstWave.value, waveGreen, strength = 0.7f)
+                    stripWave(secondWave.value, waveGreen, strength = 0.7f)
+                }
+                // Soft shadow from the page layer above, falling onto the strip's top edge.
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.20f),
+                            Color.Black.copy(alpha = 0.06f),
+                            Color.Transparent,
+                        ),
+                        startY = cornerPx,
+                        endY = cornerPx + 18.dp.toPx(),
+                    ),
+                )
             }
         }
-        AnimatedContent(
-            targetState = phase,
-            modifier = contentModifier,
-            contentAlignment = Alignment.Center,
-            transitionSpec = {
-                val oldTextExit = if (initialState == UpdateStripPhase.FAILED) {
-                    fadeOut(tween(180))
-                } else {
-                    fadeOut(tween(180)) + slideOutVertically(tween(220)) { it / 2 }
+        Box(Modifier.fillMaxWidth().padding(top = corner)) {
+            AnimatedContent(
+                targetState = phase,
+                modifier = contentModifier,
+                contentAlignment = Alignment.Center,
+                transitionSpec = {
+                    val oldTextExit = if (initialState == UpdateStripPhase.FAILED) {
+                        fadeOut(tween(180))
+                    } else {
+                        fadeOut(tween(180)) + slideOutVertically(tween(220)) { it / 2 }
+                    }
+                    // Bring the next label in before the departing label loses legibility.
+                    fadeIn(tween(120, easing = LinearOutSlowInEasing)) togetherWith oldTextExit
+                },
+                label = "Update strip text",
+            ) { visiblePhase ->
+                val textColor = when (visiblePhase) {
+                    UpdateStripPhase.FAILED -> scheme.onErrorContainer
+                    UpdateStripPhase.READY -> onGreen
+                    UpdateStripPhase.DOWNLOADING -> onDownloadBase
+                    UpdateStripPhase.AVAILABLE -> scheme.onPrimaryContainer
                 }
-                // Bring the next label in before the departing label loses legibility.
-                fadeIn(tween(120, easing = LinearOutSlowInEasing)) togetherWith oldTextExit
-            },
-            label = "Update strip text",
-        ) { visiblePhase ->
-            val textColor = when (visiblePhase) {
-                UpdateStripPhase.FAILED -> scheme.onErrorContainer
-                UpdateStripPhase.READY -> onGreen
-                UpdateStripPhase.DOWNLOADING -> onDownloadBase
-                UpdateStripPhase.AVAILABLE -> scheme.onPrimaryContainer
-            }
-            Box(Modifier.fillMaxSize()) {
-                UpdateStripLabel(visiblePhase, textColor, scheme.onPrimaryContainer)
-                if (visiblePhase == UpdateStripPhase.DOWNLOADING &&
-                    (actualProgress != null || phase == UpdateStripPhase.READY)
-                ) {
-                    Box(Modifier.fillMaxSize().drawWithContent {
-                        clipRect(right = size.width * fill.value) { this@drawWithContent.drawContent() }
-                    }) {
-                        UpdateStripLabel(visiblePhase, onGreen, onGreen)
+                Box(Modifier.fillMaxSize()) {
+                    UpdateStripLabel(visiblePhase, textColor, scheme.onPrimaryContainer)
+                    if (visiblePhase == UpdateStripPhase.DOWNLOADING &&
+                        (actualProgress != null || phase == UpdateStripPhase.READY)
+                    ) {
+                        Box(Modifier.fillMaxSize().drawWithContent {
+                            clipRect(right = size.width * fill.value) { this@drawWithContent.drawContent() }
+                        }) {
+                            UpdateStripLabel(visiblePhase, onGreen, onGreen)
+                        }
                     }
                 }
             }
