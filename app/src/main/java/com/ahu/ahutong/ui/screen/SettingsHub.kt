@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.ahu.ahutong.MainActivity
+import com.ahu.ahutong.FeedbackActivity
 import com.ahu.ahutong.data.session.SavedAccounts
 import com.ahu.ahutong.ui.screen.setup.SavedAccountsDialog
 import androidx.compose.ui.res.painterResource
@@ -60,6 +61,7 @@ fun SettingsHub(
         onNavigateToLicense = { navController.navigate("settings__license") },
         onNavigateToPrivacyPolicy = { navController.navigate("settings__privacy_policy") },
         onNavigateToContributors = { navController.navigate("settings__contributors") },
+        onNavigateToFeedback = { context.startActivity(FeedbackActivity.intent(context)) },
         onDataCleared = { navController.navigate("login") { popUpTo(0) } },
         onCheckUpdate = mainViewModel::checkApkUpdateManually,
         accountName = SessionStore.currentUser()?.name,

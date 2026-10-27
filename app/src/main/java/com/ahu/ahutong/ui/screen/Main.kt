@@ -170,12 +170,37 @@ import dagger.hilt.components.SingletonComponent
 private val primaryDestinationRoutes = listOf("home", "schedule", "xuexiaotong", "settings")
 
 internal fun settingsParentRoute(uiTheme: AppUiTheme): String =
-    if (uiTheme == AppUiTheme.RADIANT) "settings" else "home"
+    // Every theme, including legacy LiquidGlass, now has a real settings destination.
+    when (uiTheme) {
+        AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT -> "settings"
+    }
 
 internal fun shouldNormalizePreferencesParent(
     uiTheme: AppUiTheme,
     previousRoute: String?
 ): Boolean = previousRoute != settingsParentRoute(uiTheme)
+
+@Composable
+internal fun NormalizePreferencesParent(
+    navController: NavHostController,
+    currentRoute: String?,
+    uiTheme: AppUiTheme
+) {
+    LaunchedEffect(currentRoute, uiTheme) {
+        if (
+            currentRoute == "preferences" &&
+            shouldNormalizePreferencesParent(
+                uiTheme,
+                navController.previousBackStackEntry?.destination?.route
+            )
+        ) {
+            navController.navigate("settings") {
+                popUpTo("home") { inclusive = false }
+            }
+            navController.navigate("preferences") { launchSingleTop = true }
+        }
+    }
+}
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -305,20 +330,7 @@ fun Main(
         }
     }
 
-    LaunchedEffect(currentRoute, appUiTheme) {
-        if (
-            currentRoute == "preferences" &&
-            shouldNormalizePreferencesParent(
-                appUiTheme,
-                navController.previousBackStackEntry?.destination?.route
-            )
-        ) {
-            navController.navigate("settings") {
-                popUpTo("home") { inclusive = false }
-            }
-            navController.navigate("preferences") { launchSingleTop = true }
-        }
-    }
+    NormalizePreferencesParent(navController, currentRoute, appUiTheme)
 
     val navigationSnapshot = NavigationSnapshot(
         route = effectiveRoute,
@@ -329,6 +341,9 @@ fun Main(
     )
     LaunchedEffect(navigationSnapshot, navigationObservationRevision) {
         val observation = navigationPolicy.observe(navigationSnapshot) ?: return@LaunchedEffect
+        com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics.recordRuntime(
+            "切换页面 ${observation.route.substringBefore('?')}"
+        )
         if (observation.synchronizeOnly) {
             // A theme may change the visible page in the same entry. Keep prediction context
             // accurate without inventing a navigation action for the theme preference itself.

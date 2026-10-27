@@ -962,6 +962,34 @@ fun AppTextField(
     )
 }
 
+private val LocalTextFieldMinLines = androidx.compose.runtime.staticCompositionLocalOf { 1 }
+private val LocalTextFieldMaxLines = androidx.compose.runtime.staticCompositionLocalOf { Int.MAX_VALUE }
+
+/** Intrinsic multiline sizing without changing the existing component-pack text-field contract. */
+@Composable
+fun AppTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    minLines: Int,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    singleLine: Boolean = false,
+    maxLines: Int = Int.MAX_VALUE,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None
+) {
+    require(minLines >= 1 && maxLines >= minLines)
+    CompositionLocalProvider(
+        LocalTextFieldMinLines provides minLines,
+        LocalTextFieldMaxLines provides maxLines
+    ) {
+        AppTextField(value, onValueChange, label, modifier, enabled, singleLine,
+            keyboardOptions, keyboardActions, visualTransformation)
+    }
+}
+
 @Composable
 internal fun MiuixTextFieldImpl(
     value: String,
@@ -989,6 +1017,8 @@ internal fun MiuixTextFieldImpl(
         useLabelAsPlaceholder = true,
         enabled = enabled,
         singleLine = singleLine,
+        minLines = if (singleLine) 1 else LocalTextFieldMinLines.current,
+        maxLines = if (singleLine) 1 else LocalTextFieldMaxLines.current,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation
@@ -1018,6 +1048,8 @@ internal fun OutlinedTextFieldImpl(
         ) else modifier,
         enabled = enabled,
         singleLine = singleLine,
+        minLines = if (singleLine) 1 else LocalTextFieldMinLines.current,
+        maxLines = if (singleLine) 1 else LocalTextFieldMaxLines.current,
         label = { Text(label) },
         shape = AppComponentTokens.ControlShape,
         keyboardOptions = keyboardOptions,

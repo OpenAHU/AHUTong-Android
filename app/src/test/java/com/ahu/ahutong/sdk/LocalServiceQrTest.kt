@@ -1,6 +1,7 @@
 package com.ahu.ahutong.sdk
 
 import kotlinx.coroutines.async
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.MockResponse
@@ -21,6 +22,8 @@ class LocalServiceQrTest {
             val request = server.takeRequest()
             assertEquals("/ycard/qrcode", request.path)
             assertEquals("test-token", request.getHeader("X-AHUTONG-TOKEN"))
+            assertEquals(FeedbackDiagnostics.currentGeneration().toString(),
+                request.getHeader("X-AHUTong-Diagnostic-Generation"))
         }
     }
 
@@ -39,6 +42,28 @@ class LocalServiceQrTest {
             withTimeout(2_000) { hanging.join() }
             assertTrue(hanging.isCancelled)
             assertTrue(withTimeout(5_000) { client.getQrcode() }.isSuccess)
+        }
+    }
+
+    @Test
+    fun `native requests carry the account generation that built them`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"code":10000,"object":"qr"}""")
+                .setBodyDelay(200, java.util.concurrent.TimeUnit.MILLISECONDS))
+            server.enqueue(MockResponse().setBody("""{"code":10000,"object":"qr"}"""))
+            val client = LocalServiceClient(server.url("/").toString().trimEnd('/'), "test-token")
+            val before = FeedbackDiagnostics.currentGeneration()
+            val previousCall = async { client.getQrcode() }
+            val previousRequest = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)
+            }!!
+            FeedbackDiagnostics.clear()
+            val after = FeedbackDiagnostics.currentGeneration()
+            assertTrue(after > before)
+            assertEquals(before.toString(), previousRequest.getHeader("X-AHUTong-Diagnostic-Generation"))
+            assertTrue(previousCall.await().isSuccess)
+            assertTrue(client.getQrcode().isSuccess)
+            assertEquals(after.toString(), server.takeRequest().getHeader("X-AHUTong-Diagnostic-Generation"))
         }
     }
 }

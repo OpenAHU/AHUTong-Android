@@ -32,14 +32,22 @@ class AppChaoxingSession @Inject constructor() : ChaoxingSession {
     override fun cookieHeader(): String = Store.getCookie()
 
     override suspend fun loginByPassword(account: String, password: String) {
+        com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics.clear()
+        com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer.rememberPassword(password)
         // 登录成功后把凭据记在本机：静默重登要用它（原先由登录界面自己调 Store.saveCredential）。
         api.loginByPassword(account, password)
         Store.saveCredential(account, password)
     }
 
-    override fun clearSession() = api.clearSession()
+    override fun clearSession() {
+        com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics.clear()
+        api.clearSession()
+    }
 
     override suspend fun silentRelogin() {
+        Store.getCredential()?.second?.let {
+            com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer.rememberPassword(it)
+        }
         api.silentRelogin()
     }
 

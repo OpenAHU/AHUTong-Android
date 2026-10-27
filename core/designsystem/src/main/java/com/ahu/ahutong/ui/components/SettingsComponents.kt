@@ -63,6 +63,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
@@ -455,11 +456,9 @@ fun SettingsActionRow(
                 leadingPainter?.let { painter ->
                     Icon(painter = painter, contentDescription = null, modifier = Modifier.size(24.dp))
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    MiuixText(title, color = if (destructive) MaterialTheme.colorScheme.error else MiuixTheme.colorScheme.onBackground)
-                    subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
-                }
-                value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+                SettingsRowText(title = title, subtitle = subtitle, destructive = destructive,
+                    modifier = Modifier.weight(1f))
+                value?.let { SettingsRowLabel(it, secondary = true) }
                 if (showChevron) {
                     MiuixIcon(
                         imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -520,13 +519,7 @@ fun SettingsActionRow(
                 destructive = destructive,
                 modifier = Modifier.weight(1f)
             )
-            value?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            value?.let { SettingsRowLabel(it, secondary = true) }
             if (showChevron) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -571,11 +564,8 @@ fun SettingsInfoRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    MiuixText(title, color = MiuixTheme.colorScheme.onBackground)
-                    subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
-                }
-                value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+                SettingsRowText(title = title, subtitle = subtitle, modifier = Modifier.weight(1f))
+                value?.let { SettingsRowLabel(it, secondary = true) }
             }
             SettingsDivider(visible = showDivider)
         }
@@ -595,13 +585,7 @@ fun SettingsInfoRow(
                 subtitle = subtitle,
                 modifier = Modifier.weight(1f)
             )
-            value?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            value?.let { SettingsRowLabel(it, secondary = true) }
         }
         SettingsDivider(visible = showDivider)
     }
@@ -734,11 +718,7 @@ fun <T> SettingsSelectRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = selectedLabel,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        SettingsRowLabel(selectedLabel, secondary = true)
                         LiquidGlassDropdownIndicator(
                             expanded = expanded,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -801,11 +781,7 @@ fun <T> SettingsSelectRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = selectedLabel,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    SettingsRowLabel(selectedLabel, secondary = true)
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 }
                 ExposedDropdownMenu(
@@ -961,26 +937,51 @@ private fun SettingsRowText(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Text(
-            text = title,
-            color = when {
-                !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                destructive -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium
-        )
+        SettingsRowLabel(title, destructive = destructive, enabled = enabled)
         subtitle?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = if (enabled) 1f else 0.38f
-                ),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            SettingsRowLabel(it, secondary = true, enabled = enabled)
         }
     }
+}
+
+@Composable
+fun settingsPrimaryTextStyle(): TextStyle =
+    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+        MiuixTheme.textStyles.headline1.copy(fontWeight = FontWeight.Medium)
+    } else {
+        MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium)
+    }
+
+@Composable
+fun settingsSecondaryTextStyle(): TextStyle =
+    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+        MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Normal)
+    } else {
+        MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal)
+    }
+
+/** Keep row roles consistent while retaining each theme's own type scale and colors. */
+@Composable
+private fun SettingsRowLabel(
+    text: String,
+    secondary: Boolean = false,
+    destructive: Boolean = false,
+    enabled: Boolean = true
+) {
+    val miuix = LocalAppUiTheme.current == AppUiTheme.MIUIX
+    val style = if (secondary) settingsSecondaryTextStyle() else settingsPrimaryTextStyle()
+    val contentColor = if (miuix) {
+        if (secondary) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.onBackground
+    } else {
+        if (secondary) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    }
+    val color = when {
+        !enabled -> contentColor.copy(alpha = 0.38f)
+        destructive -> MaterialTheme.colorScheme.error
+        else -> contentColor
+    }
+    if (miuix) MiuixText(text = text, color = color, style = style)
+    else Text(text = text, color = color, style = style)
 }
 
 @Composable

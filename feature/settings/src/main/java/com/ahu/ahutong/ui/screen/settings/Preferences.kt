@@ -147,6 +147,106 @@ fun Preferences(
             scrollState = pageScrollState,
             scrollEnabled = !isToggleHorizontalDragActive
         ) {
+            ThemeSettingsSection(
+                viewModel = viewModel,
+                backdrop = backdrop,
+                onOpenDetails = onOpenThemeLab
+            )
+
+            SettingsSection(
+                title = "主页与充值",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsToggleRow(
+                    title = "主页默认显示付款码",
+                    selected = showQRCode,
+                    onSelectedChange = viewModel::setShowQRCode,
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+                SettingsToggleRow(
+                    title = "导航栏扫码入口",
+                    subtitle = "在底部导航栏显示一键扫码按钮",
+                    selected = scanShortcutEnabled,
+                    onSelectedChange = viewModel::setScanShortcutEnabled,
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+                SettingsToggleRow(
+                    title = "使用内置安全密码键盘",
+                    subtitle = "关闭后使用系统密码键盘",
+                    selected = useBuiltInSecurePasswordKeyboard,
+                    onSelectedChange = viewModel::setUseBuiltInSecurePasswordKeyboard,
+                    backdrop = backdrop,
+                    showDivider = false,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+            }
+
+            if (undergraduateEnabled) SettingsSection(
+                title = "通知",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsToggleRow(
+                    title = "课前提醒",
+                    subtitle = "上课前 10 分钟提醒下一节课",
+                    selected = courseReminderEnabled,
+                    onSelectedChange = requestCourseReminder,
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    SettingsActionRow(
+                        title = "准时提醒权限",
+                        subtitle = if (courseReminderExactAlarmAllowed) {
+                            "已允许预约准时提醒"
+                        } else {
+                            "未允许，课前提醒可能延迟；点击前往授权"
+                        },
+                        onClick = { viewModel.openCourseReminderExactAlarmSettings() }
+                    )
+                }
+                SettingsToggleRow(
+                    title = "课前倒计时岛卡",
+                    subtitle = if (Build.VERSION.SDK_INT >= 36) {
+                        "在支持的系统上显示实时倒计时"
+                    } else {
+                        "当前 Android 版本暂不支持"
+                    },
+                    selected = courseReminderLiveCountdownEnabled && Build.VERSION.SDK_INT >= 36,
+                    onSelectedChange = { enabled ->
+                        if (enabled && Build.VERSION.SDK_INT < 36) {
+                            Toast.makeText(
+                                context,
+                                "当前 Android 版本暂不支持岛卡提醒",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            viewModel.setCourseReminderLiveCountdownEnabled(enabled)
+                        }
+                    },
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+                SettingsActionRow(
+                    title = "管理系统岛卡权限",
+                    showDivider = false,
+                    onClick = {
+                        if (Build.VERSION.SDK_INT < 36) {
+                            Toast.makeText(
+                                context,
+                                "当前 Android 版本暂不支持岛卡提醒",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            viewModel.openCourseReminderSystemSettings()
+                        }
+                    }
+                )
+            }
+
             SettingsSection(
                 title = "智能体验",
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -162,24 +262,6 @@ fun Preferences(
                         onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
                     )
                 }
-                canteenUploadConsent?.let { consent ->
-                    SettingsToggleRow(
-                        title = "参与必吃榜数据共建",
-                        subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
-                        selected = consent,
-                        onSelectedChange = viewModel::setCanteenUploadConsent,
-                        backdrop = backdrop,
-                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                    )
-                }
-                SettingsToggleRow(
-                    title = "导航栏扫码入口",
-                    subtitle = "在底部导航栏显示一键扫码按钮",
-                    selected = scanShortcutEnabled,
-                    onSelectedChange = viewModel::setScanShortcutEnabled,
-                    backdrop = backdrop,
-                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                )
                 val predictiveEnabled = predictivePrefetchEnabled
                 val wifiOnly = wifiOnlyPrefetch
                 if (predictiveEnabled != null && wifiOnly != null) {
@@ -197,9 +279,17 @@ fun Preferences(
                         onSelectedChange = viewModel::setWifiOnlyPrefetch,
                         backdrop = backdrop,
                         enabled = predictiveEnabled,
+                        showDivider = false,
                         onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
                     )
                 }
+            }
+
+            SettingsSection(
+                title = "数据与隐私",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
                 SettingsSelectRow(
                     title = "本地记录保留期",
                     selected = behaviorRetentionDays,
@@ -210,6 +300,16 @@ fun Preferences(
                     ),
                     onSelected = viewModel::setBehaviorRetentionDays
                 )
+                canteenUploadConsent?.let { consent ->
+                    SettingsToggleRow(
+                        title = "参与必吃榜数据共建",
+                        subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
+                        selected = consent,
+                        onSelectedChange = viewModel::setCanteenUploadConsent,
+                        backdrop = backdrop,
+                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                    )
+                }
                 SettingsToggleRow(
                     title = "贡献通用模型训练数据",
                     subtitle = if (bootstrapContributionStatus.enabled) {
@@ -248,98 +348,6 @@ fun Preferences(
                     onClick = { showClearLearningConfirm = true }
                 )
             }
-
-            SettingsSection(
-                title = "主页与充值",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop
-            ) {
-            SettingsToggleRow(
-                title = "主页默认显示付款码",
-                selected = showQRCode,
-                onSelectedChange = viewModel::setShowQRCode,
-                backdrop = backdrop,
-                onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-            )
-            SettingsToggleRow(
-                title = "使用内置安全密码键盘",
-                subtitle = "关闭后使用系统密码键盘",
-                selected = useBuiltInSecurePasswordKeyboard,
-                onSelectedChange = viewModel::setUseBuiltInSecurePasswordKeyboard,
-                backdrop = backdrop,
-                showDivider = false,
-                onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-            )
-        }
-
-            if (undergraduateEnabled) SettingsSection(
-                title = "通知",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop
-            ) {
-            SettingsToggleRow(
-                title = "课前提醒",
-                subtitle = "上课前 10 分钟提醒下一节课",
-                selected = courseReminderEnabled,
-                onSelectedChange = requestCourseReminder,
-                backdrop = backdrop,
-                onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                SettingsActionRow(
-                    title = "准时提醒权限",
-                    subtitle = if (courseReminderExactAlarmAllowed) {
-                        "已允许预约准时提醒"
-                    } else {
-                        "未允许，课前提醒可能延迟；点击前往授权"
-                    },
-                    onClick = { viewModel.openCourseReminderExactAlarmSettings() }
-                )
-            }
-            SettingsToggleRow(
-                title = "课前倒计时岛卡",
-                subtitle = if (Build.VERSION.SDK_INT >= 36) {
-                    "在支持的系统上显示实时倒计时"
-                } else {
-                    "当前 Android 版本暂不支持"
-                },
-                selected = courseReminderLiveCountdownEnabled && Build.VERSION.SDK_INT >= 36,
-                onSelectedChange = { enabled ->
-                    if (enabled && Build.VERSION.SDK_INT < 36) {
-                        Toast.makeText(
-                            context,
-                            "当前 Android 版本暂不支持岛卡提醒",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        viewModel.setCourseReminderLiveCountdownEnabled(enabled)
-                    }
-                },
-                backdrop = backdrop,
-                onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-            )
-            SettingsActionRow(
-                title = "管理系统岛卡权限",
-                showDivider = false,
-                onClick = {
-                    if (Build.VERSION.SDK_INT < 36) {
-                        Toast.makeText(
-                            context,
-                            "当前 Android 版本暂不支持岛卡提醒",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    } else {
-                        viewModel.openCourseReminderSystemSettings()
-                    }
-                }
-            )
-        }
-
-            ThemeSettingsSection(
-                viewModel = viewModel,
-                backdrop = backdrop,
-                onOpenDetails = onOpenThemeLab
-            )
         }
     }
 

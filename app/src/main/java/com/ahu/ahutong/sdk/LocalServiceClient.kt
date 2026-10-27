@@ -1,6 +1,8 @@
 package com.ahu.ahutong.sdk
 
 import android.util.Log
+import com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import com.ahu.ahutong.data.crawler.model.adwnh.Balance
 import com.ahu.ahutong.data.crawler.model.jwxt.GradeResponse
 import com.ahu.ahutong.data.model.Card
@@ -80,6 +82,11 @@ class LocalServiceClient(
         .build()
     
     private val gson = Gson()
+
+    // Stamp before enqueueing so an old queued request keeps its original account generation in Rust.
+    private fun requestBuilder() = Request.Builder().header(
+        "X-AHUTong-Diagnostic-Generation", FeedbackDiagnostics.currentGeneration().toString()
+    )
     
     private fun extractErrorMessage(json: String): String? {
         return try {
@@ -95,7 +102,7 @@ class LocalServiceClient(
      */
     suspend fun health(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/health")
                 .get()
                 .build()
@@ -115,7 +122,7 @@ class LocalServiceClient(
         try {
             val body = gson.toJson(mapOf("cookies_json" to cookiesJson))
                 .toRequestBody(JSON_MEDIA_TYPE)
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/init")
                 .header("X-AHUTONG-TOKEN", token)
                 .post(body)
@@ -138,7 +145,7 @@ class LocalServiceClient(
      */
     suspend fun dumpCookies(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/cookies/dump")
                 .header("X-AHUTONG-TOKEN", token)
                 .get()
@@ -162,10 +169,11 @@ class LocalServiceClient(
      * 登录
      */
     suspend fun login(username: String, password: String): Result<User> = withContext(Dispatchers.IO) {
+        DiagnosticSanitizer.rememberPassword(password)
         try {
             val body = gson.toJson(mapOf("username" to username, "password" to password))
                 .toRequestBody(JSON_MEDIA_TYPE)
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/login")
                 .header("X-AHUTONG-TOKEN", token)
                 .post(body)
@@ -190,7 +198,7 @@ class LocalServiceClient(
      */
     suspend fun getSchedule(): Result<List<Course>> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/schedule")
                 .header("X-AHUTONG-TOKEN", token)
                 .get()
@@ -216,7 +224,7 @@ class LocalServiceClient(
      */
     suspend fun getExamInfo(): Result<List<Exam>> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/exam")
                 .header("X-AHUTONG-TOKEN", token)
                 .get()
@@ -247,7 +255,7 @@ class LocalServiceClient(
             } else {
                 "$baseUrl/grade?student_id=$studentId"
             }
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url(url)
                 .header("X-AHUTONG-TOKEN", token)
                 .get()
@@ -272,7 +280,7 @@ class LocalServiceClient(
      */
     suspend fun getBalance(): Result<Card> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/ycard/balance")
                 .header("X-AHUTONG-TOKEN", token)
                 .get()
@@ -302,7 +310,7 @@ class LocalServiceClient(
      * 获取二维码
      */
     suspend fun getQrcode(): Result<String> = suspendCancellableCoroutine { continuation ->
-        val request = Request.Builder()
+        val request = requestBuilder()
             .url("$baseUrl/ycard/qrcode")
             .header("X-AHUTONG-TOKEN", token)
             .get()
@@ -337,7 +345,7 @@ class LocalServiceClient(
      */
     suspend fun refreshToken(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/ycard/refresh_token")
                 .header("X-AHUTONG-TOKEN", token)
                 .post("".toRequestBody(null))
@@ -362,7 +370,7 @@ class LocalServiceClient(
      */
     suspend fun getCookiesList(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            val request = requestBuilder()
                 .url("$baseUrl/cookies/flat")
                 .header("X-AHUTONG-TOKEN", token)
                 .get()

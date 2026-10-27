@@ -55,6 +55,8 @@ import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.SettingsChoice
 import com.ahu.ahutong.ui.components.SettingsActionRow
+import com.ahu.ahutong.ui.components.settingsPrimaryTextStyle
+import com.ahu.ahutong.ui.components.settingsSecondaryTextStyle
 import com.ahu.ahutong.ui.components.SettingsDialogSelectRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
@@ -238,11 +240,12 @@ fun ThemeSettingsSection(
         modifier = Modifier.padding(horizontal = 16.dp),
         backdrop = backdrop
     ) {
-        ThemeColorPicker(
-            selectedColor = themeColor,
-            showMiuixDefault = appUiTheme == AppUiTheme.MIUIX,
-            onColorSelected = viewModel::setThemeColor,
-            onCustomColorClick = { showCustomColorDialog = true }
+        SettingsSelectRow(
+            title = "主题套装",
+            selected = appUiTheme,
+            choices = AppUiTheme.entries.filter { it != AppUiTheme.LIQUID_GLASS }
+                .map { SettingsChoice(it, it.displayName) },
+            onSelected = viewModel::setAppUiTheme
         )
         SettingsSelectRow(
             title = "深色模式",
@@ -254,14 +257,13 @@ fun ThemeSettingsSection(
             ),
             onSelected = viewModel::setAppThemeMode
         )
-        BackgroundControls(viewModel)
-        SettingsSelectRow(
-            title = "主题套装",
-            selected = appUiTheme,
-            choices = AppUiTheme.entries.filter { it != AppUiTheme.LIQUID_GLASS }
-                .map { SettingsChoice(it, it.displayName) },
-            onSelected = viewModel::setAppUiTheme
+        ThemeColorPicker(
+            selectedColor = themeColor,
+            showMiuixDefault = appUiTheme == AppUiTheme.MIUIX,
+            onColorSelected = viewModel::setThemeColor,
+            onCustomColorClick = { showCustomColorDialog = true }
         )
+        BackgroundControls(viewModel)
         SettingsActionRow(title = "详细设定", onClick = onOpenDetails, showDivider = false)
     }
 
@@ -314,8 +316,7 @@ private fun ThemeColorPicker(
             text = "主题色",
             modifier = Modifier.padding(start = 20.dp, top = 14.dp, end = 20.dp),
             color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium
+            style = settingsPrimaryTextStyle()
         )
         Row(
             modifier = Modifier
@@ -389,7 +390,7 @@ private fun ThemeColorSwatch(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            style = MaterialTheme.typography.labelMedium,
+            style = settingsSecondaryTextStyle(),
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
         )
     }
@@ -470,7 +471,7 @@ private fun BackgroundControls(viewModel: PreferencesViewModel) {
 
     Text(
         text = "背景",
-        style = MaterialTheme.typography.titleMedium,
+        style = settingsPrimaryTextStyle(),
         modifier = Modifier.padding(start = 20.dp, top = 14.dp, end = 20.dp)
     )
         Column(
