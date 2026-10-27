@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -102,6 +103,7 @@ import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.schedule.customCourseId
 import com.ahu.ahutong.data.schedule.ScheduleUiPrefs
+import com.ahu.ahutong.data.schedule.scheduleVisibleWeekdays
 import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
@@ -113,9 +115,7 @@ import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
-import com.ahu.ahutong.ui.components.AppDialog
-import com.ahu.ahutong.ui.components.AppDialogAction
-import com.ahu.ahutong.ui.components.AppDialogActionStyle
+import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.components.headerBackdropSource
@@ -293,6 +293,11 @@ fun Schedule(
 
     // 当前时间指示线开关（持久化，默认关）：课表设置弹窗里可打开。
     var showNowTimeline by remember { mutableStateOf(ScheduleUiPrefs.isNowTimelineVisible()) }
+    var showSaturday by remember { mutableStateOf(ScheduleUiPrefs.isSaturdayVisible()) }
+    var showSunday by remember { mutableStateOf(ScheduleUiPrefs.isSundayVisible()) }
+    val visibleWeekdays = remember(showSaturday, showSunday) {
+        scheduleVisibleWeekdays(showSaturday, showSunday)
+    }
 
     // 当前时间指示线心跳：每分钟重算一次钟点分钟数，驱动 recompose 平滑前进。
     // 时间源 = DebugClock（与周次/周几同一时钟）：Debug 设置页的 mock 时间
@@ -664,12 +669,13 @@ fun Schedule(
     @Composable
     fun ScheduleGrid() {
         // schedule
+        val dayCount = visibleWeekdays.size
         val cellWidth = (
                 LocalConfiguration.current.screenWidthDp.dp -
                         (if (radiant) 12.dp else 0.dp) -
                         CourseCardSpec.mainColumnWidth -
-                        CourseCardSpec.cellSpacing * 9
-                ) / 7
+                        CourseCardSpec.cellSpacing * (dayCount + 2)
+                ) / dayCount
         val cellHeight = 48.dp
         HorizontalPager(
             state = pagerState,
@@ -735,10 +741,13 @@ fun Schedule(
 
                 val weekDates = weekDateLabels.getOrElse(page) { emptyList() }
                 val holidays = weekHolidays.getOrElse(page) { emptyList() }
+                val visibleWeekDates = visibleWeekdays.map { weekDates.getOrNull(it - 1) ?: "" }
+                val visibleHolidays = visibleWeekdays.map { holidays.getOrNull(it - 1) }
 
                 ScheduleGridLabels(
-                    weekDates = weekDates,
-                    holidays = holidays,
+                    weekDates = visibleWeekDates,
+                    holidays = visibleHolidays,
+                    visibleWeekdays = visibleWeekdays,
                     cellWidth = cellWidth,
                     cellHeight = cellHeight,
                     pageWeek = pageWeek,
@@ -752,13 +761,17 @@ fun Schedule(
                 if (!renderCourseCards) {
                     Unit
                 } else if (isOverviewSchedule) {
-                    overviewCourseGroups.forEach { sameTimeCourses ->
+                    overviewCourseGroups
+                        .filter { visibleWeekdays.contains(it.first().weekday) }
+                        .forEach { sameTimeCourses ->
+                        val dayIndex = visibleWeekdays.indexOf(sameTimeCourses.first().weekday)
                         key(sameTimeCourses.joinToString("-") { it.hashCode().toString() }) {
                             GroupedCourseCard(
                                 courses = sameTimeCourses,
                                 colors = courseColors,
                                 cellWidth = cellWidth,
                                 cellHeight = cellHeight,
+                                dayIndex = dayIndex,
                                 currentWeek = pageWeek,
                                 timetable = sectionTimetable,
                                 holidayName = holidays.getOrNull(sameTimeCourses.first().weekday - 1)
@@ -771,7 +784,10 @@ fun Schedule(
                         }
                     }
                 } else {
-                    courseGroupsByWeek.getOrElse(page) { emptyList() }.forEach { courses ->
+                    courseGroupsByWeek.getOrElse(page) { emptyList() }
+                        .filter { visibleWeekdays.contains(it.first().weekday) }
+                        .forEach { courses ->
+                        val dayIndex = visibleWeekdays.indexOf(courses.first().weekday)
                         key(courses.joinToString("-") { it.hashCode().toString() }) {
                             if (courses.size > 1) {
                                 GroupedCourseCard(
@@ -779,6 +795,7 @@ fun Schedule(
                                     colors = courseColors,
                                     cellWidth = cellWidth,
                                     cellHeight = cellHeight,
+                                    dayIndex = dayIndex,
                                     currentWeek = pageWeek,
                                     includeWeeks = false,
                                     date = weekDates.getOrNull(courses.first().weekday - 1),
@@ -797,6 +814,7 @@ fun Schedule(
                                     color = courseColors.getOrElse(course.name) { 50.a1 },
                                     cellWidth = cellWidth,
                                     cellHeight = cellHeight,
+                                    dayIndex = dayIndex,
                                     isCurrentWeek = true,
                                     date = weekDates.getOrNull(course.weekday - 1),
                                     timetable = sectionTimetable,
@@ -818,7 +836,8 @@ fun Schedule(
                         position = position,
                         nowMinutes = nowMinutes,
                         cellWidth = cellWidth,
-                        cellHeight = cellHeight
+                        cellHeight = cellHeight,
+                        dayCount = dayCount
                     )
                 }
             }
@@ -908,6 +927,16 @@ fun Schedule(
             semesterError = semestersResult?.errorOrNull()?.toUserMessage(),
             onReloadSemesters = { scheduleViewModel.loadSemesters(true) },
             showNowTimeline = showNowTimeline,
+            showSaturday = showSaturday,
+            showSunday = showSunday,
+            onShowSaturdayChange = { enabled ->
+                showSaturday = enabled
+                ScheduleUiPrefs.setSaturdayVisible(enabled)
+            },
+            onShowSundayChange = { enabled ->
+                showSunday = enabled
+                ScheduleUiPrefs.setSundayVisible(enabled)
+            },
             onShowNowTimelineChange = { enabled ->
                 val oldValue = showNowTimeline
                 showNowTimeline = enabled
@@ -1125,6 +1154,7 @@ fun Schedule(
 private fun BoxScope.ScheduleGridLabels(
     weekDates: List<String>,
     holidays: List<ScheduleHoliday?>,
+    visibleWeekdays: List<Int>,
     cellWidth: Dp,
     cellHeight: Dp,
     pageWeek: Int,
@@ -1146,12 +1176,13 @@ private fun BoxScope.ScheduleGridLabels(
     val adjustedBadgeContent = MaterialTheme.colorScheme.onTertiaryContainer
     val dayStyle = MaterialTheme.typography.labelLarge
     val secondaryStyle = MaterialTheme.typography.labelSmall
-    val dayNames = remember(radiant) {
-        if (radiant) {
+    val dayNames = remember(radiant, visibleWeekdays) {
+        val names = if (radiant) {
             listOf("一", "二", "三", "四", "五", "六", "日")
         } else {
             listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
         }
+        visibleWeekdays.map { names[it - 1] }
     }
     val timeLabels = remember {
         ScheduleSectionTimes.timetable.map { (index, time) ->
@@ -1197,7 +1228,7 @@ private fun BoxScope.ScheduleGridLabels(
             val isCurrentWeekday = !isSemesterPreview &&
                 isInSemester &&
                 pageWeek == currentWeek &&
-                index + 1 == currentWeekday
+                visibleWeekdays.getOrNull(index) == currentWeekday
             if (isCurrentWeekday) {
                 drawRoundRect(
                     color = selectedBackground,
@@ -1296,6 +1327,10 @@ private fun ScheduleSettingsDialog(
         semesterError: String?,
         onReloadSemesters: () -> Unit,
         showNowTimeline: Boolean,
+        showSaturday: Boolean,
+        showSunday: Boolean,
+        onShowSaturdayChange: (Boolean) -> Unit,
+        onShowSundayChange: (Boolean) -> Unit,
         onShowNowTimelineChange: (Boolean) -> Unit,
         onOverviewChange: (Boolean) -> Unit,
         onSemesterChange: (String) -> Unit,
@@ -1303,21 +1338,33 @@ private fun ScheduleSettingsDialog(
         showSemesterBrowser: Boolean = true,
         extraSettings: @Composable () -> Unit = {}
     ) {
-        AppDialog(
+        val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.8f
+        AppModalBottomSheet(
             title = "课表设置",
-            titleStyle = MaterialTheme.typography.titleLarge,
-            titleFontWeight = FontWeight.Bold,
-            onDismiss = onDismiss,
-            contentSpacing = 12.dp,
-            actions = listOf(
-                AppDialogAction(
-                    "完成",
-                    onClick = onDismiss,
-                    style = AppDialogActionStyle.Primary
-                )
-            ),
-            content = {
+            onDismissRequest = onDismiss,
+            modifier = Modifier.heightIn(max = maxSheetHeight)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 extraSettings()
+                ScheduleSettingRow(
+                    title = "显示周六",
+                    description = "关闭后隐藏周六课程，剩余天自动均分宽度",
+                    selected = showSaturday,
+                    onSelect = onShowSaturdayChange
+                )
+                ScheduleSettingRow(
+                    title = "显示周日",
+                    description = "关闭后隐藏周日课程，剩余天自动均分宽度",
+                    selected = showSunday,
+                    onSelect = onShowSundayChange
+                )
                 ScheduleSettingRow(
                     title = "显示当前时间线",
                     description = "在课表上标记现在的时间，直观显示当前课程进度",
@@ -1365,7 +1412,7 @@ private fun ScheduleSettingsDialog(
                     }
                 }
             }
-        )
+        }
     }
 
 
@@ -1457,6 +1504,7 @@ private fun GroupedCourseCard(
     colors: Map<String, Color>,
     cellWidth: Dp,
     cellHeight: Dp,
+    dayIndex: Int,
     currentWeek: Int,
     timetable: Map<Int, String>,
     holidayName: String?,
@@ -1490,7 +1538,7 @@ private fun GroupedCourseCard(
                 )
                 .offset(
                     x = mainColumnWidth +
-                                (cellWidth + cellSpacing) * (course.weekday - 1) +
+                                (cellWidth + cellSpacing) * dayIndex +
                                 cellSpacing,
                     y = mainRowHeight +
                             (cellHeight + cellSpacing) * (startPeriod - 1) +

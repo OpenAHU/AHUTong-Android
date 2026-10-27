@@ -62,6 +62,7 @@ fun CourseCard(
     color: Color,
     cellWidth: Dp,
     cellHeight: Dp,
+    dayIndex: Int,
     isCurrentWeek: Boolean = true,
     date: String? = null,
     timetable: Map<Int, String> = ScheduleSectionTimes.timetable,
@@ -107,7 +108,7 @@ fun CourseCard(
                         cellWidth, cellHeight * course.length + cellSpacing * (course.length - 1)
                     )
                     .offset(
-                        mainColumnWidth + (cellWidth + cellSpacing) * (course.weekday - 1) + cellSpacing,
+                        mainColumnWidth + (cellWidth + cellSpacing) * dayIndex + cellSpacing,
                         mainRowHeight + (cellHeight + cellSpacing) * (course.startTime - 1) + cellSpacing
                     )
                     .alpha(if (holidayName != null) 0.45f else 1f)
