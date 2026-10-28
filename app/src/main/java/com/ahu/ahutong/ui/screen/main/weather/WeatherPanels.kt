@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.data.weather.*
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -477,10 +479,10 @@ internal fun WeatherLifePanel(indices: LifeIndices, palette: WeatherPalette) {
         }
     }
     selected?.let { (label, item) ->
-        AlertDialog(onDismissRequest = { selected = null },
-            title = { Text("$label · ${item.level.orEmpty()}") },
-            text = { Text(listOfNotNull(item.brief, item.advice).filter { it.isNotBlank() }.distinct().joinToString("\n\n")) },
-            confirmButton = { TextButton(onClick = { selected = null }) { Text("知道了") } })
+        AppDialog(onDismiss = { selected = null },
+            title = "$label · ${item.level.orEmpty()}",
+            content = { Text(listOfNotNull(item.brief, item.advice).filter { it.isNotBlank() }.distinct().joinToString("\n\n")) },
+            actions = listOf(AppDialogAction("知道了", onClick = { selected = null })))
     }
 }
 

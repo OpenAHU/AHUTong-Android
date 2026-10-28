@@ -2,12 +2,17 @@ package com.ahu.ahutong.ui.screen.main.home
 
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
+import com.ahu.ahutong.data.schedule.forDate
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeCourseSelectionTest {
+    private val firstMonday = LocalDate.of(2026, 10, 5)
     private fun course(name: String, day: Int, weeks: List<Int>) = Course().apply {
         this.name = name
         setWeekday(day.toString())
@@ -23,6 +28,25 @@ class HomeCourseSelectionTest {
         this.week = week
         weekDay = day
         isInSemester = true
+        startTime = Date.from(firstMonday.atStartOfDay(ZoneId.systemDefault()).toInstant())
+    }
+
+    @Test fun staleCalendarSelectsCoursesFromTheCurrentDayAndTeachingWeek() {
+        for ((date, day, week) in listOf(
+            Triple("2026-10-22", 4, 3),
+            Triple("2026-10-26", 1, 4),
+            Triple("2026-11-02", 1, 5)
+        )) {
+            val yesterday = course("cached", 3, listOf(3))
+            val current = course("current", day, listOf(week))
+            val cached = config(day = 3)
+            val result = selectHomeCourses(listOf(yesterday, current), emptyList(), true,
+                cached.forDate(LocalDate.parse(date)), currentMinutes = 0)
+            assertEquals(date, listOf(current), result.today)
+            assertEquals(date, listOf(current), result.strip)
+            assertFalse(result.isTomorrow)
+            assertEquals(3, cached.weekDay)
+        }
     }
 
     @Test fun graduateHomeUsesTheGraduateTimetableEvenWhenUndergraduateCacheExists() {

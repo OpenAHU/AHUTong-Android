@@ -13,6 +13,7 @@ object ScheduleUiPrefs {
 
     private const val PREFS = "schedule_ui"
     private const val KEY_SHOW_NOW_TIMELINE = "show_now_timeline"
+    private const val KEY_HIDE_WEEKENDS = "hide_weekends"
 
     private val prefs
         get() = AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -22,5 +23,11 @@ object ScheduleUiPrefs {
 
     fun setNowTimelineVisible(visible: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_NOW_TIMELINE, visible).apply()
+    }
+
+    fun areWeekendsHidden(): Boolean = prefs.getBoolean(KEY_HIDE_WEEKENDS, false)
+
+    fun setWeekendsHidden(hidden: Boolean) {
+        prefs.edit().putBoolean(KEY_HIDE_WEEKENDS, hidden).apply()
     }
 }

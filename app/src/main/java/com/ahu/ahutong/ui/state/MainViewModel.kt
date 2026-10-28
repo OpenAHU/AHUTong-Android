@@ -32,8 +32,7 @@ class MainViewModel @Inject constructor(
     private val settings: SettingsStore
 ) : ViewModel() {
 
-    /** 导航栏「一键扫码」入口开关（默认关；设置→偏好里打开才出现该按钮）。 */
-    val scanShortcutEnabled: StateFlow<Boolean> = settings.scanShortcutEnabled
+    val materialFloatingBottomBar: StateFlow<Boolean> = settings.materialFloatingBottomBar
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {

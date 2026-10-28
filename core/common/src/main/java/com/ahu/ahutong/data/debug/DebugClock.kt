@@ -4,6 +4,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.Duration
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -24,6 +26,20 @@ object DebugClock {
     fun nowLocalDate(): LocalDate = LocalDateTime.ofInstant(currentInstant(), zoneId).toLocalDate()
 
     fun nowLocalDateTime(): LocalDateTime = LocalDateTime.ofInstant(currentInstant(), zoneId)
+
+    fun nowZonedDateTime(): ZonedDateTime = currentInstant().atZone(zoneId)
+
+    /** A regular UI heartbeat must not sleep past the next local date boundary. */
+    fun nextCalendarRefreshDelayMillis(
+        now: ZonedDateTime,
+        maximumMillis: Long,
+        mocked: Boolean = isMocked()
+    ): Long {
+        require(maximumMillis > 0)
+        if (mocked) return maximumMillis
+        val nextDate = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+        return minOf(maximumMillis, Duration.between(now, nextDate).toMillis().coerceAtLeast(1L))
+    }
 
     fun nowCalendar(locale: Locale = Locale.CHINA): Calendar {
         return Calendar.getInstance(locale).apply {

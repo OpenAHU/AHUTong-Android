@@ -8,6 +8,20 @@ import kotlin.test.assertTrue
 
 class ScheduleCourseGroupsTest {
     @Test
+    fun `weekday layout hides weekend courses in weekly and overview modes without changing data`() {
+        val weekday = course("周五", day = 5)
+        val saturday = course("周六", day = 6)
+        val sunday = course("周日", day = 7)
+        val courses = listOf(weekday, saturday, sunday)
+        for (dayCount in listOf(5, 7)) {
+            val expected = if (dayCount == 5) listOf(listOf(weekday)) else courses.map { listOf(it) }
+            assertEquals(expected, weeklyCourseGroups(courses, 1, dayCount))
+            assertEquals(expected, overlappingCourseGroups(courses, dayCount))
+        }
+        assertEquals(listOf(weekday, saturday, sunday), courses)
+    }
+
+    @Test
     fun `same slot courses are retained in one group`() {
         val first = course("数学")
         val second = course("英语")

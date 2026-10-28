@@ -42,9 +42,9 @@ object PreferencesKeys {
         booleanPreferencesKey("course_reminder_live_countdown_enabled")
     val THEME_COLOR = stringPreferencesKey("theme_color_hex")
     val THEME_MODE = stringPreferencesKey("theme_mode")
+    val MATERIAL_FLOATING_BOTTOM_BAR = booleanPreferencesKey("material_floating_bottom_bar")
     val REPOSITORY_ACCELERATION_SOURCE = stringPreferencesKey("repository_acceleration_source")
     val PERSONALIZATION_ENABLED = booleanPreferencesKey("personalization_enabled")
-    val SCAN_SHORTCUT_ENABLED = booleanPreferencesKey("scan_shortcut_enabled")
     val CANTEEN_UPLOAD_CONSENT = booleanPreferencesKey("canteen_upload_consent")
 
     /** 众包补标注的匿名上报 token（随机 UUID，只用于同人去重）。 */
@@ -176,12 +176,11 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
         editPreferences { it[PreferencesKeys.PERSONALIZATION_ENABLED] = value }
     }
 
-    // 纯界面开关：未表态即"不显示"，要用户在偏好里主动打开
-    override val scanShortcutEnabled: Flow<Boolean> =
-        preferences { prefs -> prefs[PreferencesKeys.SCAN_SHORTCUT_ENABLED] ?: false }
+    override val materialFloatingBottomBar: Flow<Boolean> =
+        preferences { prefs -> prefs[PreferencesKeys.MATERIAL_FLOATING_BOTTOM_BAR] ?: false }
 
-    override suspend fun setScanShortcutEnabled(value: Boolean) {
-        editPreferences { it[PreferencesKeys.SCAN_SHORTCUT_ENABLED] = value }
+    override suspend fun setMaterialFloatingBottomBar(value: Boolean) {
+        editPreferences { it[PreferencesKeys.MATERIAL_FLOATING_BOTTOM_BAR] = value }
     }
 
     override val predictivePrefetchEnabled: Flow<Boolean> =

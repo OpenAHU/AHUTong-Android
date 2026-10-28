@@ -9,6 +9,6 @@ import com.ahu.ahutong.ui.state.ScheduleViewModel
 fun Debug(
     scheduleViewModel: ScheduleViewModel,
     discoveryViewModel: DiscoveryViewModel,
-    onGrayStateChanged: () -> Unit,
+    onGrayStateChanged: () -> Unit = {},
     onBack: (() -> Unit)? = null
 ) = Unit

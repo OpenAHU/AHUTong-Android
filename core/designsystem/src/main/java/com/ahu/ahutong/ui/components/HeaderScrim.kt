@@ -4,6 +4,7 @@ import android.graphics.RenderEffect
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -19,6 +20,23 @@ import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.effect
 import com.kyant.backdrop.effects.vibrancy
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** Preserve wallpaper under native Miuix headers while keeping both title sizes readable. */
+@Composable
+internal fun Modifier.miuixWallpaperHeaderScrim(): Modifier {
+    if (LocalAppBackground.current == null) return this
+    val surface = MiuixTheme.colorScheme.surface
+    val scrim = remember(surface) {
+        Brush.verticalGradient(
+            0f to surface.copy(alpha = 0.92f),
+            0.65f to surface.copy(alpha = 0.82f),
+            0.9f to surface.copy(alpha = 0.64f),
+            1f to surface.copy(alpha = 0f)
+        )
+    }
+    return background(scrim)
+}
 
 /**
  * 一级页固定标题栏遮罩（共享实现，替代各页复制的 4 段式 verticalGradient）。

@@ -28,7 +28,6 @@ import com.ahu.ahutong.ui.state.WeatherHomeConfig
 import com.ahu.ahutong.ui.state.WeatherHomeMode
 import com.kyant.monet.a1
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.painterResource
 import com.ahu.ahutong.R
 import com.kyant.capsule.ContinuousCapsule
@@ -37,6 +36,10 @@ import com.kyant.monet.withNight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+
+@Composable
+internal fun rememberHomeWeatherConfig(accountId: String?, isActive: Boolean): WeatherHomeConfig =
+    remember(accountId, isActive) { WeatherHomeConfig.fromCache() }
 
 @Composable
 fun HomeWeatherWidget(

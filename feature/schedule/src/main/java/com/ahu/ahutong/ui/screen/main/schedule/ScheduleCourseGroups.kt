@@ -3,12 +3,12 @@ package com.ahu.ahutong.ui.screen.main.schedule
 import com.ahu.ahutong.data.model.Course
 
 /** Groups connected time ranges after filtering to the displayed week. */
-internal fun weeklyCourseGroups(courses: List<Course>, week: Int): List<List<Course>> =
-    overlappingCourseGroups(courses.filter { week in it.weekIndexes })
+internal fun weeklyCourseGroups(courses: List<Course>, week: Int, dayCount: Int = 7): List<List<Course>> =
+    overlappingCourseGroups(courses.filter { week in it.weekIndexes }, dayCount)
 
 /** Groups visually overlapping ranges, including courses taught in different weeks. */
-internal fun overlappingCourseGroups(courses: List<Course>): List<List<Course>> =
-    courses.groupBy { it.weekday }
+internal fun overlappingCourseGroups(courses: List<Course>, dayCount: Int = 7): List<List<Course>> =
+    courses.filter { it.weekday in 1..dayCount }.groupBy { it.weekday }
         .values
         .flatMap { dayCourses ->
             val groups = mutableListOf<MutableList<Course>>()

@@ -23,6 +23,32 @@ import com.kyant.backdrop.Backdrop
  * LIQUID_GLASS 与 RADIANT 共用本包——两者的组件实现本就同源。
  */
 object RadiantComponentPack : AppComponentPack() {
+    internal override val dialogStyle = DialogStyle.Radiant
+
+    @Composable
+    override fun Slider(
+        value: Float,
+        onValueChange: (Float) -> Unit,
+        modifier: Modifier,
+        valueRange: ClosedFloatingPointRange<Float>,
+        onValueChangeFinished: () -> Unit,
+        backdrop: Backdrop?
+    ) {
+        if (backdrop == null) {
+            super.Slider(value, onValueChange, modifier, valueRange, onValueChangeFinished, backdrop)
+        } else {
+            com.ahu.ahutong.ui.components.LiquidSlider(
+                value = { value },
+                onValueChange = onValueChange,
+                valueRange = valueRange,
+                visibilityThreshold = (valueRange.endInclusive - valueRange.start) / 1000f,
+                backdrop = backdrop,
+                modifier = modifier,
+                onValueChangeFinished = onValueChangeFinished
+            )
+        }
+    }
+
     @Composable
     override fun Toggle(
         checked: Boolean,
