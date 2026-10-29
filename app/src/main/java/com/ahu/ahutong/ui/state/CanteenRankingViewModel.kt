@@ -29,7 +29,7 @@ class CanteenRankingViewModel @Inject constructor() : ViewModel() {
         ALL("全部", null),
         QINGYUAN("磬苑", "榴园,桔园,梅园,桂园,蕙园食堂,梧桐园食堂"),
         LONGHE("龙河", "本部二食堂,本部三食堂,二食堂餐厅,三食堂,外招餐厅"),
-        JINZHAI("金寨路", "江淮学院食堂")
+        JIANGHUAI("江淮学院食堂", "江淮学院食堂")
     }
 
     sealed interface UiState {
