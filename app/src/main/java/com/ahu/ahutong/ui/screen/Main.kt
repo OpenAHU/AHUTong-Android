@@ -1,6 +1,5 @@
 package com.ahu.ahutong.ui.screen
 
-import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import com.ahu.ahutong.data.model.AppUiTheme
@@ -337,8 +336,8 @@ fun Main(
     val backgroundBitmap by produceState<ImageBitmap?>(null, context, backgroundImageRevision) {
         value = withContext(Dispatchers.IO) {
             if (HomeBackgroundStore.isEnabled) {
-                HomeBackgroundStore.blurredFile(context).takeIf { it.exists() }
-                    ?.let { BitmapFactory.decodeFile(it.absolutePath)?.asImageBitmap() }
+                // 统一裁成屏幕比例：视差放大后的余量在两个方向才是同一个百分比
+                HomeBackgroundStore.loadScreenRatioBitmap(context)?.asImageBitmap()
             } else null
         }
     }
@@ -346,6 +345,14 @@ fun Main(
         backgroundBitmap?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
     }
     val reduceGlassEffects = HomeBackgroundStore.reduceGlassEffects
+    // 视差只在有自定义背景且开关打开时采集；静止时保持居中。
+    val parallaxEnabled = remember(backgroundRevision) { HomeBackgroundStore.parallaxEnabled }
+    val backgroundTilt = com.ahu.ahutong.ui.screen.main.home.rememberBackgroundParallax(
+        enabled = appBackground != null && parallaxEnabled
+    )
+    val backgroundTiltProvider = remember(backgroundTilt) {
+        { backgroundTilt.value }
+    }
     LaunchedEffect(appUiTheme, currentRoute, appBackground != null, reduceGlassEffects) {
         // Native RenderThread failures otherwise identify only MainActivity. Use the route
         // template (no arguments) and appearance flags to distinguish rendering paths.
@@ -358,6 +365,7 @@ fun Main(
     }
     CompositionLocalProvider(
         LocalAppBackground provides appBackground,
+        com.ahu.ahutong.ui.components.LocalAppBackgroundTilt provides backgroundTiltProvider,
         LocalGlassReadabilityBoost provides (appBackground != null),
         // 低端机性能开关：revision 变化（含开关切换）时同步重组
         LocalGlassEffectsReduced provides reduceGlassEffects
