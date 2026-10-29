@@ -48,7 +48,29 @@ import androidx.compose.ui.text.input.VisualTransformation
  * open 成员 + 默认值 + 值类型参数会触发 Kotlin 2.2 编译器
  * JvmInlineClassLowering 的 NPE（getTypeSubstitutionMap）。
  */
+internal enum class DialogStyle { Material, Miuix, Radiant }
+
 open class AppComponentPack {
+    internal open val dialogStyle: DialogStyle = DialogStyle.Material
+
+    @Composable
+    open fun Slider(
+        value: Float,
+        onValueChange: (Float) -> Unit,
+        modifier: Modifier,
+        valueRange: ClosedFloatingPointRange<Float>,
+        onValueChangeFinished: () -> Unit,
+        backdrop: Backdrop?
+    ) {
+        androidx.compose.material3.Slider(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = modifier,
+            valueRange = valueRange,
+            onValueChangeFinished = onValueChangeFinished
+        )
+    }
+
     @Composable
     open fun Toggle(
         checked: Boolean,

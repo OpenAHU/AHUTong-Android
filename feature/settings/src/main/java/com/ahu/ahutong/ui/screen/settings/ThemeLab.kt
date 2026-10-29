@@ -1,25 +1,12 @@
 package com.ahu.ahutong.ui.screen.settings
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -30,19 +17,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
 import kotlinx.coroutines.launch
-import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
-import com.ahu.ahutong.ui.components.AppCard
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
@@ -55,8 +36,6 @@ import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.SettingsChoice
 import com.ahu.ahutong.ui.components.SettingsActionRow
-import com.ahu.ahutong.ui.components.settingsPrimaryTextStyle
-import com.ahu.ahutong.ui.components.settingsSecondaryTextStyle
 import com.ahu.ahutong.ui.components.SettingsDialogSelectRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
@@ -228,12 +207,14 @@ fun ThemeLab(
 fun ThemeSettingsSection(
     viewModel: PreferencesViewModel,
     backdrop: com.kyant.backdrop.Backdrop,
-    onOpenDetails: () -> Unit
+    onOpenDetails: () -> Unit,
+    onOpenThemeColors: () -> Unit,
+    onHorizontalDragActiveChange: (Boolean) -> Unit = {}
 ) {
     val appThemeMode by viewModel.appThemeMode.collectAsState()
     val appUiTheme by viewModel.appUiTheme.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
-    var showCustomColorDialog by remember { mutableStateOf(false) }
+    val materialFloatingBottomBar by viewModel.materialFloatingBottomBar.collectAsState()
 
     SettingsSection(
         title = "主题",
@@ -247,6 +228,15 @@ fun ThemeSettingsSection(
                 .map { SettingsChoice(it, it.displayName) },
             onSelected = viewModel::setAppUiTheme
         )
+        if (appUiTheme == AppUiTheme.MATERIAL) {
+            com.ahu.ahutong.ui.components.SettingsToggleRow(
+                title = "悬浮底栏",
+                selected = materialFloatingBottomBar,
+                onSelectedChange = viewModel::setMaterialFloatingBottomBar,
+                backdrop = backdrop,
+                onHorizontalDragActiveChange = onHorizontalDragActiveChange
+            )
+        }
         SettingsSelectRow(
             title = "深色模式",
             selected = appThemeMode,
@@ -257,193 +247,23 @@ fun ThemeSettingsSection(
             ),
             onSelected = viewModel::setAppThemeMode
         )
-        ThemeColorPicker(
-            selectedColor = themeColor,
-            showMiuixDefault = appUiTheme == AppUiTheme.MIUIX,
-            onColorSelected = viewModel::setThemeColor,
-            onCustomColorClick = { showCustomColorDialog = true }
+        SettingsActionRow(
+            title = "主题色",
+            value = themeColorName(themeColor),
+            onClick = onOpenThemeColors
         )
-        BackgroundControls(viewModel)
+        BackgroundControls(viewModel, backdrop, onHorizontalDragActiveChange)
         SettingsActionRow(title = "详细设定", onClick = onOpenDetails, showDivider = false)
     }
-
-    if (showCustomColorDialog) {
-        CustomThemeColorDialog(
-            initialValue = themeColor.orEmpty(),
-            onDismiss = { showCustomColorDialog = false },
-            onConfirm = { color ->
-                viewModel.setThemeColor(color)
-                showCustomColorDialog = false
-            }
-        )
-    }
-}
-
-private data class ThemeColorChoice(
-    val value: String?,
-    val name: String,
-    val color: Color
-)
-
-@Composable
-private fun ThemeColorPicker(
-    selectedColor: String?,
-    showMiuixDefault: Boolean,
-    onColorSelected: (String?) -> Unit,
-    onCustomColorClick: () -> Unit
-) {
-    val choices = buildList {
-        if (showMiuixDefault) {
-            add(ThemeColorChoice(DEFAULT_THEME_COLOR, "默认", Color(0xFF3482FF)))
-        }
-        add(ThemeColorChoice(null, "系统", MaterialTheme.colorScheme.primary))
-        add(ThemeColorChoice("#FF4A90E2", "极光蓝", Color(0xFF4A90E2)))
-        add(ThemeColorChoice("#FFE07A9F", "樱花粉", Color(0xFFE07A9F)))
-        add(ThemeColorChoice("#FFF4A261", "落日橙", Color(0xFFF4A261)))
-        add(ThemeColorChoice("#FF6A994E", "苔藓绿", Color(0xFF6A994E)))
-        add(ThemeColorChoice("#FF9B7EDE", "薰衣草", Color(0xFF9B7EDE)))
-        add(ThemeColorChoice("#FF2E8B57", "翡翠", Color(0xFF2E8B57)))
-    }
-    val presetValues = choices.map { it.value }.toSet()
-    val customSelected = selectedColor != null &&
-        selectedColor != DEFAULT_THEME_COLOR &&
-        selectedColor !in presetValues
-
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = "主题色",
-            modifier = Modifier.padding(start = 20.dp, top = 14.dp, end = 20.dp),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = settingsPrimaryTextStyle()
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            ThemeColorSwatch(
-                name = "自定义",
-                color = runCatching {
-                    Color(android.graphics.Color.parseColor(selectedColor))
-                }.getOrDefault(MaterialTheme.colorScheme.surfaceContainerHighest),
-                selected = customSelected,
-                custom = true,
-                onClick = onCustomColorClick
-            )
-            choices.forEach { choice ->
-                ThemeColorSwatch(
-                    name = choice.name,
-                    color = choice.color,
-                    selected = selectedColor == choice.value,
-                    onClick = { onColorSelected(choice.value) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeColorSwatch(
-    name: String,
-    color: Color,
-    selected: Boolean,
-    onClick: () -> Unit,
-    custom: Boolean = false
-) {
-    Column(
-        modifier = Modifier
-            .clip(SmoothRoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(SmoothRoundedCornerShape(16.dp))
-                .background(color),
-            contentAlignment = Alignment.Center
-        ) {
-            when {
-                selected -> Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = "已选择",
-                    tint = Color.White
-                )
-                custom -> Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = "自定义主题色",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        Text(
-            text = name,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            style = settingsSecondaryTextStyle(),
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-        )
-    }
-}
-
-@Composable
-private fun CustomThemeColorDialog(
-    initialValue: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var value by remember(initialValue) { mutableStateOf(initialValue) }
-    val valid = remember(value) {
-        runCatching { android.graphics.Color.parseColor(value) }.isSuccess
-    }
-    AppDialog(
-        title = "自定义主题色",
-        onDismiss = onDismiss,
-        actions = listOf(
-            AppDialogAction("取消", onClick = onDismiss),
-            AppDialogAction(
-                "应用",
-                enabled = valid,
-                style = AppDialogActionStyle.Primary,
-                onClick = { onConfirm(value) }
-            )
-        ),
-        content = {
-            OutlinedTextField(
-                value = value,
-                onValueChange = { value = it },
-                label = { Text("ARGB Hex") },
-                placeholder = { Text("#FF007FAC") },
-                isError = value.isNotBlank() && !valid,
-                supportingText = {
-                    if (value.isNotBlank() && !valid) Text("请输入有效的颜色代码")
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    disabledContainerColor = MaterialTheme.colorScheme.surface,
-                    errorContainerColor = MaterialTheme.colorScheme.surface
-                ),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    )
 }
 
 /** 全局背景：沿用原主页背景的存储与遮罩设置。 */
 @Composable
-private fun BackgroundControls(viewModel: PreferencesViewModel) {
+private fun BackgroundControls(
+    viewModel: PreferencesViewModel,
+    backdrop: com.kyant.backdrop.Backdrop,
+    onHorizontalDragActiveChange: (Boolean) -> Unit
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val revision by com.ahu.ahutong.core.storage.HomeBackgroundStore.revision.collectAsState()
@@ -469,121 +289,65 @@ private fun BackgroundControls(viewModel: PreferencesViewModel) {
         )
     }
 
-    Text(
-        text = "背景",
-        style = settingsPrimaryTextStyle(),
-        modifier = Modifier.padding(start = 20.dp, top = 14.dp, end = 20.dp)
-    )
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AppButton(
-                    onClick = {
-                        pickImage.launch(
-                            androidx.activity.result.PickVisualMediaRequest(
-                                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
-                            )
-                        )
-                    },
-                    variant = AppButtonVariant.Primary,
-                    modifier = Modifier.weight(1f)
-                ) { Text(if (enabled) "更换图片" else "选择图片") }
-                if (enabled) {
-                    AppButton(
-                        onClick = {
-                            scope.launch {
-                                com.ahu.ahutong.core.storage.HomeBackgroundStore.clear(context)
-                            }
-                        },
-                        variant = AppButtonVariant.Secondary,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("清除") }
-                }
-            }
-            if (enabled) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "遮罩",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(48.dp)
-                    )
-                    androidx.compose.material3.Slider(
-                        value = blur,
-                        onValueChange = { blur = it },
-                        onValueChangeFinished = {
-                            com.ahu.ahutong.core.storage.HomeBackgroundStore
-                                .updateMask(blur.toInt())
-                        },
-                        valueRange = 0f..100f,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "${blur.toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(28.dp)
-                    )
-                }
-                // 性能优先开关（红色警示项，与遮罩同级）：开启后全应用玻璃卡收敛为实色卡
-                val reduceGlass = com.ahu.ahutong.core.storage.HomeBackgroundStore.reduceGlassEffects
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(
-                            onClick = {
-                                com.ahu.ahutong.core.storage.HomeBackgroundStore
-                                    .setReduceGlassEffects(!reduceGlass)
-                            }
-                        ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "关闭部分玻璃效果",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = androidx.compose.ui.graphics.Color(0xFFE53935),
-                        modifier = Modifier.weight(1f)
-                    )
-                    com.ahu.ahutong.ui.components.AppToggle(
-                        checked = reduceGlass,
-                        onCheckedChange = { }
-                    )
-                }
-                AppButton(
-                    onClick = {
-                        scope.launch {
-                            com.ahu.ahutong.core.storage.HomeBackgroundStore
-                                .dominantColorHex(context)?.let { viewModel.setThemeColor(it) }
-                        }
-                    },
-                    variant = AppButtonVariant.Secondary,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("从背景图取主题色") }
-            }
+    SettingsActionRow(
+        title = if (enabled) "更改图片" else "选择背景图片",
+        onClick = {
+            pickImage.launch(
+                androidx.activity.result.PickVisualMediaRequest(
+                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                )
+            )
         }
+    )
+    if (enabled) {
+        SettingsActionRow(
+            title = "清除背景图片",
+            destructive = true,
+            onClick = {
+                scope.launch {
+                    com.ahu.ahutong.core.storage.HomeBackgroundStore.clear(context)
+                }
+            }
+        )
+    }
+    if (enabled) {
+        com.ahu.ahutong.ui.components.SettingsSliderRow(
+            title = "遮罩",
+            value = blur,
+            valueLabel = "${blur.toInt()}%",
+            onValueChange = { blur = it },
+            onValueChangeFinished = {
+                com.ahu.ahutong.core.storage.HomeBackgroundStore.updateMask(blur.toInt())
+            },
+            valueRange = 0f..100f,
+            backdrop = backdrop
+        )
+        com.ahu.ahutong.ui.components.SettingsToggleRow(
+            title = "关闭部分玻璃效果",
+            selected = com.ahu.ahutong.core.storage.HomeBackgroundStore.reduceGlassEffects,
+            onSelectedChange = com.ahu.ahutong.core.storage.HomeBackgroundStore::setReduceGlassEffects,
+            backdrop = backdrop,
+            onHorizontalDragActiveChange = onHorizontalDragActiveChange
+        )
+        SettingsActionRow(
+            title = "从背景图取主题色",
+            onClick = {
+                scope.launch {
+                    com.ahu.ahutong.core.storage.HomeBackgroundStore
+                        .dominantColorHex(context)?.let { viewModel.setThemeColor(it) }
+                }
+            }
+        )
+    }
 
-    // 性能优先告知弹窗：背景导入时玻璃效果已自动关闭，追求视觉可手动恢复
     if (showAutoGlassNotice) {
         AppDialog(
-            title = "性能优化提示",
+            title = "已关闭部分玻璃效果",
             onDismiss = { showAutoGlassNotice = false },
             actions = listOf(
                 AppDialogAction("知道了", onClick = { showAutoGlassNotice = false },
                     style = AppDialogActionStyle.Primary)
-            ),
-            content = {
-                Text(
-                    text = "为保证流畅体验，检测到自定义背景后已自动关闭玻璃效果，卡片将使用实色表面以降低性能开销。\n\n如需更佳的视觉表现，可在「背景」设置中关闭该选项重新启用玻璃效果，但可能对性能造成一定影响。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            )
         )
     }
 }

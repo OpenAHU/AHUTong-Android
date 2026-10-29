@@ -1,12 +1,38 @@
 package com.ahu.ahutong.ui.screen.main.schedule
 
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.schedule.scheduleVisibleWeekdays
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ScheduleCourseGroupsTest {
+    @Test
+    fun `weekday layout hides weekend courses in weekly and overview modes without changing data`() {
+        val weekday = course("周五", day = 5)
+        val saturday = course("周六", day = 6)
+        val sunday = course("周日", day = 7)
+        val courses = listOf(weekday, saturday, sunday)
+        val visibleDaySets = mapOf(
+            5 to (1..5).toSet(),
+            6 to scheduleVisibleWeekdays(showSaturday = true, showSunday = false).toSet(),
+            7 to (1..7).toSet()
+        )
+        visibleDaySets.forEach { (dayCount, visibleDays) ->
+            val expected = courses.filter { it.weekday in visibleDays }.map { listOf(it) }
+            assertEquals(expected, weeklyCourseGroups(courses, 1, visibleDays))
+            assertEquals(expected, overlappingCourseGroups(courses, visibleDays))
+        }
+        // 只隐藏周六时，周日课程仍要留在最右列（非连续可见天）。
+        val saturdayHidden = scheduleVisibleWeekdays(showSaturday = false, showSunday = true).toSet()
+        assertEquals(
+            listOf(listOf(weekday), listOf(sunday)),
+            weeklyCourseGroups(courses, 1, saturdayHidden)
+        )
+        assertEquals(listOf(weekday, saturday, sunday), courses)
+    }
+
     @Test
     fun `same slot courses are retained in one group`() {
         val first = course("数学")

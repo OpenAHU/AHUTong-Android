@@ -390,7 +390,7 @@ class JourneyPredictionEngine @Inject constructor(
         const val JOURNEY_WINDOW_MS = 120_000L
         const val MAX_ACTIONS = 5
         const val LEAF_DWELL_MS = 4_000L
-        const val RECOMMENDATION_THRESHOLD = 0.55f
+        const val RECOMMENDATION_THRESHOLD = 0.70f
         const val MAX_TRAINING_SLICE_NANOS = 50_000_000L
     }
 }

@@ -65,7 +65,9 @@ enum class AppActionId(val stableId: String) {
     OPEN_PRIVACY_POLICY("OPEN_PRIVACY_POLICY"),
     OPEN_THEME_LAB("OPEN_THEME_LAB"),
     VIEW_BILLING("VIEW_BILLING"),
-    VIEW_BILLING_STATS("VIEW_BILLING_STATS");
+    VIEW_BILLING_STATS("VIEW_BILLING_STATS"),
+    OPEN_SCANNER("OPEN_SCANNER"),
+    OPEN_THEME_COLORS("OPEN_THEME_COLORS");
 
     companion object {
         private val byStableId = entries.associateBy(AppActionId::stableId)

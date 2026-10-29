@@ -1,6 +1,5 @@
 package com.ahu.ahutong.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -264,6 +263,7 @@ internal fun MiuixPageScaffoldImpl(
             MiuixTopAppBar(
                 title = title,
                 largeTitle = title,
+                modifier = Modifier.miuixWallpaperHeaderScrim(),
                 color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {

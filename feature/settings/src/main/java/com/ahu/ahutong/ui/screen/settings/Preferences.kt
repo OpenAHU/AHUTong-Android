@@ -7,29 +7,12 @@ import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -39,19 +22,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.ahu.ahutong.data.model.AppThemeMode
-import com.ahu.ahutong.data.model.AppUiTheme
-import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
 import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsBackdropContainer
 import com.ahu.ahutong.ui.components.SettingsChoice
@@ -63,13 +40,13 @@ import com.ahu.ahutong.ui.components.SettingsSelectRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.SettingsToggleRow
-import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.PreferencesViewModel
 
 @Composable
 fun Preferences(
     onBack: () -> Unit = {},
     onOpenThemeLab: () -> Unit = {},
+    onOpenThemeColors: () -> Unit = {},
     undergraduateEnabled: Boolean = true
 ) {
     val viewModel: PreferencesViewModel = hiltViewModel()
@@ -87,7 +64,6 @@ fun Preferences(
     val showQRCode by viewModel.showQRCode.collectAsState()
     val personalizationEnabled by viewModel.personalizationEnabled.collectAsState()
     val canteenUploadConsent by viewModel.canteenUploadConsent.collectAsState()
-    val scanShortcutEnabled by viewModel.scanShortcutEnabled.collectAsState()
     val predictivePrefetchEnabled by viewModel.predictivePrefetchEnabled.collectAsState()
     val wifiOnlyPrefetch by viewModel.wifiOnlyPrefetch.collectAsState()
     val behaviorRetentionDays by viewModel.behaviorRetentionDays.collectAsState()
@@ -150,7 +126,9 @@ fun Preferences(
             ThemeSettingsSection(
                 viewModel = viewModel,
                 backdrop = backdrop,
-                onOpenDetails = onOpenThemeLab
+                onOpenDetails = onOpenThemeLab,
+                onOpenThemeColors = onOpenThemeColors,
+                onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
             )
 
             SettingsSection(
@@ -162,14 +140,6 @@ fun Preferences(
                     title = "主页默认显示付款码",
                     selected = showQRCode,
                     onSelectedChange = viewModel::setShowQRCode,
-                    backdrop = backdrop,
-                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                )
-                SettingsToggleRow(
-                    title = "导航栏扫码入口",
-                    subtitle = "在底部导航栏显示一键扫码按钮",
-                    selected = scanShortcutEnabled,
-                    onSelectedChange = viewModel::setScanShortcutEnabled,
                     backdrop = backdrop,
                     onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
                 )

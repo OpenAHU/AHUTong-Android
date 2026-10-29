@@ -9,7 +9,10 @@ import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 /** Records destination names only, never view contents or Intent arguments. */
 internal object FeedbackLifecycleRecorder : Application.ActivityLifecycleCallbacks {
     fun install(application: Application) {
-        FeedbackDiagnostics.setOnClearListener { AppFeedbackDraft.clearIfCreated() }
+        FeedbackDiagnostics.setOnClearListener {
+            try { AppFeedbackDraft.clearIfCreated() }
+            finally { com.ahu.ahutong.error.AppErrorHandler.clearBreadcrumbs() }
+        }
         FeedbackDiagnostics.recordRuntime("应用启动 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) / ${BuildConfig.BUILD_TYPE}")
         application.registerActivityLifecycleCallbacks(this)
     }

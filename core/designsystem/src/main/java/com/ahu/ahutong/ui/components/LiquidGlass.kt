@@ -13,16 +13,62 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.ui.theme.LocalLiquidGlassTokens
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.shadow.Shadow
+import com.kyant.monet.n1
+import com.kyant.monet.withNight
 
 /**
- * 液态玻璃：将当前组件表面的背景替换为毛玻璃质感。
+ * 浮动态玻璃材质：底部导航舱（[LiquidBottomTabs]）与标题栏悬浮控件共用这一份实现。
+ *
+ * 配方：vibrancy + floating 档模糊 + floating 档折射 + 半透明容器色；
+ * 不画描边、不叠投影。边缘那圈柔光是折射本身，不是 stroke。
+ * 抽出来是为了让「和导航栏一样」这件事只有一处定义，避免两份拷贝各自漂移。
+ */
+@Composable
+fun Modifier.liquidFloatingSurface(
+    backdrop: Backdrop,
+    shape: Shape = com.kyant.capsule.ContinuousCapsule,
+    layerBlock: androidx.compose.ui.graphics.GraphicsLayerScope.() -> Unit = {}
+): Modifier {
+    val tokens = LocalLiquidGlassTokens.current
+    val isLightTheme = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val containerColor = when {
+        !tokens.enabled -> 100.n1 withNight 20.n1
+        !tokens.quality.supportsBlur -> tokens.floating.legacyTint
+        isLightTheme -> Color(0xFFFAFAFA).copy(alpha = 0.4f)
+        else -> Color(0xFF121212).copy(alpha = 0.4f)
+    }
+    val canBlur = tokens.quality.supportsBlur
+    val canRefract = tokens.quality.supportsRefraction
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = { shape },
+        effects = {
+            if (canBlur) {
+                vibrancy()
+                blur(tokens.floating.blurRadius.toPx())
+            }
+            if (canRefract) {
+                lens(
+                    tokens.floating.refractionHeight.toPx(),
+                    tokens.floating.refractionAmount.toPx()
+                )
+            }
+        },
+        layerBlock = layerBlock,
+        onDrawSurface = { drawRect(containerColor) }
+    )
+}
+
+/** 液态玻璃：将当前组件表面的背景替换为毛玻璃质感。
  * 依赖页面最外层由 [GlassBackdropContainer] 创建的 backdrop 背景层。
  */
 fun Modifier.liquidGlassSurface(

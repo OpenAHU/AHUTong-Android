@@ -22,6 +22,26 @@ import com.ahu.ahutong.ui.components.AppSelectOption
  * 未覆盖的成员（如未来新增的契约组件）自动回落到 [AppComponentPack] 的默认实现。
  */
 object MiuixComponentPack : AppComponentPack() {
+    internal override val dialogStyle = DialogStyle.Miuix
+
+    @Composable
+    override fun Slider(
+        value: Float,
+        onValueChange: (Float) -> Unit,
+        modifier: Modifier,
+        valueRange: ClosedFloatingPointRange<Float>,
+        onValueChangeFinished: () -> Unit,
+        backdrop: com.kyant.backdrop.Backdrop?
+    ) {
+        top.yukonga.miuix.kmp.basic.Slider(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = modifier,
+            valueRange = valueRange,
+            onValueChangeFinished = onValueChangeFinished
+        )
+    }
+
     @Composable
     override fun Toggle(
         checked: Boolean,

@@ -66,6 +66,25 @@ class PreferencesViewModelTest {
     ) = PreferencesViewModel(store, personalization, reminders, repository, behavior)
 
     @Test
+    fun `material floating bottom bar is disabled by default and persists independently of theme`() {
+        val store = FakeSettingsStore()
+        val subject = viewModel(store)
+        assertFalse(subject.materialFloatingBottomBar.value)
+
+        subject.setMaterialFloatingBottomBar(true)
+        assertTrue(store.materialFloatingBottomBar.value)
+        assertTrue(subject.materialFloatingBottomBar.value)
+
+        subject.setAppUiTheme(AppUiTheme.MIUIX)
+        subject.setAppUiTheme(AppUiTheme.MATERIAL)
+        assertTrue(viewModel(store).materialFloatingBottomBar.value)
+
+        subject.setMaterialFloatingBottomBar(false)
+        assertFalse(store.materialFloatingBottomBar.value)
+        assertFalse(viewModel(store).materialFloatingBottomBar.value)
+    }
+
+    @Test
     fun `enabling waits for storage before scheduling and a following disable wins`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val store = FakeSettingsStore()

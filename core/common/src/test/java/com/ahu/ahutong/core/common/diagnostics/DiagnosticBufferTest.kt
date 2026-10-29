@@ -76,4 +76,35 @@ class DiagnosticBufferTest {
             assertTrue(DiagnosticSanitizer.passwords("previous-password").contains("previous-password"))
         } finally { FeedbackDiagnostics.setOnClearListener(null) }
     }
+
+    @Test fun crashSnapshotKeepsRecentRecordsWithinItsOwnBudget() {
+        val buffer = buffer(maxBytes = 4096)
+        buffer.append(DiagnosticCategory.ERROR, "old failure", buffer.currentGeneration())
+        buffer.append(DiagnosticCategory.ERROR, "latest failure", buffer.currentGeneration())
+        val snapshot = buffer.snapshot(DiagnosticCategory.ERROR, 50)
+        assertTrue(snapshot.length <= 50)
+        assertTrue(snapshot.contains("latest failure"))
+        assertEquals("", buffer.snapshot(DiagnosticCategory.ERROR, 0))
+    }
+
+    @Test fun diagnosticObserverOnlyReceivesSafeSummariesAndRejectsOldNativeWork() {
+        val records = mutableListOf<String>()
+        FeedbackDiagnostics.setRecordListener { _, text -> records += text }
+        try {
+            val oldGeneration = FeedbackDiagnostics.currentGeneration()
+            FeedbackDiagnostics.recordNetwork("network token=private-token", "private body")
+            FeedbackDiagnostics.recordNative(oldGeneration, 1, "ahutong_rs", "failed password=private-password {private-json}")
+            assertEquals(2, records.size)
+            assertFalse(records.joinToString().contains("private-token"))
+            assertFalse(records.joinToString().contains("private-password"))
+            assertFalse(records.joinToString().contains("private body"))
+            assertFalse(records.joinToString().contains("private-json"))
+            FeedbackDiagnostics.clear()
+            FeedbackDiagnostics.recordNative(oldGeneration, 1, "ahutong_rs", "late result")
+            assertEquals(2, records.size)
+        } finally {
+            FeedbackDiagnostics.setRecordListener(null)
+            FeedbackDiagnostics.clear()
+        }
+    }
 }

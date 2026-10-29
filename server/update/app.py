@@ -427,7 +427,7 @@ def early_access():
 # Example gray_config.json:
 # {
 #   "features": {
-#     "home_edit": {
+#     "sample_feature": {
 #       "enabled": true,
 #       "rolloutPercentage": 20,
 #       "forceEnabledSubjects": [],

@@ -102,7 +102,8 @@ fun BoxScope.ScheduleNowIndicator(
     position: NowIndicatorPosition,
     nowMinutes: Int,
     cellWidth: Dp,
-    cellHeight: Dp
+    cellHeight: Dp,
+    dayCount: Int = 7
 ) {
     // 跟随软件主题动态主色（与列头"今天"胶囊、周选择器同源 a1 令牌），
     // 深浅色各自适配：浅色 40.a1（与选中周胶囊一致），深色提亮 80.a1 保证在玻璃卡上可读
@@ -139,7 +140,7 @@ fun BoxScope.ScheduleNowIndicator(
             }
         }
         val left = mainColumnWidthPx
-        val right = mainColumnWidthPx + 7 * (cellWidthPx + spacingPx)
+        val right = mainColumnWidthPx + dayCount * (cellWidthPx + spacingPx)
 
         // 视觉规格：透明度 50%；磅数 = 2dp 的 80% ≈ 1.6dp，按当前密度取整数 px
         val strokeWidth = (2.dp.toPx() * 0.8f + 0.5f).toInt().toFloat()

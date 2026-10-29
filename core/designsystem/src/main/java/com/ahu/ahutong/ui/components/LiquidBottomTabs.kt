@@ -181,21 +181,9 @@ fun LiquidBottomTabs(
                 .graphicsLayer {
                     translationX = panelOffset
                 }
-                .drawBackdrop(
+                .liquidFloatingSurface(
                     backdrop = backdrop,
-                    shape = { ContinuousCapsule },
-                    effects = {
-                        if (canBlur) {
-                            vibrancy()
-                            blur(tokens.floating.blurRadius.toPx())
-                        }
-                        if (canRefract) {
-                            lens(
-                                tokens.floating.refractionHeight.toPx(),
-                                tokens.floating.refractionAmount.toPx()
-                            )
-                        }
-                    },
+                    shape = ContinuousCapsule,
                     layerBlock = {
                         if (isLiquid) {
                             val progress = dampedDragAnimation.pressProgress
@@ -203,8 +191,7 @@ fun LiquidBottomTabs(
                             scaleX = scale
                             scaleY = scale
                         }
-                    },
-                    onDrawSurface = { drawRect(containerColor) }
+                    }
                 )
                 .then(interactiveHighlight.modifier)
                 .height(if (compact) 56f.dp else 64f.dp)

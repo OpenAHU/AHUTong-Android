@@ -20,14 +20,5 @@ data class GrayFeature(
  * 3. rolloutPercentage 只作为服务端请求失败时的本地兜底比例；正常线上开关和比例以服务端为准。
  */
 object GrayFeatures {
-    val HomeEdit = GrayFeature(
-        key = "home_edit",
-        title = "首页编辑",
-        description = "允许长按首页进入编辑态，并在小工具页显示编辑入口。",
-        rolloutPercentage = 0
-    )
-
-    val all: List<GrayFeature> = listOf(
-        HomeEdit
-    )
+    val all: List<GrayFeature> = emptyList()
 }

@@ -52,7 +52,9 @@ import com.ahu.ahutong.data.toAhuError
 class SdkDataSource : BaseDataSource {
 
     val TAG = this::class.java.simpleName
-    private val crawlerFallback = CrawlerDataSource()
+    // Resolving the protocol clients restores every encrypted cookie. Defer that work
+    // from Application.onCreate to the repository's first IO-dispatched request.
+    private val crawlerFallback by lazy { CrawlerDataSource() }
 
     /**
      * 获取 HTTP 客户端，如果不可用则返回 null（fallback 到 JNI）

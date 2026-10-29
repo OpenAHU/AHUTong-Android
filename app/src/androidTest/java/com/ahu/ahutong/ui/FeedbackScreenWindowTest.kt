@@ -1,6 +1,5 @@
 package com.ahu.ahutong.ui
 
-import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
@@ -21,7 +20,6 @@ import com.ahu.ahutong.ui.screen.settings.FeedbackExportScreen
 import com.ahu.ahutong.ui.screen.settings.FeedbackUiState
 import com.ahu.ahutong.ui.theme.AHUTheme
 import com.ahu.ahutong.ui.theme.AhuThemeConfig
-import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.Assert.assertEquals
@@ -121,14 +119,11 @@ class FeedbackScreenWindowTest {
                     }
                 }
                 awaitNode("意见反馈").recycleNode()
-                captureScreenshot(theme, "hub")
                 click("日志导出")
                 awaitNode("导出日志").recycleNode()
-                captureScreenshot(theme, "export")
                 click("返回")
                 click("问题反馈")
                 awaitNode("预览反馈").recycleNode()
-                captureScreenshot(theme, "form")
                 assertNoVisible("发送反馈")
                 assertChecked("运行记录", true, theme)
                 assertChecked("错误信息", true, theme)
@@ -138,7 +133,6 @@ class FeedbackScreenWindowTest {
                 click("预览反馈")
                 awaitNode("反馈预览").recycleNode()
                 awaitNode("合成反馈预览，不含真实凭据").recycleNode()
-                captureScreenshot(theme, "preview")
                 click("关闭")
                 assertEquals("Preview callback ($theme)", 1, previews.get())
                 assertNoVisible("发送反馈")
@@ -267,23 +261,6 @@ class FeedbackScreenWindowTest {
             SystemClock.sleep(100)
         }
         throw AssertionError("No visible '$label' in feedback UI")
-    }
-
-    private fun captureScreenshot(theme: AppUiTheme, section: String) {
-        instrumentation.waitForIdleSync()
-        SystemClock.sleep(250)
-        val screenshot = requireNotNull(instrumentation.uiAutomation.takeScreenshot()) {
-            "Could not capture feedback theme $theme"
-        }
-        try {
-            val target = File(instrumentation.targetContext.getExternalFilesDir(null),
-                "feedback-theme-${theme.name.lowercase()}-$section.png")
-            target.outputStream().use {
-                assertTrue("Could not save feedback screenshot", screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally {
-            screenshot.recycle()
-        }
     }
 
     private fun findAncestor(

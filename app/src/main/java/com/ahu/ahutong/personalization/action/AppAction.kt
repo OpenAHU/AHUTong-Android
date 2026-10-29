@@ -146,6 +146,8 @@ object AppActionCatalog {
         spec(AppActionId.OPEN_EARLY_ACCESS, ActionFamily.SETTINGS, "settings__early_access", "抢先体验", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__privacy_policy", "隐私政策", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_THEME_LAB, ActionFamily.SETTINGS, "settings__theme_lab", "主题实验室", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_THEME_COLORS, ActionFamily.SETTINGS, "settings__theme_color", "主题色", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_SCANNER, ActionFamily.TECHNICAL, "scan", "扫一扫", sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_BILLING, ActionFamily.CAMPUS_SERVICE, "billing", "校园卡账单", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_BILLING_STATS, ActionFamily.CAMPUS_SERVICE, "billing_stats", "账单统计", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false)
     )
@@ -241,7 +243,7 @@ object AppActionCatalog {
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy",
-        "settings__theme_lab", "billing", "billing_stats"
+        "settings__theme_lab", "settings__theme_color", "scan", "billing", "billing_stats"
     )
 
     init {

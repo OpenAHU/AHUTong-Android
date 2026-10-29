@@ -4,11 +4,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.foundation.background
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -37,10 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -56,11 +51,12 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
@@ -73,7 +69,6 @@ import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.notice.CampusNoticeRepository
 import com.ahu.ahutong.data.schedule.gmis.GmisTimetableAdapter
 import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
-import com.ahu.ahutong.data.crawler.gmis.GmisScheduleSnapshot
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
 import com.ahu.ahutong.ui.screen.main.home.selectHomeCourses
 import java.time.ZoneId
@@ -81,12 +76,15 @@ import java.util.Date
 import kotlinx.coroutines.CancellationException
 import com.ahu.ahutong.data.dao.HomeWidgetLayoutFamily
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
+import com.ahu.ahutong.data.schedule.forDate
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.semantic.MutationId
+import com.ahu.ahutong.personalization.action.AppActionId
+import com.ahu.ahutong.personalization.action.ActionSource
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
@@ -101,10 +99,14 @@ import com.ahu.ahutong.ui.screen.main.home.HomeWidgetLibrarySheet
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetPlacement
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetSlotLayout
+import com.ahu.ahutong.ui.screen.main.home.HomeAcademicState
+import com.ahu.ahutong.ui.screen.main.home.rememberHomeAcademicValue
+import com.ahu.ahutong.ui.screen.main.home.homeWidgetEditGesture
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
+import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
-import com.ahu.ahutong.ui.state.WeatherHomeConfig
+import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
 import com.ahu.ahutong.ui.state.WeatherHomeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -112,7 +114,6 @@ import kotlinx.coroutines.withContext
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Locale
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -121,7 +122,7 @@ private const val HOME_REFRESH_INTERVAL_MS = 30_000L
 
 private data class ActiveHomeWidgetDrag(
     val widgetId: String,
-    val sourceSlot: Int?,
+    val sourceSlot: Int,
     val topLeft: Offset,
     val size: IntSize
 ) {
@@ -144,7 +145,7 @@ private val HomeCardExit: ExitTransition =
         fadeOut(tween(200, easing = FastOutSlowInEasing))
 
 @Composable
-fun Home(
+internal fun Home(
     discoveryViewModel: DiscoveryViewModel = viewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     navController: NavHostController,
@@ -152,12 +153,16 @@ fun Home(
     isActive: Boolean,
     undergraduateEnabled: Boolean,
     accountId: String?,
-    onOpenSchedule: () -> Unit = { navController.navigate("schedule") },
-    homeEditEnabled: Boolean = false,
-    enterEditModeRequest: Boolean = false,
-    onEnterEditModeRequestConsumed: () -> Unit = {}
+    academicState: HomeAcademicState,
+    onOpenSchedule: () -> Unit = { navController.navigate("schedule") }
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    var currentTime by remember { mutableStateOf(DebugClock.nowZonedDateTime().withSecond(0).withNano(0)) }
+    val today = currentTime.toLocalDate()
+    val currentMinutes = currentTime.hour * 60 + currentTime.minute
+    val currentDateText = remember(today) {
+        SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(Date.from(currentTime.toInstant()))
+    }
     val noticeAccountId = accountId
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
     val noticeUnreadCount = noticeSnapshot?.takeIf { it.accountId == noticeAccountId }?.unreadCount ?: 0
@@ -173,8 +178,8 @@ fun Home(
     val graduateRepository = remember { PostgraduateScheduleRepository.instance }
     val graduateCacheRevision by graduateRepository.revision.collectAsState()
     val graduateWeekRevision by AHUCache.postgraduateWeekUpdates().collectAsState()
-    val loadedGraduateCache by produceState<Pair<String?, GmisScheduleSnapshot?>?>(null, graduateAccountId, graduateCacheRevision) {
-        value = graduateAccountId to withContext(Dispatchers.IO) {
+    val loadedGraduateCache by rememberHomeAcademicValue(academicState.graduate, graduateAccountId, graduateCacheRevision) {
+        graduateAccountId to withContext(Dispatchers.IO) {
             graduateAccountId?.let(graduateRepository::cachedCurrent)
         }
     }
@@ -196,19 +201,18 @@ fun Home(
     val graduateGrid = remember(graduateSnapshot?.timetable) {
         graduateSnapshot?.timetable?.let(GmisTimetableAdapter::adapt)
     }
-    var graduateToday by remember { mutableStateOf(DebugClock.nowLocalDate()) }
     val graduateTerm = graduateSnapshot?.selectedTerm
     val graduateAnchor = remember(graduateAccountId, graduateTerm?.code, graduateWeekRevision) {
         graduateTerm?.let {
             PostgraduateTeachingWeek.parseStored(AHUCache.getPostgraduateWeekStart(it.code))
         }
     }
-    val graduateConfig = remember(graduateAnchor, graduateToday, graduateTerm?.code) {
+    val graduateConfig = remember(graduateAnchor, today, graduateTerm?.code) {
         graduateAnchor?.let { monday ->
             ScheduleConfigBean().apply {
-                val actualWeek = PostgraduateTeachingWeek.weekOn(monday, graduateToday)
+                val actualWeek = PostgraduateTeachingWeek.weekOn(monday, today)
                 week = actualWeek.coerceIn(1, PostgraduateTeachingWeek.MAX_WEEK)
-                weekDay = graduateToday.dayOfWeek.value
+                weekDay = today.dayOfWeek.value
                 startTime = Date.from(monday.atStartOfDay(ZoneId.systemDefault()).toInstant())
                 isInSemester = actualWeek in 1..PostgraduateTeachingWeek.MAX_WEEK &&
                     (graduateTerm?.selected == true || graduateSnapshot?.terms?.none { it.selected } == true)
@@ -220,7 +224,6 @@ fun Home(
     val undergraduateSchedule = scheduleViewModel.schedule.observeAsState().value?.valueOrNull() ?: emptyList()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
     val holidays by scheduleViewModel.scheduleHolidays.observeAsState(emptyMap())
-    var today by remember { mutableStateOf(DebugClock.nowLocalDate()) }
     LaunchedEffect(isActive, today, lifecycleOwner) {
         if (isActive) {
             lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -231,16 +234,21 @@ fun Home(
             }
         }
     }
-    val localScheduleConfig by produceState<ScheduleConfigBean?>(
-        initialValue = null,
-        key1 = scheduleConfig,
-        key2 = undergraduateEnabled
+    val localScheduleConfig by rememberHomeAcademicValue(
+        academicState.undergraduate, scheduleConfig, undergraduateEnabled, today
     ) {
-        value = if (!undergraduateEnabled) null else scheduleConfig ?: withContext(Dispatchers.IO) {
-            CurrentWeekResolver.resolveLocalConfig()?.config
+        if (!undergraduateEnabled) null else scheduleConfig ?: withContext(Dispatchers.IO) {
+            CurrentWeekResolver.resolveLocalConfig(today)?.config
         }
     }
-    val effectiveScheduleConfig = if (undergraduateEnabled) scheduleConfig ?: localScheduleConfig else graduateConfig
+    val baseScheduleConfig = if (undergraduateEnabled) scheduleConfig ?: localScheduleConfig else graduateConfig
+    val effectiveScheduleConfig = remember(
+        baseScheduleConfig?.startTime?.time, baseScheduleConfig?.week,
+        baseScheduleConfig?.isShowAll, baseScheduleConfig?.isInSemester, today, undergraduateEnabled
+    ) {
+        baseScheduleConfig?.forDate(today,
+            weekCount = if (undergraduateEnabled) 20 else PostgraduateTeachingWeek.MAX_WEEK)
+    }
     val isInSemester = effectiveScheduleConfig?.isInSemester != false
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
     LaunchedEffect(isActive) {
@@ -256,13 +264,6 @@ fun Home(
     val knownWidgetIds = remember(homeWidgets) {
         homeWidgets.mapTo(mutableSetOf()) { it.id }
     }
-    val initialCalendar = remember { Calendar.getInstance(Locale.CHINA) }
-    var currentDateText by remember { mutableStateOf("") }
-    var currentMinutes by remember {
-        mutableIntStateOf(
-            initialCalendar.get(Calendar.HOUR_OF_DAY) * 60 + initialCalendar.get(Calendar.MINUTE)
-        )
-    }
     val homeCourses = remember(
         undergraduateSchedule, graduateGrid, undergraduateEnabled, effectiveScheduleConfig, currentMinutes
     ) {
@@ -275,7 +276,9 @@ fun Home(
         )
     }
     val todayCourses = homeCourses.today
-    var isEditingHome by remember { mutableStateOf(false) }
+    var isEditingHome by remember(noticeAccountId) { mutableStateOf(false) }
+    var addingWidgetSlot by remember(noticeAccountId) { mutableStateOf<Int?>(null) }
+    val hapticFeedback = LocalHapticFeedback.current
     var homeWidgetSlots by remember(noticeAccountId) {
         mutableStateOf(normalizeHomeWidgetSlots(HomeWidgetPlacement.currentSlots(), slotCount, knownWidgetIds))
     }
@@ -284,26 +287,18 @@ fun Home(
         homeWidgetSlots = normalizeHomeWidgetSlots(HomeWidgetPlacement.currentSlots(), slotCount, knownWidgetIds)
     }
     val slotBounds = remember { mutableStateMapOf<Int, Rect>() }
-    var libraryBounds by remember { mutableStateOf<Rect?>(null) }
     var rootTopLeft by remember { mutableStateOf(Offset.Zero) }
     var activeDrag by remember { mutableStateOf<ActiveHomeWidgetDrag?>(null) }
     val dropSlopPx = remember(density) { with(density) { 48.dp.toPx() } }
     val highlightedSlot = activeDrag?.let {
         findHomeWidgetDropSlot(
             drag = it,
-            slots = homeWidgetSlots,
             slotBounds = slotBounds,
             dropSlopPx = dropSlopPx,
             slotCount = slotCount
         )
     }
-    val weatherHomeConfig by produceState(
-        initialValue = WeatherHomeConfig(),
-        key1 = noticeAccountId,
-        key2 = isActive
-    ) {
-        value = if (isActive) withContext(Dispatchers.IO) { WeatherHomeConfig.fromCache() } else WeatherHomeConfig()
-    }
+    val weatherHomeConfig = rememberHomeWeatherConfig(noticeAccountId, isActive)
 
     fun saveHomeWidgetSlots(slots: List<String?>) {
         val normalizedSlots = normalizeHomeWidgetSlots(slots, slotCount, knownWidgetIds)
@@ -312,14 +307,16 @@ fun Home(
     }
 
     fun enterHomeEditMode() {
-        if (homeEditEnabled) {
+        if (isActive && !isEditingHome) {
             isEditingHome = true
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            behaviorRuntime.recordActionIntentAsync(AppActionId.EDIT_HOME, ActionSource.ORGANIC)
         }
     }
 
-    fun startDrag(widgetId: String, sourceSlot: Int?, bounds: Rect) {
-        if (!homeEditEnabled) return
-        enterHomeEditMode()
+    fun startDrag(widgetId: String, sourceSlot: Int, bounds: Rect) {
+        if (!isEditingHome || addingWidgetSlot != null) return
+        if (homeWidgetSlots.getOrNull(sourceSlot - 1) != widgetId) return
         activeDrag = ActiveHomeWidgetDrag(
             widgetId = widgetId,
             sourceSlot = sourceSlot,
@@ -333,64 +330,40 @@ fun Home(
 
     fun stopDrag() {
         val drag = activeDrag ?: return
-        val dragCenter = drag.center
+        activeDrag = null
+        if (!isEditingHome) return
         val nextSlots = homeWidgetSlots.toMutableList()
         val targetSlot = findHomeWidgetDropSlot(
             drag = drag,
-            slots = homeWidgetSlots,
             slotBounds = slotBounds,
             dropSlopPx = dropSlopPx,
             slotCount = slotCount
         )
 
-        if (drag.sourceSlot != null && libraryBounds?.contains(dragCenter) == true) {
-            nextSlots[drag.sourceSlot - 1] = null
+        if (targetSlot != null && drag.sourceSlot != targetSlot &&
+            nextSlots.getOrNull(drag.sourceSlot - 1) == drag.widgetId
+        ) {
+            nextSlots.removeAt(drag.sourceSlot - 1)
+            nextSlots.add(targetSlot - 1, drag.widgetId)
             saveHomeWidgetSlots(nextSlots)
             behaviorRuntime.recordCommittedMutationAsync(
-                MutationId.HOME_WIDGET_REMOVED,
-                drag.widgetId,
-                null,
+                MutationId.HOME_WIDGET_MOVED,
+                drag.sourceSlot,
+                targetSlot,
                 coarseValueBucket = drag.widgetId.uppercase()
             )
-        } else if (targetSlot != null) {
-            val targetIndex = targetSlot - 1
-            val sourceSlot = drag.sourceSlot
-
-            if (sourceSlot == null) {
-                if (nextSlots[targetIndex] == null) {
-                    nextSlots[targetIndex] = drag.widgetId
-                    saveHomeWidgetSlots(nextSlots)
-                    behaviorRuntime.recordCommittedMutationAsync(
-                        MutationId.HOME_WIDGET_ADDED,
-                        null,
-                        drag.widgetId,
-                        coarseValueBucket = drag.widgetId.uppercase()
-                    )
-                }
-            } else if (sourceSlot != targetSlot) {
-                val sourceIndex = sourceSlot - 1
-                val targetWidget = nextSlots[targetIndex]
-                nextSlots[targetIndex] = drag.widgetId
-                nextSlots[sourceIndex] = targetWidget
-                saveHomeWidgetSlots(nextSlots)
-                behaviorRuntime.recordCommittedMutationAsync(
-                    MutationId.HOME_WIDGET_MOVED,
-                    sourceSlot,
-                    targetSlot,
-                    coarseValueBucket = drag.widgetId.uppercase()
-                )
-            }
         }
-
-        activeDrag = null
     }
 
-    fun addWidgetToFirstEmptySlot(widgetId: String) {
+    fun addHomeWidget(widgetId: String) {
+        if (!isEditingHome || widgetId !in knownWidgetIds) return
+        val targetSlot = addingWidgetSlot ?: return
         val nextSlots = homeWidgetSlots.toMutableList()
-        val targetIndex = nextSlots.indexOfFirst { it == null }
-        if (targetIndex == -1 || widgetId in nextSlots) return
+        val targetIndex = targetSlot - 1
+        if (targetIndex !in nextSlots.indices || nextSlots[targetIndex] != null || widgetId in nextSlots) return
         nextSlots[targetIndex] = widgetId
         saveHomeWidgetSlots(nextSlots)
+        addingWidgetSlot = null
         behaviorRuntime.recordCommittedMutationAsync(
             MutationId.HOME_WIDGET_ADDED,
             null,
@@ -400,6 +373,7 @@ fun Home(
     }
 
     fun removeHomeWidget(slotIndex: Int) {
+        if (!isEditingHome || activeDrag != null) return
         val nextSlots = homeWidgetSlots.toMutableList()
         if (slotIndex !in 1..nextSlots.size) return
         val removedWidget = nextSlots[slotIndex - 1] ?: return
@@ -415,27 +389,16 @@ fun Home(
 
     fun exitHomeEditMode() {
         activeDrag = null
+        addingWidgetSlot = null
         isEditingHome = false
     }
 
     BackHandler(enabled = isEditingHome) {
-        exitHomeEditMode()
+        if (addingWidgetSlot != null) addingWidgetSlot = null else exitHomeEditMode()
     }
 
-    LaunchedEffect(Unit) {
-        if (!enterEditModeRequest) {
-            exitHomeEditMode()
-        }
-    }
-    LaunchedEffect(enterEditModeRequest) {
-        if (enterEditModeRequest) {
-            activeDrag = null
-            enterHomeEditMode()
-            onEnterEditModeRequestConsumed()
-        }
-    }
-    LaunchedEffect(homeEditEnabled) {
-        if (!homeEditEnabled) {
+    LaunchedEffect(isActive) {
+        if (isActive) {
             exitHomeEditMode()
         }
     }
@@ -450,17 +413,11 @@ fun Home(
         if (!isActive) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
           while (true) {
-            val now = withContext(Dispatchers.IO) { DebugClock.nowDate() }
-            today = now.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-            val calendar = Calendar.getInstance(Locale.CHINA).apply { time = now }
-            currentDateText = withContext(Dispatchers.Default) {
-                SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(now)
-            }
-            currentMinutes = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
-            graduateToday = DebugClock.nowLocalDate()
+            val now = withContext(Dispatchers.IO) { DebugClock.nowZonedDateTime() }
+            currentTime = now.withSecond(0).withNano(0)
             // 进入/回到主页先立即对一次余额，别把首次刷新拖到 30 秒后。
             discoveryViewModel.refreshCardBalance()
-            delay(HOME_REFRESH_INTERVAL_MS)
+            delay(DebugClock.nextCalendarRefreshDelayMillis(now, HOME_REFRESH_INTERVAL_MS))
           }
         }
     }
@@ -469,18 +426,10 @@ fun Home(
             exitHomeEditMode()
         }
     }
-    val trailingContent: @Composable RowScope.() -> Unit = {
-        if (BuildConfig.DEBUG) {
-            DebugBuildBadge()
-        }
-        if (!isEditingHome && weatherHomeConfig.showOnHome) {
-            HomeWeatherWidget(
-                onClick = { navController.navigate("weather") },
-                modifier = Modifier.padding(start = 12.dp),
-                config = weatherHomeConfig,
-                mode = WeatherHomeMode.Compact
-            )
-        }
+    val showHeaderWeather = !isEditingHome && weatherHomeConfig.showOnHome
+    var headerContentHeight by remember(showHeaderWeather, isEditingHome, density) {
+        // 天气与扫码钮现在同处日期行（同一控件行），不再多占一行
+        mutableStateOf(if (isEditingHome) 48.dp else 60.dp)
     }
     GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         CompositionLocalProvider(
@@ -491,48 +440,49 @@ fun Home(
                 .fillMaxSize()
                 .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
                 .onGloballyPositioned { rootTopLeft = it.boundsInRoot().topLeft }
-                .pointerInput(isEditingHome, homeEditEnabled) {
-                    if (isEditingHome) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(
-                                requireUnconsumed = false,
-                                pass = PointerEventPass.Final
-                            )
-                            val start = down.position
-                            var shouldExit = !down.isConsumed
-                            var waitingForUp = true
-                            while (waitingForUp) {
-                                val event = awaitPointerEvent(PointerEventPass.Final)
-                                val change = event.changes.firstOrNull { it.id == down.id }
-                                if (change == null) {
-                                    waitingForUp = false
-                                } else {
-                                    if (change.isConsumed ||
-                                        (change.position - start).getDistance() > viewConfiguration.touchSlop
-                                    ) {
-                                        shouldExit = false
-                                    }
-                                    if (!change.pressed) {
-                                        waitingForUp = false
-                                    }
-                                }
-                            }
-                            if (shouldExit) {
-                                exitHomeEditMode()
-                            }
-                        }
-                    } else {
-                        detectTapGestures(
-                            onLongPress = {
-                                enterHomeEditMode()
-                            }
-                        )
-                    }
-                }
+                .homeWidgetEditGesture(
+                    enabled = isActive && !isEditingHome,
+                    onEnterEdit = ::enterHomeEditMode
+                )
         ) {
         // 标题栏模糊采样层：只包滚动内容（头部自身在层外，避免自采样）；
         // 模糊关闭时 headerBackdropSource 零开销直通
         val headerBlurLayer = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        // 标题栏常驻控件是"固定悬浮"层：采样源 = 壁纸层 + 滚动内容层，
+        // 控件底下透出的是滚过去的卡片（与标题栏遮罩同一套组合层），而不只是背景色。
+        val headerControlsBackdrop = com.kyant.backdrop.backdrops.rememberCombinedBackdrop(
+            LocalLiquidGlassAmbientBackdrop.current,
+            headerBlurLayer
+        )
+        val scanButton: @Composable () -> Unit = {
+            HomeScanButton(
+                onClick = { navController.navigate("scan") { launchSingleTop = true } },
+                backdrop = headerControlsBackdrop
+            )
+        }
+        val trailingContent: @Composable RowScope.() -> Unit = {
+            if (BuildConfig.DEBUG) {
+                DebugBuildBadge()
+            }
+            if (showHeaderWeather) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HomeWeatherWidget(
+                        onClick = { navController.navigate("weather") },
+                        config = weatherHomeConfig,
+                        mode = WeatherHomeMode.Compact,
+                        backdrop = headerControlsBackdrop
+                    )
+                    scanButton()
+                }
+            } else if (isEditingHome) {
+                TextButton(onClick = ::exitHomeEditMode) { Text("完成") }
+            } else {
+                scanButton()
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -540,8 +490,8 @@ fun Home(
                 .verticalScroll(rememberScrollState())
                 .systemBarsPadding()
                 .padding(
-                    top = 48.dp,
-                    bottom = if (isEditingHome) 520.dp else 96.dp
+                    top = headerContentHeight,
+                    bottom = 96.dp
                 ),
             verticalArrangement = Arrangement.Center
         ) {
@@ -594,8 +544,13 @@ fun Home(
                 isEditing = isEditingHome,
                 highlightedSlot = highlightedSlot,
                 draggingWidgetId = activeDrag?.widgetId,
-                onEnterEdit = ::enterHomeEditMode,
-                onHomeWidgetClick = ::removeHomeWidget,
+                onRemoveHomeWidget = ::removeHomeWidget,
+                onAddHomeWidget = { slotIndex ->
+                    if (isEditingHome && activeDrag == null &&
+                        slotIndex in 1..homeWidgetSlots.size && homeWidgetSlots[slotIndex - 1] == null
+                    ) addingWidgetSlot = slotIndex
+                },
+                onExitEdit = ::exitHomeEditMode,
                 onSlotPositioned = { slotIndex, bounds ->
                     slotBounds[slotIndex] = bounds
                 },
@@ -607,7 +562,8 @@ fun Home(
                         it.copy(topLeft = it.topLeft + dragAmount)
                     }
                 },
-                onHomeWidgetDragStopped = ::stopDrag
+                onHomeWidgetDragStopped = ::stopDrag,
+                onHomeWidgetDragCancelled = { activeDrag = null }
             )
         }
 
@@ -619,16 +575,29 @@ fun Home(
             } else {
                 MaterialTheme.colorScheme.surface
             }
+            // 遮罩画在独立的背景层上，内容层不再受 scrim 节点的绘制范围限制：
+            // 天气胶囊/扫码钮的投影落到标题栏下沿时不会被裁掉一条边。
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .zIndex(20f)
-                    .headerScrim(headerBackground, headerBlurLayer)
-                    .statusBarsPadding()
-                    .padding(top = 12.dp)
             ) {
-                HomeDateRow(dateText = currentDateText, trailingContent = trailingContent)
-                Spacer(modifier = Modifier.height(24.dp))
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .headerScrim(headerBackground, headerBlurLayer)
+                )
+                Column(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = 12.dp)
+                ) {
+                    Box(Modifier.onSizeChanged {
+                        headerContentHeight = with(density) { it.height.toDp() } + 12.dp
+                    }) {
+                        HomeDateRow(dateText = currentDateText, trailingContent = trailingContent)
+                    }
+                }
             }
         }
 
@@ -636,56 +605,20 @@ fun Home(
             val placedWidgetIds = homeWidgetSlots.filterNotNull().toSet()
             homeWidgets.filter { it.id !in placedWidgetIds }
         }
-        val isDraggingFromLibrary = activeDrag != null && activeDrag?.sourceSlot == null
-        HomeWidgetLibrarySheet(
-            visible = isEditingHome,
-            hiddenDuringLibraryDrag = isDraggingFromLibrary,
-            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
-            availableWidgets = availableWidgets,
-            onDismiss = {
-                activeDrag = null
-                isEditingHome = false
-            },
-            onBoundsChanged = { libraryBounds = it },
-            onLibraryWidgetClick = ::addWidgetToFirstEmptySlot,
-            onLibraryWidgetDragStarted = { widgetId, bounds ->
-                startDrag(widgetId, null, bounds)
-            },
-            onLibraryWidgetDragged = { dragAmount ->
-                activeDrag = activeDrag?.let {
-                    it.copy(topLeft = it.topLeft + dragAmount)
-                }
-            },
-            onLibraryWidgetDragStopped = ::stopDrag
-        )
+        if (isEditingHome && addingWidgetSlot != null) {
+            HomeWidgetLibrarySheet(
+                availableWidgets = availableWidgets,
+                onDismiss = { addingWidgetSlot = null },
+                onLibraryWidgetClick = ::addHomeWidget
+            )
+        }
 
         activeDrag?.let { drag ->
             HomeWidgetRegistry.widgetById[drag.widgetId]?.let { spec ->
-                val previewSlot = if (drag.sourceSlot == null) {
-                    highlightedSlot
-                        ?: homeWidgetSlots.indexOfFirst { it == null }
-                            .takeIf { it != -1 }
-                            ?.let { it + 1 }
-                } else {
-                    null
-                }
-                val previewBounds = previewSlot?.let { slotBounds[it] }
-                val previewSize = previewBounds?.let {
-                    IntSize(
-                        width = it.width.roundToInt().coerceAtLeast(1),
-                        height = it.height.roundToInt().coerceAtLeast(1)
-                    )
-                } ?: drag.size
-                val previewTopLeft = if (previewBounds != null) {
-                    drag.center - Offset(previewSize.width / 2f, previewSize.height / 2f)
-                } else {
-                    drag.topLeft
-                }
-
                 HomeWidgetDragOverlay(
                     spec = spec,
-                    topLeft = previewTopLeft,
-                    size = previewSize,
+                    topLeft = drag.topLeft,
+                    size = drag.size,
                     rootTopLeft = rootTopLeft
                 )
             }
@@ -738,7 +671,6 @@ private fun normalizeHomeWidgetSlots(
 
 private fun findHomeWidgetDropSlot(
     drag: ActiveHomeWidgetDrag,
-    slots: List<String?>,
     slotBounds: Map<Int, Rect>,
     dropSlopPx: Float,
     slotCount: Int
@@ -748,7 +680,6 @@ private fun findHomeWidgetDropSlot(
         .filterKeys { it in 1..slotCount }
         .mapNotNull { (slotIndex, bounds) ->
             if (!bounds.expandedBy(dropSlopPx).contains(center)) return@mapNotNull null
-            if (drag.sourceSlot == null && slots.getOrNull(slotIndex - 1) != null) return@mapNotNull null
             slotIndex to bounds.centerDistanceTo(center)
         }
         .minByOrNull { it.second }
