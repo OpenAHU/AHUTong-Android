@@ -86,7 +86,7 @@ public class AHUCookieJar implements ClearableCookieJar {
     }
 
 
-    public void logAllCookies() {
+    public synchronized void logAllCookies() {
         int count = 0;
         for (Cookie ignored : cache) count++;
         Log.i(TAG, "CookieJar contains " + count + " entries (values suppressed)");
@@ -116,7 +116,7 @@ public class AHUCookieJar implements ClearableCookieJar {
         }
     }
 
-    public void addCookie(Cookie cookie) {
+    public synchronized void addCookie(Cookie cookie) {
         List<Cookie> cookies = new ArrayList<>();
         cookies.add(cookie);
         cache.addAll(cookies);

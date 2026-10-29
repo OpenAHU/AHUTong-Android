@@ -13,6 +13,7 @@ import com.ahu.ahutong.error.FailurePresentation
 import com.ahu.ahutong.error.failurePresentation
 import com.ahu.ahutong.error.UnexpectedErrorReportFormatter
 import com.ahu.ahutong.error.UnexpectedErrors
+import com.ahu.ahutong.error.AppErrorHandler
 import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 
 /**
@@ -25,6 +26,20 @@ object ToastUserNotice : UserNotice {
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
+    }
+
+    override fun reportUnhandled(error: Throwable) {
+        if (error is VirtualMachineError || error is LinkageError || error is ThreadDeath) {
+            val thread = Thread.currentThread()
+            thread.uncaughtExceptionHandler?.uncaughtException(thread, error) ?: throw error
+            return
+        }
+        // Unexpected failures are captured by reportUnexpected; expected failures still need
+        // their trace when they escaped a root coroutine instead of a normal business catch.
+        if (failurePresentation(error) == FailurePresentation.Expected) {
+            AppErrorHandler.captureHandled(error, "coroutine")
+        }
+        showFailure(error)
     }
 
     override fun showFailure(error: Throwable) {
@@ -44,8 +59,8 @@ object ToastUserNotice : UserNotice {
                 "Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}\n" +
                 "设备 ${Build.MANUFACTURER} ${Build.MODEL}\n构建 ${BuildConfig.BUILD_TYPE}"
             val details = UnexpectedErrorReportFormatter.format(error, environment)
-            FeedbackDiagnostics.recordError(details)
-            UnexpectedErrors.queue.enqueue(details)
+            val eventId = AppErrorHandler.captureHandled(error, "handled")
+            UnexpectedErrors.queue.enqueue(details, eventId)
             true
         }
     }

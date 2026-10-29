@@ -79,10 +79,16 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
             options.setDsn(BuildConfig.SENTRY_DSN);
             options.setEnvironment(BuildConfig.DEBUG ? "debug" : "release");
             options.setTombstoneEnabled(true);
+            options.setAttachAnrThreadDump(true);
+            options.setAttachRawTombstone(true);
+            options.setEnableScopeSync(true);
+            options.setBeforeSend((event, hint) ->
+                    com.ahu.ahutong.error.AppErrorHandler.INSTANCE.beforeSend(event, hint));
             // 线上按比例采样，避免性能数据占满额度；Debug 全量便于排查。
             options.setTracesSampleRate(BuildConfig.DEBUG ? 1.0 : 0.1);
             options.setDebug(BuildConfig.DEBUG);
         });
+        com.ahu.ahutong.error.AppErrorHandler.INSTANCE.install();
         Sentry.setTag("dau_id", getDauId());
 
         // 学习通日历初始化

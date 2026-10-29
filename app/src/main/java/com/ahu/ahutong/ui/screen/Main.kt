@@ -345,11 +345,22 @@ fun Main(
     val appBackground = remember(backgroundBitmap, backgroundRevision) {
         backgroundBitmap?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
     }
+    val reduceGlassEffects = HomeBackgroundStore.reduceGlassEffects
+    LaunchedEffect(appUiTheme, currentRoute, appBackground != null, reduceGlassEffects) {
+        // Native RenderThread failures otherwise identify only MainActivity. Use the route
+        // template (no arguments) and appearance flags to distinguish rendering paths.
+        io.sentry.Sentry.configureScope { sentryScope ->
+            sentryScope.setTag("ui.theme", appUiTheme.name)
+            sentryScope.setTag("ui.route", currentRoute?.substringBefore('?') ?: "unknown")
+            sentryScope.setTag("ui.wallpaper", (appBackground != null).toString())
+            sentryScope.setTag("ui.reduce_glass_effects", reduceGlassEffects.toString())
+        }
+    }
     CompositionLocalProvider(
         LocalAppBackground provides appBackground,
         LocalGlassReadabilityBoost provides (appBackground != null),
         // 低端机性能开关：revision 变化（含开关切换）时同步重组
-        LocalGlassEffectsReduced provides HomeBackgroundStore.reduceGlassEffects
+        LocalGlassEffectsReduced provides reduceGlassEffects
     ) {
     LiquidGlassAppHost(modifier = Modifier.fillMaxSize()) {
         val contentBackdrop = LocalLiquidGlassContentBackdrop.current

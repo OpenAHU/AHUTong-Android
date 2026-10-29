@@ -15,14 +15,14 @@ internal class UnexpectedErrorQueue(
     private var nextId = 0L
 
     @Synchronized
-    fun enqueue(details: String): Boolean {
+    fun enqueue(details: String, sentryEventId: String? = null): Boolean {
         val now = nowMillis()
         recent.entries.removeAll { now < it.value || now - it.value >= duplicateWindowMillis }
         if (_reports.value.any { it.details == details } || recent.containsKey(details)) return false
         if (_reports.value.size >= capacity) return false
         recent[details] = now
         while (recent.size > 16) recent.remove(recent.keys.first())
-        _reports.value = _reports.value + UnexpectedErrorReport(++nextId, details)
+        _reports.value = _reports.value + UnexpectedErrorReport(++nextId, details, sentryEventId)
         return true
     }
 
