@@ -41,6 +41,17 @@ object HomeBackgroundStore {
     /** 关闭部分玻璃效果（性能优先开关）：玻璃卡片收敛为纯色表面，跳过实时模糊采样。 */
     val reduceGlassEffects: Boolean get() = prefs.getBoolean("reduce_glass", false)
 
+    /**
+     * 设备动作视差：晃动设备时背景轻微位移（默认开，无自定义背景时无效）。
+     * 位移余量由绘制层的超采样提供，系统关闭动画时也会恒为居中。
+     */
+    val parallaxEnabled: Boolean get() = prefs.getBoolean("parallax", true)
+
+    fun setParallaxEnabled(value: Boolean) {
+        prefs.edit().putBoolean("parallax", value).apply()
+        _revision.value++
+    }
+
     /** 导入自定义背景后自动开启降级（性能优先默认），用户可在外观设置手动关闭。 */
     private const val PREF_AUTO_GLASS_NOTICE = "auto_glass_notice_shown"
 
@@ -57,6 +68,31 @@ object HomeBackgroundStore {
     }
 
     fun blurredFile(context: Context): File = File(context.filesDir, BLUR_FILE)
+
+    /**
+     * 读取壁纸并保证它与屏幕同比例（视差的余量前提）。
+     *
+     * 视差按「屏幕比例的帧」整体放大后再位移，横竖余量才是同一个百分比；
+     * 若沿用原图比例直接绘制，裁切量由原图比例决定，两个方向的可晃幅度会不一致。
+     * 旧版本导入的图可能不符合该比例，这里在读入时统一裁齐。
+     */
+    suspend fun loadScreenRatioBitmap(context: Context): Bitmap? = withContext(Dispatchers.IO) {
+        val file = blurredFile(context)
+        if (!file.exists()) return@withContext null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+        var sample = 1
+        while (bounds.outWidth / sample > context.resources.displayMetrics.widthPixels * 2) sample *= 2
+        val decoded = BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply { inSampleSize = sample }
+        ) ?: return@withContext null
+        val metrics = context.resources.displayMetrics
+        val cropped = centerCrop(decoded, metrics.widthPixels, metrics.heightPixels)
+        if (cropped !== decoded) decoded.recycle()
+        cropped
+    }
 
     /** 选图落盘（crop 到屏幕比例）并生成当前模糊度的成品图。 */
     suspend fun importFromUri(context: Context, uri: Uri) = withContext(Dispatchers.IO) {
@@ -146,11 +182,11 @@ object HomeBackgroundStore {
         }
     }
 
-    /** 按目标宽高比居中裁剪。 */
+    /** 按目标宽高比居中裁剪；比例只要不是严格相等就裁齐（视差要求两个方向余量一致）。 */
     private fun centerCrop(src: Bitmap, targetW: Int, targetH: Int): Bitmap {
         val srcRatio = src.width.toFloat() / src.height
         val dstRatio = targetW.toFloat() / targetH
-        if (kotlin.math.abs(srcRatio - dstRatio) < 0.01f) return src
+        if (kotlin.math.abs(srcRatio - dstRatio) <= 1e-4f) return src
         return if (srcRatio > dstRatio) {
             // 原图更宽：裁左右
             val newW = (src.height * dstRatio).toInt()

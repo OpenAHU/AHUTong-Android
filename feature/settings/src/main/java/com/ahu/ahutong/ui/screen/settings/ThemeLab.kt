@@ -329,6 +329,13 @@ private fun BackgroundControls(
             backdrop = backdrop,
             onHorizontalDragActiveChange = onHorizontalDragActiveChange
         )
+        com.ahu.ahutong.ui.components.SettingsToggleRow(
+            title = "设备视差",
+            selected = com.ahu.ahutong.core.storage.HomeBackgroundStore.parallaxEnabled,
+            onSelectedChange = com.ahu.ahutong.core.storage.HomeBackgroundStore::setParallaxEnabled,
+            backdrop = backdrop,
+            onHorizontalDragActiveChange = onHorizontalDragActiveChange
+        )
         SettingsActionRow(
             title = "从背景图取主题色",
             onClick = {

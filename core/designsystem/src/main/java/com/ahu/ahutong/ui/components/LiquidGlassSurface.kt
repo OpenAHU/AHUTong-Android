@@ -14,11 +14,14 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,21 +52,46 @@ data class AppBackground(val image: ImageBitmap, val maskAlpha: Float)
 
 val LocalAppBackground = compositionLocalOf<AppBackground?> { null }
 
+/**
+ * 壁纸视差（归一化 -1..1 的两轴偏移），由宿主用设备姿态驱动。
+ *
+ * 用「lambda 而不是值」提供：读取发生在 draw 阶段，传感器每帧更新只会重绘这一层，
+ * 不会把整棵组合树带上重组。
+ */
+val LocalAppBackgroundTilt = staticCompositionLocalOf<() -> Offset> { { Offset.Zero } }
+
+/** 视差余量：图片按此倍数放大后再平移，(overScan-1)/2 就是每侧可用的位移上限。 */
+private const val APP_BACKGROUND_OVERSCAN = 1.06f
+
 @Composable
 fun BoxScope.AppBackgroundLayer(background: AppBackground) {
-    Image(
-        bitmap = background.image,
-        contentDescription = null,
-        modifier = Modifier.matchParentSize(),
-        contentScale = ContentScale.Crop
-    )
-    if (background.maskAlpha > 0f) {
-        Box(
-            modifier = Modifier.matchParentSize().background(
-                (if (isSystemInDarkTheme()) Color.Black else Color.White)
-                    .copy(alpha = background.maskAlpha)
-            )
+    val tilt = LocalAppBackgroundTilt.current
+    Box(Modifier.matchParentSize().clipToBounds()) {
+        Image(
+            bitmap = background.image,
+            contentDescription = null,
+            modifier = Modifier.matchParentSize().graphicsLayer {
+                val offsetFraction = tilt()
+                scaleX = APP_BACKGROUND_OVERSCAN
+                scaleY = APP_BACKGROUND_OVERSCAN
+                // 帧已按屏幕比例裁齐（HomeBackgroundStore），统一放大后两个方向的余量
+                // 是同一个百分比；再除以超采样倍数做安全折减——即便某些实现把 translation
+                // 也乘进了缩放，位移也不会把图片边缘推进画面（绝不露黑边）。
+                val marginX = size.width * (APP_BACKGROUND_OVERSCAN - 1f) / 2f / APP_BACKGROUND_OVERSCAN
+                val marginY = size.height * (APP_BACKGROUND_OVERSCAN - 1f) / 2f / APP_BACKGROUND_OVERSCAN
+                translationX = offsetFraction.x * marginX
+                translationY = offsetFraction.y * marginY
+            },
+            contentScale = ContentScale.Crop
         )
+        if (background.maskAlpha > 0f) {
+            Box(
+                modifier = Modifier.matchParentSize().background(
+                    (if (isSystemInDarkTheme()) Color.Black else Color.White)
+                        .copy(alpha = background.maskAlpha)
+                )
+            )
+        }
     }
 }
 
