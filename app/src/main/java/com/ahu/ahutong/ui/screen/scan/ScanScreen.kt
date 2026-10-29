@@ -66,6 +66,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -116,7 +117,7 @@ import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
-import com.ahu.ahutong.ui.components.AppCard
+import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.google.zxing.RGBLuminanceSource
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -126,6 +127,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+
+/** Result panel text cap: long payloads only need to be recognisable, not fully laid out. */
+private const val RESULT_TEXT_LIMIT = 180
 
 private data class ScannerFailure(val title: String, val retryRoute: Boolean = false)
 private data class ScannedPhoto(val candidates: List<QrDetection>, val bitmap: Bitmap)
@@ -376,11 +380,23 @@ fun ScanScreen(onBack: () -> Unit, onResult: (String) -> QrRouter.Outcome) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (!confirming) result?.let { raw ->
-                AppCard(modifier = Modifier.fillMaxWidth()) {
+                // 冻结帧（全屏照片）上不再叠采样玻璃：Android 17 / PKX110 上
+                // "照片层 + drawBackdrop 模糊" 会在 RenderThread 的 HWUI LinearAllocator 里
+                // 原生崩溃（关玻璃效果、换主题即不复现）。这里改用实色卡片，零 RenderEffect。
+                // 文案也做截断：学习通 enc / 长 URL 动辄上千字符，没必要整段参与排版。
+                val displayRaw = remember(raw) {
+                    if (raw.length <= RESULT_TEXT_LIMIT) raw else raw.take(RESULT_TEXT_LIMIT) + "…"
+                }
+                Surface(
+                    shape = SmoothRoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(if (QrRouter.classify(raw) == QrRouter.Kind.Unknown) "不支持此二维码" else "扫描结果",
                             style = MaterialTheme.typography.titleMedium)
-                        Text(raw, maxLines = 4, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                        Text(displayRaw, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             AppButton(
                                 onClick = {
