@@ -22,7 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -88,7 +87,6 @@ import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.action.ActionSource
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
-import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
@@ -105,6 +103,7 @@ import com.ahu.ahutong.ui.screen.main.home.HomeAcademicState
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeAcademicValue
 import com.ahu.ahutong.ui.screen.main.home.homeWidgetEditGesture
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
+import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
@@ -429,32 +428,8 @@ internal fun Home(
     }
     val showHeaderWeather = !isEditingHome && weatherHomeConfig.showOnHome
     var headerContentHeight by remember(showHeaderWeather, isEditingHome, density) {
-        mutableStateOf(if (showHeaderWeather) 88.dp else if (isEditingHome) 48.dp else 60.dp)
-    }
-    val scanButton: @Composable () -> Unit = {
-        AppHeaderIconButton(
-            imageVector = Icons.Outlined.QrCodeScanner,
-            contentDescription = "扫一扫",
-            onClick = { navController.navigate("scan") { launchSingleTop = true } },
-            modifier = Modifier.size(40.dp)
-        )
-    }
-    val trailingContent: @Composable RowScope.() -> Unit = {
-        if (BuildConfig.DEBUG) {
-            DebugBuildBadge()
-        }
-        if (showHeaderWeather) {
-            HomeWeatherWidget(
-                onClick = { navController.navigate("weather") },
-                modifier = Modifier.padding(start = 12.dp),
-                config = weatherHomeConfig,
-                mode = WeatherHomeMode.Compact
-            )
-        } else if (isEditingHome) {
-            TextButton(onClick = ::exitHomeEditMode) { Text("完成") }
-        } else {
-            scanButton()
-        }
+        // 天气与扫码钮现在同处日期行（同一控件行），不再多占一行
+        mutableStateOf(if (isEditingHome) 48.dp else 60.dp)
     }
     GlassBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         CompositionLocalProvider(
@@ -473,6 +448,41 @@ internal fun Home(
         // 标题栏模糊采样层：只包滚动内容（头部自身在层外，避免自采样）；
         // 模糊关闭时 headerBackdropSource 零开销直通
         val headerBlurLayer = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
+        // 标题栏常驻控件是"固定悬浮"层：采样源 = 壁纸层 + 滚动内容层，
+        // 控件底下透出的是滚过去的卡片（与标题栏遮罩同一套组合层），而不只是背景色。
+        val headerControlsBackdrop = com.kyant.backdrop.backdrops.rememberCombinedBackdrop(
+            LocalLiquidGlassAmbientBackdrop.current,
+            headerBlurLayer
+        )
+        val scanButton: @Composable () -> Unit = {
+            HomeScanButton(
+                onClick = { navController.navigate("scan") { launchSingleTop = true } },
+                backdrop = headerControlsBackdrop
+            )
+        }
+        val trailingContent: @Composable RowScope.() -> Unit = {
+            if (BuildConfig.DEBUG) {
+                DebugBuildBadge()
+            }
+            if (showHeaderWeather) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HomeWeatherWidget(
+                        onClick = { navController.navigate("weather") },
+                        config = weatherHomeConfig,
+                        mode = WeatherHomeMode.Compact,
+                        backdrop = headerControlsBackdrop
+                    )
+                    scanButton()
+                }
+            } else if (isEditingHome) {
+                TextButton(onClick = ::exitHomeEditMode) { Text("完成") }
+            } else {
+                scanButton()
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -565,23 +575,27 @@ internal fun Home(
             } else {
                 MaterialTheme.colorScheme.surface
             }
+            // 遮罩画在独立的背景层上，内容层不再受 scrim 节点的绘制范围限制：
+            // 天气胶囊/扫码钮的投影落到标题栏下沿时不会被裁掉一条边。
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .zIndex(20f)
-                    .headerScrim(headerBackground, headerBlurLayer)
-                    .statusBarsPadding()
-                    .padding(top = 12.dp)
             ) {
-                Column(Modifier.onSizeChanged {
-                    headerContentHeight = with(density) { it.height.toDp() } + 12.dp
-                }) {
-                    HomeDateRow(dateText = currentDateText, trailingContent = trailingContent)
-                    if (showHeaderWeather) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(end = 16.dp),
-                            horizontalArrangement = Arrangement.End
-                        ) { scanButton() }
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .headerScrim(headerBackground, headerBlurLayer)
+                )
+                Column(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(top = 12.dp)
+                ) {
+                    Box(Modifier.onSizeChanged {
+                        headerContentHeight = with(density) { it.height.toDp() } + 12.dp
+                    }) {
+                        HomeDateRow(dateText = currentDateText, trailingContent = trailingContent)
                     }
                 }
             }

@@ -26,6 +26,7 @@ import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.WeatherHomeConfig
 import com.ahu.ahutong.ui.state.WeatherHomeMode
+import com.kyant.backdrop.Backdrop
 import com.kyant.monet.a1
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.res.painterResource
@@ -46,7 +47,8 @@ fun HomeWeatherWidget(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     config: WeatherHomeConfig = WeatherHomeConfig.fromCache(),
-    mode: WeatherHomeMode = config.mode
+    mode: WeatherHomeMode = config.mode,
+    backdrop: Backdrop? = null
 ) {
     if (!config.showOnHome) return
 
@@ -73,7 +75,8 @@ fun HomeWeatherWidget(
             modifier = modifier,
             weather = weather,
             hasError = hasError,
-            onClick = onClick
+            onClick = onClick,
+            backdrop = backdrop
         )
 
         WeatherHomeMode.Detailed -> DetailedHomeWeatherCard(
@@ -282,7 +285,8 @@ private fun CompactHomeWeatherCard(
     modifier: Modifier,
     weather: WeatherResponse?,
     hasError: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    backdrop: Backdrop? = null
 ) {
     // 标题栏胶囊形态：图标 + 温度 + 雨情。无雨主题色、有雨黄色。
     val rainKeywords = listOf("雨", "雷", "雪", "冰雹")
@@ -295,22 +299,19 @@ private fun CompactHomeWeatherCard(
         else -> MaterialTheme.colorScheme.primary // 无雨：主题色
     }
     Row(
-        modifier = modifier
-            .appLiquidGlassSurface(
-                shape = ContinuousCapsule,
-                fallbackColor = 100.n1 withNight 20.n1
-            )
+        modifier = HomeHeaderGlass(backdrop, modifier)
+            .height(HomeHeaderControlHeight)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Icon(
             painter = painterResource(
                 if (hasRain) R.drawable.ic_home_umbrella else R.drawable.ic_home_weather
             ),
             contentDescription = if (hasRain) "有雨" else "天气",
-            modifier = Modifier.size(15.dp),
+            modifier = Modifier.size(18.dp),
             tint = contentColor
         )
         Text(
@@ -320,7 +321,7 @@ private fun CompactHomeWeatherCard(
                 hasError -> "--"
                 else -> "…"
             },
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Medium,
             color = contentColor
         )
