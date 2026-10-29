@@ -13,6 +13,7 @@ import com.ahu.ahutong.error.FailurePresentation
 import com.ahu.ahutong.error.failurePresentation
 import com.ahu.ahutong.error.UnexpectedErrorReportFormatter
 import com.ahu.ahutong.error.UnexpectedErrors
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 
 /**
  * 生产提示出口：已知失败保持普通提示，意外异常携带脱敏追踪交给前台弹窗。
@@ -29,6 +30,7 @@ object ToastUserNotice : UserNotice {
     override fun showFailure(error: Throwable) {
         if (reportUnexpected(error)) return
         val message = error.toAhuError().toUserMessage()
+        FeedbackDiagnostics.recordRuntime("业务提示：$message")
         mainHandler.post {
             Toast.makeText(appContext ?: AppEnvironmentHolder.context(), message, Toast.LENGTH_SHORT).show()
         }
@@ -41,7 +43,9 @@ object ToastUserNotice : UserNotice {
             val environment = "AHUTong ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
                 "Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}\n" +
                 "设备 ${Build.MANUFACTURER} ${Build.MODEL}\n构建 ${BuildConfig.BUILD_TYPE}"
-            UnexpectedErrors.queue.enqueue(UnexpectedErrorReportFormatter.format(error, environment))
+            val details = UnexpectedErrorReportFormatter.format(error, environment)
+            FeedbackDiagnostics.recordError(details)
+            UnexpectedErrors.queue.enqueue(details)
             true
         }
     }

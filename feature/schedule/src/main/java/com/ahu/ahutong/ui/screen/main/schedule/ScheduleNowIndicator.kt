@@ -103,7 +103,7 @@ fun BoxScope.ScheduleNowIndicator(
     nowMinutes: Int,
     cellWidth: Dp,
     cellHeight: Dp,
-    dayCount: Int
+    dayCount: Int = 7
 ) {
     // 跟随软件主题动态主色（与列头"今天"胶囊、周选择器同源 a1 令牌），
     // 深浅色各自适配：浅色 40.a1（与选中周胶囊一致），深色提亮 80.a1 保证在玻璃卡上可读

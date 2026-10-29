@@ -40,7 +40,8 @@ enum class ComponentSlotId(val displayName: String) {
     Progress("环形进度"),
     Fab("悬浮按钮"),
     BottomSheet("底部抽屉"),
-    PageScaffold("页面壳");
+    PageScaffold("页面壳"),
+    Dialog("弹窗");
 
     companion object {
         fun fromName(name: String?): ComponentSlotId? = entries.firstOrNull { it.name == name }
@@ -97,6 +98,19 @@ class MixedComponentPack(
 
     private fun pack(slot: ComponentSlotId): AppComponentPack =
         overrides[slot]?.pack ?: base
+
+    internal override val dialogStyle: DialogStyle
+        get() = pack(ComponentSlotId.Dialog).dialogStyle
+
+    @Composable
+    override fun Slider(
+        value: Float,
+        onValueChange: (Float) -> Unit,
+        modifier: Modifier,
+        valueRange: ClosedFloatingPointRange<Float>,
+        onValueChangeFinished: () -> Unit,
+        backdrop: Backdrop?
+    ) = base.Slider(value, onValueChange, modifier, valueRange, onValueChangeFinished, backdrop)
 
     @Composable
     override fun Toggle(

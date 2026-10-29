@@ -69,11 +69,25 @@ class SuggestionPolicyTest {
     }
 
     @Test
-    fun ordinaryNextActionRejectsConfidenceBelowThirtyPercent() {
+    fun ordinaryNextActionRejectsConfidenceBelowFiftyPercent() {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
-                AppActionId.VIEW_SCHEDULE to 0.29f,
+                AppActionId.VIEW_SCHEDULE to 0.49f,
                 AppActionId.VIEW_GRADES to 0.25f
+            ),
+            setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
+        )
+
+        assertFalse(assessment.accepted)
+        assertEquals(OrdinaryNextActionGateReason.BELOW_CONFIDENCE_THRESHOLD, assessment.rejectionReason)
+    }
+
+    @Test
+    fun ordinaryNextActionRejectsFormerlyAcceptedFortyPercentPrediction() {
+        val assessment = SuggestionPolicy.assessOrdinaryNextAction(
+            vector(
+                AppActionId.VIEW_SCHEDULE to 0.40f,
+                AppActionId.VIEW_GRADES to 0.30f
             ),
             setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
         )
@@ -86,7 +100,7 @@ class SuggestionPolicyTest {
     fun ordinaryNextActionRejectsAnAmbiguousTopCandidate() {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
-                AppActionId.VIEW_SCHEDULE to 0.46f,
+                AppActionId.VIEW_SCHEDULE to 0.50f,
                 AppActionId.VIEW_GRADES to 0.40f
             ),
             setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
@@ -97,7 +111,7 @@ class SuggestionPolicyTest {
     }
 
     @Test
-    fun ordinaryNextActionRejectsFallbackWhenUnsafeOutputDominates() {
+    fun ordinaryNextActionRejectsLowConfidenceFallbackWhenUnsafeOutputDominates() {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
                 AppActionId.SUBMIT_CARD_RECHARGE to 0.45f,
@@ -107,7 +121,7 @@ class SuggestionPolicyTest {
         )
 
         assertFalse(assessment.accepted)
-        assertEquals(OrdinaryNextActionGateReason.NON_SUGGESTIBLE_OUTPUT_DOMINATES, assessment.rejectionReason)
+        assertEquals(OrdinaryNextActionGateReason.BELOW_CONFIDENCE_THRESHOLD, assessment.rejectionReason)
         assertEquals(AppActionId.SUBMIT_CARD_RECHARGE.stableId, assessment.strongestCompetitorId)
     }
 
@@ -115,28 +129,42 @@ class SuggestionPolicyTest {
     fun ordinaryNextActionAcceptsConfidentClearlyLeadingCandidate() {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
-                AppActionId.VIEW_SCHEDULE to 0.50f,
-                AppActionId.VIEW_GRADES to 0.40f
+                AppActionId.VIEW_SCHEDULE to 0.55f,
+                AppActionId.VIEW_GRADES to 0.35f
             ),
             setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
         )
 
         assertTrue(assessment.accepted)
         assertEquals(AppActionId.VIEW_SCHEDULE, assessment.candidate?.action)
-        assertEquals(0.10f, requireNotNull(assessment.probabilityMargin), 0.0001f)
+        assertEquals(0.20f, requireNotNull(assessment.probabilityMargin), 0.0001f)
     }
 
     @Test
     fun ordinaryNextActionMarginBoundaryIsInclusive() {
         val assessment = SuggestionPolicy.assessOrdinaryNextAction(
             vector(
-                AppActionId.VIEW_SCHEDULE to 0.54f,
-                AppActionId.VIEW_GRADES to 0.46f
+                AppActionId.VIEW_SCHEDULE to 0.50f,
+                AppActionId.VIEW_GRADES to 0.35f
             ),
             setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
         )
 
         assertTrue(assessment.accepted)
+    }
+
+    @Test
+    fun ordinaryNextActionRejectsMarginJustBelowFifteenPoints() {
+        val assessment = SuggestionPolicy.assessOrdinaryNextAction(
+            vector(
+                AppActionId.VIEW_SCHEDULE to 0.50f,
+                AppActionId.VIEW_GRADES to 0.351f
+            ),
+            setOf(AppActionId.VIEW_SCHEDULE.stableId, AppActionId.VIEW_GRADES.stableId)
+        )
+
+        assertFalse(assessment.accepted)
+        assertEquals(OrdinaryNextActionGateReason.INSUFFICIENT_PROBABILITY_MARGIN, assessment.rejectionReason)
     }
 
     @Test

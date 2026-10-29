@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import java.net.URLDecoder
+import java.net.URI
+import kotlinx.coroutines.CancellationException
 
 /**
  * 聚合扫码的**路由**：只判定平台 + 用显式 Intent 免选择框直启目标 App，把二维码**原文**递进去。
@@ -38,7 +40,6 @@ object QrRouter {
     /** 正式形态里 `b` 参数的值：10 位车牌 + `_1`。 */
     private val MOBIKE_BIKE_PARAM = Regex("^[0-9A-Z]{10}_1$")
 
-    private val URL_HOST = Regex("^[A-Za-z][A-Za-z0-9+.\\-]*://([^/?#]+)")
     private val HTTP_URL =
         Regex("^(https?)://([^/?#]+)([^?#]*)(?:\\?([^#]*))?(?:#.*)?$", RegexOption.IGNORE_CASE)
 
@@ -57,33 +58,34 @@ object QrRouter {
         /** 认得这个平台，但目标 App 没装 / 没响应。 */
         data class TargetMissing(val targetApp: String) : Outcome
 
+        /** 目标存在但无法打开；不暴露外部异常及二维码内容。 */
+        data class Failed(val targetApp: String) : Outcome
+
         /** 不是这三种码，不做跳转。 */
         data object Unrecognized : Outcome
     }
 
     fun classify(raw: String): Kind {
         val text = raw.trim()
-        val host = hostOf(text)
+        if (text.isEmpty() || text.length > 8192 || text.any { it.isISOControl() }) return Kind.Unknown
+        if (MOBIKE_PLATE.matches(text)) return Kind.MeituanBike
+        val uri = try { URI(text) } catch (_: Exception) { return Kind.Unknown }
+        if (!uri.scheme.orEmpty().equals("http", true) && !uri.scheme.orEmpty().equals("https", true)) return Kind.Unknown
+        if (uri.rawUserInfo != null || uri.port !in listOf(-1, 80, 443)) return Kind.Unknown
+        val host = uri.host?.lowercase() ?: return Kind.Unknown
+        val path = uri.rawPath.orEmpty()
         return when {
-            // 学习通：路径段随签到类型变（/widget/sign/e、/widget/sign/pcqrcode…），按前缀匹配
-            text.startsWith("https://mobilelearn.chaoxing.com/widget/sign/", true) ||
-                text.startsWith("http://mobilelearn.chaoxing.com/widget/sign/", true) -> Kind.ChaoxingSign
-
-            // 雨课堂：host 是学校专属子域（如 changjiang.yuketang.cn），按后缀匹配
-            host != null && (host == "yuketang.cn" || host.endsWith(".yuketang.cn")) -> Kind.YuketangSign
-
-            text.startsWith("http://t8.pub/", true) ||
-                text.startsWith("http://t9.pub/", true) ||
-                isMobikeUrl(text) ||
-                MOBIKE_PLATE.matches(text) -> Kind.MeituanBike
-
+            host == "mobilelearn.chaoxing.com" && path.startsWith("/widget/sign/") &&
+                path.length > "/widget/sign/".length -> Kind.ChaoxingSign
+            host == "yuketang.cn" || host.endsWith(".yuketang.cn") -> Kind.YuketangSign
+            (host == "t8.pub" || host == "t9.pub") && path.length > 1 -> Kind.MeituanBike
+            isMobikeUrl(text) -> Kind.MeituanBike
             else -> Kind.Unknown
         }
     }
 
-    fun route(context: Context, raw: String): Outcome {
-        val text = raw.trim()
-        return when (classify(text)) {
+    fun route(context: Context, raw: String): Outcome = dispatch(raw) { kind, text ->
+        when (kind) {
             Kind.MeituanBike -> openMeituanBike(context, text)
             Kind.ChaoxingSign -> openChaoxingSign(context, text)
             Kind.YuketangSign -> openWechatScanner(context)
@@ -91,14 +93,24 @@ object QrRouter {
         }
     }
 
-    /** 取 host（去 userinfo、去端口、转小写）；拿不到返回 null。 */
-    private fun hostOf(text: String): String? {
-        val match = URL_HOST.find(text) ?: return null
-        return match.groupValues[1]
-            .substringAfterLast('@')
-            .substringBefore(':')
-            .lowercase()
-            .ifEmpty { null }
+    /** The unsupported branch never reaches platform URI construction or the supplied launcher. */
+    internal fun dispatch(raw: String, launch: (Kind, String) -> Outcome): Outcome {
+        val kind = classify(raw)
+        if (kind == Kind.Unknown) return Outcome.Unrecognized
+        return try {
+            launch(kind, raw.trim())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            Outcome.Failed(targetName(kind))
+        }
+    }
+
+    internal fun targetName(kind: Kind): String = when (kind) {
+        Kind.MeituanBike -> "美团"
+        Kind.ChaoxingSign -> "学习通"
+        Kind.YuketangSign -> "微信"
+        Kind.Unknown -> "应用"
     }
 
     /**
@@ -133,11 +145,7 @@ object QrRouter {
             .appendQueryParameter("time", System.currentTimeMillis().toString())
             .appendQueryParameter("url", raw)
             .build()
-        return if (tryLaunch(context, uri, MEITUAN_PKG)) {
-            Outcome.Handed("美团单车")
-        } else {
-            Outcome.TargetMissing("美团")
-        }
+        return launchOutcome(tryLaunch(context, uri, MEITUAN_PKG), "美团")
     }
 
     private fun openChaoxingSign(context: Context, raw: String): Outcome {
@@ -151,10 +159,10 @@ object QrRouter {
             // 与美团相反：这里**整条透传**，id/c/enc/DB_STRATEGY/STRATEGY_PARA 一个都不能少
             .appendQueryParameter("url", raw)
             .build()
-        if (tryLaunch(context, shareback, CHAOXING_PKG)) return Outcome.Handed("学习通")
-        // 兜底：直接把签到 URL 交给学习通（万一它对 mobilelearn 域名声明了 App Link）
-        if (tryLaunch(context, Uri.parse(raw), CHAOXING_PKG)) return Outcome.Handed("学习通")
-        return Outcome.TargetMissing("学习通")
+        val primary = tryLaunch(context, shareback, CHAOXING_PKG)
+        if (primary != LaunchAttempt.Missing) return launchOutcome(primary, "学习通")
+        // A missing shareback handler can still expose the documented sign-page App Link.
+        return launchOutcome(tryLaunch(context, Uri.parse(raw), CHAOXING_PKG), "学习通")
     }
 
     /**
@@ -171,25 +179,35 @@ object QrRouter {
             context.startActivity(intent)
             Outcome.Handed(
                 targetApp = "微信扫一扫",
-                note = "雨课堂的码需在微信里扫：已打开扫一扫，请对准再扫一次"
+                note = "请在微信中重新扫码"
             )
         } catch (_: ActivityNotFoundException) {
             Outcome.TargetMissing("微信")
-        } catch (_: Throwable) {
-            Outcome.TargetMissing("微信")
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            Outcome.Failed("微信")
         }
     }
 
-    private fun tryLaunch(context: Context, uri: Uri, pkg: String): Boolean = try {
+    private enum class LaunchAttempt { Started, Missing, Failed }
+
+    private fun launchOutcome(attempt: LaunchAttempt, target: String): Outcome = when (attempt) {
+        LaunchAttempt.Started -> Outcome.Handed(target)
+        LaunchAttempt.Missing -> Outcome.TargetMissing(target)
+        LaunchAttempt.Failed -> Outcome.Failed(target)
+    }
+
+    private fun tryLaunch(context: Context, uri: Uri, pkg: String): LaunchAttempt = try {
         context.startActivity(
-            Intent(Intent.ACTION_VIEW, uri)
-                .setPackage(pkg)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            Intent(Intent.ACTION_VIEW, uri).setPackage(pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         )
-        true
+        LaunchAttempt.Started
     } catch (_: ActivityNotFoundException) {
-        false
-    } catch (_: Throwable) {
-        false
+        LaunchAttempt.Missing
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        LaunchAttempt.Failed
     }
 }

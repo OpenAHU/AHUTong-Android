@@ -5,6 +5,7 @@ import com.ahu.ahutong.data.security.SecureBoxStore
 import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import com.ahu.ahutong.ext.fromJson
 import com.google.gson.Gson
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 
 /**
  * 会话域数据（身份 + 原生服务会话 Cookie）的唯一读写点。
@@ -33,11 +34,14 @@ object SessionStore : SessionIdentity {
 
     /** 只做读写与缓存；"用户变化后要刷新小组件槽位"这类副作用仍由缓存层负责。 */
     fun persistCurrentUser(user: User) {
+        val previousUser = (userRestore.restore() as? CurrentUserRestoreResult.Ready)?.user
+        if (previousUser != null && previousUser.xh != user.xh) FeedbackDiagnostics.clear()
         SecureBoxStore.put(KEY_CURRENT_USER, Gson().toJson(user))
         userRestore.update(user)
     }
 
     fun clearPersistedCurrentUser() {
+        FeedbackDiagnostics.clear()
         SecureBoxStore.remove(KEY_CURRENT_USER)
         userRestore.update(null)
     }

@@ -3,10 +3,8 @@ package com.ahu.ahutong.ui.screen.main.schedule
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +14,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
+import com.ahu.ahutong.ui.components.AppDialogActionStyle
 
 @Composable
 internal fun PostgraduateWeekDialog(
@@ -29,11 +30,11 @@ internal fun PostgraduateWeekDialog(
     var input by rememberSaveable(termCode) { mutableStateOf(currentWeek?.toString().orEmpty()) }
     val week = input.trim().toIntOrNull()
     val valid = week != null && week in 1..PostgraduateTeachingWeek.MAX_WEEK
-    AlertDialog(
-        onDismissRequest = { if (!required) onDismiss() },
+    AppDialog(
+        onDismiss = { if (!required) onDismiss() },
         properties = DialogProperties(dismissOnBackPress = !required, dismissOnClickOutside = !required),
-        title = { Text("设置研究生当前周") },
-        text = {
+        title = "设置研究生当前周",
+        content = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(termName)
                 Text("请输入本周是第几教学周。保存后将按日期自动更新，也可随时在课表设置中修改。")
@@ -48,11 +49,10 @@ internal fun PostgraduateWeekDialog(
                 )
             }
         },
-        confirmButton = {
-            TextButton(enabled = valid, onClick = { week?.let(onSave) }) { Text("保存") }
-        },
-        dismissButton = {
-            if (!required) TextButton(onClick = onDismiss) { Text("取消") }
+        actions = buildList {
+            if (!required) add(AppDialogAction("取消", onClick = onDismiss))
+            add(AppDialogAction("保存", onClick = { week?.let(onSave) },
+                enabled = valid, style = AppDialogActionStyle.Primary))
         }
     )
 }

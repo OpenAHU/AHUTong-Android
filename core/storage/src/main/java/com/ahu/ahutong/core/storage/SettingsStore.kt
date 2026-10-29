@@ -43,6 +43,12 @@ interface SettingsStore {
     val themeMode: Flow<AppThemeMode>
     suspend fun setThemeMode(value: AppThemeMode)
 
+    /** Material 的悬浮底栏样式；默认使用标准底栏。 */
+    val materialFloatingBottomBar: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(false)
+
+    suspend fun setMaterialFloatingBottomBar(value: Boolean) {}
+
     val showQRCode: Flow<Boolean>
     suspend fun setShowQRCode(value: Boolean)
 
@@ -65,15 +71,6 @@ interface SettingsStore {
 
     val personalizationEnabled: Flow<Boolean>
     suspend fun setPersonalizationEnabled(value: Boolean)
-
-    /**
-     * 导航栏「一键扫码」入口开关（默认关）。打开才多出该按钮，关掉即回到原状。
-     * 默认实现保护既有 fake 与测试。
-     */
-    val scanShortcutEnabled: Flow<Boolean>
-        get() = kotlinx.coroutines.flow.flowOf(false)
-
-    suspend fun setScanShortcutEnabled(value: Boolean) {}
 
     /**
      * 必吃榜匿名数据上传同意：null=未表态（首页弹窗询问一次），true/false=已选。

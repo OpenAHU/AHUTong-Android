@@ -5,37 +5,27 @@ import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,14 +33,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -68,7 +61,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -83,14 +75,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.R
-import com.ahu.ahutong.ui.components.appLiquidGlassSurface
+import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
-import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
+
+@Composable
+internal fun Modifier.homeWidgetEditGesture(enabled: Boolean, onEnterEdit: () -> Unit): Modifier {
+    val enterEdit by rememberUpdatedState(onEnterEdit)
+    return pointerInput(enabled) {
+        if (!enabled) return@pointerInput
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (down.position.y < size.height / 2f) return@awaitEachGesture
+            val longPress = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+            longPress.consume()
+            enterEdit()
+        }
+    }
+}
 
 @Composable
 fun HomeWidgetSlotLayout(
@@ -104,12 +109,14 @@ fun HomeWidgetSlotLayout(
     isEditing: Boolean,
     highlightedSlot: Int?,
     draggingWidgetId: String?,
-    onEnterEdit: () -> Unit,
-    onHomeWidgetClick: (slotIndex: Int) -> Unit,
+    onRemoveHomeWidget: (slotIndex: Int) -> Unit,
+    onAddHomeWidget: (slotIndex: Int) -> Unit,
+    onExitEdit: () -> Unit,
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
     onHomeWidgetDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
     onHomeWidgetDragged: (Offset) -> Unit,
-    onHomeWidgetDragStopped: () -> Unit
+    onHomeWidgetDragStopped: () -> Unit,
+    onHomeWidgetDragCancelled: () -> Unit
 ) {
         // 主页排版全主题统一为 Radiant 方案
     RadiantHomeWidgetSlotLayout(
@@ -123,16 +130,17 @@ fun HomeWidgetSlotLayout(
             isEditing = isEditing,
             highlightedSlot = highlightedSlot,
             draggingWidgetId = draggingWidgetId,
-            onEnterEdit = onEnterEdit,
-            onHomeWidgetClick = onHomeWidgetClick,
+            onRemoveHomeWidget = onRemoveHomeWidget,
+            onAddHomeWidget = onAddHomeWidget,
+            onExitEdit = onExitEdit,
             onSlotPositioned = onSlotPositioned,
             onHomeWidgetDragStarted = onHomeWidgetDragStarted,
             onHomeWidgetDragged = onHomeWidgetDragged,
-            onHomeWidgetDragStopped = onHomeWidgetDragStopped
+            onHomeWidgetDragStopped = onHomeWidgetDragStopped,
+            onHomeWidgetDragCancelled = onHomeWidgetDragCancelled
         )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HomeWidgetSlot(
     slotIndex: Int,
@@ -142,13 +150,14 @@ private fun HomeWidgetSlot(
     isHighlighted: Boolean,
     isDragging: Boolean,
     modifier: Modifier,
-    onEnterEdit: () -> Unit,
     onNavigate: (route: String) -> Unit,
-    onClick: (slotIndex: Int) -> Unit,
+    onRemove: (slotIndex: Int) -> Unit,
+    onAdd: (slotIndex: Int) -> Unit,
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
     onDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
     onDragged: (Offset) -> Unit,
-    onDragStopped: () -> Unit
+    onDragStopped: () -> Unit,
+    onDragCancelled: () -> Unit
 ) {
     val spec = widgetId?.let { HomeWidgetRegistry.widgetById[it] }
     var bounds by remember { mutableStateOf<Rect?>(null) }
@@ -161,7 +170,8 @@ private fun HomeWidgetSlot(
         if (isEditing) {
             EmptyHomeWidgetSlot(
                 isHighlighted = isHighlighted,
-                modifier = slotModifier
+                modifier = slotModifier,
+                onClick = { onAdd(slotIndex) }
             )
         } else {
             Spacer(modifier = modifier)
@@ -169,47 +179,44 @@ private fun HomeWidgetSlot(
         return
     }
 
+    val startDrag by rememberUpdatedState(onDragStarted)
+    val moveDrag by rememberUpdatedState(onDragged)
+    val finishDrag by rememberUpdatedState(onDragStopped)
+    val cancelDrag by rememberUpdatedState(onDragCancelled)
     val dragModifier = if (isEditing) {
         Modifier
-            .combinedClickable(
-                onClick = { onClick(slotIndex) },
-                onLongClick = {}
-            )
             .pointerInput(spec.id, slotIndex) {
                 var dragStarted = false
-                detectDragGesturesAfterLongPress(
+                detectDragGestures(
                     onDragStart = {
                         val itemBounds = bounds
                         if (itemBounds != null) {
                             dragStarted = true
-                            onDragStarted(spec.id, slotIndex, itemBounds)
+                            startDrag(spec.id, slotIndex, itemBounds)
                         }
                     },
                     onDragEnd = {
                         if (dragStarted) {
-                            onDragStopped()
+                            finishDrag()
                             dragStarted = false
                         }
                     },
                     onDragCancel = {
                         if (dragStarted) {
-                            onDragStopped()
+                            cancelDrag()
                             dragStarted = false
                         }
                     },
                     onDrag = { change, dragAmount ->
                         if (dragStarted) {
                             change.consume()
-                            onDragged(dragAmount)
+                            moveDrag(dragAmount)
                         }
                     }
                 )
             }
     } else {
-        Modifier.combinedClickable(
-            onClick = { onNavigate(spec.route) },
-            onLongClick = onEnterEdit
-        )
+        Modifier.clickable(onClick = { onNavigate(spec.route) })
     }
 
     TextHomeWidgetCard(
@@ -220,6 +227,7 @@ private fun HomeWidgetSlot(
         badgeCount = if (widgetId == HomeWidgetPlacement.NOTICE_WIDGET_ID) noticeUnreadCount else 0,
         isEditing = isEditing,
         isHighlighted = isHighlighted,
+        onRemove = if (isEditing && !isDragging) ({ onRemove(slotIndex) }) else null,
         modifier = slotModifier
             .alpha(if (isDragging) 0.35f else 1f),
         interactionModifier = dragModifier
@@ -236,7 +244,8 @@ private fun TextHomeWidgetCard(
     isEditing: Boolean,
     isHighlighted: Boolean,
     modifier: Modifier = Modifier,
-    interactionModifier: Modifier = Modifier
+    interactionModifier: Modifier = Modifier,
+    onRemove: (() -> Unit)? = null
 ) {
         RadiantTextHomeWidgetCard(
             title = title,
@@ -247,7 +256,8 @@ private fun TextHomeWidgetCard(
             isEditing = isEditing,
             isHighlighted = isHighlighted,
             modifier = modifier,
-            interactionModifier = interactionModifier
+            interactionModifier = interactionModifier,
+            onRemove = onRemove
         )
 }
 
@@ -261,7 +271,8 @@ private fun RadiantTextHomeWidgetCard(
     isEditing: Boolean,
     isHighlighted: Boolean,
     modifier: Modifier = Modifier,
-    interactionModifier: Modifier = Modifier
+    interactionModifier: Modifier = Modifier,
+    onRemove: (() -> Unit)? = null
 ) {
     val shape = SmoothRoundedCornerShape(18.dp)
     Box(
@@ -297,9 +308,30 @@ private fun RadiantTextHomeWidgetCard(
                 style = MaterialTheme.typography.labelMedium
             )
         }
-        if (badgeCount > 0) {
+        if (badgeCount > 0 && !isEditing) {
             Badge(modifier = Modifier.align(Alignment.TopEnd)) {
                 Text(if (badgeCount > 99) "99+" else badgeCount.toString())
+            }
+        }
+        if (isEditing && onRemove != null) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.align(Alignment.TopEnd)
+                    .offset(x = 8.dp, y = (-8).dp)
+                    .size(32.dp)
+            ) {
+                Box(
+                    modifier = Modifier.size(20.dp)
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Remove,
+                        contentDescription = "移除$title",
+                        tint = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 1f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
     }
@@ -310,6 +342,7 @@ private const val MORE_CELL = 0
 
 @Composable
 private fun HomeWidgetMoreItem(
+    isEditing: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -323,7 +356,12 @@ private fun HomeWidgetMoreItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
+            if (isEditing) Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary
+            ) else Icon(
                 painter = painterResource(id = R.drawable.ic_more_all),
                 contentDescription = "更多",
                 modifier = Modifier.size(24.dp),
@@ -331,7 +369,7 @@ private fun HomeWidgetMoreItem(
             )
             Spacer(modifier = Modifier.padding(top = 6.dp))
             Text(
-                text = "更多",
+                text = if (isEditing) "完成" else "更多",
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -354,12 +392,14 @@ private fun RadiantHomeWidgetSlotLayout(
     isEditing: Boolean,
     highlightedSlot: Int?,
     draggingWidgetId: String?,
-    onEnterEdit: () -> Unit,
-    onHomeWidgetClick: (slotIndex: Int) -> Unit,
+    onRemoveHomeWidget: (slotIndex: Int) -> Unit,
+    onAddHomeWidget: (slotIndex: Int) -> Unit,
+    onExitEdit: () -> Unit,
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
     onHomeWidgetDragStarted: (widgetId: String, slotIndex: Int, bounds: Rect) -> Unit,
     onHomeWidgetDragged: (Offset) -> Unit,
-    onHomeWidgetDragStopped: () -> Unit
+    onHomeWidgetDragStopped: () -> Unit,
+    onHomeWidgetDragCancelled: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -400,7 +440,8 @@ private fun RadiantHomeWidgetSlotLayout(
                     rowCells.forEach { cell ->
                         if (cell == MORE_CELL) {
                             HomeWidgetMoreItem(
-                                onClick = { navController.navigate("widgets") },
+                                isEditing = isEditing,
+                                onClick = { if (isEditing) onExitEdit() else navController.navigate("widgets") },
                                 modifier = Modifier.weight(1f).height(64.dp)
                             )
                         } else {
@@ -415,16 +456,18 @@ private fun RadiantHomeWidgetSlotLayout(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(64.dp),
-                                onEnterEdit = onEnterEdit,
                                 onNavigate = { navController.navigate(it) },
-                                onClick = onHomeWidgetClick,
+                                onRemove = onRemoveHomeWidget,
+                                onAdd = onAddHomeWidget,
                                 onSlotPositioned = onSlotPositioned,
                                 onDragStarted = onHomeWidgetDragStarted,
                                 onDragged = onHomeWidgetDragged,
-                                onDragStopped = onHomeWidgetDragStopped
+                                onDragStopped = onHomeWidgetDragStopped,
+                                onDragCancelled = onHomeWidgetDragCancelled
                             )
                         }
                     }
+                    repeat(4 - rowCells.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -434,163 +477,49 @@ private fun RadiantHomeWidgetSlotLayout(
 @Composable
 private fun EmptyHomeWidgetSlot(
     isHighlighted: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
     val borderColor = if (isHighlighted) 70.a1 withNight 80.a1 else 60.n1 withNight 45.n1
     Box(
         modifier = modifier
             .clip(SmoothRoundedCornerShape(24.dp))
             .background(if (isHighlighted) 95.a1 withNight 25.a1 else Color.Transparent)
-            .dashedBorder(borderColor),
+            .dashedBorder(borderColor)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "拖到这里",
-            color = 45.n1 withNight 70.n1,
-            style = MaterialTheme.typography.labelLarge
+        Icon(
+            imageVector = Icons.Outlined.Add,
+            contentDescription = "添加小工具",
+            tint = 45.n1 withNight 70.n1,
+            modifier = Modifier.size(24.dp)
         )
     }
 }
 
 @Composable
 fun HomeWidgetLibrarySheet(
-    visible: Boolean,
-    hiddenDuringLibraryDrag: Boolean,
-    modifier: Modifier = Modifier,
     availableWidgets: List<HomeWidgetSpec>,
     onDismiss: () -> Unit,
-    onBoundsChanged: (Rect?) -> Unit,
-    onLibraryWidgetClick: (widgetId: String) -> Unit,
-    onLibraryWidgetDragStarted: (widgetId: String, bounds: Rect) -> Unit,
-    onLibraryWidgetDragged: (Offset) -> Unit,
-    onLibraryWidgetDragStopped: () -> Unit
+    onLibraryWidgetClick: (String) -> Unit
 ) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(120)) + slideInVertically(animationSpec = tween(120)) { it },
-        exit = fadeOut(animationSpec = tween(80)) + slideOutVertically(animationSpec = tween(80)) { it },
-        modifier = modifier
-            .fillMaxWidth()
-            .zIndex(1f)
-    ) {
-        var sheetOffset by remember { mutableFloatStateOf(0f) }
-        var sheetBounds by remember { mutableStateOf<Rect?>(null) }
-        val currentSheetBounds by rememberUpdatedState(sheetBounds)
-        val itemBounds = remember { mutableStateMapOf<String, Rect>() }
-        LaunchedEffect(visible) {
-            if (visible) sheetOffset = 0f
-        }
-        LaunchedEffect(availableWidgets) {
-            itemBounds.keys.retainAll(availableWidgets.map { it.id }.toSet())
-        }
-        val sheetShape = SmoothRoundedCornerShape(32.dp)
+    AppModalBottomSheet(title = "添加小工具", onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp)
-                .padding(bottom = 88.dp)
-                .offset { IntOffset(0, sheetOffset.roundToInt()) }
-                .graphicsLayer {
-                    alpha = if (hiddenDuringLibraryDrag) 0f else 1f
-                }
-                .onGloballyPositioned {
-                    sheetBounds = it.boundsInRoot()
-                    onBoundsChanged(it.boundsInRoot())
-                }
-                .pointerInput(availableWidgets.map { it.id }) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val bounds = currentSheetBounds ?: return@awaitEachGesture
-                        val downInRoot = bounds.topLeft + down.position
-                        if (itemBounds.values.any { it.contains(downInRoot) }) {
-                            return@awaitEachGesture
-                        }
-
-                        var dragging = true
-                        while (dragging) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id }
-                            if (change == null || !change.pressed) {
-                                dragging = false
-                            } else {
-                                val dragAmount = change.positionChange()
-                                if (dragAmount.y > 0f || sheetOffset > 0f) {
-                                    change.consume()
-                                    sheetOffset = (sheetOffset + dragAmount.y).coerceAtLeast(0f)
-                                }
-                            }
-                        }
-
-                        if (sheetOffset > 48f) {
-                            onDismiss()
-                        } else {
-                            sheetOffset = 0f
-                        }
-                    }
-                }
-                .appLiquidGlassSurface(
-                    shape = sheetShape,
-                    fallbackColor = 100.n1 withNight 18.n1,
-                    level = LiquidGlassSurfaceLevel.Floating
-                )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .size(width = 42.dp, height = 4.dp)
-                        .clip(SmoothRoundedCornerShape(4.dp))
-                        .background(70.n1 withNight 55.n1)
-                )
-
-                Text(
-                    text = "添加小工具",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = "此操作仅隐藏图标，您随时可以从小工具中重新添加。",
-                    color = 45.n1 withNight 75.n1,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 280.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                if (availableWidgets.isEmpty()) {
-                    Text(
-                        text = "所有小工具都已添加到首页",
-                        modifier = Modifier.padding(vertical = 16.dp),
-                        color = 45.n1 withNight 75.n1,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                } else {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        availableWidgets.forEach { spec ->
-                            LibraryWidgetItem(
-                                spec = spec,
-                                onClick = { onLibraryWidgetClick(spec.id) },
-                                onPositioned = { id, bounds -> itemBounds[id] = bounds },
-                                onDragStarted = onLibraryWidgetDragStarted,
-                                onDragged = onLibraryWidgetDragged,
-                                onDragStopped = onLibraryWidgetDragStopped
-                            )
-                        }
+            if (availableWidgets.isEmpty()) {
+                Text("暂无可添加的小工具", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    availableWidgets.forEach { spec ->
+                        LibraryWidgetItem(spec = spec, onClick = { onLibraryWidgetClick(spec.id) })
                     }
                 }
             }
@@ -599,58 +528,12 @@ fun HomeWidgetLibrarySheet(
 }
 
 @Composable
-private fun LibraryWidgetItem(
-    spec: HomeWidgetSpec,
-    onClick: () -> Unit,
-    onPositioned: (widgetId: String, bounds: Rect) -> Unit,
-    onDragStarted: (widgetId: String, bounds: Rect) -> Unit,
-    onDragged: (Offset) -> Unit,
-    onDragStopped: () -> Unit
-) {
-    var bounds by remember { mutableStateOf<Rect?>(null) }
+private fun LibraryWidgetItem(spec: HomeWidgetSpec, onClick: () -> Unit) {
     Column(
-        modifier = Modifier
-            .width(88.dp)
+        modifier = Modifier.width(88.dp)
             .clip(SmoothRoundedCornerShape(18.dp))
             .background(96.n1 withNight 28.n1)
-            .onGloballyPositioned {
-                bounds = it.boundsInRoot()
-                onPositioned(spec.id, it.boundsInRoot())
-            }
-            .pointerInput(spec.id) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    val upBeforeLongPress = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                        waitForUpOrCancellation()
-                    }
-
-                    if (upBeforeLongPress != null) {
-                        upBeforeLongPress.consume()
-                        onClick()
-                        return@awaitEachGesture
-                    }
-
-                    val itemBounds = bounds ?: return@awaitEachGesture
-                    onDragStarted(spec.id, itemBounds)
-
-                    var dragging = true
-                    while (dragging) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == down.id }
-                        if (change == null || !change.pressed) {
-                            dragging = false
-                        } else {
-                            val dragAmount = change.positionChange()
-                            if (dragAmount != Offset.Zero) {
-                                change.consume()
-                                onDragged(dragAmount)
-                            }
-                        }
-                    }
-                    onDragStopped()
-                }
-            }
+            .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally

@@ -13,7 +13,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,7 +28,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,23 +43,18 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -75,7 +68,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.feature.xuexiaotong.R
-import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.CourseProgress
 import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.Work
@@ -88,8 +80,10 @@ import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
+import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
-import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.liquidGlassSurface
@@ -100,7 +94,6 @@ import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import androidx.compose.ui.zIndex
-import com.kyant.monet.a1
 import kotlin.math.roundToInt
 import java.util.Calendar
 import com.ahu.ahutong.core.designsystem.R as DesignSystemR
@@ -597,133 +590,35 @@ fun XuexiaotongScreen() {
     }
 
     // 删除自建日程确认弹窗
-    pendingDeleteEvent?.let { w ->
-        androidx.compose.ui.window.Dialog(onDismissRequest = { pendingDeleteEvent = null }) {
-            Column(
-                modifier = Modifier
-                    .clip(SmoothRoundedCornerShape(32.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "删除日程",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "确定删除「${w.title}」吗？",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                            .clickable { pendingDeleteEvent = null },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("取消", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-                            .clickable {
-                                viewModel.deleteCustomEvent(w.workId.removePrefix("event_"))
-                                pendingDeleteEvent = null
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("删除", fontSize = 13.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
+    pendingDeleteEvent?.let { event ->
+        AppDialog(
+            title = "删除日程",
+            onDismiss = { pendingDeleteEvent = null },
+            content = { Text("确定删除「${event.title}」吗？") },
+            actions = listOf(
+                AppDialogAction("取消", onClick = { pendingDeleteEvent = null }),
+                AppDialogAction("删除", style = AppDialogActionStyle.Danger, onClick = {
+                    viewModel.deleteCustomEvent(event.workId.removePrefix("event_"))
+                    pendingDeleteEvent = null
+                })
+            )
+        )
     }
 
     // 清空自建日程确认弹窗
     if (showClearConfirm) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showClearConfirm = false }) {
-            Column(
-                modifier = Modifier
-                    .clip(SmoothRoundedCornerShape(32.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "清空自建日程",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "确定删除全部 ${customEvents.size} 条自建日程吗？此操作不可恢复",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                            .clickable { showClearConfirm = false },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("取消", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f))
-                            .clickable {
-                                viewModel.clearCustomEvents()
-                                showClearConfirm = false
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("全部删除", fontSize = 13.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        }
+        AppDialog(
+            title = "清空自建日程",
+            onDismiss = { showClearConfirm = false },
+            content = { Text("确定删除全部 ${customEvents.size} 条自建日程吗？此操作不可恢复") },
+            actions = listOf(
+                AppDialogAction("取消", onClick = { showClearConfirm = false }),
+                AppDialogAction("全部删除", style = AppDialogActionStyle.Danger, onClick = {
+                    viewModel.clearCustomEvents()
+                    showClearConfirm = false
+                })
+            )
+        )
     }
 
     // 通知设置弹窗

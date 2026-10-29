@@ -6,6 +6,7 @@ import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import com.ahu.ahutong.data.model.LoginOutcome
 import com.ahu.ahutong.data.security.SecureStorageUnavailableException
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
@@ -41,7 +42,11 @@ class RepositoryAhuSession(
         refreshScope == SessionRefreshCoordinator.Scope.ACADEMIC
 
     override suspend fun signIn(username: String, password: String): AhuResult<LoginOutcome> {
+        FeedbackDiagnostics.clear()
+        com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer.rememberPassword(password)
+        FeedbackDiagnostics.recordRuntime("开始登录")
         val result = login.signIn(username, password, preferNative = true)
+        FeedbackDiagnostics.recordRuntime("登录结果：${if (result.valueOrNull() is LoginOutcome.Success) "成功" else "未完成"}")
         if (result.valueOrNull() is LoginOutcome.Success) {
             // 先在协调器里推进代号，再发布已认证状态：并发中的旧续期不能覆盖这次新登录。
             SessionRefreshCoordinator.onAuthenticated {
@@ -60,6 +65,8 @@ class RepositoryAhuSession(
     }
 
     override suspend fun signOut() {
+        FeedbackDiagnostics.clear()
+        FeedbackDiagnostics.recordRuntime("退出账号")
         SessionRefreshCoordinator.onSignedOut {
             AhuSessionState.markAnonymous()
         }
@@ -114,6 +121,7 @@ class RepositoryAhuSession(
                     ?: return SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
                 val password = credentials.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
                     ?: return SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
+                com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer.rememberPassword(password)
                 Log.i(TAG, "Refreshing first-party session (attempt=${attempt + 1})")
                 refreshLogin.signIn(user.xh.toString(), password, preferNative = false)
             } catch (_: SecureStorageUnavailableException) {

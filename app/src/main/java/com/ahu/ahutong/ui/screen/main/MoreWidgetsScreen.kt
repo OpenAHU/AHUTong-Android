@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,9 +41,7 @@ import com.kyant.monet.withNight
  */
 @Composable
 fun MoreWidgetsScreen(
-    navController: NavHostController,
-    homeEditEnabled: Boolean = false,
-    onEditHome: () -> Unit = {}
+    navController: NavHostController
 ) {
     // 订阅插件注册表：装/卸插件后分组与入口列表自动重组
     val pluginsState by com.ahu.ahutong.ui.plugin.PluginRegistry.plugins.collectAsState()
@@ -89,24 +86,6 @@ fun MoreWidgetsScreen(
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.headlineMedium
                 )
-                if (homeEditEnabled) {
-                    IconButton(
-                        onClick = {
-                            onEditHome()
-                            navController.navigate("home") {
-                                popUpTo("home") {
-                                    inclusive = false
-                                }
-                                launchSingleTop = true
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Edit,
-                            contentDescription = "编辑首页"
-                        )
-                    }
-                }
             }
         }
 

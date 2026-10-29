@@ -8,20 +8,17 @@ import kotlin.test.assertTrue
 
 class MainNavigationPolicyTest {
     @Test
-    fun `preferences parent follows the active navigation model`() {
-        assertEquals("settings", settingsParentRoute(AppUiTheme.RADIANT))
-        AppUiTheme.entries
-            .filterNot { it == AppUiTheme.RADIANT }
-            .forEach { theme ->
-                assertEquals("home", settingsParentRoute(theme), theme.name)
-            }
+    fun `all themes keep settings as the preferences parent`() {
+        AppUiTheme.entries.forEach { theme ->
+            assertEquals("settings", settingsParentRoute(theme), theme.name)
+        }
     }
 
     @Test
-    fun `preferences normalizes stale parents in both theme directions`() {
-        assertTrue(shouldNormalizePreferencesParent(AppUiTheme.RADIANT, "home"))
-        assertTrue(shouldNormalizePreferencesParent(AppUiTheme.MATERIAL, "settings"))
-        assertFalse(shouldNormalizePreferencesParent(AppUiTheme.RADIANT, "settings"))
-        assertFalse(shouldNormalizePreferencesParent(AppUiTheme.MATERIAL, "home"))
+    fun `returning from theme details must not replace an existing preferences entry`() {
+        AppUiTheme.entries.forEach { theme ->
+            assertFalse(shouldNormalizePreferencesParent(theme, "settings"), theme.name)
+            assertTrue(shouldNormalizePreferencesParent(theme, "home"), theme.name)
+        }
     }
 }

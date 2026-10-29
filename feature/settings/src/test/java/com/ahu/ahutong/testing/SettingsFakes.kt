@@ -32,6 +32,7 @@ class FakeSettingsStore : SettingsStore {
     override val appUiTheme = MutableStateFlow(AppUiTheme.RADIANT)
     override val themeColor = MutableStateFlow<String?>(null)
     override val themeMode = MutableStateFlow(AppThemeMode.FOLLOW_SYSTEM)
+    override val materialFloatingBottomBar = MutableStateFlow(false)
     override val showQRCode = MutableStateFlow(false)
     override val isShowAllCourse = MutableStateFlow(false)
     override val useBuiltInSecurePasswordKeyboard = MutableStateFlow(true)
@@ -68,6 +69,10 @@ class FakeSettingsStore : SettingsStore {
     override suspend fun setThemeColor(value: String?) { themeColor.value = value }
 
     override suspend fun setThemeMode(value: AppThemeMode) { themeMode.value = value }
+
+    override suspend fun setMaterialFloatingBottomBar(value: Boolean) {
+        materialFloatingBottomBar.value = value
+    }
 
     override suspend fun setShowQRCode(value: Boolean) { showQRCode.value = value }
 

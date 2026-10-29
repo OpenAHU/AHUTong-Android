@@ -15,6 +15,7 @@ object ScheduleUiPrefs {
     private const val KEY_SHOW_NOW_TIMELINE = "show_now_timeline"
     private const val KEY_SHOW_SATURDAY = "show_saturday"
     private const val KEY_SHOW_SUNDAY = "show_sunday"
+    private const val KEY_HIDE_WEEKENDS = "hide_weekends"
 
     private val prefs
         get() = AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -26,14 +27,21 @@ object ScheduleUiPrefs {
         prefs.edit().putBoolean(KEY_SHOW_NOW_TIMELINE, visible).apply()
     }
 
-    /** 周末列默认显示，关闭后课表只保留工作日并自动加宽剩余列。 */
-    fun isSaturdayVisible(): Boolean = prefs.getBoolean(KEY_SHOW_SATURDAY, true)
+    /**
+     * 周末列默认显示，关闭后课表只保留工作日并自动加宽剩余列。
+     *
+     * 默认值继承旧版单一"隐藏周六日"开关（[KEY_HIDE_WEEKENDS]），
+     * 让已经用过该开关的用户升级后看到的列数不变；用户任一新开关写入后即与之脱钩。
+     */
+    fun isSaturdayVisible(): Boolean =
+        prefs.getBoolean(KEY_SHOW_SATURDAY, !legacyWeekendsHidden())
 
     fun setSaturdayVisible(visible: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_SATURDAY, visible).apply()
     }
 
-    fun isSundayVisible(): Boolean = prefs.getBoolean(KEY_SHOW_SUNDAY, true)
+    fun isSundayVisible(): Boolean =
+        prefs.getBoolean(KEY_SHOW_SUNDAY, !legacyWeekendsHidden())
 
     fun setSundayVisible(visible: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_SUNDAY, visible).apply()
@@ -43,6 +51,8 @@ object ScheduleUiPrefs {
         showSaturday = isSaturdayVisible(),
         showSunday = isSundayVisible()
     )
+
+    private fun legacyWeekendsHidden(): Boolean = prefs.getBoolean(KEY_HIDE_WEEKENDS, false)
 }
 
 /** Monday to Friday are always visible; Saturday and Sunday are independently optional. */

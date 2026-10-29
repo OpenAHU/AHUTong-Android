@@ -36,6 +36,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     // okhttp 原先只经 retrofit 传递而来；显式声明，避免传递依赖变化时静默失去编译期可见性。
     implementation(libs.okhttp)
     implementation(libs.dnsoverhttps)

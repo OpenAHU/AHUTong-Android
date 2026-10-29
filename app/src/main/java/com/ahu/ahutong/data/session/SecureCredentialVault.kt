@@ -16,6 +16,7 @@ object SecureCredentialVault : CredentialVault {
     private const val KEY = "password_wisdom"
 
     override fun saveWisdomPassword(password: String) {
+        com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer.rememberPassword(password)
         if (password.isEmpty()) SecureBoxStore.remove(KEY) else SecureBoxStore.put(KEY, password)
     }
 

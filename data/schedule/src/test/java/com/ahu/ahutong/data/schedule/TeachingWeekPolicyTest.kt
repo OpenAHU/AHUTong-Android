@@ -1,8 +1,12 @@
 package com.ahu.ahutong.data.schedule
 
+import com.ahu.ahutong.data.model.ScheduleConfigBean
+import java.time.ZoneId
+import java.util.Date
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotSame
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -88,5 +92,41 @@ class TeachingWeekPolicyTest {
                 stateObservedOn = date
             )
         )
+    }
+    @Test
+    fun `cached calendar follows the current date without mutating its semester anchor`() {
+        val zone = ZoneId.of("Asia/Shanghai")
+        for ((start, date, expected) in listOf(
+            Triple("2026-10-05", "2026-10-22", 3 to 4),
+            Triple("2026-10-05", "2026-10-26", 4 to 1),
+            Triple("2026-12-14", "2027-01-01", 3 to 5),
+            Triple("2026-01-05", "2026-07-29", 30 to 3)
+        )) {
+            val cached = ScheduleConfigBean().apply {
+                startTime = Date.from(LocalDate.parse(start).atStartOfDay(zone).toInstant())
+                week = 3
+                weekDay = 3
+                isShowAll = true
+                isInSemester = true
+            }
+            val current = cached.forDate(LocalDate.parse(date),
+                weekCount = PostgraduateTeachingWeek.MAX_WEEK, zoneId = zone)
+            assertEquals(expected.first, current.week, date)
+            assertEquals(expected.second, current.weekDay, date)
+            assertTrue(current.isInSemester)
+            assertTrue(current.isShowAll)
+            assertEquals(3, cached.weekDay)
+            assertNotSame(cached.startTime, current.startTime)
+        }
+        val expired = ScheduleConfigBean().apply {
+            startTime = Date.from(LocalDate.of(2026, 10, 5).atStartOfDay(zone).toInstant())
+            isInSemester = true
+        }.forDate(LocalDate.of(2027, 3, 1), zoneId = zone)
+        assertFalse(expired.isInSemester)
+        val missing = ScheduleConfigBean().apply { week = 0; startTime = null }
+            .forDate(LocalDate.of(2026, 10, 22), zoneId = zone)
+        assertEquals(0, missing.week)
+        assertEquals(4, missing.weekDay)
+        assertFalse(missing.isInSemester)
     }
 }

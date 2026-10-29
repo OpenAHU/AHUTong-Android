@@ -3,6 +3,9 @@ package com.ahu.ahutong.ui.screen.main
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
@@ -24,7 +27,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -35,8 +37,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.collectAsState
@@ -47,16 +47,13 @@ import com.ahu.ahutong.data.schedule.PostgraduateScheduleController
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.ui.screen.main.schedule.PostgraduateWeekDialog
-import com.ahu.ahutong.ui.screen.main.schedule.NowIndicatorPosition
 import com.ahu.ahutong.ui.screen.main.schedule.ScheduleNowIndicator
 import com.ahu.ahutong.ui.screen.main.schedule.nowIndicatorPosition
 import java.time.ZoneId
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
@@ -101,6 +98,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.schedule.R
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
+import com.ahu.ahutong.data.schedule.forDate
 import com.ahu.ahutong.data.schedule.customCourseId
 import com.ahu.ahutong.data.schedule.ScheduleUiPrefs
 import com.ahu.ahutong.data.schedule.scheduleVisibleWeekdays
@@ -110,12 +108,13 @@ import com.ahu.ahutong.data.schedule.ScheduleHoliday
 import com.ahu.ahutong.data.schedule.hasHolidayCourses
 import com.ahu.ahutong.data.schedule.scheduleWeekDates
 import com.ahu.ahutong.data.model.Course
-import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.components.headerBackdropSource
@@ -142,13 +141,10 @@ import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.capsule.ContinuousCapsule
-import com.kyant.monet.Hct.Companion.toHct
 import com.kyant.monet.LocalTonalPalettes
 import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.n2
-import com.kyant.monet.toColor
-import com.kyant.monet.toSrgb
 import com.kyant.monet.withNight
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -186,17 +182,15 @@ fun Schedule(
     onEditCustomCourse: (String) -> Unit = {}
 ) {
     val isGraduate = graduateController != null
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var currentTime by remember { mutableStateOf(DebugClock.nowZonedDateTime().withSecond(0).withNano(0)) }
+    val today = currentTime.toLocalDate()
     val graduateState = graduateController?.state?.collectAsState()?.value
     LaunchedEffect(graduateAccountId, graduateController) {
         graduateController?.open(graduateAccountId)
     }
-    LaunchedEffect(graduateController) {
-        if (graduateController != null) {
-            while (true) {
-                graduateController.refreshCalendar()
-                delay(60_000L)
-            }
-        }
+    LaunchedEffect(graduateController, today, isActive) {
+        if (isActive) graduateController?.refreshCalendar()
     }
     val graduateCurrentTerm = graduateState?.selectedTerm?.let { term ->
         term.selected || graduateState.terms.none { it.selected }
@@ -226,7 +220,14 @@ fun Schedule(
     var showUnplacedCourses by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val undergraduateConfig by scheduleViewModel.scheduleConfig.observeAsState()
-    val scheduleConfig = if (isGraduate) graduateConfig else undergraduateConfig
+    val baseScheduleConfig = if (isGraduate) graduateConfig else undergraduateConfig
+    val scheduleConfig = remember(
+        baseScheduleConfig?.startTime?.time, baseScheduleConfig?.week,
+        baseScheduleConfig?.isShowAll, baseScheduleConfig?.isInSemester, today, isGraduate
+    ) {
+        baseScheduleConfig?.forDate(today,
+            weekCount = if (isGraduate) PostgraduateTeachingWeek.MAX_WEEK else 20)
+    }
     val currentWeekday = scheduleConfig?.weekDay ?: 1
     var currentWeek by rememberSaveable { mutableStateOf(scheduleConfig?.week ?: 1) }
     val pagerState = rememberPagerState(
@@ -293,25 +294,25 @@ fun Schedule(
 
     // 当前时间指示线开关（持久化，默认关）：课表设置弹窗里可打开。
     var showNowTimeline by remember { mutableStateOf(ScheduleUiPrefs.isNowTimelineVisible()) }
+    // 周末列开关（持久化，默认开）：关闭后剩余列自动均分宽度。
     var showSaturday by remember { mutableStateOf(ScheduleUiPrefs.isSaturdayVisible()) }
     var showSunday by remember { mutableStateOf(ScheduleUiPrefs.isSundayVisible()) }
     val visibleWeekdays = remember(showSaturday, showSunday) {
         scheduleVisibleWeekdays(showSaturday, showSunday)
     }
+    val visibleDays = remember(visibleWeekdays) { visibleWeekdays.toSet() }
+    val dayCount = visibleWeekdays.size
 
-    // 当前时间指示线心跳：每分钟重算一次钟点分钟数，驱动 recompose 平滑前进。
-    // 时间源 = DebugClock（与周次/周几同一时钟）：Debug 设置页的 mock 时间
-    // （AHUCache.saveMockCurrentTimeMillis，-5天/+3天）直接驱动指示线位置。
-    // 旧实现走独立的 ScheduleNowClock prefs 偏移，但全工程无 UI 写入该偏移，
-    // 指示线永远用系统时间——mock 时间对时间线完全无效（已废弃该路径）。
-    // 时间线关闭时心跳整个停掉：无秒级轮询、无重组开销。
-    var nowMinutes by remember { mutableStateOf(DebugClock.currentMinutes()) }
-    LaunchedEffect(isActive, showNowTimeline) {
-        while (isActive && showNowTimeline) {
-            delay(1_000L)
-            // 每秒重读，但只在分钟值变化时写 state（同值写入不触发重组）：
-            // 平时随真实/mock 分钟平滑推进，mock 时间被 Debug 页改写后 1 秒内即生效
-            nowMinutes = DebugClock.currentMinutes()
+    val nowMinutes = currentTime.hour * 60 + currentTime.minute
+    LaunchedEffect(isActive, showNowTimeline, lifecycleOwner) {
+        if (!isActive) return@LaunchedEffect
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val now = DebugClock.nowZonedDateTime()
+                currentTime = now.withSecond(0).withNano(0)
+                val interval = if (showNowTimeline) 1_000L else 30_000L
+                delay(DebugClock.nextCalendarRefreshDelayMillis(now, interval))
+            }
         }
     }
 
@@ -417,13 +418,13 @@ fun Schedule(
         }.toMap()
     }
     val courseColors = rememberCourseColors(schedule, customCourseColors)
-    val courseGroupsByWeek = remember(schedule, weekCount) {
+    val courseGroupsByWeek = remember(schedule, weekCount, visibleDays) {
         List(weekCount) { pageIndex ->
-            weeklyCourseGroups(schedule, pageIndex + 1)
+            weeklyCourseGroups(schedule, pageIndex + 1, visibleDays)
         }
     }
-    val overviewCourseGroups = remember(schedule) {
-        overlappingCourseGroups(schedule)
+    val overviewCourseGroups = remember(schedule, visibleDays) {
+        overlappingCourseGroups(schedule, visibleDays)
     }
     val previewStart = remember(selectedSemester?.startDate) {
         selectedSemester?.startDate?.let {
@@ -668,8 +669,6 @@ fun Schedule(
 
     @Composable
     fun ScheduleGrid() {
-        // schedule
-        val dayCount = visibleWeekdays.size
         val cellWidth = (
                 LocalConfiguration.current.screenWidthDp.dp -
                         (if (radiant) 12.dp else 0.dp) -
@@ -968,26 +967,23 @@ fun Schedule(
                     }
                 }
                 if (isGraduate) {
-                    var expanded by remember { mutableStateOf(false) }
                     val savedWeek = graduateConfig?.week
                     var weekInput by rememberSaveable(graduateState?.selectedTerm?.code, savedWeek) {
                         mutableStateOf(savedWeek?.toString().orEmpty())
                     }
                     val enteredWeek = weekInput.trim().toIntOrNull()
                     val weekIsValid = enteredWeek != null && enteredWeek in 1..PostgraduateTeachingWeek.MAX_WEEK
-                    Box {
-                        TextButton(onClick = { expanded = true }) {
-                            Text(graduateState?.selectedTerm?.name ?: "正在读取学期")
-                        }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            graduateState?.terms.orEmpty().forEach { term ->
-                                DropdownMenuItem(text = { Text(term.name) }, onClick = {
-                                    expanded = false
-                                    graduateController?.selectTerm(term)
-                                })
-                            }
-                        }
-                    }
+                    val terms = graduateState?.terms.orEmpty()
+                    AppSelectField(
+                        label = "学期",
+                        selected = graduateState?.selectedTerm?.code,
+                        options = terms.map { AppSelectOption(it.code, it.name) },
+                        placeholder = "正在读取学期",
+                        onSelected = { code -> terms.firstOrNull { it.code == code }?.let {
+                            graduateController?.selectTerm(it)
+                        } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     OutlinedTextField(
                         value = weekInput,
                         onValueChange = { weekInput = it.take(8) },
@@ -1041,11 +1037,12 @@ fun Schedule(
         )
     }
     if (showUnplacedCourses) {
-        AlertDialog(
-            onDismissRequest = { showUnplacedCourses = false },
-            title = { Text("未排定课程") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        AppDialog(
+            onDismiss = { showUnplacedCourses = false },
+            title = "未排定课程",
+            contentScrollable = true,
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     graduateGrid?.unplaced.orEmpty().forEach { course ->
                         Text(listOf(course.name, scheduleDayDescription(course.weekday), course.teacher, course.weekLabel,
                             course.location.ifBlank { "地点待定" },
@@ -1053,7 +1050,7 @@ fun Schedule(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showUnplacedCourses = false }) { Text("关闭") } }
+            actions = listOf(AppDialogAction("关闭", onClick = { showUnplacedCourses = false }))
         )
     }
     @Composable
@@ -1419,7 +1416,7 @@ private fun ScheduleSettingsDialog(
     @Composable
     private fun ScheduleSettingRow(
         title: String,
-        description: String,
+        description: String? = null,
         selected: Boolean,
         onSelect: (Boolean) -> Unit
     ) {
@@ -1442,11 +1439,13 @@ private fun ScheduleSettingsDialog(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = description,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                description?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
             AppToggle(
                 checked = selected,

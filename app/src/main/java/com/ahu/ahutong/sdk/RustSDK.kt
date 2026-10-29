@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Log
 import com.ahu.ahutong.BuildConfig
+import com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import com.ahu.ahutong.data.model.Card
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.User
@@ -51,6 +53,7 @@ object RustSDK {
     private const val LIB_NAME = "libahutong_rs.so"
     private val SHA256_HEX_REGEX = Regex("^[0-9a-fA-F]{64}$")
     private var isLoaded = false
+    @Volatile private var nativeLogBridgeActive = false
     private val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
     private val updateConfigClient by lazy {
         AhuHttp.plain(
@@ -70,6 +73,20 @@ object RustSDK {
     }
 
     fun isNativeLoaded(): Boolean = isLoaded
+
+    fun isNativeLogBridgeActive(): Boolean = nativeLogBridgeActive
+
+    /** Called by the optional native log bridge; no UI or Sentry work runs on the Rust thread. */
+    @Keep
+    @JvmStatic
+    fun nativeLogGeneration(): Long = FeedbackDiagnostics.currentGeneration()
+
+    @Keep
+    @JvmStatic
+    fun captureNativeLog(generation: Long, level: Int, target: String, message: String) {
+        nativeLogBridgeActive = true
+        runCatching { FeedbackDiagnostics.recordNative(generation, level, target, message) }
+    }
 
 
     /**
@@ -776,6 +793,7 @@ object RustSDK {
 
     fun loginSafe(username: String, password: String): Result<User> {
         if (!isLoaded) return Result.failure(IllegalStateException("Native library not loaded"))
+        DiagnosticSanitizer.rememberPassword(password)
         Log.d("RustSDK", "Calling native login (credentials suppressed)")
         val json = try {
             login(username, password)

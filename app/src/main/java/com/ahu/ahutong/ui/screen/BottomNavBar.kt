@@ -3,6 +3,11 @@ package com.ahu.ahutong.ui.screen
 import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -18,23 +23,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TableChart
-import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TableChart
-import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,18 +48,21 @@ import androidx.compose.material3.NavigationBar as MaterialNavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -64,6 +73,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.components.LiquidBottomTab
@@ -73,7 +83,6 @@ import com.ahu.ahutong.ui.components.LocalAppBackground
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.appWallpaperFrostedSurface
 import com.ahu.ahutong.ui.components.isRadiantUi
-import com.ahu.ahutong.ui.theme.LocalLiquidGlassTokens
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongSubTab
 import com.kyant.backdrop.Backdrop
@@ -84,8 +93,6 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.capsule.ContinuousCapsule
-import com.kyant.monet.n1
-import com.kyant.monet.withNight
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.NavigationBar as MiuixNavigationBar
@@ -117,8 +124,7 @@ fun BoxScope.BottomNavBar(
     backdrop: Backdrop,
     selectedRoute: String?,
     onDestinationSelected: (String) -> Unit,
-    scanEnabled: Boolean = false,
-    onScanClick: () -> Unit = {}
+    materialFloatingBottomBar: Boolean = false
 ) {
     val context = LocalContext.current
     val guidePreferences = remember {
@@ -140,8 +146,6 @@ fun BoxScope.BottomNavBar(
             backdrop = backdrop,
             selectedRoute = selectedRoute,
             onDestinationSelected = onDestinationSelected,
-            scanEnabled = scanEnabled,
-            onScanClick = onScanClick,
             onTabsBounds = { tabsBounds = it },
             onDismissGuide = { dismissGuide() }
         )
@@ -150,8 +154,7 @@ fun BoxScope.BottomNavBar(
             backdrop = backdrop,
             selectedRoute = selectedRoute,
             onDestinationSelected = onDestinationSelected,
-            scanEnabled = scanEnabled,
-            onScanClick = onScanClick,
+            materialFloatingBottomBar = materialFloatingBottomBar,
             onTabsBounds = { tabsBounds = it },
             onDismissGuide = { dismissGuide() }
         )
@@ -162,14 +165,11 @@ fun BoxScope.BottomNavBar(
         tabsBounds?.let { bounds ->
             val visibleRoutes = classicDestinations.map { it.route }
                 .filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it) }
-            // 扫码入口在 Classic / Radiant-非液态下是栏内**最右**的一个"项"（排在设置之后，
-            // 不影响「学小通」的索引，只让栏内项数 +1）；Radiant 液态下它是栏外的独立圆钮，不计入。
-            val scanInBar = scanEnabled && !(isRadiantUi && LocalIsLiquidGlassEnabled.current)
             XuexiaotongTabGuide(
                 backdrop = backdrop,
                 bounds = bounds,
                 anchorIndex = visibleRoutes.indexOf("xuexiaotong").coerceAtLeast(0),
-                anchorCount = visibleRoutes.size + if (scanInBar) 1 else 0,
+                anchorCount = visibleRoutes.size,
                 onDismiss = { dismissGuide() }
             )
         }
@@ -181,8 +181,6 @@ private fun BoxScope.RadiantBottomNavBar(
     backdrop: Backdrop,
     selectedRoute: String?,
     onDestinationSelected: (String) -> Unit,
-    scanEnabled: Boolean,
-    onScanClick: () -> Unit,
     onTabsBounds: (Rect) -> Unit,
     onDismissGuide: () -> Unit
 ) {
@@ -210,15 +208,12 @@ private fun BoxScope.RadiantBottomNavBar(
     }
 
     if (LocalIsLiquidGlassEnabled.current) {
-        // ProDock：Dock 胶囊 + 12dp + 一键扫码圆钮，整体左右边距 28dp（借用学小通的排版语言，
-        // 材质仍用 LiquidBottomTabs 那一套）。关掉扫码时回到原来的"胶囊独占、左右 36dp"。
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(vertical = if (scanEnabled) 20.dp else 16.dp)
-                .navigationBarsPadding()
-                .then(if (scanEnabled) Modifier.padding(horizontal = 28.dp) else Modifier),
+                .padding(vertical = 16.dp)
+                .navigationBarsPadding(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             LiquidBottomTabs(
@@ -229,12 +224,8 @@ private fun BoxScope.RadiantBottomNavBar(
                 onCurrentTabTapped = { selectedRoute?.let(::select) },
                 backdrop = backdrop,
                 tabsCount = destinations.size,
-                compact = scanEnabled,
                 modifier = Modifier
-                    .then(
-                        if (scanEnabled) Modifier.weight(1f)
-                        else Modifier.padding(horizontal = 36.dp)
-                    )
+                    .padding(horizontal = 36.dp)
                     .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) }
             ) {
                 destinations.forEach { destination ->
@@ -246,19 +237,14 @@ private fun BoxScope.RadiantBottomNavBar(
                         Icon(
                             painter = painterResource(destination.iconId),
                             contentDescription = destination.label,
-                            modifier = Modifier.size(if (scanEnabled) 20.dp else 24.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Text(
                             destination.label,
-                            style = if (scanEnabled) MaterialTheme.typography.labelSmall
-                            else MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium
                         )
                     }
                 }
-            }
-            if (scanEnabled) {
-                Spacer(Modifier.width(12.dp))
-                ScanDockButton(backdrop = backdrop, onClick = onScanClick)
             }
         }
     } else {
@@ -285,75 +271,7 @@ private fun BoxScope.RadiantBottomNavBar(
                     colors = appNavigationBarItemColors()
                 )
             }
-            if (scanEnabled) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onScanClick,
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Outlined.QrCodeScanner,
-                            contentDescription = "扫一扫"
-                        )
-                    },
-                    label = { Text("扫码") },
-                    colors = appNavigationBarItemColors()
-                )
-            }
         }
-    }
-}
-
-/**
- * 导航栏「一键扫码」圆钮：与 LiquidBottomTabs 的胶囊**同材质**——tokens / containerColor /
- * 模糊与折射效果逐一对照该组件（core:designsystem/.../LiquidBottomTabs.kt），只把形状从
- * 胶囊换成等宽高的圆。开关关掉时整个按钮不渲染，导航栏回到原状。
- */
-@Composable
-private fun ScanDockButton(backdrop: Backdrop, onClick: () -> Unit) {
-    val tokens = LocalLiquidGlassTokens.current
-    val isLiquid = tokens.enabled
-    val canBlur = tokens.quality.supportsBlur
-    val canRefract = tokens.quality.supportsRefraction
-    val isLightTheme = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-    val containerColor = when {
-        !isLiquid -> 100.n1 withNight 20.n1
-        !canBlur -> tokens.floating.legacyTint
-        isLightTheme -> Color(0xFFFAFAFA).copy(alpha = 0.4f)
-        else -> Color(0xFF121212).copy(alpha = 0.4f)
-    }
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { ContinuousCapsule },
-                effects = {
-                    if (canBlur) {
-                        vibrancy()
-                        blur(tokens.floating.blurRadius.toPx())
-                    }
-                    if (canRefract) {
-                        lens(
-                            tokens.floating.refractionHeight.toPx(),
-                            tokens.floating.refractionAmount.toPx()
-                        )
-                    }
-                },
-                onDrawSurface = { drawRect(containerColor) }
-            )
-            // 玻璃面上不要涟漪（与 Xuexiaotong 的 noRippleClickable 同取向）
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_nav_scan),
-            contentDescription = "扫一扫",
-            modifier = Modifier.size(22.dp)
-        )
     }
 }
 
@@ -483,8 +401,7 @@ private fun BoxScope.ClassicBottomNavBar(
     backdrop: Backdrop,
     selectedRoute: String?,
     onDestinationSelected: (String) -> Unit,
-    scanEnabled: Boolean,
-    onScanClick: () -> Unit,
+    materialFloatingBottomBar: Boolean,
     onTabsBounds: (Rect) -> Unit,
     onDismissGuide: () -> Unit
 ) {
@@ -510,27 +427,28 @@ private fun BoxScope.ClassicBottomNavBar(
 
     if (selectedRoute !in destinations.map { it.route }) return
 
-    if (LocalIsLiquidGlassEnabled.current) {
-        // 经典主题 + 液态玻璃开关：扫码作为最右的一个 tab 项（与 Material/Miuix 同处理）
-        val scanOffset = if (scanEnabled) 1 else 0
+    if (LocalAppUiTheme.current == AppUiTheme.MATERIAL && materialFloatingBottomBar) {
+        MaterialFloatingBottomNavBar(
+            destinations = destinations,
+            selectedRoute = selectedRoute,
+            onSelect = ::select,
+            onTabsBounds = onTabsBounds
+        )
+    } else if (LocalIsLiquidGlassEnabled.current) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(vertical = if (scanEnabled) 20.dp else 16.dp)
+                .padding(vertical = 16.dp)
                 .navigationBarsPadding()
         ) {
             LiquidBottomTabs(
                 selectedTabIndex = {
                     destinations.indexOfFirst { it.route == selectedRoute }.coerceAtLeast(0)
                 },
-                onTabSelected = { index ->
-                    if (scanEnabled && index == destinations.size) onScanClick()
-                    else select(destinations[index].route)
-                },
+                onTabSelected = { index -> select(destinations[index].route) },
                 backdrop = backdrop,
-                tabsCount = destinations.size + scanOffset,
-                compact = scanEnabled,
+                tabsCount = destinations.size,
                 modifier = Modifier
                     .padding(horizontal = 36.dp)
                     .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) }
@@ -548,23 +466,12 @@ private fun BoxScope.ClassicBottomNavBar(
                                 destination.unselectedIcon
                             },
                             contentDescription = destination.label,
-                            modifier = Modifier.size(if (scanEnabled) 20.dp else 24.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Text(
                             destination.label,
-                            style = if (scanEnabled) MaterialTheme.typography.labelSmall
-                            else MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium
                         )
-                    }
-                }
-                if (scanEnabled) {
-                    LiquidBottomTab(selected = false, onClick = onScanClick) {
-                        Icon(
-                            imageVector = Icons.Outlined.QrCodeScanner,
-                            contentDescription = "扫一扫",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text("扫码", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -586,17 +493,11 @@ private fun BoxScope.ClassicBottomNavBar(
                     )
                 )
             }
-            if (scanEnabled) {
-                add(MiuixNavigationItem(label = "扫码", icon = Icons.Outlined.QrCodeScanner))
-            }
         }
         MiuixNavigationBar(
             items = items,
             selected = selectedIndex,
-            onClick = { index ->
-                if (scanEnabled && index == destinations.size) onScanClick()
-                else select(destinations[index].route)
-            },
+            onClick = { index -> select(destinations[index].route) },
             color = if (wallpaperEnabled) Color.Transparent else MiuixTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
@@ -639,19 +540,78 @@ private fun BoxScope.ClassicBottomNavBar(
                     colors = appNavigationBarItemColors()
                 )
             }
-            if (scanEnabled) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = onScanClick,
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Outlined.QrCodeScanner,
-                            contentDescription = "扫一扫"
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.MaterialFloatingBottomNavBar(
+    destinations: List<BottomDestination>,
+    selectedRoute: String?,
+    onSelect: (String) -> Unit,
+    onTabsBounds: (Rect) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(horizontal = 44.dp, vertical = 12.dp)
+            .widthIn(max = 400.dp)
+            .fillMaxWidth()
+            .onGloballyPositioned { onTabsBounds(it.boundsInWindow()) },
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shadowElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(6.dp).selectableGroup(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            destinations.forEach { destination ->
+                key(destination.route) {
+                    val selected = selectedRoute == destination.route
+                    val itemWeight by animateFloatAsState(
+                        targetValue = if (selected) 1.55f else 1f,
+                        animationSpec = tween(220),
+                        label = "navigationItemWidth"
+                    )
+                    val itemColor by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.surfaceContainerHighest
+                            else Color.Transparent,
+                        animationSpec = tween(220),
+                        label = "navigationItemColor"
+                    )
+                    Row(
+                        modifier = Modifier.weight(itemWeight).height(48.dp)
+                            .clip(CircleShape).background(itemColor)
+                            .selectable(selected = selected, role = Role.Tab,
+                                onClick = { onSelect(destination.route) })
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AnimatedVisibility(
+                            visible = selected,
+                            enter = expandHorizontally(tween(220)) + fadeIn(tween(150)),
+                            exit = shrinkHorizontally(tween(220)) + fadeOut(tween(100))
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(destination.selectedIcon, contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface)
+                                Spacer(Modifier.width(6.dp))
+                            }
+                        }
+                        Text(
+                            destination.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (selected) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    },
-                    label = { Text("扫码") },
-                    colors = appNavigationBarItemColors()
-                )
+                    }
+                }
             }
         }
     }

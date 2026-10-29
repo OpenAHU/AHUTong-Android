@@ -2,9 +2,40 @@ package com.ahu.ahutong.ui.screen.scan
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 
 /** 分类规则按《聚合扫码 · 三平台实现手册》的真机样本钉住。 */
 class QrRouterTest {
+    @Test
+    fun unsupportedAndMalformedQrNeverReachThePlatformLauncher() {
+        var launches = 0
+        listOf("hello", "javascript://yuketang.cn/test", "https://evil.example@yuketang.cn/x",
+            "https://mobilelearn.chaoxing.com.evil.example/widget/sign/e", "https://yuketang.cn/%XX",
+            "intent://mobilelearn.chaoxing.com/widget/sign/e", "https://yuketang.cn:8080/x").forEach { raw ->
+            assertEquals(QrRouter.Outcome.Unrecognized, QrRouter.dispatch(raw) { _, _ ->
+                launches++
+                error("The launcher must not see unsupported input")
+            })
+        }
+        assertEquals(0, launches)
+    }
+
+    @Test
+    fun launcherExceptionsProduceRecoverableFailureAndCancellationStillPropagates() {
+        val raw = "https://mobilelearn.chaoxing.com/widget/sign/e?id=1"
+        assertEquals(QrRouter.Outcome.Failed("学习通"), QrRouter.dispatch(raw) { _, _ ->
+            throw SecurityException("Not exported")
+        })
+        assertFailsWith<CancellationException> {
+            QrRouter.dispatch(raw) { _, _ -> throw CancellationException() }
+        }
+        assertIs<QrRouter.Outcome.Handed>(QrRouter.dispatch(raw) { _, text ->
+            assertEquals(raw, text)
+            QrRouter.Outcome.Handed("学习通")
+        })
+    }
 
     @Test
     fun chaoxingSignByPrefix() {

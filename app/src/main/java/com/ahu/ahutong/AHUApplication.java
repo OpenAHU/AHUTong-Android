@@ -52,6 +52,7 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
     @Override
     public void onCreate() {
         super.onCreate();
+        com.ahu.ahutong.feedback.FeedbackLifecycleRecorder.INSTANCE.install(this);
         // The isolated mailbox also has a foreground error dialog; this installs no login services.
         ToastUserNotice.INSTANCE.initialize(this);
         UserNoticeHolder.INSTANCE.install(ToastUserNotice.INSTANCE);

@@ -16,19 +16,16 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,13 +33,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -52,6 +44,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -97,7 +90,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -129,6 +121,7 @@ import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.backdrop.Backdrop
 import com.ahu.ahutong.ui.theme.pack.LocalComponentPack
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
+import top.yukonga.miuix.kmp.basic.BasicComponent as MiuixBasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonColors as MiuixButtonColors
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
@@ -137,19 +130,18 @@ import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionBu
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults as MiuixProgressIndicatorDefaults
-import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.extra.SuperDropdown
+import top.yukonga.miuix.kmp.extra.DropdownImpl
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet as MiuixSuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.icons.basic.ArrowUpDownIntegrated
 import top.yukonga.miuix.kmp.icon.icons.useful.Back
 import top.yukonga.miuix.kmp.icon.icons.useful.Search
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -574,7 +566,7 @@ internal fun MiuixPageHeaderImpl(
     MiuixTopAppBar(
         title = title,
         largeTitle = title,
-        modifier = modifier,
+        modifier = modifier.miuixWallpaperHeaderScrim(),
         color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
         navigationIcon = {
             onBack?.let { callback ->
@@ -962,6 +954,34 @@ fun AppTextField(
     )
 }
 
+private val LocalTextFieldMinLines = androidx.compose.runtime.staticCompositionLocalOf { 1 }
+private val LocalTextFieldMaxLines = androidx.compose.runtime.staticCompositionLocalOf { Int.MAX_VALUE }
+
+/** Intrinsic multiline sizing without changing the existing component-pack text-field contract. */
+@Composable
+fun AppTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    minLines: Int,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    singleLine: Boolean = false,
+    maxLines: Int = Int.MAX_VALUE,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None
+) {
+    require(minLines >= 1 && maxLines >= minLines)
+    CompositionLocalProvider(
+        LocalTextFieldMinLines provides minLines,
+        LocalTextFieldMaxLines provides maxLines
+    ) {
+        AppTextField(value, onValueChange, label, modifier, enabled, singleLine,
+            keyboardOptions, keyboardActions, visualTransformation)
+    }
+}
+
 @Composable
 internal fun MiuixTextFieldImpl(
     value: String,
@@ -989,6 +1009,8 @@ internal fun MiuixTextFieldImpl(
         useLabelAsPlaceholder = true,
         enabled = enabled,
         singleLine = singleLine,
+        minLines = if (singleLine) 1 else LocalTextFieldMinLines.current,
+        maxLines = if (singleLine) 1 else LocalTextFieldMaxLines.current,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         visualTransformation = visualTransformation
@@ -1018,6 +1040,8 @@ internal fun OutlinedTextFieldImpl(
         ) else modifier,
         enabled = enabled,
         singleLine = singleLine,
+        minLines = if (singleLine) 1 else LocalTextFieldMinLines.current,
+        maxLines = if (singleLine) 1 else LocalTextFieldMaxLines.current,
         label = { Text(label) },
         shape = AppComponentTokens.ControlShape,
         keyboardOptions = keyboardOptions,
@@ -1281,14 +1305,14 @@ internal fun <T> MiuixSelectFieldImpl(
     // Miuix 0.7.2 sends menus to the Activity host, while a Compose Dialog has its own window.
     // Use a window-owned menu here so both the anchor coordinates and z-order follow the dialog.
     if (LocalView.current.parent is DialogWindowProvider) {
-        MaterialSelectFieldImpl(
+        MiuixDialogSelectField(
             label = label,
             selected = selected,
             options = options,
             onSelected = onSelected,
             modifier = modifier,
             enabled = enabled,
-            grouped = grouped
+            insideMargin = insideMargin
         )
         return
     }
@@ -1305,6 +1329,60 @@ internal fun <T> MiuixSelectFieldImpl(
         insideMargin = insideMargin,
         standalone = standalone && !grouped
     )
+}
+
+@Composable
+private fun <T> MiuixDialogSelectField(
+    label: String,
+    selected: T?,
+    options: List<AppSelectOption<T>>,
+    onSelected: (T) -> Unit,
+    modifier: Modifier,
+    enabled: Boolean,
+    insideMargin: PaddingValues
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+    Box(modifier) {
+        MiuixBasicComponent(
+            title = label,
+            insideMargin = insideMargin,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = enabled && options.isNotEmpty(),
+            onClick = { expanded = true },
+            holdDownState = expanded,
+            rightActions = {
+                Text(options.firstOrNull { it.value == selected }?.label.orEmpty(),
+                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                    style = MiuixTheme.textStyles.body2,
+                    modifier = Modifier.widthIn(max = 130.dp),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                MiuixIcon(MiuixIcons.Basic.ArrowUpDownIntegrated, contentDescription = null,
+                    modifier = Modifier.padding(start = 8.dp).size(10.dp, 16.dp),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions)
+            }
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = SmoothRoundedCornerShape(16.dp),
+            containerColor = MiuixTheme.colorScheme.surfaceContainer
+        ) {
+            options.forEachIndexed { index, option ->
+                DropdownImpl(
+                    text = option.label,
+                    optionSize = options.size,
+                    isSelected = option.value == selected,
+                    index = index,
+                    onSelectedIndexChange = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelected(option.value)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -2062,23 +2140,10 @@ fun AppDialogSurface(
     properties: DialogProperties = DialogProperties(usePlatformDefaultWidth = false),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Dialog(onDismissRequest = onDismissRequest, properties = properties) {
-        CompositionLocalProvider(
-            LocalContentColor provides MaterialTheme.colorScheme.onSurface
-        ) {
-            androidx.compose.foundation.layout.Column(
-                modifier = modifier
-                    .fillMaxWidth(0.9f)
-                    .widthIn(max = AppComponentTokens.DialogMaxWidth)
-                    .appLiquidGlassSurface(
-                        shape = AppComponentTokens.DialogShape,
-                        fallbackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        level = LiquidGlassSurfaceLevel.Floating,
-                        backdropSamplingEnabled = false
-                    ),
-                content = content
-            )
-        }
+    CompositionLocalProvider(
+        LocalContentColor provides MaterialTheme.colorScheme.onSurface
+    ) {
+        ThemedDialogSurface(onDismissRequest, modifier, properties, content)
     }
 }
 

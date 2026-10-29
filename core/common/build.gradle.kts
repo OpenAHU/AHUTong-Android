@@ -33,4 +33,5 @@ dependencies {
     implementation(libs.gson)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     api(project(":core:model"))
+    testImplementation(kotlin("test-junit"))
 }

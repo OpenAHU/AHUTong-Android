@@ -4,7 +4,7 @@ import java.io.PrintWriter
 import java.io.Writer
 import java.net.URI
 
-internal data class UnexpectedErrorReport(val id: Long, val details: String)
+internal data class UnexpectedErrorReport(val id: Long, val details: String, val sentryEventId: String? = null)
 
 /** Reports are sanitized before entering the queue, including exception messages and nested traces. */
 internal object UnexpectedErrorReportFormatter {

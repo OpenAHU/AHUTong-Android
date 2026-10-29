@@ -3,8 +3,6 @@ package com.ahu.ahutong.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -26,11 +24,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.ahu.ahutong.error.UnexpectedErrorReport
 import com.ahu.ahutong.error.UnexpectedErrors
+import com.ahu.ahutong.FeedbackActivity
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
-
-private const val FEEDBACK_GROUP = "1006203134"
 
 /** Composed inside each Activity's existing theme; never creates a window from a background Context. */
 @Composable
@@ -61,14 +58,12 @@ internal fun UnexpectedErrorDialogHost() {
             } else feedbackHint = "无法访问剪贴板，可长按下方错误信息选择复制。"
         },
         onFeedback = {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(
-                "mqqapi://card/show_pslcard?src_type=internal&version=1&uin=$FEEDBACK_GROUP&card_type=group&source=qrcode"
-            )).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            val opened = runCatching { context.startActivity(intent) }.isSuccess
-            if (!opened) {
-                val copied = copyText(context, "AHUTong 反馈群", FEEDBACK_GROUP)
-                feedbackHint = "请安装 QQ 或 TIM，搜索反馈群 $FEEDBACK_GROUP。" +
-                    if (copied) "群号已复制。" else ""
+            runCatching {
+                context.startActivity(FeedbackActivity.intent(context, report.details, report.sentryEventId))
+            }.onSuccess {
+                UnexpectedErrors.queue.dismiss(report.id)
+            }.onFailure {
+                feedbackHint = "暂时无法打开反馈页面，请复制错误信息后从设置重试。"
             }
         }
     )

@@ -23,14 +23,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,9 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,10 +59,12 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.window.Dialog
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
@@ -110,20 +108,12 @@ fun SettingsDialogSurface(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Dialog(onDismissRequest = onDismissRequest) {
-        Surface(
-            modifier = modifier
-                .fillMaxWidth()
-                .widthIn(max = 560.dp),
-            shape = SmoothRoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 6.dp,
-            shadowElevation = 10.dp
-        ) {
-            Column(content = content)
-        }
-    }
+    ThemedDialogSurface(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        properties = androidx.compose.ui.window.DialogProperties(),
+        content = content
+    )
 }
 
 @Composable
@@ -226,6 +216,7 @@ fun SettingsPageLayout(
             MiuixTopAppBar(
                 title = title,
                 largeTitle = title,
+                modifier = Modifier.miuixWallpaperHeaderScrim(),
                 color = if (LocalAppBackground.current != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
@@ -455,11 +446,9 @@ fun SettingsActionRow(
                 leadingPainter?.let { painter ->
                     Icon(painter = painter, contentDescription = null, modifier = Modifier.size(24.dp))
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    MiuixText(title, color = if (destructive) MaterialTheme.colorScheme.error else MiuixTheme.colorScheme.onBackground)
-                    subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
-                }
-                value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+                SettingsRowText(title = title, subtitle = subtitle, destructive = destructive,
+                    modifier = Modifier.weight(1f))
+                value?.let { SettingsRowLabel(it, secondary = true) }
                 if (showChevron) {
                     MiuixIcon(
                         imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -520,13 +509,7 @@ fun SettingsActionRow(
                 destructive = destructive,
                 modifier = Modifier.weight(1f)
             )
-            value?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            value?.let { SettingsRowLabel(it, secondary = true) }
             if (showChevron) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -571,11 +554,8 @@ fun SettingsInfoRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    MiuixText(title, color = MiuixTheme.colorScheme.onBackground)
-                    subtitle?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
-                }
-                value?.let { MiuixText(it, color = MiuixTheme.colorScheme.onSurfaceVariantSummary) }
+                SettingsRowText(title = title, subtitle = subtitle, modifier = Modifier.weight(1f))
+                value?.let { SettingsRowLabel(it, secondary = true) }
             }
             SettingsDivider(visible = showDivider)
         }
@@ -595,13 +575,7 @@ fun SettingsInfoRow(
                 subtitle = subtitle,
                 modifier = Modifier.weight(1f)
             )
-            value?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            value?.let { SettingsRowLabel(it, secondary = true) }
         }
         SettingsDivider(visible = showDivider)
     }
@@ -620,7 +594,7 @@ fun SettingsToggleRow(
     onHorizontalDragActiveChange: (Boolean) -> Unit = {}
 ) {
     // 行布局 = 设置族通用；开关控件走契约槽位（AppToggle → 主题实验室可逐槽混搭）。
-    // 开关本体只展示状态，点击由整行处理，避免嵌套开关吞掉点击或双触发。
+    // The native control handles its own taps and drags; taps on the rest of the row use the same callback.
     val haptic = LocalHapticFeedback.current
     val onCheckedWithFeedback: (Boolean) -> Unit = { checked ->
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -649,10 +623,46 @@ fun SettingsToggleRow(
             )
             AppToggle(
                 checked = selected,
-                onCheckedChange = null,
+                onCheckedChange = onCheckedWithFeedback,
                 enabled = enabled
             )
         }
+        SettingsDivider(visible = showDivider)
+    }
+}
+
+@Composable
+fun SettingsSliderRow(
+    title: String,
+    value: Float,
+    valueLabel: String,
+    onValueChange: (Float) -> Unit,
+    backdrop: Backdrop,
+    modifier: Modifier = Modifier,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    onValueChangeFinished: () -> Unit = {},
+    showDivider: Boolean = true
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsRowText(title = title, modifier = Modifier.weight(1f))
+            SettingsRowLabel(valueLabel, secondary = true)
+        }
+        AppSlider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            onValueChangeFinished = onValueChangeFinished,
+            backdrop = backdrop,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                .padding(bottom = 12.dp).heightIn(min = 48.dp)
+                .semantics { contentDescription = title }
+        )
         SettingsDivider(visible = showDivider)
     }
 }
@@ -734,11 +744,7 @@ fun <T> SettingsSelectRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = selectedLabel,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        SettingsRowLabel(selectedLabel, secondary = true)
                         LiquidGlassDropdownIndicator(
                             expanded = expanded,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -801,11 +807,7 @@ fun <T> SettingsSelectRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = selectedLabel,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    SettingsRowLabel(selectedLabel, secondary = true)
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 }
                 ExposedDropdownMenu(
@@ -961,26 +963,51 @@ private fun SettingsRowText(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Text(
-            text = title,
-            color = when {
-                !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                destructive -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium
-        )
+        SettingsRowLabel(title, destructive = destructive, enabled = enabled)
         subtitle?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = if (enabled) 1f else 0.38f
-                ),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            SettingsRowLabel(it, secondary = true, enabled = enabled)
         }
     }
+}
+
+@Composable
+fun settingsPrimaryTextStyle(): TextStyle =
+    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+        MiuixTheme.textStyles.headline1.copy(fontWeight = FontWeight.Medium)
+    } else {
+        MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium)
+    }
+
+@Composable
+fun settingsSecondaryTextStyle(): TextStyle =
+    if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
+        MiuixTheme.textStyles.body2.copy(fontWeight = FontWeight.Normal)
+    } else {
+        MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Normal)
+    }
+
+/** Keep row roles consistent while retaining each theme's own type scale and colors. */
+@Composable
+private fun SettingsRowLabel(
+    text: String,
+    secondary: Boolean = false,
+    destructive: Boolean = false,
+    enabled: Boolean = true
+) {
+    val miuix = LocalAppUiTheme.current == AppUiTheme.MIUIX
+    val style = if (secondary) settingsSecondaryTextStyle() else settingsPrimaryTextStyle()
+    val contentColor = if (miuix) {
+        if (secondary) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.onBackground
+    } else {
+        if (secondary) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    }
+    val color = when {
+        !enabled -> contentColor.copy(alpha = 0.38f)
+        destructive -> MaterialTheme.colorScheme.error
+        else -> contentColor
+    }
+    if (miuix) MiuixText(text = text, color = color, style = style)
+    else Text(text = text, color = color, style = style)
 }
 
 @Composable

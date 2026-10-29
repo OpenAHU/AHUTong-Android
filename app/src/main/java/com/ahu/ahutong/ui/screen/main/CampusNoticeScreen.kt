@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.OpenInBrowser
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -358,10 +359,11 @@ fun CampusNoticeScreen(onBack: (() -> Unit)? = null) {
     }
 
     if (showReplacementPicker) {
-        AlertDialog(
-            onDismissRequest = { showReplacementPicker = false },
-            title = { Text("首页已放满") },
-            text = {
+        AppDialog(
+            onDismiss = { showReplacementPicker = false },
+            title = "首页已放满",
+            contentScrollable = true,
+            content = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("选择要替换的小工具")
                     slots.forEachIndexed { index, id ->
@@ -377,10 +379,7 @@ fun CampusNoticeScreen(onBack: (() -> Unit)? = null) {
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showReplacementPicker = false }) { Text("取消") }
-            }
+            actions = listOf(AppDialogAction("取消", onClick = { showReplacementPicker = false }))
         )
     }
 }

@@ -1,7 +1,6 @@
 package com.ahu.ahutong.ui.screen
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.Image
@@ -17,8 +16,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.outlined.ClearAll
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material.icons.outlined.PeopleOutline
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material.icons.outlined.Tune
@@ -50,7 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.ui.state.SettingsViewModel
-import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.feature.settings.R
@@ -94,6 +94,7 @@ fun Settings(
     onNavigateToLicense: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit = {},
     onNavigateToContributors: () -> Unit,
+    onNavigateToFeedback: () -> Unit,
     onDataCleared: () -> Unit,
     onCheckUpdate: ((String) -> Unit) -> Unit,
     accountName: String?,
@@ -265,28 +266,24 @@ fun Settings(
             backdrop = backdrop
         ) {
             SettingsActionRow(
-                title = "隐私政策",
+                title = stringResource(id = R.string.mine_tv_feedback),
                 leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Info
+                    useMiuixIcons -> MiuixIcons.Useful.Edit
                     isRadiant -> null
-                    else -> Icons.AutoMirrored.Outlined.Article
+                    else -> Icons.Outlined.Feedback
                 },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_privacy_safe) else null,
-                onClick = onNavigateToPrivacyPolicy
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_topic) else null,
+                onClick = onNavigateToFeedback
             )
             SettingsActionRow(
-                title = licenseTitle,
+                title = stringResource(id = R.string.update_intro),
                 leadingIcon = when {
                     useMiuixIcons -> MiuixIcons.Useful.Info
                     isRadiant -> null
                     else -> Icons.AutoMirrored.Outlined.Article
                 },
-                leadingPainter = if (isRadiant) {
-                    painterResource(R.drawable.ic_announcement)
-                } else {
-                    null
-                },
-                onClick = onNavigateToLicense
+                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_log) else null,
+                onClick = { isUpdateLogDialogShown = true }
             )
             SettingsActionRow(
                 title = contributorsTitle,
@@ -299,35 +296,14 @@ fun Settings(
                 onClick = onNavigateToContributors
             )
             SettingsActionRow(
-                title = stringResource(id = R.string.mine_tv_feedback),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Edit
-                    isRadiant -> null
-                    else -> Icons.Outlined.Feedback
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_topic) else null,
-                onClick = {
-                    runCatching {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                "mqqapi://card/show_pslcard?src_type=internal&version=1&uin=1006203134&card_type=group&source=qrcode".toUri()
-                            ).apply { flags = Intent.FLAG_ACTIVITY_CLEAR_TOP }
-                        )
-                    }.onFailure {
-                        Toast.makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT).show()
-                    }
-                }
+                title = licenseTitle,
+                leadingIcon = Icons.Outlined.Description,
+                onClick = onNavigateToLicense
             )
             SettingsActionRow(
-                title = stringResource(id = R.string.update_intro),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Info
-                    isRadiant -> null
-                    else -> Icons.AutoMirrored.Outlined.Article
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_log) else null,
-                onClick = { isUpdateLogDialogShown = true }
+                title = "隐私政策",
+                leadingIcon = Icons.Outlined.PrivacyTip,
+                onClick = onNavigateToPrivacyPolicy
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.setting_clear),

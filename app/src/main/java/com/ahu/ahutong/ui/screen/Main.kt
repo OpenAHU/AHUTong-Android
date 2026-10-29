@@ -6,19 +6,13 @@ import androidx.activity.compose.LocalActivity
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.BuildConfig
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import com.ahu.ahutong.restartMainAfterLogin
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import com.ahu.ahutong.ui.screen.scan.QrRouter
-import com.ahu.ahutong.ui.screen.scan.ScanOverlay
-import androidx.compose.foundation.layout.Arrangement
+import com.ahu.ahutong.ui.screen.scan.ScanScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,7 +22,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,7 +31,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,8 +60,6 @@ import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
-import com.ahu.ahutong.data.gray.GrayFeatures
-import com.ahu.ahutong.data.gray.GrayReleaseManager
 import com.ahu.ahutong.ui.screen.main.BathroomDeposit
 import com.ahu.ahutong.ui.screen.main.Billing
 import com.ahu.ahutong.ui.screen.canteen.CanteenFootprintScreen
@@ -87,6 +77,7 @@ import com.ahu.ahutong.ui.screen.main.FreeClassroom
 import com.ahu.ahutong.ui.screen.main.ProgramCompletion
 import com.ahu.ahutong.ui.screen.main.Grade
 import com.ahu.ahutong.ui.screen.main.Home
+import com.ahu.ahutong.ui.screen.main.home.HomeAcademicState
 import com.ahu.ahutong.ui.screen.main.LostFound
 import com.ahu.ahutong.ui.screen.main.MoreWidgetsScreen
 import com.ahu.ahutong.ui.screen.main.NetworkRecharge
@@ -115,6 +106,7 @@ import com.ahu.ahutong.R
 import androidx.compose.ui.res.stringResource
 import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.settings.ThemeLab
+import com.ahu.ahutong.ui.screen.settings.ThemeColorSettings
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Login
 import com.ahu.ahutong.ui.screen.setup.canCancelLogin
@@ -126,12 +118,12 @@ import com.ahu.ahutong.ui.components.LocalAppBackground
 import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
+import com.ahu.ahutong.ui.components.captureLiquidGlassContent
 import com.ahu.ahutong.ui.components.AppPageHeader
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.components.LocalLiquidGlassContentBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
-import com.ahu.ahutong.ui.components.captureLiquidGlassContent
 import com.ahu.ahutong.ui.state.AboutViewModel
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ElectricityDepositViewModel
@@ -148,7 +140,6 @@ import com.ahu.ahutong.utils.NavigationSnapshot
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import com.ahu.ahutong.personalization.action.ActionSource
 import com.ahu.ahutong.personalization.diagnostics.DiagnosticsContribution
 import com.ahu.ahutong.personalization.prefetch.PaymentQrOpenCommandStore
@@ -161,21 +152,41 @@ import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
-import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
-import dagger.hilt.EntryPoint
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
 
 private val primaryDestinationRoutes = listOf("home", "schedule", "xuexiaotong", "settings")
 
 internal fun settingsParentRoute(uiTheme: AppUiTheme): String =
-    if (uiTheme == AppUiTheme.RADIANT) "settings" else "home"
+    // Every theme, including legacy LiquidGlass, now has a real settings destination.
+    when (uiTheme) {
+        AppUiTheme.MATERIAL, AppUiTheme.MIUIX, AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT -> "settings"
+    }
 
 internal fun shouldNormalizePreferencesParent(
     uiTheme: AppUiTheme,
     previousRoute: String?
 ): Boolean = previousRoute != settingsParentRoute(uiTheme)
+
+@Composable
+internal fun NormalizePreferencesParent(
+    navController: NavHostController,
+    currentRoute: String?,
+    uiTheme: AppUiTheme
+) {
+    LaunchedEffect(currentRoute, uiTheme) {
+        if (
+            currentRoute == "preferences" &&
+            shouldNormalizePreferencesParent(
+                uiTheme,
+                navController.previousBackStackEntry?.destination?.route
+            )
+        ) {
+            navController.navigate("settings") {
+                popUpTo("home") { inclusive = false }
+            }
+            navController.navigate("preferences") { launchSingleTop = true }
+        }
+    }
+}
 
 @OptIn(ExperimentalAnimationApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -202,13 +213,12 @@ fun Main(
         if (undergraduateEnabled) primaryDestinationRoutes
         else primaryDestinationRoutes.filterNot { it == "xuexiaotong" }
     }
-    var shouldEnterHomeEdit by remember { mutableStateOf(false) }
+    val homeAcademicState by rememberUpdatedState(
+        remember(undergraduateEnabled, SessionStore.currentUser()?.xh) { HomeAcademicState() }
+    )
     val context = LocalContext.current
     val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
-    var homeEditGrayState by remember {
-        mutableStateOf(GrayReleaseManager.localState(GrayFeatures.HomeEdit, context))
-    }
     val navigationPolicy = remember { NavigationObservationPolicy() }
     var navigationObservationRevision by remember { mutableIntStateOf(0) }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -287,15 +297,6 @@ fun Main(
         }
     }
 
-    fun requestHomeEdit() {
-        behaviorRuntime.recordActionIntentAsync(
-            AppActionId.EDIT_HOME,
-            ActionSource.ORGANIC
-        )
-        shouldEnterHomeEdit = true
-        scope.launch { selectPrimaryDestination("home") }
-    }
-
     fun navigateBackFromPreferences() {
         if (!navController.popBackStack("settings", inclusive = false)) {
             navController.navigate("settings") {
@@ -305,20 +306,7 @@ fun Main(
         }
     }
 
-    LaunchedEffect(currentRoute, appUiTheme) {
-        if (
-            currentRoute == "preferences" &&
-            shouldNormalizePreferencesParent(
-                appUiTheme,
-                navController.previousBackStackEntry?.destination?.route
-            )
-        ) {
-            navController.navigate("settings") {
-                popUpTo("home") { inclusive = false }
-            }
-            navController.navigate("preferences") { launchSingleTop = true }
-        }
-    }
+    NormalizePreferencesParent(navController, currentRoute, appUiTheme)
 
     val navigationSnapshot = NavigationSnapshot(
         route = effectiveRoute,
@@ -329,6 +317,9 @@ fun Main(
     )
     LaunchedEffect(navigationSnapshot, navigationObservationRevision) {
         val observation = navigationPolicy.observe(navigationSnapshot) ?: return@LaunchedEffect
+        com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics.recordRuntime(
+            "切换页面 ${observation.route.substringBefore('?')}"
+        )
         if (observation.synchronizeOnly) {
             // A theme may change the visible page in the same entry. Keep prediction context
             // accurate without inventing a navigation action for the theme preference itself.
@@ -340,13 +331,7 @@ fun Main(
         )
     }
 
-    LaunchedEffect(Unit) {
-        homeEditGrayState = GrayReleaseManager.state(GrayFeatures.HomeEdit, context)
-    }
-
-    val scanShortcutEnabled by mainViewModel.scanShortcutEnabled.collectAsState()
-    // 一键扫码浮层（同页弹窗，不跳导航页）
-    var scanOpen by remember { mutableStateOf(false) }
+    val materialFloatingBottomBar by mainViewModel.materialFloatingBottomBar.collectAsState()
     val backgroundRevision by HomeBackgroundStore.revision.collectAsState()
     val backgroundImageRevision by HomeBackgroundStore.imageRevision.collectAsState()
     val backgroundBitmap by produceState<ImageBitmap?>(null, context, backgroundImageRevision) {
@@ -396,7 +381,15 @@ fun Main(
         }
         val updateInset = UpdateStatusStripHeight * updateStripProgress.value
         Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().padding(bottom = updateInset)) {
+        FixedPrimaryNavigationHost(
+            navController = navController,
+            primaryRoutes = visiblePrimaryRoutes,
+            backdrop = backdrop,
+            materialFloatingBottomBar = materialFloatingBottomBar,
+            onDestinationSelected = { scope.launch { selectPrimaryDestination(it) } },
+            modifier = Modifier.fillMaxSize().padding(bottom = updateInset),
+            enabled = !protectedRouteBlocked
+        ) {
         if (protectedRouteBlocked) {
             com.ahu.ahutong.ui.screen.setup.Splash()
         } else {
@@ -408,26 +401,30 @@ fun Main(
                 .fillMaxSize()
                 .appLiquidGlassSceneBackground(96.n1 withNight 10.n1)
         ) {
-            animatedComposable("home") {
-                Home(
-                    discoveryViewModel = discoveryViewModel,
-                    scheduleViewModel = scheduleViewModel,
-                    navController = navController,
-                    behaviorRuntime = behaviorRuntime,
-                    isActive = isHomeActive,
-                    undergraduateEnabled = undergraduateEnabled,
-                    accountId = SessionStore.currentUser()?.xh,
-                    onOpenSchedule = {
-                        scope.launch { selectPrimaryDestination("schedule") }
-                    },
-                    homeEditEnabled = homeEditGrayState.enabled,
-                    enterEditModeRequest = shouldEnterHomeEdit,
-                    onEnterEditModeRequestConsumed = {
-                        shouldEnterHomeEdit = false
-                    }
+            animatedComposable("home") { entry ->
+                PrimaryNavigationDestination(entry) {
+                    Home(
+                        discoveryViewModel = discoveryViewModel,
+                        scheduleViewModel = scheduleViewModel,
+                        navController = navController,
+                        behaviorRuntime = behaviorRuntime,
+                        isActive = isHomeActive,
+                        undergraduateEnabled = undergraduateEnabled,
+                        accountId = SessionStore.currentUser()?.xh,
+                        academicState = homeAcademicState,
+                        onOpenSchedule = {
+                            scope.launch { selectPrimaryDestination("schedule") }
+                        }
+                    )
+                    // 必吃榜匿名上传同意（未表态时弹一次，之后不再打扰）
+                    com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
+                }
+            }
+            animatedComposable("scan") {
+                ScanScreen(
+                    onBack = { navController.popBackStack() },
+                    onResult = { raw -> QrRouter.route(context, raw) }
                 )
-                // 必吃榜匿名上传同意（未表态时弹一次，之后不再打扰）
-                com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
             }
             animatedComposable("setup") {
                 Setup(
@@ -479,19 +476,21 @@ fun Main(
                     onSetup = { navController.popBackStack() }
                 )
             }
-            animatedComposable("schedule") {
-                // 无条件渲染，理由同 settings 路由：redirect 的二次 pop 会与
-                // 返回转场竞态；非 RADIANT 主题下独立展示课表页可正常用系统返回
-                Schedule(
-                    scheduleViewModel = scheduleViewModel,
-                    behaviorRecorder = behaviorRecorder,
-                    graduateController = if (undergraduateEnabled) null else postgraduateScheduleViewModel,
-                    graduateAccountId = if (undergraduateEnabled) null else SessionStore.currentUser()?.xh,
-                    onOpenCustomCourses = { navController.navigate("custom_courses") },
-                    onEditCustomCourse = { id ->
-                        navController.navigate("custom_courses?editId=${Uri.encode(id)}")
-                    }
-                )
+            animatedComposable("schedule") { entry ->
+                PrimaryNavigationDestination(entry) {
+                    // 无条件渲染，理由同 settings 路由：redirect 的二次 pop 会与
+                    // 返回转场竞态；非 RADIANT 主题下独立展示课表页可正常用系统返回
+                    Schedule(
+                        scheduleViewModel = scheduleViewModel,
+                        behaviorRecorder = behaviorRecorder,
+                        graduateController = if (undergraduateEnabled) null else postgraduateScheduleViewModel,
+                        graduateAccountId = if (undergraduateEnabled) null else SessionStore.currentUser()?.xh,
+                        onOpenCustomCourses = { navController.navigate("custom_courses") },
+                        onEditCustomCourse = { id ->
+                            navController.navigate("custom_courses?editId=${Uri.encode(id)}")
+                        }
+                    )
+                }
             }
             animatedComposable(
                 route = "custom_courses?editId={editId}",
@@ -520,9 +519,7 @@ fun Main(
             }
             animatedComposable("widgets") {
                 MoreWidgetsScreen(
-                    navController = navController,
-                    homeEditEnabled = homeEditGrayState.enabled,
-                    onEditHome = ::requestHomeEdit
+                    navController = navController
                 )
             }
             animatedComposable("campus_notices") {
@@ -713,14 +710,16 @@ fun Main(
             animatedComposable("repository_settings") {
                 RepositorySettings(navController = navController)
             }
-            animatedComposable("settings") {
-                // 无条件渲染：切换主题后 pop 回此路由时不能落入空白重定向页，
-                // 否则 pop 转场与 redirect 的二次 pop 竞态会导致白屏/卡死
-                SettingsHub(
-                    navController = navController,
-                    mainViewModel = mainViewModel,
-                    scheduleViewModel = scheduleViewModel
-                )
+            animatedComposable("settings") { entry ->
+                PrimaryNavigationDestination(entry) {
+                    // 无条件渲染：切换主题后 pop 回此路由时不能落入空白重定向页，
+                    // 否则 pop 转场与 redirect 的二次 pop 竞态会导致白屏/卡死
+                    SettingsHub(
+                        navController = navController,
+                        mainViewModel = mainViewModel,
+                        scheduleViewModel = scheduleViewModel
+                    )
+                }
             }
             animatedComposable("profile") {
                 ProfileScreen(
@@ -759,12 +758,16 @@ fun Main(
                 Preferences(
                     onBack = ::navigateBackFromPreferences,
                     onOpenThemeLab = { navController.navigate("settings__theme_lab") },
+                    onOpenThemeColors = { navController.navigate("settings__theme_color") },
                     undergraduateEnabled = undergraduateEnabled
                 )
             }
 
             animatedComposable("settings__theme_lab") {
                 ThemeLab(onBack = { navController.popBackStack() })
+            }
+            animatedComposable("settings__theme_color") {
+                ThemeColorSettings(onBack = { navController.popBackStack() })
             }
 
             animatedComposable("electricity_pay") {
@@ -834,8 +837,10 @@ fun Main(
                 NetworkRecharge(onBack = { navController.popBackStack() })
             }
 
-            animatedComposable("xuexiaotong") {
-                XuexiaotongScreen()
+            animatedComposable("xuexiaotong") { entry ->
+                PrimaryNavigationDestination(entry) {
+                    XuexiaotongScreen()
+                }
             }
 
             if (BuildConfig.DEBUG) {
@@ -843,15 +848,7 @@ fun Main(
                     Debug(
                         scheduleViewModel = scheduleViewModel,
                         discoveryViewModel = discoveryViewModel,
-                        onBack = { navController.popBackStack() },
-                        onGrayStateChanged = {
-                            scope.launch {
-                                homeEditGrayState = GrayReleaseManager.state(
-                                    GrayFeatures.HomeEdit,
-                                    context
-                                )
-                            }
-                        }
+                        onBack = { navController.popBackStack() }
                     )
                 }
             }
@@ -861,17 +858,6 @@ fun Main(
             }
             diagnosticsContribution.installRoutes(this, navController, behaviorRuntime)
         }
-        }
-        if (!protectedRouteBlocked) {
-        BottomNavBar(
-            backdrop = backdrop,
-            selectedRoute = currentRoute,
-            onDestinationSelected = { route ->
-                scope.launch { selectPrimaryDestination(route) }
-            },
-            scanEnabled = scanShortcutEnabled,
-            onScanClick = { scanOpen = true }
-        )
         }
         }
 
@@ -901,41 +887,8 @@ fun Main(
             )
         }
 
-        // 一键扫码：同页浮层（不跳导航页）。这里只把原文收下，分类与显式 Intent 直启下一步接。
-        BackHandler(enabled = scanOpen) { scanOpen = false }
-        AnimatedVisibility(
-            visible = scanOpen,
-            enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.94f),
-            exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.96f)
-        ) {
-            ScanOverlay(
-                onDecoded = { raw ->
-                    when (val outcome = QrRouter.route(context, raw)) {
-                        is QrRouter.Outcome.Handed -> {
-                            outcome.note?.let {
-                                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-                            }
-                            scanOpen = false
-                        }
-
-                        is QrRouter.Outcome.TargetMissing -> Toast.makeText(
-                            context,
-                            "未安装「${outcome.targetApp}」，或它没有响应",
-                            Toast.LENGTH_LONG
-                        ).show()
-
-                        QrRouter.Outcome.Unrecognized -> Toast.makeText(
-                            context,
-                            "这张码不能直达（原文已显示在卡片里）",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                },
-                onClose = { scanOpen = false }
-            )
-        }
         val productUiBlocked = !canUseBusinessPages || effectiveRoute == "login" || effectiveRoute == "setup" ||
-            effectiveRoute == "splash" || effectiveRoute?.contains("deposit") == true ||
+            effectiveRoute == "splash" || effectiveRoute == "scan" || effectiveRoute?.contains("deposit") == true ||
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
             suggestionOverlayBlocked || imeVisible

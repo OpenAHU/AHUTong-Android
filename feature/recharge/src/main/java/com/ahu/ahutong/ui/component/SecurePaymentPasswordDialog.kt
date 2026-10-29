@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -49,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
+import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import java.util.WeakHashMap
 import kotlinx.coroutines.delay
 
@@ -186,10 +188,10 @@ private fun SystemPaymentPasswordDialog(
 ) {
     val focusRequester = remember { FocusRequester() }
 
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text(title) },
-        text = {
+    AppDialog(
+        onDismiss = onDismissRequest,
+        title = title,
+        content = {
             SecureWindowEffect()
             val keyboardController = LocalSoftwareKeyboardController.current
             LaunchedEffect(Unit) {
@@ -231,19 +233,11 @@ private fun SystemPaymentPasswordDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(password) },
-                enabled = password.length == PASSWORD_LENGTH
-            ) {
-                Text("确认")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("取消")
-            }
-        }
+        actions = listOf(
+            AppDialogAction("取消", onClick = onDismissRequest),
+            AppDialogAction("确认", onClick = { onConfirm(password) },
+                enabled = password.length == PASSWORD_LENGTH, style = AppDialogActionStyle.Primary)
+        )
     )
 }
 
