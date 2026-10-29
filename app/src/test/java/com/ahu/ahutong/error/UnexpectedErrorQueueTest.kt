@@ -20,6 +20,13 @@ class UnexpectedErrorQueueTest {
     }
 
     @Test
+    fun `automatic error id is retained for feedback association`() {
+        val queue = UnexpectedErrorQueue()
+        queue.enqueue("failure", "0123456789abcdef0123456789abcdef")
+        assertEquals("0123456789abcdef0123456789abcdef", queue.reports.value.single().sentryEventId)
+    }
+
+    @Test
     fun `repeated failures remain quiet after dismissal until cooldown expires`() {
         var now = 1_000L
         val queue = UnexpectedErrorQueue(nowMillis = { now })

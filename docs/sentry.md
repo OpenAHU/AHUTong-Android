@@ -6,12 +6,39 @@
 
 设置的“意见反馈”打开“问题反馈 / 日志导出 / QQ 反馈群”列表，前两项进入各自子页面，QQ 入口直接跳转。意外错误弹窗直接进入问题反馈页。问题描述最多 4096 字；“运行记录”和“错误信息”默认勾选，“网络详情”默认不勾选。发送按钮仅在预览内，发送使用预览时固定的日志快照。
 
-- 采集从应用启动起常开，在各进程内存中轮转最近 10 分钟、最多 5 MiB，没有采集开关；单条网络正文最多 256 KiB。退出账号、切换账号或重新登录会清空记录并使旧请求失效。进程退出后采集缓冲不保留。
+- 采集从应用启动起常开，在各进程内存中轮转最近 10 分钟、最多 5 MiB，没有采集开关；单条网络正文最多 256 KiB。退出账号、切换账号或重新登录会清空记录并使旧请求失效。内存缓冲随进程退出释放；自动错误诊断会使用下述 Sentry 缓存和上报链路。
 - Rust SDK 通过可选 JNI 回调将 `ahutong_rs` / `guixu` 的现有日志直接送入同一缓冲，保留原有 Logcat 输出；不读取系统日志、不增加日志文件或权限。Info 等归入“运行记录”，Warn / Error 归入“错误信息”，HTML、JSON 等正文仅在“网络详情”保留。旧版热更新库没有回调时仍可运行；运行记录中标注桥接是否已连接，不宣称已采集不支持该能力的原生库内部日志。
 - 普通记录隐藏账号、Cookie、Token 等信息。“网络详情”包含统一 OkHttp 链路实际发送/读取的请求、响应、Cookie 和认证头，以及 Rust 已有日志的详细上下文，仅隐藏密码及密码派生登录字段。Rust 单条格式化记录超过 256 KiB 时只保留未采集标记，避免截断密码后再脱敏。JNI 调用和本地 HTTP 请求各自固定开始时的账号代次，切换账号后拒绝旧任务的后续记录。二进制、双工、未读完、截断或不支持编码的正文明确标注；不宣称覆盖 WebView 或 Rust 内部完整网络。
 - Sentry 使用现有 Android SDK `Sentry.feedback().capture`，不引入 Kotlin Multiplatform 旧版 `UserFeedback` 接口。异常反馈复用已有 eventId；没有时在提交时创建脱敏错误事件并关联，失败重试复用同一编号。主动反馈无需错误事件。附件仅通过本次 `Hint` 添加，清空本次临时 scope，避免混入后续崩溃或其他反馈。
 - “反馈已受理”表示 SDK 接受了事件，网络、服务端过滤和配额仍会影响最终到达；编号不是服务端接收证明。用户明确提交后，SDK 可以将待发送事件和附件缓存在应用私有目录并重试。
-- 日志导出页使用相同日志类别，仅导出和分享所选日志，不包含问题反馈页的描述。反馈预览仅展示前 32,000 字，实际提交使用预览时固定的完整采集快照。采集阶段及导出阶段不落明文日志。
+- 日志导出页使用相同日志类别，仅导出和分享所选日志，不包含问题反馈页的描述。反馈预览仅展示前 32,000 字，实际提交使用预览时固定的完整采集快照。手动导出仅落加密文件；自动诊断由 Sentry 管理脱敏事件、breadcrumbs 和附件的应用私有缓存。
+
+## 统一 ERROR handler
+
+`AppErrorHandler` 在主进程 Sentry 初始化完成后安装，并保留已有 Sentry、Bugly 和系统的
+uncaught handler 调用链。Java/Kotlin 未捕获的 `Throwable` 先尽力记录脱敏追踪，再交给原有
+handler 捕获和结束进程；没有二次手动 `captureException`，不重复生成致命事件。记录器自身
+抛错、内存不足、前一个 handler 缺失或抛错时，仍保留原异常的委托与终止路径。
+
+- `launchSafe` 的根协程异常进入同一错误出口；普通异常记录后保留现有错误弹窗/提示。
+  已有业务 catch 传给 `reportUnexpected` 的意外异常也自动上报，并将事件 ID 关联到后续反馈。
+  正常取消不采集；VM、链接及线程终止错误交回线程的致命异常处理链。
+- 活跃进程的异常事件附带 `crash-runtime.txt`、`crash-errors.txt`，各自最多 96,000 字符，
+  从最近记录中选取。追踪保留 cause、suppressed 和栈帧；沿用已有截断、密码及身份脱敏规则。
+  自动附件不包含 NETWORK 类别的正文、Cookie 或认证头；用户手动反馈的选择逻辑保持原样。
+- 普通运行/错误记录和 Rust 的脱敏摘要同步为 Sentry breadcrumbs，每条最多 2,000 字符，
+  沿用 SDK 的数量上限和 scope 持久化。这些最近记录可随 NDK 崩溃和系统退出报告保留。
+  切换账号时同步清空内存记录、反馈草稿和 breadcrumbs，拒绝旧代次的异步记录。
+- 启用 `attachAnrThreadDump` 和 `attachRawTombstone`，由 SDK 附上系统原始诊断。
+  上次进程的 ANR、Tombstone 和缓存事件不会附加本次重启的内存日志，以免误导诊断。
+
+普通 Kotlin `catch` 无法捕获原生 SIGSEGV、系统 SIGKILL，也无法把 ANR 当成异常恢复。
+原生崩溃由 NDK/Tombstone 采集，ANR 由系统退出记录采集；强制终止、极端 OOM、SDK 安装前
+或未启用 Sentry 的隔离进程发生的错误，不保证采集和上报成功。此 handler 不接管主 Looper
+循环，也不让已经发生致命异常的进程继续运行。
+
+参考：[SDK 的未捕获异常处理链](https://github.com/getsentry/sentry-java/blob/8.55.0/sentry/src/main/java/io/sentry/UncaughtExceptionHandlerIntegration.java)、
+[ANR 线程转储](https://docs.sentry.io/platforms/android/configuration/app-not-respond/)。
 
 ### 加密格式与私钥
 
@@ -123,9 +150,35 @@ sentry-cli debug-files upload --org openahu --project ahutong-android \
 
 ## Native 崩溃线程信息
 
-应用启用现有 Sentry Android SDK 的 Tombstone integration。Android 12+ 在下次启动时读取系统 ApplicationExitInfo，可补充各线程、ART 和系统库符号，并与现有 NDK 事件合并；旧系统仍由 NDK 集成采集。未启用历史 Tombstone 回传或原始 protobuf 附件。
+应用启用现有 Sentry Android SDK 的 Tombstone integration。Android 12+ 在下次启动时读取系统 ApplicationExitInfo，可补充各线程、ART 和系统库符号，并与现有 NDK 事件合并；旧系统仍由 NDK 集成采集。未启用历史 Tombstone 回传；统一 ERROR handler 启用原始 protobuf 附件供进一步诊断。
 
 这是后续诊断信息的补齐，不能视为已解决系统 libhwui/ART 崩溃。自有 native 库仍需上传与 APK 匹配的符号。
+
+主界面在 scope 上补充 `ui.theme`、`ui.route`、`ui.wallpaper` 和
+`ui.reduce_glass_effects`，用于区分 RenderThread 崩溃时的主题和采样路径。
+`ui.route` 来自 Navigation 的路由模板，去除查询部分，不记录实际导航参数或账号。
+这些标签随客户端升级生效，旧事件没有这些信息。
+
+### 排查 kill 和 ANR
+
+- `kill` / `__kill` 可能是信号处理器重新抛出致命信号后的末端调用，不能仅凭标题判断是
+  内存不足或后台清理。先看崩溃线程、信号处理之前的帧，以及同次崩溃的 NDK / Tombstone
+  报告；不要把两份报告简单相加为两次崩溃。
+- `AHUTONG-ANDROID-22` 的 `AHUCookieJar.loadForRequest` 并发异常来自未加锁的
+  `addCookie`。缓存遍历、写入和持久化操作现在共用 jar 的锁，会话 Cookie 继续持久化。
+- `AHUTONG-ANDROID-1T` 的启动链会提前构造教务客户端，在主线程恢复所有加密 Cookie，
+  最终等待 Keystore Binder。`SdkDataSource` 现在延迟构造协议回退客户端，由实际业务的
+  IO 请求触发恢复；不更改密文格式或凭据不可读时的处理语义。
+- `ApplicationExitInfo` 的后台 ANR 栈如果落在 `nativePollOnce` / `epoll`，只说明采样时
+  主线程空闲；仍需检查广播异步工作、其他线程和设备负载。不能据此关闭或过滤后台 ANR。
+- `RenderThread` 的系统 `libhwui` / ART 帧需要结合设备、主题、前后台切换和匹配符号
+  排查。构建通过、单元测试通过及旧版本路径已修改，都不能作为现场原生崩溃已修复的证明。
+
+回归命令：`./gradlew :core:common:testDebugUnitTest :app:testDebugUnitTest :background:testDebugUnitTest :app:assembleDebug :app:lintDebug`。
+`AHUCookieJarTest` 使用真实缓存和受控线程交错验证并发插入，并保留会话 Cookie 恢复测试；
+`DataSourceInitializationTest` 验证启动构造路径不需要 Application 环境或 Keystore。
+
+参考：[Android ANR 诊断](https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs)。
 
 参考：https://docs.sentry.io/platforms/android/configuration/tombstones/
 

@@ -14,6 +14,9 @@ interface UserNotice {
     /** 报告一次失败；实现负责翻译文案并切到正确的线程。 */
     fun showFailure(error: Throwable)
 
+    /** A root coroutine failed without a local catch; the app records it before presenting it. */
+    fun reportUnhandled(error: Throwable) = showFailure(error)
+
     /** 返回 true 表示已经接管意外错误，调用方无需再把同一异常截成 Toast 文案。 */
     fun reportUnexpected(error: Throwable): Boolean = false
 }
@@ -31,6 +34,10 @@ object UserNoticeHolder {
     /** 未安装即不提示。 */
     fun showFailure(error: Throwable) {
         if (error !is java.util.concurrent.CancellationException) installed?.showFailure(error)
+    }
+
+    fun reportUnhandled(error: Throwable) {
+        if (error !is java.util.concurrent.CancellationException) installed?.reportUnhandled(error)
     }
 
     /** 给仍保留业务提示的 catch 使用；传递原始异常，保留 cause 和 suppressed。 */
