@@ -54,8 +54,8 @@ fun HomeScanButton(
     ) {
         // iconpark「扫码」线性图标（与导航栏、小工具同一套矢量语言），随容器 tint 变色
         Icon(
-            painter = painterResource(R.drawable.ic_nav_scan),
-            contentDescription = "扫一扫",
+            painter = painterResource(R.drawable.ic_nav_camera),
+            contentDescription = "相机",
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurface
         )

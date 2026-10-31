@@ -16,7 +16,9 @@ internal class QrAnalyzer(
     private val onFrame: (List<QrDetection>, ImageProxy) -> Unit,
     private val onFailure: () -> Unit,
     private val nanoTime: () -> Long = System::nanoTime,
-    private val recognizeAfterNanos: Long? = null
+    private val recognizeAfterNanos: Long? = null,
+    /** 命中后是否停止分析。多码候选需要继续扫一小段时间再决定。 */
+    private val stopAfterFirst: Boolean = true
 ) : ImageAnalysis.Analyzer {
 
     private val decoder = QrImageDecoder()
@@ -52,7 +54,7 @@ internal class QrAnalyzer(
             analyzedFrames = (analyzedFrames + 1) % 4
             if (detections.isNotEmpty()) {
                 onFrame(detections, image)
-                emitted.set(true)
+                if (stopAfterFirst) emitted.set(true)
             }
             failedFrames = 0
         } catch (_: Exception) {

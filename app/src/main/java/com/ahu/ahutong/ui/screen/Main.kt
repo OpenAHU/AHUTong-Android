@@ -10,8 +10,6 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import com.ahu.ahutong.ui.screen.scan.QrRouter
-import com.ahu.ahutong.ui.screen.scan.ScanScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -439,10 +437,17 @@ fun Main(
                     com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
                 }
             }
+            animatedComposable("camera") {
+                com.ahu.ahutong.ui.screen.camera.CameraScreen(
+                    scheduleViewModel = scheduleViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            // 旧路由继续指向同一页，深链与历史入口不受影响
             animatedComposable("scan") {
-                ScanScreen(
-                    onBack = { navController.popBackStack() },
-                    onResult = { raw -> QrRouter.route(context, raw) }
+                com.ahu.ahutong.ui.screen.camera.CameraScreen(
+                    scheduleViewModel = scheduleViewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
             animatedComposable("setup") {
@@ -907,7 +912,7 @@ fun Main(
         }
 
         val productUiBlocked = !canUseBusinessPages || effectiveRoute == "login" || effectiveRoute == "setup" ||
-            effectiveRoute == "splash" || effectiveRoute == "scan" || effectiveRoute?.contains("deposit") == true ||
+            effectiveRoute == "splash" || effectiveRoute == "scan" || effectiveRoute == "camera" || effectiveRoute?.contains("deposit") == true ||
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
             suggestionOverlayBlocked || imeVisible

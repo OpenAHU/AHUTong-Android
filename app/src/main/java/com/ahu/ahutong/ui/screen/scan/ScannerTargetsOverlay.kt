@@ -45,7 +45,7 @@ internal fun ScannerTargetsOverlay(
                 val maxX = points.maxOfOrNull { it.x } ?: center.x
                 val minY = points.minOfOrNull { it.y } ?: center.y
                 val maxY = points.maxOfOrNull { it.y } ?: center.y
-                val minimum = with(density) { 48.dp.toPx() }
+                val minimum = with(density) { 44.dp.toPx() }
                 val targetWidth = maxOf(minimum, maxX - minX)
                 val targetHeight = maxOf(minimum, maxY - minY)
                 val left by animateFloatAsState((minX + maxX - targetWidth) / 2, spring(stiffness = 700f), label = "qr-choice-x")
@@ -53,14 +53,14 @@ internal fun ScannerTargetsOverlay(
                 Box(
                     Modifier.offset { IntOffset(left.roundToInt(), top.roundToInt()) }
                         .size(with(density) { targetWidth.toDp() }, with(density) { targetHeight.toDp() })
-                        .border(1.5.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
+                        .border(1.5.dp, Color.White.copy(alpha = 0.9f), RoundedCornerShape(10.dp))
                         .clickable(onClickLabel = "选择二维码") { onSelect(candidate) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(Modifier.size(44.dp).background(Color.Black.copy(alpha = 0.75f), CircleShape),
+                    Box(Modifier.size(36.dp).background(Color.Black.copy(alpha = 0.75f), CircleShape),
                         contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.QrCodeScanner, "选择二维码 ${index + 1}", tint = Color.White,
-                            modifier = Modifier.size(24.dp))
+                            modifier = Modifier.size(20.dp))
                     }
                 }
             }
