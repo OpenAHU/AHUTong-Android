@@ -91,6 +91,8 @@ public class AHUApplication extends Application implements ImageLoaderFactory {
         com.ahu.ahutong.error.AppErrorHandler.INSTANCE.install();
         Sentry.setTag("dau_id", getDauId());
 
+        com.ahu.ahutong.data.notes.NoteStore.INSTANCE.init(this);
+
         // 学习通日历初始化
         Store.INSTANCE.init(this);
         ReminderScheduler.INSTANCE.ensureChannel(this);

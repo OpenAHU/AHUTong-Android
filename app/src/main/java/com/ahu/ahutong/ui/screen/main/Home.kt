@@ -456,7 +456,7 @@ internal fun Home(
         )
         val scanButton: @Composable () -> Unit = {
             HomeScanButton(
-                onClick = { navController.navigate("scan") { launchSingleTop = true } },
+                onClick = { navController.navigate("camera") { launchSingleTop = true } },
                 backdrop = headerControlsBackdrop
             )
         }

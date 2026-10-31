@@ -5,12 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,8 +19,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
+import com.ahu.ahutong.ui.screen.camera.LocalCameraRotation
 import java.util.Locale
-import kotlin.math.abs
 
 internal data class ScannerZoomState(
     val ratio: Float = 1f,
@@ -62,21 +63,35 @@ internal fun ScannerZoomControls(
     if (!state.isSupported) return
     val ratio = state.clamp(state.ratio)
     val presets = state.presets
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (presets.none { abs(it - ratio) < 0.025f }) {
-            Text(scannerZoomLabel(ratio), color = Color.White,
-                style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))
-        }
-        presets.forEach { preset ->
-            val isSelected = abs(preset - ratio) < 0.025f
-            Box(Modifier.clip(CircleShape)
-                .background(if (isSelected) Color.White else Color.Black.copy(alpha = 0.6f))
+    val elementRotation by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = LocalCameraRotation.current,
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = 280,
+            easing = androidx.compose.animation.core.FastOutSlowInEasing
+        ),
+        label = "zoom-chip-rotation"
+    )
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 非预设倍率不再旁置文字：落在哪一档的区间内，就由那一档的圆显示实时倍率
+        val activeIndex = presets.indexOfLast { it <= ratio + 0.001f }.coerceAtLeast(0)
+        presets.forEachIndexed { index, preset ->
+            val isSelected = index == activeIndex
+            Box(Modifier
+                .graphicsLayer { rotationZ = elementRotation }
+                .clip(CircleShape)
+                // 选中底用不透明灰（60% 白叠黑），压在亮画面上也够亮
+                .background(if (isSelected) Color(0xFF999999) else Color.Transparent)
                 .semantics { selected = isSelected }
-                .clickable(enabled = enabled, role = Role.Button) { onZoomRatioChange(state.clamp(preset)) }
-                .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-                .padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-                Text(scannerZoomLabel(preset), style = MaterialTheme.typography.labelLarge,
-                    color = (if (isSelected) Color.Black else Color.White).copy(alpha = if (enabled) 1f else 0.45f))
+                .clickable(enabled = enabled, role = Role.Button) {
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                    onZoomRatioChange(state.clamp(preset))
+                }
+                .size(36.dp), contentAlignment = Alignment.Center) {
+                Text(scannerZoomLabel(if (isSelected) ratio else preset), style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1, softWrap = false,
+                    color = (if (isSelected) MaterialTheme.colorScheme.primary else Color.White)
+                        .copy(alpha = if (enabled) 1f else 0.45f))
             }
         }
     }

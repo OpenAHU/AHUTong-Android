@@ -159,7 +159,9 @@ object AppActionCatalog {
         "electricity_recent_rooms" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "electricity_alert_settings" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "xuexiaotong" to AppActionId.VIEW_SCHOOL_CALENDAR,
-        "widgets" to AppActionId.OPEN_TOOLS
+        "widgets" to AppActionId.OPEN_TOOLS,
+        // 聚合相机：新路由名，旧 "scan" 保留兼容
+        "camera" to AppActionId.OPEN_SCANNER
     )
     private val commandRoutePrefixes: Map<AppActionId, Set<String>> = mapOf(
         AppActionId.OPEN_PAYMENT_QR to setOf("home"),
@@ -243,7 +245,7 @@ object AppActionCatalog {
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy",
-        "settings__theme_lab", "settings__theme_color", "scan", "billing", "billing_stats"
+        "settings__theme_lab", "settings__theme_color", "scan", "camera", "billing", "billing_stats"
     )
 
     init {
