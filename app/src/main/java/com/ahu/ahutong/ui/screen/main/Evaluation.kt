@@ -3,7 +3,9 @@ package com.ahu.ahutong.ui.screen.main
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import com.ahu.ahutong.ui.haptics.hapticSelectable as selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import com.ahu.ahutong.ui.haptics.HapticAlertDialog as AlertDialog
+import com.ahu.ahutong.ui.haptics.HapticButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -36,17 +38,17 @@ import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import com.ahu.ahutong.ui.haptics.HapticOutlinedButton as OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.RadioButton
+import com.ahu.ahutong.ui.haptics.HapticRadioButton as RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import com.ahu.ahutong.ui.haptics.HapticSwitch as Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -694,7 +696,8 @@ private fun PresetQuestionEditor(
                                     Color.Transparent
                                 }
                             )
-                            .clickable { onOptionIndexChange(optionIndex) }
+                            .selectable(selected = selected, role = Role.RadioButton,
+                                onClick = { onOptionIndexChange(optionIndex) })
                             .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -807,7 +810,8 @@ private fun QuestionCard(
                                         Color.Transparent
                                     }
                                 )
-                                .clickable { onSelect(optionId) }
+                                .selectable(selected = selected, role = Role.RadioButton,
+                                    onClick = { onSelect(optionId) })
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween

@@ -1,6 +1,6 @@
 package com.ahu.ahutong.ui.screen.main.home
 
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

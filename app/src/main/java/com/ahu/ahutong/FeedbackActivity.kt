@@ -75,6 +75,7 @@ class FeedbackActivity : ComponentActivity() {
             val uiTheme by preferencesViewModel.appUiTheme.collectAsState()
             val themeColor by preferencesViewModel.themeColor.collectAsState()
             val themeMode by preferencesViewModel.appThemeMode.collectAsState()
+            val hapticFeedbackEnabled by preferencesViewModel.hapticFeedbackEnabled.collectAsState()
             val themeReady by preferencesViewModel.isUiThemePreferenceReady.collectAsState()
             val overrides by preferencesViewModel.componentSlotOverrides.collectAsState()
             val state by feedbackViewModel.state.collectAsState()
@@ -91,7 +92,8 @@ class FeedbackActivity : ComponentActivity() {
                 themeColorHex = themeColor,
                 themeMode = themeMode,
                 isPreferenceReady = themeReady,
-                componentSlotOverrides = overrides
+                componentSlotOverrides = overrides,
+                hapticFeedbackEnabled = hapticFeedbackEnabled
             )) {
                 AnimatedContent(
                     targetState = route,

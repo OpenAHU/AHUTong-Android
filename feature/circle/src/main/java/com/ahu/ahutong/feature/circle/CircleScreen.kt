@@ -20,7 +20,7 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

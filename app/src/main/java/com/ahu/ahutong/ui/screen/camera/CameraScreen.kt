@@ -38,7 +38,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -197,6 +197,7 @@ fun CameraScreen(
     var cameraError by remember { mutableStateOf(false) }
     var zoomState by remember { mutableStateOf(ScannerZoomState()) }
     var zoomRatio by remember { mutableStateOf(1f) }
+    var manualZoomGeneration by remember { mutableIntStateOf(0) }
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
 
     // 扫码状态
@@ -408,6 +409,8 @@ fun CameraScreen(
                             if (!showGallery) CameraPreviewHost(
                                 mode = mode,
                                 scanGeneration = scanGeneration,
+                                manualZoomGeneration = manualZoomGeneration,
+                                manualZoomRatio = zoomRatio,
                                 onController = { controller ->
                                     camera = controller
                                     hasFlash = true
@@ -472,6 +475,7 @@ fun CameraScreen(
                             ScannerZoomControls(
                                 state = zoomState,
                                 onZoomRatioChange = { ratio ->
+                                    manualZoomGeneration++
                                     camera?.setZoomRatio(ratio)
                                     zoomRatio = ratio
                                 },

@@ -27,7 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -274,7 +275,7 @@ internal fun MiuixPageScaffoldImpl(
                 actions = {
                     actions.forEach { action ->
                         if (action.painter != null) {
-                            androidx.compose.material3.IconButton(onClick = action.onClick) {
+                            IconButton(onClick = action.onClick) {
                                 androidx.compose.material3.Icon(
                                     painter = action.painter,
                                     contentDescription = action.contentDescription
@@ -370,7 +371,7 @@ private fun ClassicPageScaffoldHeader(
             actions = {
                 actions.forEach { action ->
                     if (action.painter != null) {
-                        androidx.compose.material3.IconButton(onClick = action.onClick) {
+                        IconButton(onClick = action.onClick) {
                             androidx.compose.material3.Icon(
                                 painter = action.painter,
                                 contentDescription = action.contentDescription
@@ -409,7 +410,7 @@ private fun ClassicPageScaffoldSearchRow(search: SecondarySearchState) {
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = search.onClose) {
+        IconButton(onClick = rememberHapticAction(action = search.onClose)) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "关闭搜索"
@@ -424,9 +425,9 @@ private fun ClassicPageScaffoldSearchRow(search: SecondarySearchState) {
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { search.onSubmit() })
             )
-            MiuixIconButton(onClick = if (search.query.isNotEmpty()) {
+            MiuixIconButton(onClick = rememberHapticAction(action = if (search.query.isNotEmpty()) {
                 { search.onQueryChange("") }
-            } else search.onSubmit) {
+            } else search.onSubmit)) {
                 MiuixIcon(
                     imageVector = if (search.query.isNotEmpty()) Icons.Default.Close else Icons.Default.Search,
                     contentDescription = if (search.query.isNotEmpty()) "清空" else "搜索"
@@ -455,11 +456,11 @@ private fun ClassicPageScaffoldSearchRow(search: SecondarySearchState) {
             keyboardActions = KeyboardActions(onSearch = { search.onSubmit() }),
             trailingIcon = {
                 if (search.query.isNotEmpty()) {
-                    IconButton(onClick = { search.onQueryChange("") }) {
+                    IconButton(onClick = rememberHapticAction { search.onQueryChange("") }) {
                         Icon(Icons.Default.Close, "清空")
                     }
                 } else {
-                    IconButton(onClick = search.onSubmit) {
+                    IconButton(onClick = rememberHapticAction(action = search.onSubmit)) {
                         Icon(Icons.Default.Search, "搜索")
                     }
                 }

@@ -2,12 +2,13 @@ package com.ahu.ahutong.ui.screen.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,7 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,14 +50,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import com.ahu.ahutong.ui.haptics.HapticDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.navigation.NavHostController
@@ -65,13 +67,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.os.Build
 import android.util.Log
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.utils.FileUtils
 import com.ahu.ahutong.R
 import com.ahu.ahutong.appwidget.ScheduleAppWidgetReceiver
+import com.ahu.ahutong.appwidget.ScheduleWidgetPreviewContent
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.appWallpaperFrostedSurface
@@ -108,22 +109,14 @@ internal fun DesktopScheduleWidgetCard() {
                 shape = SmoothRoundedCornerShape(32.dp),
                 fallbackColor = 100.n1 withNight 30.n1
             ),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = "添加桌面课表微件",
-            modifier = Modifier.padding(24.dp),
-            style = MaterialTheme.typography.titleLarge
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp),
+            style = MaterialTheme.typography.titleMedium
         )
-        AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(R.mipmap.schedule_widget_prev)
-                .crossfade(false)
-                .build(),
-            contentDescription = "桌面课表微件",
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            contentScale = ContentScale.Fit
-        )
+        DesktopScheduleWidgetPreview(Modifier.align(Alignment.CenterHorizontally).padding(horizontal = 16.dp))
         AppButton(
             onClick = {
                 scope.launch {
@@ -133,10 +126,54 @@ internal fun DesktopScheduleWidgetCard() {
                 }
             },
             modifier = Modifier
-                .padding(16.dp)
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 .fillMaxWidth()
         ) {
             Text("添加", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+/** Keep the example compact and reuse Glance, so the preview follows the actual desktop style. */
+@OptIn(androidx.glance.appwidget.ExperimentalGlanceRemoteViewsApi::class)
+@Composable
+internal fun DesktopScheduleWidgetPreview(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val renderer = remember { androidx.glance.appwidget.GlanceRemoteViews() }
+    val previewHeight = (176f * configuration.fontScale.coerceIn(1f, 1.5f)).dp
+    BoxWithConstraints(modifier.widthIn(max = 360.dp).fillMaxWidth().height(previewHeight)) {
+        val size = androidx.compose.ui.unit.DpSize(maxWidth, previewHeight)
+        val preview by produceState<Result<android.widget.RemoteViews>?>(null, context, size, configuration.uiMode) {
+            value = try {
+                Result.success(renderer.compose(context, size) { ScheduleWidgetPreviewContent() }.remoteViews)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
+        }
+        val remoteViews = preview?.getOrNull()
+        if (preview == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(24.dp))
+            }
+        } else if (remoteViews == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("课表微件预览暂不可用", style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { android.widget.FrameLayout(it) },
+                update = { host ->
+                    host.removeAllViews()
+                    host.addView(remoteViews.apply(context, host), android.widget.FrameLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    ))
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

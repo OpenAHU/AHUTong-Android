@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.LocationManager
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*

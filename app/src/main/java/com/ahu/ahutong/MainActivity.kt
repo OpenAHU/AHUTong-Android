@@ -141,6 +141,7 @@ class MainActivity : ComponentActivity() {
             val appUiTheme by preferencesViewModel.appUiTheme.collectAsState()
             val themeColorHex by preferencesViewModel.themeColor.collectAsState()
             val themeMode by preferencesViewModel.appThemeMode.collectAsState()
+            val hapticFeedbackEnabled by preferencesViewModel.hapticFeedbackEnabled.collectAsState()
             val isThemePreferenceReady by
                 preferencesViewModel.isUiThemePreferenceReady.collectAsState()
             val componentSlotOverrides by
@@ -151,7 +152,8 @@ class MainActivity : ComponentActivity() {
                     themeColorHex = themeColorHex,
                     themeMode = themeMode,
                     isPreferenceReady = isThemePreferenceReady,
-                    componentSlotOverrides = componentSlotOverrides
+                    componentSlotOverrides = componentSlotOverrides,
+                    hapticFeedbackEnabled = hapticFeedbackEnabled
                 )
             ) {
                 val navController = rememberNavController()

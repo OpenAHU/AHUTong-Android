@@ -30,7 +30,7 @@ import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.ZoomOut
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface

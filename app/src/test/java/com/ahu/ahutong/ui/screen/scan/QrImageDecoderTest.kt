@@ -16,6 +16,39 @@ import kotlin.test.assertTrue
 
 class QrImageDecoderTest {
     @Test
+    fun legacyByteSegmentsWithoutEciKeepUtf8ShiftJisAndLatin1Contents() {
+        val examples = listOf(
+            "扫码签到：安徽大学" to Charsets.UTF_8,
+            "station: こんにちは東京" to java.nio.charset.Charset.forName("Shift_JIS"),
+            "café à Zürich" to Charsets.ISO_8859_1
+        )
+        for ((expected, charset) in examples) {
+            // The writer's default Latin-1 byte mode preserves these source bytes without ECI.
+            val byteSegment = String(expected.toByteArray(charset), Charsets.ISO_8859_1)
+            val matrix = QRCodeWriter().encode(byteSegment, BarcodeFormat.QR_CODE, 256, 256)
+            val pixels = ByteArray(256 * 256) { if (matrix[it % 256, it / 256]) 18 else 235.toByte() }
+            assertEquals(expected, QrImageDecoder().decodeCandidates(luminance(pixels, 256, 256)).single().raw,
+                "Legacy byte encoding: ${charset.name()}")
+        }
+    }
+
+    @Test
+    fun explicitEciRemainsAuthoritativeAndUrlRoutingBytesRemainUnchanged() {
+        for ((expected, charset) in listOf(
+            "扫码签到：安徽大学" to "UTF-8",
+            "station: こんにちは東京" to "Shift_JIS",
+            "café à Zürich" to "ISO-8859-1",
+            "https://mobilelearn.chaoxing.com/widget/sign/e?id=123&enc=ABC%2B%2F%3D" to "UTF-8"
+        )) {
+            val matrix = QRCodeWriter().encode(expected, BarcodeFormat.QR_CODE, 256, 256,
+                mapOf(EncodeHintType.CHARACTER_SET to charset))
+            val pixels = ByteArray(256 * 256) { if (matrix[it % 256, it / 256]) 18 else 235.toByte() }
+            assertEquals(expected, QrImageDecoder().decodeCandidates(luminance(pixels, 256, 256)).single().raw,
+                "Explicit encoding: $charset")
+        }
+    }
+
+    @Test
     fun nearFieldQrThatFillsTheImageStillDecodesWithItsOriginalCoordinates() {
         val payload = "8661234567"
         val decoder = QrImageDecoder()
@@ -108,7 +141,7 @@ class QrImageDecoderTest {
     }
 
     @Test
-    fun thoroughFallbackStillFindsDenseSmallQrMissedByTheFastSearch() {
+    fun fastCameraSearchAlreadyFindsDenseSmallQrWithoutWaitingForAThoroughFrame() {
         val payload = "fixture-" + "a".repeat(50)
         val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 80, 80)
         val bytes = ByteArray(1280 * 720) { 235.toByte() }
@@ -117,8 +150,117 @@ class QrImageDecoderTest {
         }
         val decoder = QrImageDecoder()
         val source = luminance(bytes, 1280, 720)
-        assertTrue(decoder.decodeCandidates(source, tryHarder = false).isEmpty())
+        assertEquals(payload, decoder.decodeCandidates(source, tryHarder = false).single().raw)
         assertEquals(payload, decoder.decodeCandidates(source, tryHarder = true).single().raw)
+    }
+
+    @Test
+    fun lowContrastDarkBrightAndUnevenlyLitQrDecodeInBothPolarities() {
+        val payload = "lighting-" + "a".repeat(50)
+        for ((black, white, gradient) in listOf(
+            Triple(4, 26, 0), Triple(229, 249, 0), Triple(112, 130, 0), Triple(4, 32, 90)
+        )) for (inverted in listOf(false, true)) for (thorough in listOf(false, true)) {
+            val source = lightingImage(payload, 224, black, white, gradient, inverted)
+            val found = QrImageDecoder().decodeCandidates(source, thorough).single()
+            assertEquals(payload, found.raw,
+                "black=$black white=$white gradient=$gradient inverted=$inverted thorough=$thorough")
+            assertEquals(1280f / 720, found.aspectRatio)
+            assertTrue(abs(found.center.x - 255f / 1280) < 0.01f)
+            assertTrue(abs(found.center.y - 263f / 720) < 0.01f)
+        }
+    }
+
+    @Test
+    fun thoroughLocalContrastRecoveryKeepsTinyModulesAndTheirOriginalGeometry() {
+        val payload = "tiny-" + "a".repeat(50)
+        for (inverted in listOf(false, true)) {
+            val found = QrImageDecoder().decodeCandidates(
+                lightingImage(payload, 80, 112, 130, inverted = inverted), true).single()
+            assertEquals(payload, found.raw)
+            assertTrue(abs(found.center.x - 183f / 1280) < 0.01f)
+            assertTrue(abs(found.center.y - 191f / 720) < 0.01f)
+        }
+    }
+
+    @Test
+    fun contrastRecoveryStillEnumeratesADimCodeBesideAnAlreadyDecodedCode() {
+        val width = 1280
+        val height = 720
+        val pixels = ByteArray(width * height) { 130.toByte() }
+        fun paste(payload: String, left: Int, black: Int, white: Int) {
+            val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 224, 224)
+            for (y in 0 until 224) for (x in 0 until 224) {
+                pixels[(200 + y) * width + left + x] = (if (matrix[x, y]) black else white).toByte()
+            }
+        }
+        paste("normal", 150, 18, 235)
+        paste("dim", 800, 112, 130)
+        val found = QrImageDecoder().decodeCandidates(luminance(pixels, width, height), true)
+        assertEquals(setOf("normal", "dim"), found.map { it.raw }.toSet())
+        assertEquals(2, found.size)
+        assertTrue(found.single { it.raw == "normal" }.center.x < 0.4f)
+        assertTrue(found.single { it.raw == "dim" }.center.x > 0.6f)
+    }
+
+    @Test
+    fun onlyAnUndecodableThreeFinderTargetProducesAZoomCandidate() {
+        val side = 256
+        val matrix = QRCodeWriter().encode("damaged-" + "a".repeat(70), BarcodeFormat.QR_CODE, side, side)
+        val pixels = ByteArray(side * side) { if (matrix[it % side, it / side]) 18 else 235.toByte() }
+        val decoder = QrImageDecoder()
+        val candidates = mutableListOf<Pair<QrPoint, Float>>()
+        val intact = decoder.decodeCandidates(luminance(pixels, side, side), onCandidate = { center, size ->
+            candidates += center to size
+        })
+        assertEquals(1, intact.size)
+        assertTrue(candidates.isEmpty())
+        // Corrupt the data modules while retaining all three finder patterns and quiet zone.
+        for (y in 90 until 216) for (x in 90 until 216) pixels[y * side + x] = 235.toByte()
+        assertTrue(decoder.decodeCandidates(luminance(pixels, side, side), onCandidate = { center, size ->
+            candidates += center to size
+        }).isEmpty())
+        assertEquals(1, candidates.size)
+        assertTrue(abs(candidates.single().first.x - 0.5f) < 0.02f)
+        assertTrue(abs(candidates.single().first.y - 0.5f) < 0.02f)
+        assertTrue(candidates.single().second in 0.5f..0.95f)
+        candidates.clear()
+        // Losing a finder must not turn an arbitrary pair into an automatic camera movement.
+        for (y in 16 until 90) for (x in 150 until 240) pixels[y * side + x] = 235.toByte()
+        decoder.decodeCandidates(luminance(pixels, side, side), onCandidate = { center, size ->
+            candidates += center to size
+        })
+        assertTrue(candidates.isEmpty())
+    }
+
+    @Test
+    fun flatDarkBrightAndLowContrastNoiseDoNotInventPayloadsOrZoomTargets() {
+        val random = java.util.Random(7)
+        for (base in listOf(8, 128, 245)) {
+            val pixels = ByteArray(640 * 480) { (base + random.nextInt(7) - 3).toByte() }
+            var candidates = 0
+            assertTrue(QrImageDecoder().decodeCandidates(luminance(pixels, 640, 480),
+                onCandidate = { _, _ -> candidates++ }).isEmpty())
+            assertEquals(0, candidates)
+        }
+    }
+
+    private fun lightingImage(
+        payload: String,
+        side: Int,
+        black: Int,
+        white: Int,
+        gradient: Int = 0,
+        inverted: Boolean = false
+    ): PlanarYUVLuminanceSource {
+        val width = 1280
+        val height = 720
+        val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, side, side)
+        val pixels = ByteArray(width * height) { (if (inverted) 255 - white else white).toByte() }
+        for (y in 0 until side) for (x in 0 until side) {
+            val value = ((if (matrix[x, y]) black else white) + gradient * x / side).coerceIn(0, 255)
+            pixels[(151 + y) * width + 143 + x] = (if (inverted) 255 - value else value).toByte()
+        }
+        return luminance(pixels, width, height)
     }
 
     @Test

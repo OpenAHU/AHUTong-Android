@@ -3,7 +3,7 @@ package com.ahu.ahutong.ui.screen.xuexiaotong
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,7 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.ahu.ahutong.ui.haptics.HapticDialog as Dialog
 import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction

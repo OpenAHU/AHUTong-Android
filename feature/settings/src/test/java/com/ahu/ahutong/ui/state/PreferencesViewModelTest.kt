@@ -66,6 +66,24 @@ class PreferencesViewModelTest {
     ) = PreferencesViewModel(store, personalization, reminders, repository, behavior)
 
     @Test
+    fun `beta haptics are off by default and persist independently of the theme`() {
+        val store = FakeSettingsStore()
+        val subject = viewModel(store)
+        assertFalse(subject.hapticFeedbackEnabled.value)
+
+        subject.setHapticFeedbackEnabled(true)
+        assertTrue(store.hapticFeedbackEnabled.value)
+        assertTrue(subject.hapticFeedbackEnabled.value)
+        subject.setAppUiTheme(AppUiTheme.MIUIX)
+        assertTrue(viewModel(store).hapticFeedbackEnabled.value)
+
+        subject.setHapticFeedbackEnabled(false)
+        assertFalse(store.hapticFeedbackEnabled.value)
+        assertFalse(subject.hapticFeedbackEnabled.value)
+        assertFalse(viewModel(store).hapticFeedbackEnabled.value)
+    }
+
+    @Test
     fun `material floating bottom bar is disabled by default and persists independently of theme`() {
         val store = FakeSettingsStore()
         val subject = viewModel(store)

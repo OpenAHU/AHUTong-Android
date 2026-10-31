@@ -215,6 +215,7 @@ fun ThemeSettingsSection(
     val appUiTheme by viewModel.appUiTheme.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
     val materialFloatingBottomBar by viewModel.materialFloatingBottomBar.collectAsState()
+    val hapticFeedbackEnabled by viewModel.hapticFeedbackEnabled.collectAsState()
 
     SettingsSection(
         title = "主题",
@@ -251,6 +252,13 @@ fun ThemeSettingsSection(
             title = "主题色",
             value = themeColorName(themeColor),
             onClick = onOpenThemeColors
+        )
+        com.ahu.ahutong.ui.components.SettingsToggleRow(
+            title = "开启haptic触感 (beta)",
+            selected = hapticFeedbackEnabled,
+            onSelectedChange = viewModel::setHapticFeedbackEnabled,
+            backdrop = backdrop,
+            onHorizontalDragActiveChange = onHorizontalDragActiveChange
         )
         BackgroundControls(viewModel, backdrop, onHorizontalDragActiveChange)
         SettingsActionRow(title = "详细设定", onClick = onOpenDetails, showDivider = false)

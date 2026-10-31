@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.Checkbox
+import com.ahu.ahutong.ui.haptics.HapticCheckbox as Checkbox
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.rememberAppHapticFeedback
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -360,9 +362,10 @@ fun Preferences(
                     "将上传下一步/多跳预测的数值特征、候选可用性和目标标签，以及参数排序的 16 维候选特征与分级反馈。不会上传账号、设备标识、原始轨迹、完整旅程、设置值、参数内容、presetId 或指纹。随机参与者编号仅用于用户级数据集切分；关闭后会请求删除。"
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val feedback = rememberAppHapticFeedback()
                     Checkbox(
                         checked = includeHistorical,
-                        onCheckedChange = { includeHistorical = it }
+                        onCheckedChange = { feedback.perform(AppHapticEvent.Selection); includeHistorical = it }
                     )
                     Text("同时贡献最近 30 天已有兼容样本（默认关闭）")
                 }

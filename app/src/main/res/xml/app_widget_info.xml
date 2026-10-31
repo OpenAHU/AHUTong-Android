@@ -6,6 +6,7 @@
     android:minResizeWidth="40dp"
     android:minResizeHeight="40dp"
     android:previewImage="@mipmap/schedule_widget_prev"
+    android:previewLayout="@layout/schedule_widget_preview"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen" />

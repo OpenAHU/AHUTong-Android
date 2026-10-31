@@ -16,7 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 
 /** 二级页标题栏右侧的操作按钮。 */
 /** 标题栏右侧动作。icon 用 ImageVector；iconpark 线性图标走 painter 副构造。 */
@@ -121,7 +122,7 @@ fun SecondaryPageHeader(
                                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                IconButton(onClick = action.onClick) {
+                                IconButton(onClick = rememberHapticAction(action = action.onClick)) {
                                     if (action.painter != null) {
                                         Icon(
                                             painter = action.painter,

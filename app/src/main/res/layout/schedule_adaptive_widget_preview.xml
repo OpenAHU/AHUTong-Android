@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="176dp"
+    android:background="@drawable/schedule_widget_preview_background"
+    android:orientation="vertical"
+    android:padding="8dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/schedule_widget_preview_title"
+            android:textColor="@color/schedule_widget_preview_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_widget_preview_date"
+            android:textColor="@color/schedule_widget_preview_secondary"
+            android:textSize="10sp" />
+    </LinearLayout>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="end"
+        android:paddingEnd="8dp"
+        android:text="@string/schedule_widget_preview_fetched"
+        android:textColor="@color/schedule_widget_preview_secondary"
+        android:textSize="10sp" />
+    <include
+        layout="@layout/schedule_widget_preview_courses"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" />
+</LinearLayout>

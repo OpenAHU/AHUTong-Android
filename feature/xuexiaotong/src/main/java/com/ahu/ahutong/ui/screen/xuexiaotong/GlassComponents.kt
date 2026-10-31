@@ -2,7 +2,7 @@ package com.ahu.ahutong.ui.screen.xuexiaotong
 
 import android.graphics.BlurMaskFilter
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable

@@ -1,7 +1,8 @@
 package com.ahu.ahutong.ui.screen.camera
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import androidx.camera.core.ImageAnalysis
+import android.view.MotionEvent
 import androidx.camera.core.ZoomState
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -27,6 +28,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import com.ahu.ahutong.ui.screen.scan.QrAnalyzer
 import com.ahu.ahutong.ui.screen.scan.QrDetection
+import com.ahu.ahutong.ui.screen.scan.QrCameraSession
 import com.ahu.ahutong.ui.screen.scan.ScannerZoomState
 import com.ahu.ahutong.ui.screen.scan.freezeQrFrame
 import java.util.concurrent.Executors
@@ -39,10 +41,13 @@ import java.util.concurrent.Executors
  * 分析帧同样由 controller 按 PreviewView 的 viewport 裁剪，冻结帧与候选标记才能对得上位置。
  */
 @Composable
+@SuppressLint("ClickableViewAccessibility") // Passive touch observer; PreviewView handles clicks and accessibility.
 internal fun CameraPreviewHost(
     mode: CameraMode,
     scanGeneration: Int,
     keepScanning: Boolean,
+    manualZoomGeneration: Int,
+    manualZoomRatio: Float,
     onController: (LifecycleCameraController) -> Unit,
     onZoom: (ScannerZoomState) -> Unit,
     onError: () -> Unit,
@@ -85,8 +90,10 @@ internal fun CameraPreviewHost(
             keepScreenOn = true
         }
     }
-    val executor = remember { Executors.newSingleThreadExecutor { r -> Thread(r, "qr-analysis") } }
-    var analyzerAttached by remember { mutableStateOf<ImageAnalysis.Analyzer?>(null) }
+    val executor = remember(lifecycleOwner) {
+        Executors.newSingleThreadExecutor { r -> Thread(r, "qr-analysis") }
+    }
+    var assistSession by remember { mutableStateOf<QrCameraSession?>(null) }
 
     DisposableEffect(lifecycleOwner, controller) {
         runCatching {
@@ -112,29 +119,68 @@ internal fun CameraPreviewHost(
         onDispose { controller.zoomState.removeObserver(observer) }
     }
 
-    LaunchedEffect(mode, scanGeneration, keepScanning, controller) {
+    DisposableEffect(previewView) {
+        previewView.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN ||
+                event.actionMasked == MotionEvent.ACTION_MOVE ||
+                event.actionMasked == MotionEvent.ACTION_UP) {
+                assistSession?.onManualInteraction(controller.zoomState.value?.zoomRatio ?: 1f)
+            }
+            false // Keep CameraController's built-in pinch and tap handling.
+        }
+        onDispose { previewView.setOnTouchListener(null) }
+    }
+
+    LaunchedEffect(manualZoomGeneration) {
+        if (manualZoomGeneration > 0) assistSession?.onManualInteraction(manualZoomRatio)
+    }
+
+    DisposableEffect(mode, scanGeneration, keepScanning, controller, lifecycleOwner) {
+        var active = true
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        val session = QrCameraSession(mainExecutor)
         if (mode == CameraMode.SCAN) {
+            assistSession = session
             val analyzer = QrAnalyzer(
                 stopAfterFirst = !keepScanning,
                 onFailure = {
-                    ContextCompat.getMainExecutor(context).execute { currentOnError() }
+                    mainExecutor.execute { if (active) currentOnError() }
+                },
+                onAssist = { frame ->
+                    mainExecutor.execute {
+                        if (active && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                            val info = controller.cameraInfo
+                            val control = controller.cameraControl
+                            if (info != null && control != null) {
+                                session.apply(frame, info, control, previewView) { ratio ->
+                                    runCatching { controller.setZoomRatio(ratio) }
+                                }
+                            }
+                        }
+                    }
                 },
                 onFrame = { found, image ->
                     val snapshot = runCatching { freezeQrFrame(image) }.getOrNull()
-                    ContextCompat.getMainExecutor(context).execute {
-                        if (snapshot != null &&
+                    mainExecutor.execute {
+                        if (active && snapshot != null &&
                             lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
                         ) {
+                            session.close(controller.cameraInfo, controller.cameraControl)
                             currentOnScanFrame(found, snapshot)
                         } else snapshot?.recycle()
                     }
                 }
             )
-            analyzerAttached = analyzer
             controller.setImageAnalysisAnalyzer(executor, analyzer)
         } else {
             controller.clearImageAnalysisAnalyzer()
-            analyzerAttached = null
+            assistSession = null
+        }
+        onDispose {
+            active = false
+            controller.clearImageAnalysisAnalyzer()
+            session.close(controller.cameraInfo, controller.cameraControl)
+            if (assistSession === session) assistSession = null
         }
     }
 

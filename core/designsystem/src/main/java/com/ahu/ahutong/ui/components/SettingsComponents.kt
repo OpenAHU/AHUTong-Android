@@ -2,7 +2,7 @@ package com.ahu.ahutong.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,8 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.selection.selectable
+import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
+import com.ahu.ahutong.ui.haptics.hapticSelectable as selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -38,7 +38,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import com.ahu.ahutong.ui.haptics.HapticRadioButton as RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,11 +77,13 @@ import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle as MiuixSmallTitle
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
-import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.math.roundToInt
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.rememberAppHapticFeedback
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 
 data class SettingsChoice<T>(
     val value: T,
@@ -90,16 +92,7 @@ data class SettingsChoice<T>(
 
 @Composable
 private fun rememberThemeHapticAction(action: () -> Unit): () -> Unit {
-    val haptic = LocalHapticFeedback.current
-    val useMiuixFeedback = LocalAppUiTheme.current == AppUiTheme.MIUIX
-    return remember(action, haptic, useMiuixFeedback) {
-        {
-            if (useMiuixFeedback) {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-            action()
-        }
-    }
+    return rememberHapticAction(action = action)
 }
 
 @Composable
@@ -595,9 +588,9 @@ fun SettingsToggleRow(
 ) {
     // 行布局 = 设置族通用；开关控件走契约槽位（AppToggle → 主题实验室可逐槽混搭）。
     // The native control handles its own taps and drags; taps on the rest of the row use the same callback.
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberAppHapticFeedback()
     val onCheckedWithFeedback: (Boolean) -> Unit = { checked ->
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        if (checked != selected) haptic.perform(if (checked) AppHapticEvent.ToggleOn else AppHapticEvent.ToggleOff)
         onSelectedChange(checked)
     }
     Column(modifier = modifier.fillMaxWidth()) {
@@ -678,23 +671,18 @@ fun <T> SettingsSelectRow(
     subtitle: String? = null,
     showDivider: Boolean = true
 ) {
+    val feedback = rememberAppHapticFeedback()
     if (LocalAppUiTheme.current == AppUiTheme.MIUIX) {
-        val selectedIndex = choices.indexOfFirst { it.value == selected }.coerceAtLeast(0)
-        val haptic = LocalHapticFeedback.current
         Column(modifier = modifier.fillMaxWidth()) {
-            SuperDropdown(
-                items = choices.map(SettingsChoice<T>::label),
-                selectedIndex = selectedIndex,
-                title = title,
+            MiuixDialogSelectField(
+                label = title,
+                selected = selected,
+                options = choices.map { AppSelectOption(it.value, it.label) },
                 summary = subtitle,
                 insideMargin = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 modifier = Modifier.fillMaxWidth(),
-                onSelectedIndexChange = { index ->
-                    choices.getOrNull(index)?.let {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelected(it.value)
-                    }
-                }
+                enabled = true,
+                onSelected = onSelected
             )
             SettingsDivider(visible = showDivider)
         }
@@ -836,6 +824,7 @@ fun <T> SettingsSelectRow(
                     },
                     tonalElevation = 0.dp
                 ) {
+                    val feedback = rememberAppHapticFeedback()
                     choices.forEach { choice ->
                         val isSelected = choice.value == selected
                         DropdownMenuItem(
@@ -864,6 +853,7 @@ fun <T> SettingsSelectRow(
                                     }
                                 ),
                             onClick = {
+                                if (choice.value != selected) feedback.perform(AppHapticEvent.Selection)
                                 onSelected(choice.value)
                                 expanded = false
                             }
@@ -902,6 +892,7 @@ fun <T> SettingsDialogSelectRow(
 
     if (dialogVisible) {
         SettingsDialogSurface(onDismissRequest = { dialogVisible = false }) {
+            val feedback = rememberAppHapticFeedback()
             Column(
                 modifier = Modifier
                     .padding(vertical = 18.dp)
@@ -923,6 +914,7 @@ fun <T> SettingsDialogSelectRow(
                                     selected = isSelected,
                                     role = Role.RadioButton,
                                     onClick = {
+                                        if (choice.value != selected) feedback.perform(AppHapticEvent.Selection)
                                         onSelected(choice.value)
                                         dialogVisible = false
                                     }

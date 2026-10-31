@@ -20,7 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -37,6 +37,7 @@ import com.kyant.monet.a1
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import com.ahu.ahutong.ui.theme.pack.LocalComponentPack
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 
 /** 二级页搜索态的交互状态。 */
 data class SecondarySearchState(
@@ -81,7 +82,7 @@ internal fun RadiantSearchHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = search.onClose,
+                onClick = rememberHapticAction(action = search.onClose),
                 modifier = Modifier.padding(start = 2.dp, end = 4.dp)
             ) {
                 Icon(
@@ -107,11 +108,11 @@ internal fun RadiantSearchHeader(
                 keyboardActions = KeyboardActions(onSearch = { search.onSubmit() }),
                 trailingIcon = {
                     if (search.query.isNotEmpty()) {
-                        IconButton(onClick = { search.onQueryChange("") }) {
+                        IconButton(onClick = rememberHapticAction { search.onQueryChange("") }) {
                             Icon(Icons.Default.Close, "清空", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     } else {
-                        IconButton(onClick = search.onSubmit) {
+                        IconButton(onClick = rememberHapticAction(action = search.onSubmit)) {
                             Icon(Icons.Default.Search, "搜索", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }

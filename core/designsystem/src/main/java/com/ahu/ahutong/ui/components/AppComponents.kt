@@ -17,7 +17,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import androidx.compose.foundation.clickable as consumeClick
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,16 +52,16 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Button as MaterialButton
+import com.ahu.ahutong.ui.haptics.HapticButton as MaterialButton
 import androidx.compose.material3.ButtonDefaults as MaterialButtonDefaults
 import androidx.compose.material3.Card as MaterialCard
 import androidx.compose.material3.CardDefaults as MaterialCardDefaults
 import androidx.compose.material3.CircularProgressIndicator as MaterialCircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
+import com.ahu.ahutong.ui.haptics.HapticFilledTonalButton as FilledTonalButton
 import androidx.compose.material3.FloatingActionButton as MaterialFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Switch as MaterialSwitch
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
+import com.ahu.ahutong.ui.haptics.HapticSwitch as MaterialSwitch
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
@@ -109,10 +110,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.window.Dialog
+import com.ahu.ahutong.ui.haptics.HapticDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
-import androidx.compose.ui.window.Popup
+import com.ahu.ahutong.ui.haptics.HapticPopup as Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -120,6 +121,10 @@ import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.backdrop.Backdrop
 import com.ahu.ahutong.ui.theme.pack.LocalComponentPack
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.AppHapticFeedbackProvider
+import com.ahu.ahutong.ui.haptics.rememberAppHapticFeedback
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 import top.yukonga.miuix.kmp.basic.Button as MiuixButton
 import top.yukonga.miuix.kmp.basic.BasicComponent as MiuixBasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonColors as MiuixButtonColors
@@ -134,7 +139,6 @@ import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults as MiuixProgressInd
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
-import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.DropdownImpl
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet as MiuixSuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -221,7 +225,7 @@ fun AppCard(
         shape = shape,
         contentPadding = contentPadding,
         enabled = enabled,
-        onClick = onClick,
+        onClick = onClick?.let { rememberHapticAction(action = it) },
         backdrop = backdrop,
         content = content
     )
@@ -246,13 +250,7 @@ internal fun MiuixCardImpl(
     val cardColors = MiuixCardDefaults.defaultColors().let { colors ->
         if (wallpaperEnabled) colors.copy(color = Color.Transparent) else colors
     }
-    val haptic = LocalHapticFeedback.current
-    val action = onClick?.let { click ->
-        {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            click()
-        }
-    }
+    val action = onClick
     if (action == null || !enabled) {
         MiuixCard(
             modifier = cardModifier,
@@ -365,7 +363,7 @@ fun AppHeaderIconButton(
     tint: Color? = null
 ) {
     LocalComponentPack.current.HeaderIconButton(
-        imageVector, miuixImageVector, contentDescription, onClick, modifier, backdrop, tint
+        imageVector, miuixImageVector, contentDescription, rememberHapticAction(action = onClick), modifier, backdrop, tint
     )
 }
 
@@ -414,12 +412,8 @@ internal fun MiuixHeaderIconButtonImpl(
     modifier: Modifier,
     tint: Color?
 ) {
-    val haptic = LocalHapticFeedback.current
     MiuixIconButton(
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onClick()
-        },
+        onClick = onClick,
         modifier = modifier.size(AppComponentTokens.TouchTarget).let { iconModifier ->
             if (LocalAppBackground.current != null) iconModifier.appWallpaperFrostedSurface(
                 AppComponentTokens.ControlShape,
@@ -714,7 +708,7 @@ fun AppFloatingActionButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    LocalComponentPack.current.FloatingActionButton(onClick, modifier, content)
+    LocalComponentPack.current.FloatingActionButton(rememberHapticAction(action = onClick), modifier, content)
 }
 
 @Composable
@@ -1075,7 +1069,7 @@ fun AppButton(
     variant: AppButtonVariant = AppButtonVariant.Primary,
     content: @Composable RowScope.() -> Unit
 ) {
-    LocalComponentPack.current.Button(onClick, modifier, enabled, variant, content)
+    LocalComponentPack.current.Button(rememberHapticAction(action = onClick), modifier, enabled, variant, content)
 }
 
 @Composable
@@ -1087,7 +1081,6 @@ internal fun MiuixButtonImpl(
     content: @Composable RowScope.() -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val haptic = LocalHapticFeedback.current
     val miuixColor = when (variant) {
         AppButtonVariant.Primary -> MiuixTheme.colorScheme.primary
         AppButtonVariant.Secondary -> MiuixTheme.colorScheme.secondaryVariant
@@ -1103,10 +1096,7 @@ internal fun MiuixButtonImpl(
         AppButtonVariant.Destructive -> colors.onError
     }
     MiuixButton(
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onClick()
-        },
+        onClick = onClick,
         modifier = modifier,
         enabled = enabled,
         minHeight = AppComponentTokens.TouchTarget,
@@ -1202,7 +1192,14 @@ fun AppToggle(
     enabled: Boolean = true,
     contentDescription: String? = null
 ) {
-    LocalComponentPack.current.Toggle(checked, onCheckedChange, modifier, enabled, contentDescription)
+    val feedback = rememberAppHapticFeedback()
+    val onChange = onCheckedChange?.let { change ->
+        { selected: Boolean ->
+            if (selected != checked) feedback.perform(if (selected) AppHapticEvent.ToggleOn else AppHapticEvent.ToggleOff)
+            change(selected)
+        }
+    }
+    LocalComponentPack.current.Toggle(checked, onChange, modifier, enabled, contentDescription)
 }
 
 @Composable
@@ -1273,11 +1270,15 @@ fun <T> AppSelectField(
     liquidValueWeight: Float = 1f,
     grouped: Boolean = false
 ) {
+    val feedback = rememberAppHapticFeedback()
     LocalComponentPack.current.SelectField(
         label = label,
         selected = selected,
         options = options,
-        onSelected = onSelected,
+        onSelected = {
+            if (it != selected) feedback.perform(AppHapticEvent.Selection)
+            onSelected(it)
+        },
         modifier = modifier,
         placeholder = placeholder,
         enabled = enabled,
@@ -1332,24 +1333,25 @@ internal fun <T> MiuixSelectFieldImpl(
 }
 
 @Composable
-private fun <T> MiuixDialogSelectField(
+internal fun <T> MiuixDialogSelectField(
     label: String,
     selected: T?,
     options: List<AppSelectOption<T>>,
     onSelected: (T) -> Unit,
     modifier: Modifier,
     enabled: Boolean,
-    insideMargin: PaddingValues
+    insideMargin: PaddingValues,
+    summary: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
     Box(modifier) {
         MiuixBasicComponent(
             title = label,
+            summary = summary,
             insideMargin = insideMargin,
             modifier = Modifier.fillMaxWidth(),
             enabled = enabled && options.isNotEmpty(),
-            onClick = { expanded = true },
+            onClick = rememberHapticAction { expanded = true },
             holdDownState = expanded,
             rightActions = {
                 Text(options.firstOrNull { it.value == selected }?.label.orEmpty(),
@@ -1368,18 +1370,21 @@ private fun <T> MiuixDialogSelectField(
             shape = SmoothRoundedCornerShape(16.dp),
             containerColor = MiuixTheme.colorScheme.surfaceContainer
         ) {
-            options.forEachIndexed { index, option ->
-                DropdownImpl(
-                    text = option.label,
-                    optionSize = options.size,
-                    isSelected = option.value == selected,
-                    index = index,
-                    onSelectedIndexChange = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelected(option.value)
-                        expanded = false
-                    }
-                )
+            AppHapticFeedbackProvider {
+                val popupFeedback = rememberAppHapticFeedback()
+                options.forEachIndexed { index, option ->
+                    DropdownImpl(
+                        text = option.label,
+                        optionSize = options.size,
+                        isSelected = option.value == selected,
+                        index = index,
+                        onSelectedIndexChange = {
+                            if (option.value != selected) popupFeedback.perform(AppHapticEvent.Selection)
+                            onSelected(option.value)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -1456,23 +1461,15 @@ internal fun <T> MiuixSelectField(
     insideMargin: PaddingValues,
     standalone: Boolean
 ) {
-    val optionLabels = remember(options) { options.map(AppSelectOption<T>::label) }
-    val haptic = LocalHapticFeedback.current
     val dropdown: @Composable (Modifier) -> Unit = { dropdownModifier ->
-        SuperDropdown(
-            items = optionLabels,
-            selectedIndex = selectedIndex.coerceAtLeast(0),
-            title = label,
+        MiuixDialogSelectField(
+            label = label,
+            selected = options.getOrNull(selectedIndex)?.value,
+            options = options,
+            onSelected = onSelected,
             modifier = dropdownModifier.fillMaxWidth(),
             insideMargin = insideMargin,
-            enabled = enabled,
-            showValue = selectedIndex >= 0,
-            onSelectedIndexChange = { index ->
-                options.getOrNull(index)?.let { option ->
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onSelected(option.value)
-                }
-            }
+            enabled = enabled
         )
     }
     if (standalone) {
@@ -1584,6 +1581,7 @@ internal fun <T> MaterialSelectField(
             tonalElevation = MenuDefaults.TonalElevation,
             shadowElevation = MenuDefaults.ShadowElevation
         ) {
+            val popupFeedback = rememberAppHapticFeedback()
             options.forEach { option ->
                 val isSelected = option.value == selected
                 DropdownMenuItem(
@@ -1608,6 +1606,7 @@ internal fun <T> MaterialSelectField(
                         if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
                     ),
                     onClick = {
+                        if (!isSelected) popupFeedback.perform(AppHapticEvent.Selection)
                         onSelected(option.value)
                         expanded = false
                     }
@@ -1755,6 +1754,7 @@ internal fun <T> LiquidGlassSelectField(
             popupPositionProvider = popupPositionProvider,
             properties = PopupProperties(focusable = true)
             ) {
+            val popupFeedback = rememberAppHapticFeedback()
             val selectedColor = MaterialTheme.colorScheme.primary
             AnimatedVisibility(
                 visibleState = popupVisibility,
@@ -1804,7 +1804,7 @@ internal fun <T> LiquidGlassSelectField(
                                     indication = null,
                                     role = Role.Button
                                 ) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (!isSelected) popupFeedback.perform(AppHapticEvent.Selection)
                                     onSelected(option.value)
                                     expanded = false
                                 }
@@ -1949,6 +1949,7 @@ internal fun <T> LiquidGlassDropdownPopup(
             popupPositionProvider = positionProvider,
             properties = PopupProperties(focusable = true)
         ) {
+            val popupFeedback = rememberAppHapticFeedback()
             val selectedColor = MaterialTheme.colorScheme.primary
             AnimatedVisibility(
                 visibleState = visibility,
@@ -1999,7 +2000,7 @@ internal fun <T> LiquidGlassDropdownPopup(
                                     indication = null,
                                     role = Role.Button
                                 ) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (!isSelected) popupFeedback.perform(AppHapticEvent.Selection)
                                     onSelected(option.value)
                                     onDismiss()
                                 }
@@ -2069,7 +2070,8 @@ fun AppFilterChip(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    LocalComponentPack.current.FilterChip(selected, onClick, label, modifier, enabled)
+    LocalComponentPack.current.FilterChip(selected,
+        rememberHapticAction(AppHapticEvent.Selection, onClick), label, modifier, enabled)
 }
 
 @Composable
@@ -2162,7 +2164,10 @@ fun AppModalBottomSheet(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    LocalComponentPack.current.ModalBottomSheet(title, onDismissRequest, modifier, content)
+    LocalComponentPack.current.ModalBottomSheet(title, onDismissRequest, modifier) {
+        val scope = this
+        AppHapticFeedbackProvider { content(scope) }
+    }
 }
 
 @Composable
@@ -2278,7 +2283,7 @@ internal fun RadiantModalBottomSheetImpl(
                             MaterialTheme.colorScheme.outlineVariant,
                             sheetShape
                         )
-                        .clickable(
+                        .consumeClick(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {}

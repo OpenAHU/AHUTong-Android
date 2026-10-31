@@ -18,7 +18,8 @@ internal class QrAnalyzer(
     private val nanoTime: () -> Long = System::nanoTime,
     private val recognizeAfterNanos: Long? = null,
     /** 命中后是否停止分析。多码候选需要继续扫一小段时间再决定。 */
-    private val stopAfterFirst: Boolean = true
+    private val stopAfterFirst: Boolean = true,
+    private val onAssist: ((QrAssistFrame) -> Unit)? = null
 ) : ImageAnalysis.Analyzer {
 
     private val decoder = QrImageDecoder()
@@ -49,12 +50,27 @@ internal class QrAnalyzer(
             val source = PlanarYUVLuminanceSource(
                 data, width, height, 0, 0, width, height, false
             )
-            val detections = decoder.decodeCandidates(source, tryHarder = analyzedFrames % 4 == 0)
+            val potential = mutableListOf<QrPotentialTarget>()
+            val detections = decoder.decodeCandidates(source, tryHarder = analyzedFrames % 4 == 0,
+                onCandidate = if (onAssist == null) null else { center, size ->
+                    potential += QrPotentialTarget(center, size)
+                })
                 .map { it.rotated(image.imageInfo.rotationDegrees) }
             analyzedFrames = (analyzedFrames + 1) % 4
             if (detections.isNotEmpty()) {
                 onFrame(detections, image)
                 if (stopAfterFirst) emitted.set(true)
+            } else if (onAssist != null) {
+                // Do not retain ImageProxy or its buffer in a queued UI callback.
+                val rotation = image.imageInfo.rotationDegrees
+                val geometry = QrDetection("", potential.map { it.center }, width.toFloat() / height)
+                    .rotated(rotation)
+                val targets = potential.mapIndexed { index, target ->
+                    target.copy(center = geometry.corners[index])
+                }
+                onAssist(QrAssistFrame(now, geometry.aspectRatio,
+                    targets.minByOrNull { kotlin.math.hypot(it.center.x - 0.5f, it.center.y - 0.5f) },
+                    sampleQrLighting(data, width, height)))
             }
             failedFrames = 0
         } catch (_: Exception) {

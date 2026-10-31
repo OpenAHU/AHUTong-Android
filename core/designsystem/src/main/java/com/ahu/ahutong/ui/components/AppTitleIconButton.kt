@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,6 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.core.designsystem.R
 import com.ahu.ahutong.core.designsystem.RefreshState
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 
 /**
  * 标题栏圆形图标按钮（P1 组件）：34dp 圆 + onSurface 6% 底色 + 18dp 图标。
@@ -47,7 +48,7 @@ fun AppTitleIconButton(
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
         contentAlignment = Alignment.Center
     ) {
-        IconButton(onClick = onClick, enabled = enabled && !loading) {
+        IconButton(onClick = rememberHapticAction(action = onClick), enabled = enabled && !loading) {
             when {
                 loading -> AppCircularProgressIndicator(size = 18.dp, strokeWidth = 2.dp)
                 content != null -> content()

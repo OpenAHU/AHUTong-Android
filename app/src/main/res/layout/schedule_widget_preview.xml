@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="176dp"
+    android:background="@drawable/schedule_widget_preview_background"
+    android:orientation="vertical"
+    android:padding="12dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_widget_preview_title"
+            android:textColor="@color/schedule_widget_preview_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/schedule_widget_preview_date"
+            android:textColor="@color/schedule_widget_preview_secondary"
+            android:textSize="12sp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/schedule_widget_preview_refresh"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:text="@string/schedule_widget_preview_refresh"
+            android:textColor="@color/schedule_widget_preview_on_accent"
+            android:textSize="12sp" />
+    </LinearLayout>
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="@string/schedule_widget_preview_fetched"
+        android:textColor="@color/schedule_widget_preview_secondary"
+        android:textSize="10sp" />
+    <include
+        layout="@layout/schedule_widget_preview_courses"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" />
+</LinearLayout>

@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Switch
+import com.ahu.ahutong.ui.haptics.HapticSwitch as Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable

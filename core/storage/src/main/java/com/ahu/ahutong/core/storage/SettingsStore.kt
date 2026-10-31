@@ -49,6 +49,12 @@ interface SettingsStore {
 
     suspend fun setMaterialFloatingBottomBar(value: Boolean) {}
 
+    /** Experimental app haptics are opt-in, independently of the system touch-feedback setting. */
+    val hapticFeedbackEnabled: Flow<Boolean>
+        get() = kotlinx.coroutines.flow.flowOf(false)
+
+    suspend fun setHapticFeedbackEnabled(value: Boolean) {}
+
     val showQRCode: Flow<Boolean>
     suspend fun setShowQRCode(value: Boolean)
 

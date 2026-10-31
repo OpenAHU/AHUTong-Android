@@ -43,6 +43,7 @@ object PreferencesKeys {
     val THEME_COLOR = stringPreferencesKey("theme_color_hex")
     val THEME_MODE = stringPreferencesKey("theme_mode")
     val MATERIAL_FLOATING_BOTTOM_BAR = booleanPreferencesKey("material_floating_bottom_bar")
+    val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey("haptic_feedback_enabled")
     val REPOSITORY_ACCELERATION_SOURCE = stringPreferencesKey("repository_acceleration_source")
     val PERSONALIZATION_ENABLED = booleanPreferencesKey("personalization_enabled")
     val CANTEEN_UPLOAD_CONSENT = booleanPreferencesKey("canteen_upload_consent")
@@ -134,7 +135,8 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
             themeMode = AppThemeMode.fromStorage(
                 startupThemeMirror.getString("theme_mode", null)
             ),
-            slotOverrides = startupThemeMirror.getString("slot_overrides", null).orEmpty()
+            slotOverrides = startupThemeMirror.getString("slot_overrides", null).orEmpty(),
+            hapticFeedbackEnabled = startupThemeMirror.getBoolean("haptic_feedback_enabled", false)
         )
     }.onFailure { error ->
         Log.w(TAG, "startup theme mirror is unreadable; using DataStore defaults", error)
@@ -178,6 +180,14 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
 
     override val materialFloatingBottomBar: Flow<Boolean> =
         preferences { prefs -> prefs[PreferencesKeys.MATERIAL_FLOATING_BOTTOM_BAR] ?: false }
+
+    override val hapticFeedbackEnabled: Flow<Boolean> =
+        preferences { prefs -> prefs[PreferencesKeys.HAPTIC_FEEDBACK_ENABLED] ?: false }
+
+    override suspend fun setHapticFeedbackEnabled(value: Boolean) {
+        editPreferences { it[PreferencesKeys.HAPTIC_FEEDBACK_ENABLED] = value }
+        updateStartupThemeMirror { putBoolean("haptic_feedback_enabled", value) }
+    }
 
     override suspend fun setMaterialFloatingBottomBar(value: Boolean) {
         editPreferences { it[PreferencesKeys.MATERIAL_FLOATING_BOTTOM_BAR] = value }

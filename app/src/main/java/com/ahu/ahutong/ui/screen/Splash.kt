@@ -10,12 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.ahu.ahutong.ui.haptics.HapticAlertDialog as AlertDialog
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
+import com.ahu.ahutong.ui.haptics.HapticFilledTonalButton as FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue

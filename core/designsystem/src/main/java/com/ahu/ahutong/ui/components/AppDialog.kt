@@ -1,7 +1,7 @@
 package com.ahu.ahutong.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +18,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import com.ahu.ahutong.ui.haptics.HapticAlertDialog as AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,11 +36,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.ahu.ahutong.ui.haptics.HapticDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.theme.pack.DialogStyle
 import com.ahu.ahutong.ui.theme.pack.LocalComponentPack
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.rememberHapticAction
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -181,7 +183,7 @@ fun AppDialog(
 @Composable
 private fun MaterialDialogAction(action: AppDialogAction) {
     TextButton(
-        onClick = action.onClick,
+        onClick = rememberHapticAction(action.hapticEvent(), action.onClick),
         enabled = action.enabled,
         colors = ButtonDefaults.textButtonColors(
             contentColor = if (action.style == AppDialogActionStyle.Danger) {
@@ -194,7 +196,7 @@ private fun MaterialDialogAction(action: AppDialogAction) {
 @Composable
 private fun MiuixDialogAction(action: AppDialogAction, modifier: Modifier) {
     MiuixButtonImpl(
-        onClick = action.onClick,
+        onClick = rememberHapticAction(action.hapticEvent(), action.onClick),
         modifier = modifier,
         enabled = action.enabled,
         variant = when (action.style) {
@@ -344,7 +346,7 @@ private fun RowScope.AppDialogCapsuleButton(action: AppDialogAction) {
             .height(40.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(if (action.enabled) container else scheme.onSurface.copy(alpha = 0.05f))
-            .clickable(enabled = action.enabled, onClick = action.onClick),
+            .clickable(enabled = action.enabled, onClick = rememberHapticAction(action.hapticEvent(), action.onClick)),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -355,3 +357,6 @@ private fun RowScope.AppDialogCapsuleButton(action: AppDialogAction) {
         )
     }
 }
+
+private fun AppDialogAction.hapticEvent(): AppHapticEvent =
+    if (style == AppDialogActionStyle.Primary) AppHapticEvent.Confirm else AppHapticEvent.Click

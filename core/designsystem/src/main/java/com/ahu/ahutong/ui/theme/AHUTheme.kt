@@ -24,6 +24,8 @@ import androidx.compose.ui.res.colorResource
 import androidx.core.view.WindowCompat
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
+import com.ahu.ahutong.ui.haptics.AppHapticFeedbackProvider
+import com.ahu.ahutong.ui.haptics.LocalAppHapticsEnabled
 import com.ahu.ahutong.ui.theme.pack.LocalComponentPack
 import com.ahu.ahutong.ui.theme.pack.componentPack
 import com.ahu.ahutong.ui.theme.pack.mixing
@@ -53,7 +55,8 @@ data class AhuThemeConfig(
     val themeMode: AppThemeMode,
     val isPreferenceReady: Boolean = true,
     /** Theme Park：组件槽位覆盖（槽位 → 实现来源），由宿主从设置读入。 */
-    val componentSlotOverrides: Map<com.ahu.ahutong.ui.theme.pack.ComponentSlotId, com.ahu.ahutong.ui.theme.pack.SlotSource> = emptyMap()
+    val componentSlotOverrides: Map<com.ahu.ahutong.ui.theme.pack.ComponentSlotId, com.ahu.ahutong.ui.theme.pack.SlotSource> = emptyMap(),
+    val hapticFeedbackEnabled: Boolean = false
 )
 
 @Composable
@@ -198,7 +201,8 @@ fun AHUTheme(config: AhuThemeConfig, content: @Composable () -> Unit) {
                     LocalAppUiTheme provides appUiTheme,
                     LocalIsLiquidGlassEnabled provides liquidGlassTokens.enabled,
                     LocalLiquidGlassTokens provides liquidGlassTokens,
-                    LocalComponentPack provides componentPack
+                    LocalComponentPack provides componentPack,
+                    LocalAppHapticsEnabled provides config.hapticFeedbackEnabled
                 ) {
                     // Keep the root node stable so switching UI libraries never recreates the
                     // navigation subtree. The transparent scaffold is also Miuix's popup host.
@@ -206,7 +210,7 @@ fun AHUTheme(config: AhuThemeConfig, content: @Composable () -> Unit) {
                         modifier = androidx.compose.ui.Modifier.fillMaxSize(),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0, 0, 0, 0)
-                    ) { content() }
+                    ) { AppHapticFeedbackProvider(content) }
                 }
             }
         }

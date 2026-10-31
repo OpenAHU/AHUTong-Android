@@ -13,6 +13,7 @@ data class StartupThemePreferences(
     val themeColor: String?,
     val themeMode: AppThemeMode,
     /** Theme Park 组件槽位覆盖（序列化字符串，解析在 core/designsystem 的 ComponentSlots）。 */
-    val slotOverrides: String = ""
+    val slotOverrides: String = "",
+    val hapticFeedbackEnabled: Boolean = false
 )
 

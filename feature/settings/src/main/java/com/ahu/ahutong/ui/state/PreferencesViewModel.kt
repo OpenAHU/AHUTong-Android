@@ -62,6 +62,9 @@ class PreferencesViewModel @Inject constructor(
     private val _materialFloatingBottomBar = MutableStateFlow(false)
     val materialFloatingBottomBar: StateFlow<Boolean> = _materialFloatingBottomBar.asStateFlow()
 
+    private val _hapticFeedbackEnabled = MutableStateFlow(false)
+    val hapticFeedbackEnabled: StateFlow<Boolean> = _hapticFeedbackEnabled.asStateFlow()
+
     private val _predictivePrefetchEnabled = MutableStateFlow<Boolean?>(null)
     val predictivePrefetchEnabled: StateFlow<Boolean?> = _predictivePrefetchEnabled.asStateFlow()
 
@@ -150,6 +153,7 @@ class PreferencesViewModel @Inject constructor(
         viewModelScope.launch { settings.personalizationEnabled.collect { _personalizationEnabled.value = it } }
         viewModelScope.launch { settings.canteenUploadConsent.collect { _canteenUploadConsent.value = it } }
         viewModelScope.launch { settings.materialFloatingBottomBar.collect { _materialFloatingBottomBar.value = it } }
+        viewModelScope.launch { settings.hapticFeedbackEnabled.collect { _hapticFeedbackEnabled.value = it } }
         viewModelScope.launch { settings.predictivePrefetchEnabled.collect { _predictivePrefetchEnabled.value = it } }
         viewModelScope.launch { settings.wifiOnlyPrefetch.collect { _wifiOnlyPrefetch.value = it } }
         viewModelScope.launch { settings.behaviorRetentionDays.collect { _behaviorRetentionDays.value = it } }
@@ -231,6 +235,10 @@ class PreferencesViewModel @Inject constructor(
         writeSetting {
             settings.setMaterialFloatingBottomBar(value)
         }
+    }
+
+    fun setHapticFeedbackEnabled(value: Boolean) {
+        writeSetting { settings.setHapticFeedbackEnabled(value) }
     }
 
     /**

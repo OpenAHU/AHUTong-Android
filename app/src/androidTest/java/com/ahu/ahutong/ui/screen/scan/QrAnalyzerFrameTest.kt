@@ -19,6 +19,25 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class QrAnalyzerFrameTest {
     @Test
+    fun failedDarkFramesReleaseTheirBuffersAndSendOnlyAggregateAssistData() {
+        val closed = AtomicInteger()
+        val feedback = mutableListOf<QrAssistFrame>()
+        var now = 1_000_000_000L
+        val analyzer = QrAnalyzer(onFrame = { _, _ -> throw AssertionError("Blank frame decoded") },
+            onFailure = { throw AssertionError("Dark frames are not camera failures") },
+            nanoTime = { now }, onAssist = { feedback += it })
+        repeat(3) {
+            analyzer.analyze(frame(ByteArray(64 * 48) { 12 }, 64, 48, closed, rotation = 90))
+            now += 50_000_000L
+        }
+        assertEquals(3, closed.get())
+        assertEquals(3, feedback.size)
+        assertEquals(48f / 64, feedback.first().aspectRatio, 0.001f)
+        assertEquals(QrLuminanceStats(12f, 1f, 0f), feedback.first().lighting)
+        assertEquals(null, feedback.first().target)
+    }
+
+    @Test
     fun rescanIgnoresAndClosesFramesUntilOneSecondHasElapsed() {
         val matrix = QRCodeWriter().encode("8661234567", BarcodeFormat.QR_CODE, 256, 256)
         val pixels = ByteArray(256 * 256) { if (matrix[it % 256, it / 256]) 18 else 235.toByte() }

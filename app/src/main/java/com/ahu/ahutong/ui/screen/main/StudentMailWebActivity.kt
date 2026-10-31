@@ -196,7 +196,8 @@ class StudentMailWebActivity : ComponentActivity() {
         setContent {
             AHUTheme(AhuThemeConfig(presentation?.appUiTheme ?: AppUiTheme.RADIANT,
                 presentation?.themeColor, presentation?.themeMode ?: AppThemeMode.FOLLOW_SYSTEM,
-                componentSlotOverrides = parseSlotOverrides(presentation?.slotOverrides.orEmpty()))) {
+                componentSlotOverrides = parseSlotOverrides(presentation?.slotOverrides.orEmpty()),
+                hapticFeedbackEnabled = presentation?.hapticFeedbackEnabled ?: false)) {
                 StudentMailWebPage(view, onBack = { finish() }, onFit = {
                     if (validLease() && trustedMailUrl(view.url.orEmpty())) StudentMailWebViewport.fit(view)
                 })

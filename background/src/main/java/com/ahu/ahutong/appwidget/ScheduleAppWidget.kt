@@ -154,7 +154,8 @@ private fun ScheduleWidgetContent(
     unavailableMessage: String?,
     notice: String?,
     keyColor: Color,
-    holiday: ScheduleHoliday?
+    holiday: ScheduleHoliday?,
+    interactive: Boolean = true
 ) {
     val openAppAction = actionStartActivity(openAppIntent)
     val dateText = SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(now)
@@ -178,7 +179,7 @@ private fun ScheduleWidgetContent(
                 .fillMaxSize()
                 .background(backgroundColor)
                 .cornerRadius(28.dp)
-                .clickable(openAppAction)
+                .let { if (interactive) it.clickable(openAppAction) else it }
                 .padding(12.dp)
         ) {
             Column(
@@ -211,7 +212,7 @@ private fun ScheduleWidgetContent(
                         modifier = GlanceModifier
                             .cornerRadius(12.dp)
                             .background(onColor)
-                            .clickable(actionRunCallback<RefreshAction>())
+                            .let { if (interactive) it.clickable(actionRunCallback<RefreshAction>()) else it }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         style = TextStyle(
                             color = cp(100.n1, 20.n1),
@@ -338,6 +339,38 @@ private fun ScheduleWidgetContent(
             }
         }
     }
+}
+
+/** A fixed example rendered by the desktop widget itself, without account reads or click actions. */
+@Composable
+fun ScheduleWidgetPreviewContent() {
+    val now = java.util.GregorianCalendar(2026, java.util.Calendar.OCTOBER, 26, 9, 0).time
+    val courses = listOf(
+        Course().apply {
+            name = "高等数学"
+            location = "博学北楼A201"
+            setStartTime("1")
+            setLength("2")
+        },
+        Course().apply {
+            name = "大学英语"
+            location = "博学南楼B102"
+            setStartTime("6")
+            setLength("2")
+        }
+    )
+    ScheduleWidgetContent(
+        openAppIntent = Intent(),
+        todayCourses = courses,
+        currentMinutes = 9 * 60,
+        now = now,
+        fetchedAt = now.time - 60 * 60 * 1000L,
+        unavailableMessage = null,
+        notice = null,
+        keyColor = resolveWidgetKeyColor(androidx.glance.LocalContext.current),
+        holiday = null,
+        interactive = false
+    )
 }
 
 private val LOCATION_SHORTEN_MAP = mapOf(

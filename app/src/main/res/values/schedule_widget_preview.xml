@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="schedule_widget_preview_background">#FFFFFF</color>
+    <color name="schedule_widget_preview_primary">#191C1E</color>
+    <color name="schedule_widget_preview_secondary">#747779</color>
+    <color name="schedule_widget_preview_off">#A9ACAE</color>
+    <color name="schedule_widget_preview_accent">#007FAC</color>
+    <color name="schedule_widget_preview_active">#C6E7FF</color>
+    <color name="schedule_widget_preview_on_accent">#FFFFFF</color>
+    <string name="schedule_widget_preview_title" translatable="false">还剩 2 节</string>
+    <string name="schedule_widget_preview_date" translatable="false">10-26 / 周一</string>
+    <string name="schedule_widget_preview_fetched" translatable="false">获取于 10-26 08:00</string>
+    <string name="schedule_widget_preview_refresh" translatable="false">刷新</string>
+    <string name="schedule_widget_preview_course_one" translatable="false">高等数学</string>
+    <string name="schedule_widget_preview_detail_one" translatable="false">1-2节　博北A201</string>
+    <string name="schedule_widget_preview_course_two" translatable="false">大学英语</string>
+    <string name="schedule_widget_preview_detail_two" translatable="false">6-7节　博南B102</string>
+</resources>

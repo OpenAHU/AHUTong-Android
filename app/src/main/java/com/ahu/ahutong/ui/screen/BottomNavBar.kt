@@ -30,7 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
-import androidx.compose.foundation.selection.selectable
+import com.ahu.ahutong.ui.haptics.hapticSelectable as selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -77,6 +77,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.components.LiquidBottomTab
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.rememberAppHapticFeedback
 import com.ahu.ahutong.ui.components.LiquidBottomTabs
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.LocalAppBackground
@@ -198,7 +200,9 @@ private fun BoxScope.RadiantBottomNavBar(
         .filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it.route) }
     if (selectedRoute !in destinations.map { it.route }) return
 
+    val feedback = rememberAppHapticFeedback()
     fun select(route: String) {
+        if (route != selectedRoute || route == "xuexiaotong") feedback.perform(AppHapticEvent.Selection)
         if (route == "xuexiaotong" && route == selectedRoute) {
             onDismissGuide()
             XuexiaotongDockState.toggle()
@@ -220,7 +224,7 @@ private fun BoxScope.RadiantBottomNavBar(
                 selectedTabIndex = {
                     destinations.indexOfFirst { it.route == selectedRoute }.coerceAtLeast(0)
                 },
-                onTabSelected = { onDestinationSelected(destinations[it].route) },
+                onTabSelected = { select(destinations[it].route) },
                 onCurrentTabTapped = { selectedRoute?.let(::select) },
                 backdrop = backdrop,
                 tabsCount = destinations.size,
@@ -416,7 +420,9 @@ private fun BoxScope.ClassicBottomNavBar(
         }
     }.filter { com.ahu.ahutong.data.dao.AHUCache.canOpenRoute(it.route) }
 
+    val feedback = rememberAppHapticFeedback()
     fun select(route: String) {
+        if (route != selectedRoute || route == "xuexiaotong") feedback.perform(AppHapticEvent.Selection)
         if (route == "xuexiaotong" && route == selectedRoute) {
             onDismissGuide()
             XuexiaotongDockState.toggle()

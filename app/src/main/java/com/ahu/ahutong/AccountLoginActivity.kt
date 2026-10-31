@@ -59,6 +59,7 @@ class AccountLoginActivity : ComponentActivity() {
             val uiTheme by preferencesViewModel.appUiTheme.collectAsState()
             val themeColor by preferencesViewModel.themeColor.collectAsState()
             val themeMode by preferencesViewModel.appThemeMode.collectAsState()
+            val hapticFeedbackEnabled by preferencesViewModel.hapticFeedbackEnabled.collectAsState()
             val themeReady by preferencesViewModel.isUiThemePreferenceReady.collectAsState()
             val overrides by preferencesViewModel.componentSlotOverrides.collectAsState()
             AHUTheme(AhuThemeConfig(
@@ -66,7 +67,8 @@ class AccountLoginActivity : ComponentActivity() {
                 themeColorHex = themeColor,
                 themeMode = themeMode,
                 isPreferenceReady = themeReady,
-                componentSlotOverrides = overrides
+                componentSlotOverrides = overrides,
+                hapticFeedbackEnabled = hapticFeedbackEnabled
             )) {
                 if (ready) {
                     Login(

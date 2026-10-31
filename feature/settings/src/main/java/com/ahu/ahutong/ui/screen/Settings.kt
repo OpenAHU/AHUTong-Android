@@ -24,10 +24,10 @@ import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Update
-import androidx.compose.material3.AlertDialog
+import com.ahu.ahutong.ui.haptics.HapticAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue

@@ -10,7 +10,7 @@ import android.text.method.LinkMovementMethod
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,7 +44,7 @@ import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.AppTitleIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -65,7 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
+import com.ahu.ahutong.ui.haptics.HapticDialog as Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.activity.ComponentActivity

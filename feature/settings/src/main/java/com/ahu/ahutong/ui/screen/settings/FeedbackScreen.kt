@@ -10,16 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.toggleable
+import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material3.Checkbox
+import com.ahu.ahutong.ui.haptics.HapticCheckbox as Checkbox
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.rememberAppHapticFeedback
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -206,11 +208,15 @@ private fun FeedbackLogChoice(
     enabled: Boolean,
     onSelectedChange: (Boolean) -> Unit
 ) {
+    val feedback = rememberAppHapticFeedback()
     Row(
         modifier = Modifier.fillMaxWidth()
             .semantics { contentDescription = title }
             .toggleable(value = selected, enabled = enabled, role = Role.Checkbox,
-                onValueChange = onSelectedChange)
+                onValueChange = {
+                    if (it != selected) feedback.perform(AppHapticEvent.Selection)
+                    onSelectedChange(it)
+                })
             .heightIn(min = if (description == null) 64.dp else 80.dp)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),

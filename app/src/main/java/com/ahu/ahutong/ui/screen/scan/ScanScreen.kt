@@ -64,7 +64,7 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -168,6 +168,7 @@ fun ScanScreen(onBack: () -> Unit, onResult: (String) -> QrRouter.Outcome) {
     var candidates by remember { mutableStateOf<List<QrDetection>>(emptyList()) }
     var choosingTarget by remember { mutableStateOf(false) }
     var zoomRatio by remember { mutableFloatStateOf(1f) }
+    var manualZoomGeneration by remember { mutableIntStateOf(0) }
     var zoomState by remember { mutableStateOf(ScannerZoomState()) }
     var recognizeAfterNanos by remember { mutableStateOf<Long?>(null) }
 
@@ -307,6 +308,7 @@ fun ScanScreen(onBack: () -> Unit, onResult: (String) -> QrRouter.Outcome) {
                 ScannerCameraPreview(
                     recognizeAfterNanos = recognizeAfterNanos,
                     zoomRatio = zoomRatio,
+                    manualZoomGeneration = manualZoomGeneration,
                     onZoomRatioChange = { zoomRatio = it },
                     onZoomState = { zoomState = it },
                     torchEnabled = torchEnabled,
@@ -413,7 +415,10 @@ fun ScanScreen(onBack: () -> Unit, onResult: (String) -> QrRouter.Outcome) {
             }
             if (result == null) {
                 if (granted && previewSnapshot == null && !cameraError && !readingPhoto && !pickerOpen) {
-                    ScannerZoomControls(zoomState, onZoomRatioChange = { zoomRatio = it })
+                    ScannerZoomControls(zoomState, onZoomRatioChange = {
+                        manualZoomGeneration++
+                        zoomRatio = it
+                    })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(48.dp)) {
                     ScannerControl(
@@ -575,6 +580,7 @@ private fun ScannerFrame(
 @Composable
 private fun ScannerCameraPreview(
     zoomRatio: Float,
+    manualZoomGeneration: Int,
     onZoomRatioChange: (Float) -> Unit,
     onZoomState: (ScannerZoomState) -> Unit,
     torchEnabled: Boolean,
@@ -605,6 +611,12 @@ private fun ScannerCameraPreview(
             keepScreenOn = true
         }
     }
+    var assistSession by remember(lifecycleOwner, previewView) {
+        mutableStateOf(QrCameraSession(ContextCompat.getMainExecutor(context)))
+    }
+    LaunchedEffect(manualZoomGeneration) {
+        if (manualZoomGeneration > 0) assistSession.onManualInteraction(zoomRatio)
+    }
 
     DisposableEffect(lifecycleOwner, previewView) {
         val executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "qr-analysis") }
@@ -629,18 +641,37 @@ private fun ScannerCameraPreview(
                 currentOnZoomState(ScannerZoomState(state.zoomRatio, state.minZoomRatio, state.maxZoomRatio))
             }
         }
-        val analyzer = QrAnalyzer(
-            onFailure = { mainExecutor.execute { if (!disposed) currentOnError() } },
-            recognizeAfterNanos = recognizeAfterNanos,
-            onFrame = { found, image ->
-                val snapshot = freezeQrFrame(image)
-                mainExecutor.execute {
-                    if (!disposed && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                        currentOnFrozenFrame(found, snapshot)
-                    } else snapshot.recycle()
+        fun newAnalyzer(bindingId: Int): QrAnalyzer {
+            val session = assistSession
+            return QrAnalyzer(
+                onFailure = {
+                    mainExecutor.execute { if (!disposed && cameraBindingId == bindingId) currentOnError() }
+                },
+                recognizeAfterNanos = recognizeAfterNanos,
+                onAssist = { frame ->
+                    mainExecutor.execute {
+                        if (!disposed && cameraBindingId == bindingId &&
+                            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                            camera?.let { active ->
+                                session.apply(frame, active.cameraInfo, active.cameraControl, previewView) {
+                                    currentOnZoomRatioChange(it)
+                                }
+                            }
+                        }
+                    }
+                },
+                onFrame = { found, image ->
+                    val snapshot = freezeQrFrame(image)
+                    mainExecutor.execute {
+                        if (!disposed && cameraBindingId == bindingId &&
+                            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                            session.close(camera?.cameraInfo, camera?.cameraControl)?.let { currentOnZoomRatioChange(it) }
+                            currentOnFrozenFrame(found, snapshot)
+                        } else snapshot.recycle()
+                    }
                 }
-            }
-        )
+            )
+        }
         var boundSize = IntSize.Zero
         fun bindWhenReady() {
             val cameraProvider = provider ?: return
@@ -650,13 +681,17 @@ private fun ScannerCameraPreview(
             try {
                 camera?.cameraInfo?.cameraState?.removeObserver(stateObserver)
                 camera?.cameraInfo?.zoomState?.removeObserver(zoomObserver)
-                if (boundSize != IntSize.Zero) cameraProvider.unbind(preview, analysis)
+                if (boundSize != IntSize.Zero) {
+                    assistSession.close(camera?.cameraInfo, camera?.cameraControl)?.let { currentOnZoomRatioChange(it) }
+                    assistSession = QrCameraSession(mainExecutor)
+                    cameraProvider.unbind(preview, analysis)
+                }
                 val rotation = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
                 preview.targetRotation = rotation
                 analysis.targetRotation = rotation
                 val useCases = UseCaseGroup.Builder().setViewPort(viewport)
                     .addUseCase(preview).addUseCase(analysis).build()
-                analysis.setAnalyzer(executor, analyzer)
+                analysis.setAnalyzer(executor, newAnalyzer(cameraBindingId + 1))
                 val boundCamera = cameraProvider.bindToLifecycle(
                     lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, useCases
                 )
@@ -688,6 +723,7 @@ private fun ScannerCameraPreview(
             camera?.cameraInfo?.cameraState?.removeObserver(stateObserver)
             camera?.cameraInfo?.zoomState?.removeObserver(zoomObserver)
             try { camera?.cameraControl?.enableTorch(false) } catch (_: Exception) { }
+            assistSession.close(camera?.cameraInfo, camera?.cameraControl)?.let { currentOnZoomRatioChange(it) }
             camera = null
             analysis.clearAnalyzer()
             try { provider?.unbind(preview, analysis) } catch (_: Exception) { }
@@ -747,6 +783,7 @@ private fun ScannerCameraPreview(
         modifier = modifier.pointerInput(camera) {
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false)
+                assistSession.onManualInteraction(currentZoomRatio)
                 var gestureRatio = currentZoomRatio
                 while (true) {
                     val event = awaitPointerEvent()
@@ -756,6 +793,7 @@ private fun ScannerCameraPreview(
                         if (state != null) {
                             val zoom = ScannerZoomState(gestureRatio, state.minZoomRatio, state.maxZoomRatio)
                             gestureRatio = zoom.scaledBy(factor)
+                            assistSession.onManualInteraction(gestureRatio)
                             currentOnZoomRatioChange(gestureRatio)
                             event.changes.forEach { it.consume() }
                         }
@@ -767,6 +805,7 @@ private fun ScannerCameraPreview(
             detectTapGestures { point ->
                 try {
                     currentOnFocus(point)
+                    assistSession.onManualInteraction(currentZoomRatio)
                     val meteringPoint = previewView.meteringPointFactory.createPoint(point.x, point.y)
                     camera?.cameraControl?.startFocusAndMetering(
                         FocusMeteringAction.Builder(meteringPoint)

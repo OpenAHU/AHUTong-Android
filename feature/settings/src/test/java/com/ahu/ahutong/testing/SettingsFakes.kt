@@ -33,6 +33,7 @@ class FakeSettingsStore : SettingsStore {
     override val themeColor = MutableStateFlow<String?>(null)
     override val themeMode = MutableStateFlow(AppThemeMode.FOLLOW_SYSTEM)
     override val materialFloatingBottomBar = MutableStateFlow(false)
+    override val hapticFeedbackEnabled = MutableStateFlow(false)
     override val showQRCode = MutableStateFlow(false)
     override val isShowAllCourse = MutableStateFlow(false)
     override val useBuiltInSecurePasswordKeyboard = MutableStateFlow(true)
@@ -73,6 +74,8 @@ class FakeSettingsStore : SettingsStore {
     override suspend fun setMaterialFloatingBottomBar(value: Boolean) {
         materialFloatingBottomBar.value = value
     }
+
+    override suspend fun setHapticFeedbackEnabled(value: Boolean) { hapticFeedbackEnabled.value = value }
 
     override suspend fun setShowQRCode(value: Boolean) { showQRCode.value = value }
 
