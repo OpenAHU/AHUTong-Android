@@ -136,6 +136,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         initializeActivityResultLauncher()
         if (intent?.data != null) behaviorRuntime.markNextNavigationSource(ActionSource.DEEPLINK)
+        ShortcutRoutes.publish(intent?.getStringExtra(ShortcutRoutes.EXTRA_ROUTE))
+        // 消费掉 extra：Activity 重建时不能把同一次快捷方式再走一遍
+        intent?.removeExtra(ShortcutRoutes.EXTRA_ROUTE)
 
         setContent {
             val appUiTheme by preferencesViewModel.appUiTheme.collectAsState()
@@ -336,6 +339,8 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.data != null) behaviorRuntime.markNextNavigationSource(ActionSource.DEEPLINK)
+        ShortcutRoutes.publish(intent.getStringExtra(ShortcutRoutes.EXTRA_ROUTE))
+        intent.removeExtra(ShortcutRoutes.EXTRA_ROUTE)
         handleCampusNoticeIntent(intent)
     }
 

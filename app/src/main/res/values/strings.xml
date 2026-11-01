@@ -93,4 +93,12 @@
     <string name="lost_found">失物招领</string>
     <string name="repository">学习资料</string>
     <string name="repository_downloads">已下载</string>
+    <string name="shortcut_camera_short">扫一扫</string>
+    <string name="shortcut_camera_long">扫一扫</string>
+    <string name="shortcut_schedule_short">课表</string>
+    <string name="shortcut_schedule_long">课表</string>
+    <string name="shortcut_card_short">校园卡</string>
+    <string name="shortcut_card_long">校园卡</string>
+    <string name="shortcut_electricity_short">电费充值</string>
+    <string name="shortcut_electricity_long">电费充值</string>
 </resources>

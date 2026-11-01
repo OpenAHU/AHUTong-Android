@@ -305,6 +305,36 @@ fun Main(
 
     NormalizePreferencesParent(navController, currentRoute, appUiTheme)
 
+    // 启动器静态快捷方式：等登录门禁放行且已离开 splash/login 再落地
+    val pendingShortcutRoute by com.ahu.ahutong.ShortcutRoutes.pending.collectAsState()
+    LaunchedEffect(pendingShortcutRoute, canUseBusinessPages, currentRoute) {
+        val target = pendingShortcutRoute ?: return@LaunchedEffect
+        if (!canUseBusinessPages) return@LaunchedEffect
+        if (currentRoute == null || currentRoute == "splash" || currentRoute == "login") {
+            return@LaunchedEffect
+        }
+        when (target) {
+            "schedule" -> selectPrimaryDestination("schedule")
+            // 校园卡：回主页并展开卡片的付款码，而不是进充值页
+            "campus_card" -> {
+                paymentQrCommands.publish(
+                    "shortcut_campus_card",
+                    "shortcut_campus_card",
+                    ActionSource.USER_PREFERENCE
+                )
+                behaviorRuntime.suppressNextRoute("home")
+                if (currentRoute != "home") {
+                    navController.navigate("home") {
+                        popUpTo("home") { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+            }
+            else -> navController.navigate(target) { launchSingleTop = true }
+        }
+        com.ahu.ahutong.ShortcutRoutes.consume(target)
+    }
+
     val navigationSnapshot = NavigationSnapshot(
         route = effectiveRoute,
         entryId = currentBackStackEntry?.id,

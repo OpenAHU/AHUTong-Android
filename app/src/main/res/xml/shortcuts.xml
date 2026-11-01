@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_nav_camera"
+        android:shortcutId="camera"
+        android:shortcutLongLabel="@string/shortcut_camera_long"
+        android:shortcutShortLabel="@string/shortcut_camera_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.ahu.ahutong.MainActivity"
+            android:targetPackage="com.ahu.ahutong">
+            <extra
+                android:name="com.ahu.ahutong.extra.SHORTCUT_ROUTE"
+                android:value="camera" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_nav_schedule"
+        android:shortcutId="schedule"
+        android:shortcutLongLabel="@string/shortcut_schedule_long"
+        android:shortcutShortLabel="@string/shortcut_schedule_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.ahu.ahutong.MainActivity"
+            android:targetPackage="com.ahu.ahutong">
+            <extra
+                android:name="com.ahu.ahutong.extra.SHORTCUT_ROUTE"
+                android:value="schedule" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_card_billing"
+        android:shortcutId="campus_card"
+        android:shortcutLongLabel="@string/shortcut_card_long"
+        android:shortcutShortLabel="@string/shortcut_card_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.ahu.ahutong.MainActivity"
+            android:targetPackage="com.ahu.ahutong">
+            <extra
+                android:name="com.ahu.ahutong.extra.SHORTCUT_ROUTE"
+                android:value="campus_card" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_electricity_pay"
+        android:shortcutId="electricity"
+        android:shortcutLongLabel="@string/shortcut_electricity_long"
+        android:shortcutShortLabel="@string/shortcut_electricity_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.ahu.ahutong.MainActivity"
+            android:targetPackage="com.ahu.ahutong">
+            <extra
+                android:name="com.ahu.ahutong.extra.SHORTCUT_ROUTE"
+                android:value="electricity_pay" />
+        </intent>
+    </shortcut>
+</shortcuts>
