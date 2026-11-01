@@ -76,10 +76,10 @@ class QrRouterTest {
     }
 
     @Test
-    fun rejectsTenCharCouponInsteadOfTreatingAsPlate() {
-        // 手册里的宽松式 ^[0-9A-Z]{10}$ 会命中它；收紧成前缀白名单后必须不认
-        assertEquals(QrRouter.Kind.Unknown, QrRouter.classify("AB12CD34EF"))
-        assertEquals(QrRouter.Kind.Unknown, QrRouter.classify("8611234567"))
+    fun treatsAnyTenCharUpperAlnumAsPlate() {
+        // 按手册的宽松式：老车（非 866/867/868/870 前缀）必须也能识别；误判由手册接受
+        assertEquals(QrRouter.Kind.MeituanBike, QrRouter.classify("8611234567"))
+        assertEquals(QrRouter.Kind.MeituanBike, QrRouter.classify("AB12CD34EF"))
     }
 
     @Test

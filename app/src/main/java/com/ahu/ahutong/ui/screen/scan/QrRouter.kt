@@ -32,10 +32,11 @@ object QrRouter {
     private const val WEIXIN_SCAN_TYPE = "launch_type_scan_qrcode"
 
     /**
-     * 美团单车「纯车牌」分支。手册里的宽松式 `^[0-9A-Z]{10}$` 会命中任意 10 位券码/序列号，
-     * 而我们现在是**认到就直启**，误判代价太大——按手册的建议加前缀白名单收紧。
+     * 美团单车「纯车牌」分支：按手册的宽松式 `^[0-9A-Z]{10}$`，不收紧前缀——
+     * 老车（非 866/867/868/870 开头）也要能传过去。代价是任意 10 位大写字母数字串
+     * （券码、序列号等）都会命中并直启美团，这是明知并接受的误判。
      */
-    private val MOBIKE_PLATE = Regex("^(866|867|868|870)\\d{7}$")
+    private val MOBIKE_PLATE = Regex("^[0-9A-Z]{10}$")
 
     /** 正式形态里 `b` 参数的值：10 位车牌 + `_1`。 */
     private val MOBIKE_BIKE_PARAM = Regex("^[0-9A-Z]{10}_1$")
