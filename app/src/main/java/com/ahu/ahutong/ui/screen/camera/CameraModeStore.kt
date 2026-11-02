@@ -18,6 +18,7 @@ enum class CameraMode(val key: String) {
 object CameraModeStore {
     private const val PREFS = "camera_ui"
     private const val KEY_MODE = "mode"
+    private const val KEY_NOTE_GALLERY_INTRO_SEEN = "note_gallery_intro_seen"
 
     private fun key(): String = "mode_" + (SessionStore.currentUser()?.xh?.takeIf { it.isNotBlank() } ?: "local")
 
@@ -28,6 +29,12 @@ object CameraModeStore {
 
     fun saveMode(mode: CameraMode) {
         prefs().edit().putString(key(), mode.key).apply()
+    }
+
+    fun hasSeenNoteGalleryIntro(): Boolean = prefs().getBoolean(KEY_NOTE_GALLERY_INTRO_SEEN, false)
+
+    fun markNoteGalleryIntroSeen() {
+        prefs().edit().putBoolean(KEY_NOTE_GALLERY_INTRO_SEEN, true).apply()
     }
 
     /** 登出/换账号时清掉，避免上一个人的使用习惯带过来。 */

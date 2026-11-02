@@ -1,17 +1,13 @@
 package com.ahu.ahutong.ui.screen.main.home
 
-import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.R
+import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.liquidFloatingSurface
 import com.kyant.backdrop.Backdrop
 
@@ -36,9 +32,7 @@ fun HomeHeaderGlass(
 ): Modifier = if (backdrop != null) modifier.liquidFloatingSurface(backdrop) else modifier
 
 /**
- * 主页标题栏的扫码入口。
- *
- * 36dp × ContinuousCapsule = 正圆；与天气胶囊同高、同材质。
+ * 主页标题栏的相机入口，与天气胶囊同高，样式由当前组件包提供。
  */
 @Composable
 fun HomeScanButton(
@@ -46,18 +40,11 @@ fun HomeScanButton(
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = null
 ) {
-    Box(
-        modifier = HomeHeaderGlass(backdrop, modifier)
-            .size(HomeHeaderControlHeight)
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        // iconpark「扫码」线性图标（与导航栏、小工具同一套矢量语言），随容器 tint 变色
-        Icon(
-            painter = painterResource(R.drawable.ic_nav_camera),
-            contentDescription = "相机",
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurface
-        )
-    }
+    AppHeaderIconButton(
+        imageVector = ImageVector.vectorResource(R.drawable.ic_nav_camera),
+        contentDescription = "相机",
+        onClick = onClick,
+        modifier = modifier.size(HomeHeaderControlHeight),
+        backdrop = backdrop
+    )
 }

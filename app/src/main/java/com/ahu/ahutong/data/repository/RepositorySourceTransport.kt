@@ -113,30 +113,42 @@ internal suspend fun probeRepositorySource(
     client: OkHttpClient,
     source: RepositoryAccelerationSource,
     expectedSha256: String = REPOSITORY_PROBE_SHA256
-): Boolean =
-    readRepositoryResponse(
-        client,
-        Request.Builder().url(repositoryProbeUrl(source)).header("Cache-Control", "no-cache").build()
-    ) { response ->
-        if (response.code != 200) return@readRepositoryResponse false
-        val body = response.body ?: return@readRepositoryResponse false
-        val declaredSize = body.contentLength()
-        if (declaredSize >= 0L && declaredSize != REPOSITORY_PROBE_BYTES) return@readRepositoryResponse false
-        val digest = MessageDigest.getInstance("SHA-256")
-        var received = 0L
-        body.byteStream().use { input ->
-            val buffer = ByteArray(16 * 1024)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                received += count
-                if (received > REPOSITORY_PROBE_BYTES) return@readRepositoryResponse false
-                digest.update(buffer, 0, count)
+): Boolean {
+    val trace = RepositoryDownloadDiagnostics("probe", source.id)
+    val url = repositoryProbeUrl(source)
+    var received = 0L
+    trace.attempt("probe:${source.id}", url)
+    try {
+        val available = readRepositoryResponse(
+            client,
+            Request.Builder().url(url).header("Cache-Control", "no-cache").build()
+        ) { response ->
+            trace.response("probe:${source.id}", response)
+            if (response.code != 200) return@readRepositoryResponse false
+            val body = response.body ?: return@readRepositoryResponse false
+            val declaredSize = body.contentLength()
+            if (declaredSize >= 0L && declaredSize != REPOSITORY_PROBE_BYTES) return@readRepositoryResponse false
+            val digest = MessageDigest.getInstance("SHA-256")
+            body.byteStream().use { input ->
+                val buffer = ByteArray(16 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    received += count
+                    if (received > REPOSITORY_PROBE_BYTES) return@readRepositoryResponse false
+                    digest.update(buffer, 0, count)
+                }
             }
+            received == REPOSITORY_PROBE_BYTES &&
+                digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) } == expectedSha256
         }
-        received == REPOSITORY_PROBE_BYTES &&
-            digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) } == expectedSha256
+        trace.complete("source=probe:${source.id} available=$available received=${trace.byteCount(received)}")
+        return available
+    } catch (error: Exception) {
+        trace.failure("probe:${source.id}", error)
+        throw error
     }
+}
 
 internal class RepositorySourceHealthMonitor(
     private val sources: List<RepositoryAccelerationSource>,
@@ -207,100 +219,134 @@ internal class RepositoryDownloadTransport(
         rawUrl: String,
         cdnUrl: String,
         preferredSourceId: String,
+        diagnostics: RepositoryDownloadDiagnostics? = null,
         read: (Response, Long) -> T?
     ): T {
-        val errors = mutableListOf<Exception>()
-        var allDownloadSourcesFailed = false
-        // 全挂时复用本进程结果；恢复常规源由用户手动重测确认。
-        if (areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) monitor.test()
-        if (!areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
-            var link: StorageLinkResponse? = null
-            for (server in servers) {
-                try {
-                    val result = readRepositoryResponse(
-                        client, Request.Builder().url(storageDownloadUrl(server, fileId)).build()
-                    ) { response ->
-                        requireSuccessfulDownload(response)
-                        if (response.header("X-Download-Type") == "link") {
-                            link = gson.fromJson(response.body!!.string(), StorageLinkResponse::class.java)
-                                ?: throw IOException("资料下载地址为空")
-                            null
-                        } else {
-                            requireFileDownload(response, rawUrl)
-                            read(response, response.header("X-File-Size")?.toLongOrNull()
-                                ?: response.body!!.contentLength())
-                                ?: throw IOException("资料文件未完整下载")
-                        }
-                    }
-                    if (result != null) return result
-                    if (link != null) break
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    if (error is SecurityException) throw error
-                    errors += IOException("${server.id} 资料接口失败", error)
-                }
-            }
-            if (link != null) {
-                // 初次下载也检测：打开文件不依赖用户先访问设置页。
-                monitor.test()
-                if (!areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
-                    val primary = sources.filterNot { it.isFallback }
-                        .sortedBy { if (it.id == preferredSourceId) 0 else 1 }
-                    for (source in primary) {
-                        try {
-                            val value = readRepositoryResponse(
-                                client,
-                                Request.Builder().url(repositorySourceUrl(source, link!!.url.ifBlank { rawUrl }, cdnUrl)).build()
-                            ) { response ->
-                                requireSuccessfulDownload(response)
+        val trace = diagnostics ?: RepositoryDownloadDiagnostics("transport", rawUrl)
+        try {
+            val errors = mutableListOf<Exception>()
+            var allDownloadSourcesFailed = false
+            trace.event("health", "preferred=$preferredSourceId state=${monitor.health.value}")
+            // 全挂时复用本进程结果；恢复常规源由用户手动重测确认。
+            if (areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) monitor.test()
+            if (!areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
+                var link: StorageLinkResponse? = null
+                for (server in servers) {
+                    val sourceId = "storage:${server.id}"
+                    try {
+                        val url = storageDownloadUrl(server, fileId)
+                        trace.attempt(sourceId, url)
+                        val result = readRepositoryResponse(
+                            client, Request.Builder().url(url).build()
+                        ) { response ->
+                            trace.response(sourceId, response)
+                            requireSuccessfulDownload(response)
+                            if (response.header("X-Download-Type") == "link") {
+                                link = gson.fromJson(response.body!!.string(), StorageLinkResponse::class.java)
+                                    ?: throw IOException("资料下载地址为空")
+                                null
+                            } else {
                                 requireFileDownload(response, rawUrl)
-                                read(response, link!!.size.takeIf { it > 0L } ?: response.body!!.contentLength())
+                                read(response, response.header("X-File-Size")?.toLongOrNull()
+                                    ?: response.body!!.contentLength())
                                     ?: throw IOException("资料文件未完整下载")
                             }
-                            monitor.record(source.id, true)
-                            return value
-                        } catch (error: CancellationException) {
-                            throw error
-                        } catch (error: Exception) {
-                            if (error is SecurityException) throw error
-                            monitor.record(source.id, false)
-                            errors += IOException("${source.name} 下载失败", error)
                         }
-                    }
-                    allDownloadSourcesFailed = primary.isNotEmpty()
-                }
-            } else {
-                // 元数据接口失败时，只有确认四个常规源全挂后才可请求强制接口。
-                monitor.test()
-            }
-        }
-        if (allDownloadSourcesFailed || areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
-            for (server in servers) {
-                try {
-                    return readRepositoryResponse(
-                        client, Request.Builder().url(storageDownloadUrl(server, fileId, force = true)).build()
-                    ) { response ->
-                        requireSuccessfulDownload(response)
-                        if (response.header("X-Download-Type") == "link") {
-                            throw IOException("备用源没有返回文件内容")
+                        if (result != null) {
+                            trace.complete("phase=transfer source=$sourceId")
+                            return result
                         }
-                        requireFileDownload(response, rawUrl, requireStorageFileType = true)
-                        read(response, response.header("X-File-Size")?.toLongOrNull()
-                            ?: response.body!!.contentLength())
-                            ?: throw IOException("备用源文件未完整下载")
+                        if (link != null) break
+                    } catch (error: CancellationException) {
+                        trace.failure("attempt:$sourceId", error)
+                        throw error
+                    } catch (error: Exception) {
+                        trace.failure("attempt:$sourceId", error)
+                        if (error is SecurityException) throw error
+                        errors += IOException("${server.id} 资料接口失败", error)
                     }
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    if (error is SecurityException) throw error
-                    errors += IOException("${server.id} 备用源下载失败", error)
+                }
+                if (link != null) {
+                    // 初次下载也检测：打开文件不依赖用户先访问设置页。
+                    monitor.test()
+                    trace.event("health", "state=${monitor.health.value}")
+                    if (!areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
+                        val primary = sources.filterNot { it.isFallback }
+                            .sortedBy { if (it.id == preferredSourceId) 0 else 1 }
+                        for (source in primary) {
+                            val sourceId = "source:${source.id}"
+                            try {
+                                val url = repositorySourceUrl(source, link!!.url.ifBlank { rawUrl }, cdnUrl)
+                                trace.attempt(sourceId, url)
+                                val value = readRepositoryResponse(
+                                    client,
+                                    Request.Builder().url(url).build()
+                                ) { response ->
+                                    trace.response(sourceId, response)
+                                    requireSuccessfulDownload(response)
+                                    requireFileDownload(response, rawUrl)
+                                    read(response, link!!.size.takeIf { it > 0L } ?: response.body!!.contentLength())
+                                        ?: throw IOException("资料文件未完整下载")
+                                }
+                                monitor.record(source.id, true)
+                                trace.complete("phase=transfer source=$sourceId")
+                                return value
+                            } catch (error: CancellationException) {
+                                trace.failure("attempt:$sourceId", error)
+                                throw error
+                            } catch (error: Exception) {
+                                trace.failure("attempt:$sourceId", error)
+                                if (error is SecurityException) throw error
+                                monitor.record(source.id, false)
+                                errors += IOException("${source.name} 下载失败", error)
+                            }
+                        }
+                        allDownloadSourcesFailed = primary.isNotEmpty()
+                    }
+                } else {
+                    // 元数据接口失败时，只有确认四个常规源全挂后才可请求强制接口。
+                    monitor.test()
+                    trace.event("health", "state=${monitor.health.value}")
                 }
             }
+            if (allDownloadSourcesFailed || areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
+                for (server in servers) {
+                    val sourceId = "fallback:${server.id}"
+                    try {
+                        val url = storageDownloadUrl(server, fileId, force = true)
+                        trace.attempt(sourceId, url)
+                        val value = readRepositoryResponse(
+                            client, Request.Builder().url(url).build()
+                        ) { response ->
+                            trace.response(sourceId, response)
+                            requireSuccessfulDownload(response)
+                            if (response.header("X-Download-Type") == "link") {
+                                throw IOException("备用源没有返回文件内容")
+                            }
+                            requireFileDownload(response, rawUrl, requireStorageFileType = true)
+                            read(response, response.header("X-File-Size")?.toLongOrNull()
+                                ?: response.body!!.contentLength())
+                                ?: throw IOException("备用源文件未完整下载")
+                        }
+                        trace.complete("phase=transfer source=$sourceId")
+                        return value
+                    } catch (error: CancellationException) {
+                        trace.failure("attempt:$sourceId", error)
+                        throw error
+                    } catch (error: Exception) {
+                        trace.failure("attempt:$sourceId", error)
+                        if (error is SecurityException) throw error
+                        errors += IOException("${server.id} 备用源下载失败", error)
+                    }
+                }
+            }
+            val failure = IOException("学习资料下载失败，请检查网络后重试", errors.lastOrNull())
+            errors.dropLast(1).forEach(failure::addSuppressed)
+            throw failure
+        } catch (error: Exception) {
+            trace.failure("transport", error)
+            throw error
         }
-        val failure = IOException("学习资料下载失败，请检查网络后重试", errors.lastOrNull())
-        errors.dropLast(1).forEach(failure::addSuppressed)
-        throw failure
     }
 
     private fun requireSuccessfulDownload(response: Response) {

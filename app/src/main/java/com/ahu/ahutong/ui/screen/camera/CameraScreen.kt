@@ -68,8 +68,6 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.FlashlightOff
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -90,6 +88,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -101,6 +102,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -190,6 +194,9 @@ fun CameraScreen(
     var mode by remember { mutableStateOf(CameraModeStore.lastMode()) }
     var rotation by remember { mutableIntStateOf(0) }
     var showGallery by remember { mutableStateOf(false) }
+    var noteGalleryIntroSeen by remember { mutableStateOf(CameraModeStore.hasSeenNoteGalleryIntro()) }
+    var cameraBounds by remember { mutableStateOf(Rect.Zero) }
+    var galleryButtonBounds by remember { mutableStateOf(Rect.Zero) }
 
     var camera by remember { mutableStateOf<LifecycleCameraController?>(null) }
     var hasFlash by remember { mutableStateOf(false) }
@@ -219,6 +226,8 @@ fun CameraScreen(
     var lastPhoto by remember { mutableStateOf<NotePhoto?>(null) }
     var taking by remember { mutableStateOf(false) }
     var showSubjectPicker by remember { mutableStateOf(false) }
+    var showSubjectManager by remember { mutableStateOf(false) }
+    var noteRefreshTick by remember { mutableIntStateOf(0) }
 
     val granted = remember {
         mutableStateOf(
@@ -257,6 +266,16 @@ fun CameraScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted.value = it }
 
+    val showNoteGalleryIntro = granted.value && mode == CameraMode.NOTE && !noteGalleryIntroSeen &&
+        !showGallery && galleryButtonBounds.width > 0 && galleryButtonBounds.height > 0
+
+    fun finishNoteGalleryIntro() {
+        if (!noteGalleryIntroSeen) {
+            CameraModeStore.markNoteGalleryIntroSeen()
+            noteGalleryIntroSeen = true
+        }
+    }
+
     // 物理朝向：0/90/180/270，带迟滞
     val orientationListener = remember(context) {
         object : OrientationEventListener(context) {
@@ -276,11 +295,10 @@ fun CameraScreen(
     }
 
     // 科目与自动归档目标
-    LaunchedEffect(mode, showGallery) {
+    LaunchedEffect(mode, showGallery, noteRefreshTick) {
         subjects = withContext(Dispatchers.IO) { NoteStore.subjects() }
-        if (lastPhoto == null) {
-            lastPhoto = withContext(Dispatchers.IO) { NoteStore.photos().firstOrNull() }
-        }
+        lastPhoto = withContext(Dispatchers.IO) { NoteStore.photos().firstOrNull() }
+        if (manualSubjectId != null && subjects.none { it.id == manualSubjectId }) manualSubjectId = null
     }
     LaunchedEffect(mode) {
         while (true) {
@@ -301,7 +319,7 @@ fun CameraScreen(
     }
 
     fun switchMode(next: CameraMode) {
-        if (next == mode) return
+        if (next == mode || showNoteGalleryIntro) return
         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         mode = next
         CameraModeStore.saveMode(next)
@@ -310,6 +328,7 @@ fun CameraScreen(
     }
 
     fun takeNote() {
+        if (showNoteGalleryIntro) return
         val capture = camera ?: return
         if (taking) return
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -371,6 +390,7 @@ fun CameraScreen(
 
     BackHandler {
         when {
+            showNoteGalleryIntro -> Unit
             showGallery -> showGallery = false
             mode == CameraMode.NOTE && manualSubjectId != null -> manualSubjectId = null
             else -> onBack()
@@ -385,12 +405,15 @@ fun CameraScreen(
         continuousRotation += delta
     }
     CompositionLocalProvider(LocalCameraRotation provides continuousRotation) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Box(Modifier.fillMaxSize().background(Color.Black)
+            .onGloballyPositioned { cameraBounds = it.boundsInWindow() }) {
             if (!granted.value) {
                 PermissionEmpty(onRequest = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                     onBack = onBack)
             } else {
-                Column(Modifier.fillMaxSize().statusBarsPadding()) {
+                Column(Modifier.fillMaxSize().statusBarsPadding().then(
+                    if (showNoteGalleryIntro) Modifier.clearAndSetSemantics {} else Modifier
+                )) {
                     CameraTopBar(
                         mode = mode,
                         subjectLabel = subjectLabel(mode, manualSubjectId, subjects, autoTarget),
@@ -500,6 +523,7 @@ fun CameraScreen(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             } else {
+                                finishNoteGalleryIntro()
                                 showGallery = true
                             }
                         },
@@ -508,7 +532,8 @@ fun CameraScreen(
                             torch = !torch
                             camera?.enableTorch(torch)
                         },
-                        onMode = ::switchMode
+                        onMode = ::switchMode,
+                        onThumbnailBounds = { galleryButtonBounds = it }
                     )
                 }
             }
@@ -545,20 +570,40 @@ fun CameraScreen(
                         manualSubjectId = it
                         showSubjectPicker = false
                     },
+                    onManage = {
+                        showSubjectPicker = false
+                        showSubjectManager = true
+                    },
                     onDismiss = { showSubjectPicker = false }
                 )
             }
 
+            if (showSubjectManager) {
+                NoteSubjectManagerDialog(
+                    onDismiss = {
+                        showSubjectManager = false
+                        showSubjectPicker = true
+                    },
+                    onChanged = { noteRefreshTick++ }
+                )
+            }
+
             if (showGallery) {
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                    NoteGalleryScreen(
-                        onDismiss = { showGallery = false },
-                        onChanged = {
-                            subjects = NoteStore.subjects()
-                            lastPhoto = NoteStore.photos().firstOrNull()
-                        }
-                    )
-                }
+                NoteGalleryScreen(
+                    onDismiss = { showGallery = false },
+                    onChanged = { noteRefreshTick++ }
+                )
+            }
+
+            if (showNoteGalleryIntro) {
+                NoteGalleryIntroOverlay(
+                    galleryBounds = galleryButtonBounds.translate(-cameraBounds.topLeft),
+                    onDismiss = ::finishNoteGalleryIntro,
+                    onOpenGallery = {
+                        finishNoteGalleryIntro()
+                        showGallery = true
+                    }
+                )
             }
         }
     }
@@ -779,7 +824,8 @@ private fun BottomControls(
     onThumbnail: () -> Unit,
     onShutter: () -> Unit,
     onTorch: () -> Unit,
-    onMode: (CameraMode) -> Unit
+    onMode: (CameraMode) -> Unit,
+    onThumbnailBounds: (Rect) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 8.dp)
@@ -792,6 +838,8 @@ private fun BottomControls(
             Box(
                 Modifier.size(CONTROL_SLOT.dp).clip(RoundedCornerShape(11.dp))
                     .background(Color.White.copy(alpha = 0.12f))
+                    .onGloballyPositioned { onThumbnailBounds(it.boundsInWindow()) }
+                    .semantics { contentDescription = if (mode == CameraMode.NOTE) "笔记入口" else "相册" }
                     .clickable(onClick = onThumbnail),
                 contentAlignment = Alignment.Center
             ) {
@@ -979,12 +1027,17 @@ private fun SubjectPickerDialog(
     selectedId: String?,
     autoName: String?,
     onPick: (String?) -> Unit,
+    onManage: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AppDialog(
         title = "归档到",
         onDismiss = onDismiss,
-        actions = listOf(AppDialogAction("取消", onClick = onDismiss)),
+        contentScrollable = true,
+        actions = listOf(
+            AppDialogAction("管理科目", onClick = onManage, style = AppDialogActionStyle.Primary),
+            AppDialogAction("取消", onClick = onDismiss)
+        ),
         content = {
             Column {
                 PickerRow(

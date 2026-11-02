@@ -45,7 +45,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -134,12 +133,14 @@ import top.yukonga.miuix.kmp.basic.CircularProgressIndicator as MiuixCircularPro
 import top.yukonga.miuix.kmp.basic.FloatingActionButton as MiuixFloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
 import top.yukonga.miuix.kmp.basic.IconButton as MiuixIconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults as MiuixProgressIndicatorDefaults
 import top.yukonga.miuix.kmp.basic.Surface as MiuixSurface
 import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
 import top.yukonga.miuix.kmp.basic.TopAppBar as MiuixTopAppBar
 import top.yukonga.miuix.kmp.extra.DropdownImpl
+import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet as MiuixSuperBottomSheet
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.icons.basic.ArrowUpDownIntegrated
@@ -1343,51 +1344,106 @@ internal fun <T> MiuixDialogSelectField(
     insideMargin: PaddingValues,
     summary: String? = null
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
-        MiuixBasicComponent(
+    if (LocalView.current.parent !is DialogWindowProvider) {
+        val selectedIndex = options.indexOfFirst { it.value == selected }
+        SuperDropdown(
             title = label,
             summary = summary,
+            items = options.map { it.label },
+            selectedIndex = selectedIndex.coerceAtLeast(0),
+            showValue = selectedIndex >= 0,
+            modifier = modifier.fillMaxWidth(),
             insideMargin = insideMargin,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = enabled && options.isNotEmpty(),
-            onClick = rememberHapticAction { expanded = true },
-            holdDownState = expanded,
-            rightActions = {
-                Text(options.firstOrNull { it.value == selected }?.label.orEmpty(),
-                    color = MiuixTheme.colorScheme.onSurfaceVariantActions,
-                    style = MiuixTheme.textStyles.body2,
-                    modifier = Modifier.widthIn(max = 130.dp),
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                MiuixIcon(MiuixIcons.Basic.ArrowUpDownIntegrated, contentDescription = null,
-                    modifier = Modifier.padding(start = 8.dp).size(10.dp, 16.dp),
-                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions)
+            enabled = enabled,
+            onSelectedIndexChange = { index ->
+                options.getOrNull(index)?.let { onSelected(it.value) }
             }
         )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            shape = SmoothRoundedCornerShape(16.dp),
-            containerColor = MiuixTheme.colorScheme.surfaceContainer
-        ) {
-            AppHapticFeedbackProvider {
-                val popupFeedback = rememberAppHapticFeedback()
-                options.forEachIndexed { index, option ->
-                    DropdownImpl(
-                        text = option.label,
-                        optionSize = options.size,
-                        isSelected = option.value == selected,
-                        index = index,
-                        onSelectedIndexChange = {
-                            if (option.value != selected) popupFeedback.perform(AppHapticEvent.Selection)
-                            onSelected(option.value)
-                            expanded = false
-                        }
+        return
+    }
+    var expanded by remember { mutableStateOf(false) }
+    val actualEnabled = enabled && options.isNotEmpty()
+    val actionColor = if (actualEnabled) {
+        MiuixTheme.colorScheme.onSurfaceVariantActions
+    } else MiuixTheme.colorScheme.disabledOnSecondaryVariant
+    val gapPx = with(LocalDensity.current) { 8.dp.roundToPx() }
+    val positionProvider = remember(gapPx) { MiuixDropdownPositionProvider(gapPx) }
+    val visibility = remember { MutableTransitionState(false) }
+    LaunchedEffect(expanded, actualEnabled) {
+        if (!actualEnabled) expanded = false
+        visibility.targetState = expanded && actualEnabled
+    }
+    // Anchor to the value/indicator, as SuperDropdown does, rather than the whole settings row.
+    MiuixBasicComponent(
+        title = label,
+        summary = summary,
+        insideMargin = insideMargin,
+        modifier = modifier.fillMaxWidth(),
+        enabled = actualEnabled,
+        onClick = rememberHapticAction { expanded = true },
+        holdDownState = expanded,
+        rightActions = {
+            Box {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        options.firstOrNull { it.value == selected }?.label.orEmpty(),
+                        color = actionColor,
+                        style = MiuixTheme.textStyles.body2,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.widthIn(max = 130.dp),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    MiuixIcon(
+                        MiuixIcons.Basic.ArrowUpDownIntegrated,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 8.dp).size(10.dp, 16.dp),
+                        tint = actionColor
+                    )
+                }
+                if (visibility.currentState || visibility.targetState || !visibility.isIdle) {
+                    Popup(
+                        popupPositionProvider = positionProvider,
+                        onDismissRequest = { expanded = false },
+                        properties = PopupProperties(focusable = true)
+                    ) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visibleState = visibility,
+                            enter = fadeIn(tween(150)) + scaleIn(
+                                initialScale = 0.85f,
+                                transformOrigin = TransformOrigin(1f, 0f)
+                            ),
+                            exit = fadeOut(tween(140))
+                        ) {
+                            val shape = SmoothRoundedCornerShape(16.dp)
+                            MiuixSurface(
+                                modifier = Modifier.shadow(11.dp, shape),
+                                shape = shape,
+                                color = MiuixTheme.colorScheme.surfaceContainer
+                            ) {
+                                ListPopupColumn {
+                                    val popupFeedback = rememberAppHapticFeedback()
+                                    options.forEachIndexed { index, option ->
+                                        DropdownImpl(
+                                            text = option.label,
+                                            optionSize = options.size,
+                                            isSelected = option.value == selected,
+                                            index = index,
+                                            onSelectedIndexChange = {
+                                                if (option.value != selected) popupFeedback.perform(AppHapticEvent.Selection)
+                                                onSelected(option.value)
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
+    )
 }
 
 @Composable

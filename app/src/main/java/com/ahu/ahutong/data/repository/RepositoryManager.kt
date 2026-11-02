@@ -512,28 +512,57 @@ object RepositoryManager {
         context: Context,
         onProgress: (Float) -> Unit = {}
     ): DownloadedFile? = withContext(Dispatchers.IO) {
+        val diagnostics = RepositoryDownloadDiagnostics("file", path)
+        var stage = "resolve-path"
+        var pendingTarget: DownloadTarget? = null
         val appContext = context.applicationContext
-        val resolved = resolveVirtualPath(path) ?: return@withContext null
-        withRepositoryStorageAccess { RepositoryDownloadDirectory.checkDownloadAccess(appContext) }
-        val fileId = resolveStorageFileId(path) ?: return@withContext null
-        val selectedAccelerationSource = getSelectedAccelerationSource(appContext)
-        val previousRecord = getDownloadRecord(path)
-        val target = withRepositoryStorageAccess { createDownloadTarget(path, appContext) }
-
         try {
+            val resolved = resolveVirtualPath(path) ?: run {
+                diagnostics.event("failed", "stage=$stage reason=unknown-repository-path")
+                return@withContext null
+            }
+            stage = "storage-access"
+            diagnostics.event(stage, "api=${Build.VERSION.SDK_INT} customDirectory=${RepositoryDownloadDirectory.selectedUri() != null}")
+            withRepositoryStorageAccess { RepositoryDownloadDirectory.checkDownloadAccess(appContext) }
+            stage = "resolve-file-id"
+            diagnostics.event(stage)
+            val fileId = resolveStorageFileId(path) ?: run {
+                diagnostics.event("failed", "stage=$stage reason=file-not-in-index-after-refresh")
+                return@withContext null
+            }
+            val selectedAccelerationSource = getSelectedAccelerationSource(appContext)
+            diagnostics.event("source-selection", "preferred=${selectedAccelerationSource.id}")
+            val previousRecord = getDownloadRecord(path)
+            stage = "create-target"
+            val target = withRepositoryStorageAccess { createDownloadTarget(path, appContext) }
+            pendingTarget = target
+            val targetKind = when (target) {
+                is DownloadTarget.DocumentTarget -> "SAF"
+                is DownloadTarget.MediaStoreTarget -> "MediaStore"
+                is DownloadTarget.FileTarget -> "file"
+            }
+            diagnostics.event(stage, "destination=$targetKind")
+            stage = "transfer"
             val downloaded = downloadTransport.read(
                 fileId = fileId,
                 rawUrl = resolved.source.rawUrl(resolved.repositoryPath),
                 cdnUrl = resolved.source.cdnUrl(resolved.repositoryPath),
-                preferredSourceId = selectedAccelerationSource.id
+                preferredSourceId = selectedAccelerationSource.id,
+                diagnostics = diagnostics
             ) { response, expectedBytes ->
-                streamResponseToTarget(response, target, expectedBytes, onProgress)
+                streamResponseToTarget(response, target, expectedBytes, onProgress, diagnostics)
             }
-            completeDownload(path, target, previousRecord, appContext, downloaded)
+            stage = "save-download-record"
+            val completed = completeDownload(path, target, previousRecord, appContext, downloaded)
+            if (completed != null) diagnostics.complete("phase=saved written=${diagnostics.byteCount(downloaded)} destination=$targetKind")
+            else diagnostics.event("failed", "stage=$stage reason=completed-file-unavailable")
+            completed
         } catch (e: Exception) {
+            diagnostics.failure(stage, e)
             try {
-                target.delete()
+                pendingTarget?.delete()
             } catch (cleanupError: Exception) {
+                diagnostics.failure("cleanup", cleanupError)
                 e.addSuppressed(cleanupError)
             }
             // 取消也原样重抛，清理失败不能覆盖下载/取消的原始原因。
@@ -542,16 +571,26 @@ object RepositoryManager {
     }
 
     private suspend fun fetchStorageUpdatedAt(server: StorageServer): Long = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("${server.baseUrl}/api/update")
-            .header("Cache-Control", "no-cache")
-            .build()
-        indexClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException("无法获取索引版本: HTTP ${response.code}")
+        val diagnostics = RepositoryDownloadDiagnostics("index-version", server.id)
+        try {
+            val request = Request.Builder()
+                .url("${server.baseUrl}/api/update")
+                .header("Cache-Control", "no-cache")
+                .build()
+            diagnostics.attempt("index:${server.id}", request.url.toString())
+            indexClient.newCall(request).execute().use { response ->
+                diagnostics.response("index:${server.id}", response)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException("无法获取索引版本: HTTP ${response.code}")
+                }
+                val updatedAt = gson.fromJson(response.body?.string().orEmpty(), StorageUpdateResponse::class.java)
+                    ?.updatedAt ?: 0L
+                diagnostics.complete("validTimestamp=${updatedAt > 0}")
+                updatedAt
             }
-            gson.fromJson(response.body?.string().orEmpty(), StorageUpdateResponse::class.java)
-                ?.updatedAt ?: 0L
+        } catch (error: Exception) {
+            diagnostics.failure("index-version", error)
+            throw error
         }
     }
 
@@ -559,22 +598,31 @@ object RepositoryManager {
         server: StorageServer,
         onDownloadProgress: ((Long, Long) -> Unit)? = null
     ): StorageIndexResponse = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("${server.baseUrl}/api/list")
-            .header("Cache-Control", "no-cache")
-            .build()
-        indexClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException("无法获取资料索引: HTTP ${response.code}")
+        val diagnostics = RepositoryDownloadDiagnostics("index", server.id)
+        try {
+            val request = Request.Builder()
+                .url("${server.baseUrl}/api/list")
+                .header("Cache-Control", "no-cache")
+                .build()
+            diagnostics.attempt("index:${server.id}", request.url.toString())
+            indexClient.newCall(request).execute().use { response ->
+                diagnostics.response("index:${server.id}", response)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException("无法获取资料索引: HTTP ${response.code}")
+                }
+                val body = response.body ?: throw IllegalStateException("资料索引响应为空")
+                val index = readStorageIndex(body, gson, onDownloadProgress)
+                val indexedRepositories = index.repositories.mapTo(mutableSetOf()) { it.id }
+                val missingRepositories = repositorySources.filterNot { it.id in indexedRepositories }
+                require(missingRepositories.isEmpty()) {
+                    "${server.id} 索引缺少仓库: ${missingRepositories.joinToString { it.title }}"
+                }
+                diagnostics.complete("repositories=${index.repositories.size}")
+                index
             }
-            val body = response.body ?: throw IllegalStateException("资料索引响应为空")
-            val index = readStorageIndex(body, gson, onDownloadProgress)
-            val indexedRepositories = index.repositories.mapTo(mutableSetOf()) { it.id }
-            val missingRepositories = repositorySources.filterNot { it.id in indexedRepositories }
-            require(missingRepositories.isEmpty()) {
-                "${server.id} 索引缺少仓库: ${missingRepositories.joinToString { it.title }}"
-            }
-            index
+        } catch (error: Exception) {
+            diagnostics.failure("index", error)
+            throw error
         }
     }
 
@@ -595,26 +643,40 @@ object RepositoryManager {
         response: Response,
         target: DownloadTarget,
         totalBytes: Long,
-        onProgress: (Float) -> Unit
+        onProgress: (Float) -> Unit,
+        diagnostics: RepositoryDownloadDiagnostics
     ): Long? {
         val body = response.body ?: return null
         var downloadedBytes = 0L
-        body.byteStream().use { input ->
-            withRepositoryStorageAccess {
-                target.openOutputStream().use { output ->
-                    val buffer = ByteArray(8 * 1024)
-                    var read = input.read(buffer)
-                    while (read >= 0) {
-                        output.write(buffer, 0, read)
-                        downloadedBytes += read
-                        if (totalBytes > 0) {
-                            onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+        var ioStage = "open-input"
+        try {
+            body.byteStream().use { input ->
+                withRepositoryStorageAccess {
+                    ioStage = "open-output"
+                    target.openOutputStream().use { output ->
+                        val buffer = ByteArray(8 * 1024)
+                        while (true) {
+                            ioStage = "read"
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            ioStage = "write"
+                            output.write(buffer, 0, read)
+                            downloadedBytes += read
+                            if (totalBytes > 0) {
+                                ioStage = "progress"
+                                onProgress(downloadedBytes.toFloat() / totalBytes.toFloat())
+                            }
                         }
-                        read = input.read(buffer)
+                        ioStage = "flush"
+                        output.flush()
+                        ioStage = "close-output"
                     }
-                    output.flush()
                 }
+                ioStage = "close-input"
             }
+            ioStage = "finished"
+        } finally {
+            diagnostics.event("stream", "phase=$ioStage written=${diagnostics.byteCount(downloadedBytes)} expected=${diagnostics.byteCount(totalBytes)} complete=${ioStage == "finished" && (totalBytes < 0L || downloadedBytes == totalBytes)}")
         }
         return downloadedBytes.takeIf { totalBytes < 0L || it == totalBytes }
     }

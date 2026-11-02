@@ -22,17 +22,32 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import com.ahu.ahutong.feedback.EncryptedFeedbackExport
 import com.ahu.ahutong.feedback.FeedbackViewModel
+import com.ahu.ahutong.core.storage.HomeBackgroundStore
+import com.ahu.ahutong.ui.components.AppBackground
+import com.ahu.ahutong.ui.components.LiquidGlassAppHost
+import com.ahu.ahutong.ui.components.LocalAppBackground
+import com.ahu.ahutong.ui.components.LocalAppBackgroundTilt
+import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
+import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
+import com.ahu.ahutong.ui.screen.main.home.rememberBackgroundParallax
 import com.ahu.ahutong.ui.screen.settings.FeedbackScreen
 import com.ahu.ahutong.ui.screen.settings.FeedbackHubScreen
 import com.ahu.ahutong.ui.screen.settings.FeedbackExportScreen
@@ -95,54 +110,56 @@ class FeedbackActivity : ComponentActivity() {
                 componentSlotOverrides = overrides,
                 hapticFeedbackEnabled = hapticFeedbackEnabled
             )) {
-                AnimatedContent(
-                    targetState = route,
-                    modifier = Modifier.fillMaxSize(),
-                    transitionSpec = {
-                        // Match the secondary forward/pop motion in utils.animatedComposable.
-                        if (targetState == "hub") {
-                            (fadeIn(tween(180)) + slideInHorizontally(
-                                animationSpec = tween(260), initialOffsetX = { -it / 12 }
-                            )) togetherWith (fadeOut(tween(160)) + slideOutHorizontally(
-                                animationSpec = tween(260), targetOffsetX = { it / 4 }
-                            ))
-                        } else {
-                            (fadeIn(tween(180)) + slideInHorizontally(
-                                animationSpec = tween(240), initialOffsetX = { it / 4 }
-                            )) togetherWith (fadeOut(tween(140)) + slideOutHorizontally(
-                                animationSpec = tween(220), targetOffsetX = { -it / 12 }
-                            ))
+                FeedbackBackgroundHost {
+                    AnimatedContent(
+                        targetState = route,
+                        modifier = Modifier.fillMaxSize(),
+                        transitionSpec = {
+                            // Match the secondary forward/pop motion in utils.animatedComposable.
+                            if (targetState == "hub") {
+                                (fadeIn(tween(180)) + slideInHorizontally(
+                                    animationSpec = tween(260), initialOffsetX = { -it / 12 }
+                                )) togetherWith (fadeOut(tween(160)) + slideOutHorizontally(
+                                    animationSpec = tween(260), targetOffsetX = { it / 4 }
+                                ))
+                            } else {
+                                (fadeIn(tween(180)) + slideInHorizontally(
+                                    animationSpec = tween(240), initialOffsetX = { it / 4 }
+                                )) togetherWith (fadeOut(tween(140)) + slideOutHorizontally(
+                                    animationSpec = tween(220), targetOffsetX = { -it / 12 }
+                                ))
+                            }
+                        },
+                        label = "Feedback navigation"
+                    ) { visibleRoute ->
+                        when (visibleRoute) {
+                            "feedback" -> FeedbackScreen(
+                                state = state,
+                                onDescriptionChange = feedbackViewModel::setDescription,
+                                onCategoryChange = feedbackViewModel::setCategory,
+                                onPreview = feedbackViewModel::showPreview,
+                                onDismissPreview = feedbackViewModel::dismissPreview,
+                                onSubmit = feedbackViewModel::submit,
+                                onBack = navigateBack
+                            )
+                            "export" -> FeedbackExportScreen(
+                                state = state,
+                                onCategoryChange = feedbackViewModel::setCategory,
+                                onExport = ::exportLogs,
+                                onShare = ::shareLogs,
+                                onBack = navigateBack
+                            )
+                            else -> FeedbackHubScreen(
+                                onFeedback = { route = "feedback" },
+                                onExport = {
+                                    feedbackViewModel.dismissPreview()
+                                    feedbackViewModel.reportExportStatus("")
+                                    route = "export"
+                                },
+                                onOpenQq = ::openFeedbackGroup,
+                                onBack = navigateBack
+                            )
                         }
-                    },
-                    label = "Feedback navigation"
-                ) { visibleRoute ->
-                    when (visibleRoute) {
-                        "feedback" -> FeedbackScreen(
-                            state = state,
-                            onDescriptionChange = feedbackViewModel::setDescription,
-                            onCategoryChange = feedbackViewModel::setCategory,
-                            onPreview = feedbackViewModel::showPreview,
-                            onDismissPreview = feedbackViewModel::dismissPreview,
-                            onSubmit = feedbackViewModel::submit,
-                            onBack = navigateBack
-                        )
-                        "export" -> FeedbackExportScreen(
-                            state = state,
-                            onCategoryChange = feedbackViewModel::setCategory,
-                            onExport = ::exportLogs,
-                            onShare = ::shareLogs,
-                            onBack = navigateBack
-                        )
-                        else -> FeedbackHubScreen(
-                            onFeedback = { route = "feedback" },
-                            onExport = {
-                                feedbackViewModel.dismissPreview()
-                                feedbackViewModel.reportExportStatus("")
-                                route = "export"
-                            },
-                            onOpenQq = ::openFeedbackGroup,
-                            onBack = navigateBack
-                        )
                     }
                 }
             }
@@ -295,5 +312,32 @@ class FeedbackActivity : ComponentActivity() {
                 details?.let { putExtra(EXTRA_ERROR_DETAILS, it) }
                 eventId?.let { putExtra(EXTRA_EVENT_ID, it) }
             }
+    }
+}
+
+/** A separate Activity needs the same wallpaper and backdrop inputs as the main page host. */
+@Composable
+private fun FeedbackBackgroundHost(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val backgroundRevision by HomeBackgroundStore.revision.collectAsState()
+    val imageRevision by HomeBackgroundStore.imageRevision.collectAsState()
+    val bitmap by produceState<ImageBitmap?>(null, context, imageRevision) {
+        value = if (HomeBackgroundStore.isEnabled) {
+            HomeBackgroundStore.loadScreenRatioBitmap(context)?.asImageBitmap()
+        } else null
+    }
+    val background = remember(bitmap, backgroundRevision) {
+        bitmap?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
+    }
+    val parallaxEnabled = remember(backgroundRevision) { HomeBackgroundStore.parallaxEnabled }
+    val tilt = rememberBackgroundParallax(enabled = background != null && parallaxEnabled)
+    val tiltProvider = remember(tilt) { { tilt.value } }
+    CompositionLocalProvider(
+        LocalAppBackground provides background,
+        LocalAppBackgroundTilt provides tiltProvider,
+        LocalGlassReadabilityBoost provides (background != null),
+        LocalGlassEffectsReduced provides HomeBackgroundStore.reduceGlassEffects
+    ) {
+        LiquidGlassAppHost(Modifier.fillMaxSize()) { content() }
     }
 }
