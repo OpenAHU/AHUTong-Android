@@ -35,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -113,14 +112,14 @@ fun AssistantInputBar(
             label = "input-glow-phase"
         )
 
-    val container = if (dark) Color(0xFF1C1C1E) else Color.White
+    val container = if (dark) Color(0xFF1C1C1E).copy(alpha = 0.92f) else Color.White.copy(alpha = 0.94f)
     val textColor = if (dark) Color.White else Color(0xFF111111)
     val hintColor = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.42f)
     val disabledBg = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.06f)
     val disabledIcon = if (dark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.35f)
     val glowAlpha = if (focused) 1f else 0.55f
     val blurPx = with(density) { 6.dp.toPx() }
-    val shape = RoundedCornerShape(percent = 50)
+    val shape = RoundedCornerShape(28.dp)
 
     Box(
         modifier = modifier
@@ -136,40 +135,34 @@ fun AssistantInputBar(
                     renderEffect = BlurEffect(blurPx, blurPx, TileMode.Decal)
                 }
         ) {
-            val stroke = with(density) { 8.dp.toPx() }
-            val inset = stroke / 2f
+            val corner = CornerRadius(size.height / 2f, size.height / 2f)
             drawRoundRect(
                 brush = Brush.sweepGradient(
                     colorStops = inputGlowStops(phase.value).toTypedArray(),
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
-                topLeft = Offset(inset, inset),
-                size = Size(size.width - stroke, size.height - stroke),
-                cornerRadius = CornerRadius((size.height - stroke) / 2f, (size.height - stroke) / 2f),
-                style = Stroke(width = stroke),
-                alpha = 0.45f * glowAlpha
+                cornerRadius = corner,
+                style = Stroke(width = with(density) { 7.dp.toPx() }),
+                alpha = 0.32f * glowAlpha
             )
         }
         // 内层细描边。
         Canvas(Modifier.matchParentSize()) {
-            val stroke = with(density) { 4.dp.toPx() }
-            val inset = stroke / 2f
+            val corner = CornerRadius(size.height / 2f, size.height / 2f)
             drawRoundRect(
                 brush = Brush.sweepGradient(
                     colorStops = inputGlowStops(phase.value).toTypedArray(),
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
-                topLeft = Offset(inset, inset),
-                size = Size(size.width - stroke, size.height - stroke),
-                cornerRadius = CornerRadius((size.height - stroke) / 2f, (size.height - stroke) / 2f),
-                style = Stroke(width = stroke),
-                alpha = 1f
+                cornerRadius = corner,
+                style = Stroke(width = with(density) { 2.dp.toPx() }),
+                alpha = 0.75f * glowAlpha
             )
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
+                .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -178,10 +171,10 @@ fun AssistantInputBar(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 8.dp),
                 enabled = enabled,
                 interactionSource = interactionSource,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = textColor),
                 cursorBrush = SolidColor(colors.primary),
                 maxLines = 4,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -197,14 +190,14 @@ fun AssistantInputBar(
                     if (value.isEmpty()) {
                         Text(
                             text = placeholder,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyLarge,
                             color = hintColor
                         )
                     }
                     innerTextField()
                 }
             )
-            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                 if (canSend) {
                     Canvas(Modifier.matchParentSize()) {
                         drawCircle(
@@ -217,7 +210,7 @@ fun AssistantInputBar(
                 }
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(if (canSend) colors.primary else disabledBg)
                         .clickable(enabled = canSend) {
@@ -230,7 +223,7 @@ fun AssistantInputBar(
                         imageVector = Icons.Rounded.ArrowUpward,
                         contentDescription = "发送",
                         tint = if (canSend) colors.onPrimary else disabledIcon,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
