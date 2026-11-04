@@ -3,6 +3,8 @@ package com.ahu.ahutong.ui.screen.main.home
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -34,6 +36,30 @@ fun HomeHeaderGlass(
     backdrop: Backdrop?,
     modifier: Modifier = Modifier
 ): Modifier = if (backdrop != null) modifier.liquidFloatingSurface(backdrop) else modifier
+
+/**
+ * 主页标题栏的 AI 助手入口：与扫码钮同材质、同尺寸。
+ */
+@Composable
+fun HomeAssistantButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    backdrop: Backdrop? = null
+) {
+    Box(
+        modifier = HomeHeaderGlass(backdrop, modifier)
+            .size(HomeHeaderControlHeight)
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.AutoAwesome,
+            contentDescription = "AI 助手",
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
 
 /**
  * 主页标题栏的扫码入口。

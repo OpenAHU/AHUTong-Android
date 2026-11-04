@@ -104,6 +104,8 @@ import com.ahu.ahutong.ui.screen.main.home.rememberHomeAcademicValue
 import com.ahu.ahutong.ui.screen.main.home.homeWidgetEditGesture
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
 import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
+import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
+import com.ahu.ahutong.ui.screen.assistant.AssistantSheet
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
@@ -165,6 +167,7 @@ internal fun Home(
     }
     val noticeAccountId = accountId
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
+    var showAssistant by remember { mutableStateOf(false) }
     val noticeUnreadCount = noticeSnapshot?.takeIf { it.accountId == noticeAccountId }?.unreadCount ?: 0
     LaunchedEffect(isActive, noticeAccountId) {
         if (isActive && AHUCache.isPrivacyAccepted() &&
@@ -460,6 +463,12 @@ internal fun Home(
                 backdrop = headerControlsBackdrop
             )
         }
+        val assistantButton: @Composable () -> Unit = {
+            HomeAssistantButton(
+                onClick = { showAssistant = true },
+                backdrop = headerControlsBackdrop
+            )
+        }
         val trailingContent: @Composable RowScope.() -> Unit = {
             if (BuildConfig.DEBUG) {
                 DebugBuildBadge()
@@ -475,12 +484,19 @@ internal fun Home(
                         mode = WeatherHomeMode.Compact,
                         backdrop = headerControlsBackdrop
                     )
+                    assistantButton()
                     scanButton()
                 }
             } else if (isEditingHome) {
                 TextButton(onClick = ::exitHomeEditMode) { Text("完成") }
             } else {
-                scanButton()
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    assistantButton()
+                    scanButton()
+                }
             }
         }
         Column(
@@ -622,6 +638,16 @@ internal fun Home(
                     rootTopLeft = rootTopLeft
                 )
             }
+        }
+        if (showAssistant) {
+            AssistantSheet(
+                scheduleViewModel = scheduleViewModel,
+                onDismiss = { showAssistant = false },
+                onOpenRoute = { route ->
+                    showAssistant = false
+                    navController.navigate(route) { launchSingleTop = true }
+                }
+            )
         }
         }
         }
