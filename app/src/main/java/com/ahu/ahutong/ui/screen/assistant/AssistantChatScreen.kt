@@ -185,7 +185,7 @@ fun AssistantChatScreen(
                         .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("AI 助手", style = MaterialTheme.typography.titleMedium)
+                    Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = {
                         AssistantChatState.close()
@@ -347,7 +347,7 @@ private fun AssistantTurnBubble(
             }
             Spacer(Modifier.width(8.dp))
             Text(
-                "AI 助手",
+                ASSISTANT_NAME,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.primary,
@@ -829,6 +829,7 @@ private fun formatTimestamp(epochMillis: Long): String = runCatching {
     SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(epochMillis))
 }.getOrDefault("")
 
+private const val ASSISTANT_NAME = "AhuTong Intelligence"
 private const val DELTA_FLUSH_INTERVAL_MS = 33L
 private const val BOTTOM_JUMP_PX = 100_000f
 private const val BOTTOM_SETTLE_MAX_FRAMES = 60
