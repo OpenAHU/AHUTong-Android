@@ -98,7 +98,6 @@ object AssistantChatState {
             as? AssistantChatItem.Approval ?: return
         updateApprovalDecision(pending.id, AssistantApprovalDecision.APPROVED)
         approvalGate?.approve(paymentPassword)
-        approvalGate = null
     }
 
     fun reject() {
@@ -106,7 +105,6 @@ object AssistantChatState {
             as? AssistantChatItem.Approval ?: return
         updateApprovalDecision(pending.id, AssistantApprovalDecision.REJECTED)
         approvalGate?.reject()
-        approvalGate = null
     }
 
     private fun updateApprovalDecision(id: String, decision: AssistantApprovalDecision) {
