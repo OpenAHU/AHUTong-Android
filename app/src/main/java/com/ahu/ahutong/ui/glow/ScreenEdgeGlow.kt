@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +31,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -150,6 +153,14 @@ fun ScreenEdgeGlow(
         radii = floatArrayOf(fallback, fallback, fallback, fallback)
     }
 
+    val screen = LocalConfiguration.current
+    val revealToBottomThreshold = remember(screen.screenWidthDp, screen.screenHeightDp) {
+        val w = screen.screenWidthDp.toFloat()
+        val h = screen.screenHeightDp.toFloat()
+        (h / (kotlin.math.hypot(w.toDouble(), h.toDouble()).toFloat() * 1.05f) + 0.01f)
+            .coerceIn(0f, 1f)
+    }
+
     val fade = remember { Animatable(0f) }
     val reveal = remember { Animatable(0f) }
     val lift = remember { Animatable(0f) }
@@ -163,6 +174,11 @@ fun ScreenEdgeGlow(
             launch {
                 delay(300)
                 reveal.animateTo(1f, tween(950, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
+            }
+            launch {
+                delay(300)
+                snapshotFlow { reveal.value }
+                    .first { it >= revealToBottomThreshold }
                 AssistantGlowState.revealed = true
             }
         } else {
