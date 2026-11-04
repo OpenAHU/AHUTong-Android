@@ -109,7 +109,10 @@ import com.ahu.ahutong.ui.screen.main.home.homeWidgetEditGesture
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
 import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.ahu.ahutong.assistant.AssistantAccessState
+import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.glow.liquidRipple
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
@@ -165,6 +168,7 @@ internal fun Home(
     onOpenSchedule: () -> Unit = { navController.navigate("schedule") }
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current
     var currentTime by remember { mutableStateOf(DebugClock.nowZonedDateTime().withSecond(0).withNano(0)) }
     val today = currentTime.toLocalDate()
     val currentMinutes = currentTime.hour * 60 + currentTime.minute
@@ -177,9 +181,9 @@ internal fun Home(
     // 点击后整页像被按了一下：透镜涟漪从 AI 键向四周推开。
     val rippleProgress = remember { Animatable(1f) }
     LaunchedEffect(Unit) { AssistantAccessState.ensureLoaded() }
-    val assistantReady = AssistantAccessState.ready
-    LaunchedEffect(assistantReady) {
-        if (!assistantReady) AssistantGlowState.visible = false
+    val assistantEnabled = AssistantAccessState.enabled
+    LaunchedEffect(assistantEnabled) {
+        if (!assistantEnabled) AssistantGlowState.visible = false
     }
     val aiLayerActive = AssistantGlowState.visible &&
         !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible
@@ -499,7 +503,18 @@ internal fun Home(
         }
         val assistantButton: @Composable () -> Unit = {
             HomeAssistantButton(
-                onClick = { AssistantGlowState.visible = !AssistantGlowState.visible },
+                onClick = {
+                    val configured = runCatching { AssistantModelConfigStore.load() }.getOrNull() != null
+                    if (configured) {
+                        AssistantGlowState.visible = !AssistantGlowState.visible
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "请先在 设置 → AI 设置 中配置模型；如果您不希望使用 AI 功能，也可以前往 AI 设置页关闭该入口。",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                },
                 backdrop = headerControlsBackdrop,
                 modifier = Modifier.onGloballyPositioned { coordinates ->
                     val topLeft = coordinates.positionInWindow()
@@ -527,7 +542,7 @@ internal fun Home(
                         mode = WeatherHomeMode.Compact,
                         backdrop = headerControlsBackdrop
                     )
-                    if (assistantReady) assistantButton()
+                    if (assistantEnabled) assistantButton()
                     scanButton()
                 }
             } else if (isEditingHome) {
@@ -537,7 +552,7 @@ internal fun Home(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (assistantReady) assistantButton()
+                    if (assistantEnabled) assistantButton()
                     scanButton()
                 }
             }

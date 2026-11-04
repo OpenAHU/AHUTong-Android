@@ -28,6 +28,7 @@ import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelConfig
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
+import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppTextField
@@ -63,6 +64,7 @@ fun AiSettings(onBack: () -> Unit = {}) {
     }
     var personality by remember { mutableStateOf(AssistantPreferences.personality()) }
     var searchEnabled by remember { mutableStateOf(AssistantPreferences.searchEnabled()) }
+    var serviceEnabled by remember { mutableStateOf(AssistantPreferences.serviceEnabled()) }
     val supportsSearch = baseUrl.contains("deepseek.com", ignoreCase = true)
     var apiKey by remember { mutableStateOf("") }
     var testing by remember { mutableStateOf(false) }
@@ -91,14 +93,12 @@ fun AiSettings(onBack: () -> Unit = {}) {
             return
         }
         stored = runCatching { AssistantModelConfigStore.load() }.getOrNull()
-        AssistantPreferences.setConnectionVerified(false)
         if (!supportsSearch) {
             searchEnabled = false
             AssistantPreferences.setSearchEnabled(false)
         }
-        AssistantAccessState.refresh()
         apiKey = ""
-        status = "已保存，请测试连通性后再使用 AI 入口"
+        status = "已保存，AI 入口将使用该模型"
         Toast.makeText(context, "AI 设置已保存", Toast.LENGTH_SHORT).show()
     }
 
@@ -132,13 +132,10 @@ fun AiSettings(onBack: () -> Unit = {}) {
                         ?: "连接成功（模型未返回文本）"
                 }
             }
-            val success = outcome.isSuccess
-            AssistantPreferences.setConnectionVerified(success)
             if (!supportsSearch) {
                 searchEnabled = false
                 AssistantPreferences.setSearchEnabled(false)
             }
-            AssistantAccessState.refresh()
             testing = false
             status = outcome.getOrElse { error ->
                 "连接失败：" + (error.message ?: error.javaClass.simpleName)
@@ -152,6 +149,30 @@ fun AiSettings(onBack: () -> Unit = {}) {
             onBack = onBack,
             backdrop = backdrop,
         ) {
+            SettingsSection(
+                title = "AI 服务",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop,
+            ) {
+                SettingsToggleRow(
+                    title = "开启 AI 服务",
+                    subtitle = if (serviceEnabled) {
+                        "主页显示 AhuTong Intelligence 入口"
+                    } else {
+                        "主页隐藏 AI 入口，已打开的 AI 层会关闭"
+                    },
+                    selected = serviceEnabled,
+                    backdrop = backdrop,
+                    showDivider = false,
+                    onSelectedChange = { enabled ->
+                        serviceEnabled = enabled
+                        AssistantPreferences.setServiceEnabled(enabled)
+                        AssistantAccessState.refresh()
+                        if (!enabled) AssistantGlowState.visible = false
+                    },
+                )
+            }
+
             SettingsSection(
                 title = "模型服务",
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -171,14 +192,14 @@ fun AiSettings(onBack: () -> Unit = {}) {
                     AppTextField(
                         value = baseUrl,
                         onValueChange = { baseUrl = it },
-                        label = "Base URL（例如 https://api.deepseek.com）",
+                        label = "Base URL",
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
                     AppTextField(
                         value = modelName,
                         onValueChange = { modelName = it },
-                        label = "模型名（例如 deepseek-chat）",
+                        label = "模型名",
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                     )
@@ -325,8 +346,6 @@ fun AiSettings(onBack: () -> Unit = {}) {
             destructive = true,
             onConfirm = {
                 runCatching { AssistantModelConfigStore.clear() }
-                AssistantPreferences.setConnectionVerified(false)
-                AssistantAccessState.refresh()
                 stored = null
                 baseUrl = ""
                 modelName = ""
