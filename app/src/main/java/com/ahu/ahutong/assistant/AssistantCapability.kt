@@ -37,6 +37,37 @@ data class AssistantAnswer(
     val lines: List<String> = emptyList(),
     val route: String? = null,
     val trust: AssistantTrust = AssistantTrust.TRUSTED,
+    /** 对话页工具卡的结构化数据；为空时卡片退化为 summary + lines。 */
+    val card: AssistantCard? = null,
+)
+
+enum class AssistantCardTone { NEUTRAL, ACCENT, SUCCESS, DANGER }
+
+data class AssistantCardStat(val label: String, val value: String)
+
+data class AssistantCardItem(
+    val title: String,
+    val subtitle: String? = null,
+    val value: String? = null,
+    val status: String? = null,
+    val tone: AssistantCardTone = AssistantCardTone.NEUTRAL,
+    /** 同一组的条目前面显示一次分组标题（例如日期）。 */
+    val group: String? = null,
+)
+
+/**
+ * 工具结果卡：只描述"怎么展示"，不参与业务判断。
+ * kind 用于给个别卡片做更贴合的排版，其余字段通用。
+ */
+data class AssistantCard(
+    val kind: String,
+    val headline: String? = null,
+    val headlinePrefix: String? = null,
+    val headlineSuffix: String? = null,
+    val subtitle: String? = null,
+    val stats: List<AssistantCardStat> = emptyList(),
+    val items: List<AssistantCardItem> = emptyList(),
+    val note: String? = null,
 )
 
 sealed interface AssistantOutcome {

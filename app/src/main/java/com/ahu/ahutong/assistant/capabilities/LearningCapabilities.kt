@@ -3,6 +3,10 @@ package com.ahu.ahutong.assistant.capabilities
 import com.ahu.ahutong.assistant.AssistantAnswer
 import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantCard
+import com.ahu.ahutong.assistant.AssistantCardItem
+import com.ahu.ahutong.assistant.AssistantCardStat
+import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
@@ -90,6 +94,25 @@ class GetAssignmentsCapability(
                 summary = "最近 $days 天有 ${pending.size} 个未完成作业",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "assignments",
+                    headline = pending.size.toString(),
+                    headlineSuffix = "个未完成",
+                    subtitle = "最近 $days 天",
+                    items = pending.take(MAX_CARD_ITEMS).map { work ->
+                        AssistantCardItem(
+                            title = work.title,
+                            subtitle = work.courseName.ifBlank { "学习通" },
+                            status = work.status.ifBlank { "未完成" },
+                            tone = if (work.status == "已完成") {
+                                AssistantCardTone.SUCCESS
+                            } else {
+                                AssistantCardTone.DANGER
+                            },
+                            value = deadlineText(work),
+                        )
+                    },
+                ),
             )
         )
     }
@@ -103,6 +126,7 @@ class GetAssignmentsCapability(
     private companion object {
         const val DAY_MS = 24L * 60 * 60 * 1000
         const val MAX_ITEMS = 12
+        const val MAX_CARD_ITEMS = 20
         val TIME_FORMAT = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
     }
 }
@@ -158,11 +182,31 @@ class GetCourseTasksCapability(
                 summary = "章节任务点 $done/$total（$percent%）",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "course_tasks",
+                    headline = done.toString(),
+                    headlineSuffix = "/$total",
+                    subtitle = "章节任务点",
+                    stats = listOf(AssistantCardStat("完成率", "$percent%")),
+                    items = progress.take(MAX_CARD_COURSES).map { course ->
+                        AssistantCardItem(
+                            title = course.name.ifBlank { "未命名课程" },
+                            subtitle = "${course.doneCount}/${course.totalCount}",
+                            value = "${course.percent}%",
+                            tone = if (course.percent >= 100) {
+                                AssistantCardTone.SUCCESS
+                            } else {
+                                AssistantCardTone.NEUTRAL
+                            },
+                        )
+                    },
+                ),
             )
         )
     }
 
     private companion object {
         const val MAX_COURSES = 12
+        const val MAX_CARD_COURSES = 20
     }
 }

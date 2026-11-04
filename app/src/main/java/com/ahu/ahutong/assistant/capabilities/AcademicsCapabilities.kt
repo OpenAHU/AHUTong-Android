@@ -3,6 +3,10 @@ package com.ahu.ahutong.assistant.capabilities
 import com.ahu.ahutong.assistant.AssistantAnswer
 import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantCard
+import com.ahu.ahutong.assistant.AssistantCardItem
+import com.ahu.ahutong.assistant.AssistantCardStat
+import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.core.common.AhuResult
@@ -68,10 +72,27 @@ class GetGradesCapability(
                                 grade.totalGradePointAverage.orEmpty().ifBlank { "-" },
                             lines = lines,
                             route = spec.openRoute,
+                            card = AssistantCard(
+                                kind = "grades",
+                                headline = grade.totalGradePointAverage.orEmpty().ifBlank { "-" },
+                                headlineSuffix = "平均绩点",
+                                stats = listOf(
+                                    AssistantCardStat("学期数", terms.size.toString()),
+                                    AssistantCardStat("总学分", grade.totalCredit.orEmpty().ifBlank { "-" }),
+                                ),
+                                items = terms.map { term ->
+                                    AssistantCardItem(
+                                        title = "${term.schoolYear.orEmpty()} 第${term.term.orEmpty()}学期",
+                                        subtitle = "${term.termTotalCredit.orEmpty().ifBlank { "0" }} 学分",
+                                        value = "绩点 ${term.termGradePointAverage.orEmpty().ifBlank { "-" }}",
+                                    )
+                                },
+                            ),
                         )
                     )
                 } else {
                     val courses = selected.gradeList.orEmpty()
+                    val credits = courses.mapNotNull { it.credit?.toDoubleOrNull() }.sum()
                     val lines = courses.take(MAX_COURSES).map { course ->
                         buildString {
                             append(course.course.orEmpty())
@@ -94,6 +115,25 @@ class GetGradesCapability(
                                 selected.termGradePointAverage.orEmpty().ifBlank { "-" },
                             lines = lines + listOfNotNull(more),
                             route = spec.openRoute,
+                            card = AssistantCard(
+                                kind = "grades",
+                                headline = selected.termGradePointAverage.orEmpty().ifBlank { "-" },
+                                headlineSuffix = "绩点",
+                                subtitle = "${selected.schoolYear.orEmpty()} 第${selected.term.orEmpty()}学期",
+                                stats = listOf(
+                                    AssistantCardStat("课程数", courses.size.toString()),
+                                    AssistantCardStat("学分", formatCredit(credits)),
+                                ),
+                                items = courses.take(MAX_CARD_COURSES).map { course ->
+                                    AssistantCardItem(
+                                        title = course.course.orEmpty(),
+                                        subtitle = "${course.credit.orEmpty().ifBlank { "0" }} 学分",
+                                        value = course.grade.orEmpty().ifBlank { "-" },
+                                        status = course.gradePoint?.takeIf { it.isNotBlank() }?.let { "绩点 $it" },
+                                        tone = AssistantCardTone.ACCENT,
+                                    )
+                                },
+                            ),
                         )
                     )
                 }
@@ -124,8 +164,12 @@ class GetGradesCapability(
         }
     }
 
+    private fun formatCredit(value: Double): String =
+        if (value % 1.0 == 0.0) value.toInt().toString() else "%.1f".format(value)
+
     private companion object {
         const val MAX_COURSES = 20
+        const val MAX_CARD_COURSES = 40
     }
 }
 
@@ -166,6 +210,24 @@ class GetGpaRankCapability(
                     "专业排名 ${rank.majorRank}/${rank.majorHeadCount}",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "gpa",
+                    headline = "%.2f".format(rank.gpa),
+                    headlineSuffix = "绩点",
+                    stats = listOf(
+                        AssistantCardStat("专业排名", "${rank.majorRank}/${rank.majorHeadCount}"),
+                        AssistantCardStat("总学分", formatNumber(rank.totalCredits)),
+                    ),
+                    items = rank.gpaSemesterSubs.map { semester ->
+                        AssistantCardItem(
+                            title = "学期 ${semester.semesterId}",
+                            subtitle = "${formatNumber(semester.totalCredits)} 学分",
+                            value = "绩点 ${"%.2f".format(semester.gpa)}",
+                            status = "排名 ${semester.majorRank}",
+                        )
+                    },
+                    note = rank.updatedDateTimeStr.takeIf { it.isNotBlank() }?.let { "数据更新于 $it" },
+                ),
             )
         )
     }
@@ -228,6 +290,21 @@ class GetExamsCapability(
                         summary = "共 ${exams.size} 场考试，未结束 ${upcoming.size} 场",
                         lines = lines,
                         route = spec.openRoute,
+                        card = AssistantCard(
+                            kind = "exams",
+                            headline = upcoming.size.toString(),
+                            headlineSuffix = "场未结束",
+                            stats = listOf(AssistantCardStat("全部考试", exams.size.toString())),
+                            items = sorted.take(MAX_CARD_EXAMS).map { exam ->
+                                AssistantCardItem(
+                                    title = exam.course.orEmpty(),
+                                    subtitle = exam.time.orEmpty(),
+                                    value = exam.location.orEmpty(),
+                                    status = exam.seatNum?.takeIf { it.isNotBlank() }?.let { "$it 号座" },
+                                    tone = AssistantCardTone.ACCENT,
+                                )
+                            },
+                        ),
                     )
                 )
             }
@@ -236,6 +313,7 @@ class GetExamsCapability(
 
     private companion object {
         const val MAX_EXAMS = 12
+        const val MAX_CARD_EXAMS = 20
     }
 }
 
@@ -285,6 +363,40 @@ class GetProgramCompletionCapability(
                     "${formatCredit(program.passedCredits)}/${formatCredit(program.requiredCredits)} 学分",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "completion",
+                    headline = program.progressPercent,
+                    subtitle = program.programName,
+                    stats = listOf(
+                        AssistantCardStat("已修", formatCredit(program.passedCredits)),
+                        AssistantCardStat("要求", formatCredit(program.requiredCredits)),
+                        AssistantCardStat("在修", formatCredit(program.takingCredits)),
+                        AssistantCardStat("未通过", formatCredit(program.failedCredits)),
+                    ),
+                    items = program.modules.take(MAX_MODULES).map { module ->
+                        AssistantCardItem(
+                            title = module.nameZh,
+                            subtitle = "已修 ${formatCredit(module.passedCredits)} / " +
+                                "${formatCredit(module.requiredCredits)} 学分",
+                            value = module.result,
+                            tone = if (module.result == "PASSED") {
+                                AssistantCardTone.SUCCESS
+                            } else {
+                                AssistantCardTone.NEUTRAL
+                            },
+                        )
+                    },
+                    note = buildString {
+                        if (unpassed.isNotEmpty()) {
+                            append("未通过：")
+                            append(unpassed.joinToString("、") { it.nameZh })
+                        }
+                        if (!program.auditPublished) {
+                            if (isNotEmpty()) append("\n")
+                            append("审核结果尚未发布，以教务系统为准")
+                        }
+                    }.takeIf { it.isNotBlank() },
+                ),
             )
         )
     }
@@ -364,12 +476,37 @@ class GetEvaluationTasksCapability(
                     "${items.size} 个课程任务，${teacherCount} 位教师待评",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "evaluation",
+                    headline = teacherCount.toString(),
+                    headlineSuffix = "位教师待评",
+                    subtitle = selected.nameZh.ifBlank { selected.schoolYear },
+                    stats = listOf(AssistantCardStat("课程任务", items.size.toString())),
+                    items = items.take(MAX_CARD_TASKS).map { item ->
+                        val names = item.taskList.flatMap { task -> task.teachers.map { it.teacherName } }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                        val days = item.taskList.mapNotNull { task -> task.days.toIntOrNull() }.minOrNull()
+                        AssistantCardItem(
+                            title = item.courseName.ifBlank { item.lessonNameZh },
+                            subtitle = names.joinToString("、").takeIf { it.isNotBlank() },
+                            value = "${item.taskList.size} 份问卷",
+                            status = days?.let { "剩余 $it 天" },
+                            tone = if (days != null && days <= 3) {
+                                AssistantCardTone.DANGER
+                            } else {
+                                AssistantCardTone.NEUTRAL
+                            },
+                        )
+                    },
+                ),
             )
         )
     }
 
     private companion object {
         const val MAX_TASKS = 10
+        const val MAX_CARD_TASKS = 20
     }
 }
 

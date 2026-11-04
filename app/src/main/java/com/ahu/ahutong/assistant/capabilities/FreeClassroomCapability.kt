@@ -78,9 +78,26 @@ class FreeClassroomCapability(
                 .distinctBy { "${it.id}-${it.building.id}" }
                 .sortedWith(compareBy({ it.building.nameZh }, { it.floor }, { it.nameZh }))
             val campusName = if (campusId == 2) "龙河校区" else "磬苑校区"
+            val card = com.ahu.ahutong.assistant.AssistantCard(
+                kind = "free_rooms",
+                headline = rooms.size.toString(),
+                headlineSuffix = "间",
+                subtitle = "$campusName ${date.monthValue}月${date.dayOfMonth}日",
+                items = rooms.take(MAX_CARD_ROOMS).map { room ->
+                    com.ahu.ahutong.assistant.AssistantCardItem(
+                        title = "${room.building.nameZh} ${room.floor}F",
+                        subtitle = room.nameZh,
+                        value = if (room.seats > 0) "${room.seats}座" else null,
+                    )
+                },
+            )
             if (rooms.isEmpty()) {
                 AssistantOutcome.Success(
-                    AssistantAnswer("$campusName ${date.monthValue}月${date.dayOfMonth}日暂无空教室", route = spec.openRoute)
+                    AssistantAnswer(
+                        "$campusName ${date.monthValue}月${date.dayOfMonth}日暂无空教室",
+                        route = spec.openRoute,
+                        card = card,
+                    )
                 )
             } else {
                 val preview = rooms.take(MAX_PREVIEW).map { room ->
@@ -103,6 +120,7 @@ class FreeClassroomCapability(
                         summary = "$campusName ${date.monthValue}月${date.dayOfMonth}日有 ${rooms.size} 间空教室",
                         lines = preview + listOfNotNull(more),
                         route = spec.openRoute,
+                        card = card,
                     )
                 )
             }
@@ -119,5 +137,6 @@ class FreeClassroomCapability(
 
     private companion object {
         const val MAX_PREVIEW = 8
+        const val MAX_CARD_ROOMS = 24
     }
 }

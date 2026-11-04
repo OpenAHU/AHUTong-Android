@@ -3,6 +3,10 @@ package com.ahu.ahutong.assistant.capabilities
 import com.ahu.ahutong.assistant.AssistantAnswer
 import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantCard
+import com.ahu.ahutong.assistant.AssistantCardItem
+import com.ahu.ahutong.assistant.AssistantCardStat
+import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.assistant.AssistantTrust
@@ -62,6 +66,25 @@ class GetAttendanceCapability(
                     summary = "考勤记录共 ${result.totalCount} 条",
                     lines = lines,
                     route = spec.openRoute,
+                    card = AssistantCard(
+                        kind = "attendance",
+                        headline = result.totalCount.toString(),
+                        headlineSuffix = "条",
+                        items = result.records.take(MAX_CARD_RECORDS).map { record ->
+                            val place = (record.building + record.room).trim()
+                            AssistantCardItem(
+                                title = record.courseName,
+                                subtitle = "${record.classDate} ${record.startTime}-${record.endTime}" +
+                                    if (place.isNotBlank()) " · $place" else "",
+                                status = record.status.label,
+                                tone = when (record.status.label) {
+                                    "正常" -> AssistantCardTone.SUCCESS
+                                    "迟到", "缺勤" -> AssistantCardTone.DANGER
+                                    else -> AssistantCardTone.NEUTRAL
+                                },
+                            )
+                        },
+                    ),
                 )
             )
         } catch (cancelled: CancellationException) {
@@ -77,6 +100,7 @@ class GetAttendanceCapability(
 
     private companion object {
         const val MAX_RECORDS = 12
+        const val MAX_CARD_RECORDS = 20
     }
 }
 
@@ -159,6 +183,25 @@ class GetMailCapability(
                 lines = lines,
                 route = spec.openRoute,
                 trust = AssistantTrust.UNTRUSTED,
+                card = AssistantCard(
+                    kind = "mail",
+                    headline = page.total.toString(),
+                    headlineSuffix = "封",
+                    subtitle = folder.name,
+                    items = messages.map { message ->
+                        AssistantCardItem(
+                            title = message.subject.ifBlank { "(无主题)" },
+                            subtitle = message.from,
+                            value = message.date.takeIf { it.isNotBlank() },
+                            status = if (message.read) null else "未读",
+                            tone = if (message.read) {
+                                AssistantCardTone.NEUTRAL
+                            } else {
+                                AssistantCardTone.DANGER
+                            },
+                        )
+                    },
+                ),
             )
         )
     }
@@ -183,6 +226,24 @@ class GetMailCapability(
                 lines = lines,
                 route = spec.openRoute,
                 trust = AssistantTrust.UNTRUSTED,
+                card = AssistantCard(
+                    kind = "mail_detail",
+                    headline = detail.subject.ifBlank { "(无主题)" },
+                    subtitle = detail.from.joinToString(", ").takeIf { it.isNotBlank() },
+                    stats = listOf(
+                        AssistantCardStat(
+                            "附件",
+                            detail.attachments.size.toString(),
+                        ),
+                    ),
+                    items = detail.attachments.map { attachment ->
+                        AssistantCardItem(
+                            title = attachment.name,
+                            subtitle = "${attachment.size} B",
+                        )
+                    },
+                    note = body.takeIf { it.isNotBlank() },
+                ),
             )
         )
     }
@@ -235,6 +296,28 @@ class GetWeatherCapability(
                         "${weather.temperature?.let { trimNumber(it) } ?: "-"}°C",
                     lines = lines,
                     route = spec.openRoute,
+                    card = AssistantCard(
+                        kind = "weather",
+                        headline = weather.temperature?.let { trimNumber(it) } ?: "-",
+                        headlineSuffix = "°",
+                        subtitle = listOfNotNull(weather.city, weather.weather)
+                            .joinToString(" ")
+                            .takeIf { it.isNotBlank() },
+                        stats = listOfNotNull(
+                            weather.feelsLike?.let {
+                                AssistantCardStat("体感", "${trimNumber(it)}°")
+                            },
+                            weather.humidity?.let { AssistantCardStat("湿度", "$it%") },
+                            weather.aqi?.let { AssistantCardStat("AQI", it.toString()) },
+                            if (weather.tempMin != null && weather.tempMax != null) {
+                                AssistantCardStat(
+                                    "今日",
+                                    "${trimNumber(weather.tempMin)}~${trimNumber(weather.tempMax)}°",
+                                )
+                            } else null,
+                        ),
+                        note = weather.reportTime?.takeIf { it.isNotBlank() }?.let { "更新于 $it" },
+                    ),
                 )
             )
         } catch (cancelled: CancellationException) {

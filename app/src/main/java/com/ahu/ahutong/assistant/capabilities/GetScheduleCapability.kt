@@ -44,6 +44,7 @@ class GetScheduleCapability(
         val startWeekday = scheduleConfig.weekDay.takeIf { it in 1..7 }
             ?: startDate.dayOfWeek.value
         val lines = mutableListOf<String>()
+        val cardItems = mutableListOf<com.ahu.ahutong.assistant.AssistantCardItem>()
         var count = 0
         for (offset in 0 until days) {
             val date = startDate.plusDays(offset.toLong())
@@ -52,8 +53,26 @@ class GetScheduleCapability(
             val dayCourses = courses
                 .filter { course -> course.occursOn(weekday, week) }
                 .sortedBy { course -> course.startTime ?: Int.MAX_VALUE }
+            val dateLabel = buildString {
+                append(date.monthValue)
+                append("月")
+                append(date.dayOfMonth)
+                append("日 周")
+                append(WEEKDAY_LABELS[weekday - 1])
+            }
             dayCourses.forEach { course ->
                 count++
+                cardItems += com.ahu.ahutong.assistant.AssistantCardItem(
+                    title = course.name.orEmpty(),
+                    subtitle = buildString {
+                        append(course.clockRange?.takeIf { it.isNotBlank() } ?: periodText(course))
+                        course.location?.takeIf { it.isNotBlank() }?.let {
+                            append(" · ")
+                            append(it)
+                        }
+                    },
+                    group = dateLabel,
+                )
                 lines += buildString {
                     append(date.monthValue)
                     append("月")
@@ -79,6 +98,13 @@ class GetScheduleCapability(
                 summary = if (days == 1) "今天有 $count 节课" else "最近 $days 天有 $count 节课",
                 lines = lines,
                 route = spec.openRoute,
+                card = com.ahu.ahutong.assistant.AssistantCard(
+                    kind = "schedule",
+                    headline = count.toString(),
+                    headlineSuffix = "节",
+                    subtitle = if (days == 1) "今天" else "最近 $days 天",
+                    items = cardItems,
+                ),
             )
         )
     }

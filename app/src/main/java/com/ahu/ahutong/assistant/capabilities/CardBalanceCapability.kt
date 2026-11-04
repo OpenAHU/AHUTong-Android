@@ -3,6 +3,7 @@ package com.ahu.ahutong.assistant.capabilities
 import com.ahu.ahutong.assistant.AssistantAnswer
 import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantCard
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.core.common.AhuResult
@@ -50,6 +51,21 @@ class CardBalanceCapability(
                             "校园卡余额 ¥${format(balance)}"
                         },
                         lines = lines,
+                        card = if (balance == null || !balance.isFinite()) {
+                            null
+                        } else {
+                            AssistantCard(
+                                kind = "balance",
+                                headline = format(balance),
+                                headlinePrefix = "¥",
+                                subtitle = "校园卡余额",
+                                note = if (transition != null && transition.isFinite() && transition > 0.0) {
+                                    "过渡余额 ¥${format(transition)}（刷卡后转入）"
+                                } else {
+                                    null
+                                },
+                            )
+                        },
                     )
                 )
             }

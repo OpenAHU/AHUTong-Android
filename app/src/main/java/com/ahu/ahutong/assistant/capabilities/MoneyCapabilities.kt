@@ -3,6 +3,10 @@ package com.ahu.ahutong.assistant.capabilities
 import com.ahu.ahutong.assistant.AssistantAnswer
 import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantCard
+import com.ahu.ahutong.assistant.AssistantCardItem
+import com.ahu.ahutong.assistant.AssistantCardStat
+import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.core.common.AhuResult
@@ -72,6 +76,28 @@ class GetBillsCapability(
                 summary = "本月支出 ¥$expense，收入 ¥$income",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "bills",
+                    subtitle = "本月",
+                    stats = listOf(
+                        AssistantCardStat("本月支出", "¥$expense"),
+                        AssistantCardStat("本月收入", "¥$income"),
+                    ),
+                    items = records.take(MAX_CARD_RECORDS).map { record ->
+                        AssistantCardItem(
+                            title = record.resume?.takeIf { it.isNotBlank() }
+                                ?: record.toMerchant.orEmpty(),
+                            subtitle = record.effectdateStr?.take(16),
+                            value = (if (record.isExpense) "-¥" else "+¥") +
+                                formatMoney(record.tranamt / 100.0),
+                            tone = if (record.isExpense) {
+                                AssistantCardTone.NEUTRAL
+                            } else {
+                                AssistantCardTone.SUCCESS
+                            },
+                        )
+                    },
+                ),
             )
         )
     }
@@ -79,6 +105,7 @@ class GetBillsCapability(
     private companion object {
         const val PAGE_SIZE = 20
         const val MAX_RECORDS = 10
+        const val MAX_CARD_RECORDS = 20
     }
 }
 
@@ -111,6 +138,24 @@ class GetElectricityCapability(
                         summary = roomSummary(selection, room),
                         lines = roomLines(room),
                         route = spec.openRoute,
+                        card = AssistantCard(
+                            kind = "electricity",
+                            headline = room.displayInfo?.takeIf { it.isNotBlank() },
+                            subtitle = listOfNotNull(
+                                selection.campus?.name,
+                                selection.building?.name,
+                                selection.floor?.name,
+                                selection.room?.name,
+                            ).joinToString(" ").takeIf { it.isNotBlank() },
+                            stats = listOfNotNull(
+                                room.details.account?.takeIf { it.isNotBlank() }?.let {
+                                    AssistantCardStat("账户", it)
+                                }
+                            ),
+                            items = roomLines(room).map { line ->
+                                AssistantCardItem(title = line)
+                            },
+                        ),
                     )
                 )
             }
@@ -173,6 +218,21 @@ class GetElectricityConditionsCapability(
                 summary = "已保存 ${items.size} 个电控条件",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "conditions",
+                    headline = items.size.toString(),
+                    headlineSuffix = "个",
+                    items = items.mapIndexed { index, item ->
+                        AssistantCardItem(
+                            title = labelOf(item.selection),
+                            subtitle = "序号 $index",
+                            value = item.updatedAt.takeIf { it > 0 }?.let {
+                                java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.CHINA)
+                                    .format(java.util.Date(it))
+                            },
+                        )
+                    },
+                ),
             )
         )
     }

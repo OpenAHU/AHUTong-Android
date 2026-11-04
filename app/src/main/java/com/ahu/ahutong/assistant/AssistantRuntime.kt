@@ -26,10 +26,16 @@ sealed interface AssistantRuntimeEvent {
     data class AssistantMessage(val text: String) : AssistantRuntimeEvent
     data class ToolResultEvent(
         val toolId: String,
+        val title: String,
         val ok: Boolean,
         val summary: String?,
+        val card: AssistantCard? = null,
         /** 能力对应的既有页面；UI 只负责跳转。 */
         val route: String? = null,
+        val source: String = "本机数据",
+        val fetchedAt: Long = System.currentTimeMillis(),
+        val trust: AssistantTrust = AssistantTrust.TRUSTED,
+        val navigateOnly: Boolean = false,
     ) : AssistantRuntimeEvent
     data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantRuntimeEvent
     data class Failed(val message: String) : AssistantRuntimeEvent
@@ -69,9 +75,11 @@ class AssistantRuntime(
             var step = 0
             while (step < maxSteps) {
                 step++
-                val collected = collectStream(messages) { delta ->
-                    emit(AssistantRuntimeEvent.AssistantDelta(delta))
-                }
+                val collected = collectStream(
+                    messages = messages,
+                    onStart = { emit(AssistantRuntimeEvent.AssistantStart) },
+                    onDelta = { delta -> emit(AssistantRuntimeEvent.AssistantDelta(delta)) },
+                )
                 val reply = collected.reply
                 val visibleText = collected.text.trim()
 
@@ -100,7 +108,7 @@ class AssistantRuntime(
                     val capability = registry.find(call.name)
                     if (capability == null) {
                         val payload = failurePayload("unknown_tool", "未知工具：${call.name}")
-                        emit(AssistantRuntimeEvent.ToolResultEvent(call.name, false, null))
+                        emit(AssistantRuntimeEvent.ToolResultEvent(call.name, call.name, false, null, source = "agent"))
                         messages += toolMessage(call, payload)
                         continue
                     }
@@ -109,7 +117,7 @@ class AssistantRuntime(
                         val blocked = writeJournal?.check(capability.spec.id, call.arguments)
                         if (blocked != null) {
                             val payload = failurePayload("duplicate_write", blocked)
-                            emit(AssistantRuntimeEvent.ToolResultEvent(call.name, false, blocked))
+                            emit(AssistantRuntimeEvent.ToolResultEvent(call.name, capability.spec.title, false, blocked, source = capability.spec.source))
                             messages += toolMessage(call, payload)
                             continue
                         }
@@ -141,7 +149,7 @@ class AssistantRuntime(
                         }
                         if (!decision.approved) {
                             val payload = failurePayload("user_rejected", "用户取消了这次操作")
-                            emit(AssistantRuntimeEvent.ToolResultEvent(call.name, false, "已取消"))
+                            emit(AssistantRuntimeEvent.ToolResultEvent(call.name, capability.spec.title, false, "已取消", source = capability.spec.source))
                             messages += toolMessage(call, payload)
                             continue
                         }
@@ -169,7 +177,15 @@ class AssistantRuntime(
                             }
                             emit(
                                 AssistantRuntimeEvent.ToolResultEvent(
-                                    call.name, true, outcome.answer.summary, capability.spec.openRoute
+                                    toolId = call.name,
+                                    title = capability.spec.title,
+                                    ok = true,
+                                    summary = outcome.answer.summary,
+                                    card = outcome.answer.card,
+                                    route = capability.spec.openRoute,
+                                    source = capability.spec.source,
+                                    trust = outcome.answer.trust,
+                                    navigateOnly = capability.spec.kind == AssistantCapabilityKind.NAVIGATE,
                                 )
                             )
                             messages += toolMessage(call, successPayload(outcome))
@@ -177,7 +193,11 @@ class AssistantRuntime(
                         is AssistantOutcome.Failure -> {
                             emit(
                                 AssistantRuntimeEvent.ToolResultEvent(
-                                    call.name, false, outcome.message
+                                    toolId = call.name,
+                                    title = capability.spec.title,
+                                    ok = false,
+                                    summary = outcome.message,
+                                    source = capability.spec.source,
                                 )
                             )
                             messages += toolMessage(
@@ -198,13 +218,19 @@ class AssistantRuntime(
 
     private suspend fun collectStream(
         messages: List<AssistantMessage>,
+        onStart: suspend () -> Unit,
         onDelta: suspend (String) -> Unit,
     ): Collected {
         var reply: AssistantModelReply? = null
+        var started = false
         val text = StringBuilder()
         model.stream(messages, registry.toolSpecs()).collect { event ->
             when (event) {
                 is AssistantModelEvent.Delta -> {
+                    if (!started) {
+                        started = true
+                        onStart()
+                    }
                     text.append(event.text)
                     onDelta(event.text)
                 }

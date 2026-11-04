@@ -77,7 +77,7 @@ class AssistantServiceTest {
     }
 
     @Test
-    fun modelFailureFallsBackToLocalRouting() = runBlocking {
+    fun modelFailureSurfacesAnErrorInsteadOfSilentlyFallingBack() = runBlocking {
         val broken = object : AssistantChatModel {
             override val name = "broken"
             override suspend fun complete(
@@ -87,9 +87,19 @@ class AssistantServiceTest {
         }
         val service = AssistantService(registry(), modelFactory = { broken })
         val turn = service.ask("校园卡余额还有多少")
-        assertEquals("get_balance", turn.capabilityId)
-        val outcome = turn.outcome as AssistantOutcome.Success
-        assertEquals("余额 10 元", outcome.answer.summary)
+        val outcome = turn.outcome as AssistantOutcome.Failure
+        assertTrue(outcome.message.contains("network down"))
+    }
+
+    @Test
+    fun streamEmitsToolCardAndStatusForLocalRouting() = runBlocking {
+        val service = AssistantService(registry(), modelFactory = { null })
+        val events = mutableListOf<AssistantServiceEvent>()
+        service.stream("查教务处电话").collect { events += it }
+        assertTrue(events.any { it is AssistantServiceEvent.Status })
+        assertTrue(events.any { it is AssistantServiceEvent.ToolResult })
+        assertTrue(events.any { it is AssistantServiceEvent.AssistantMessage })
+        assertTrue(events.last() is AssistantServiceEvent.Done)
     }
 
     @Test

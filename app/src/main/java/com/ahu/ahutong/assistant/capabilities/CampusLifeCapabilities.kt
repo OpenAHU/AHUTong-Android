@@ -3,6 +3,9 @@ package com.ahu.ahutong.assistant.capabilities
 import com.ahu.ahutong.assistant.AssistantAnswer
 import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantCard
+import com.ahu.ahutong.assistant.AssistantCardItem
+import com.ahu.ahutong.assistant.AssistantCardStat
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.assistant.AssistantTrust
@@ -94,7 +97,31 @@ class GetCanteenRankingCapability(
             "${campusName ?: "全部"}食堂 ${ranking.size} 个窗口上榜"
         }
         return AssistantOutcome.Success(
-            AssistantAnswer(summary = summary, lines = lines, route = spec.openRoute)
+            AssistantAnswer(
+                summary = summary,
+                lines = lines,
+                route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "canteen",
+                    headline = top?.name ?: "必吃榜",
+                    subtitle = top?.canteen ?: (campusName ?: "全部校区"),
+                    stats = listOf(
+                        AssistantCardStat("上榜窗口", ranking.size.toString()),
+                        AssistantCardStat("样本交易", (data.sample?.txns ?: 0).toString()),
+                    ),
+                    items = ranking.take(limit).map { item ->
+                        AssistantCardItem(
+                            title = "${item.rank}. ${item.name ?: "未命名窗口"}",
+                            subtitle = listOfNotNull(
+                                item.canteen,
+                                item.floor?.takeIf { it.isNotBlank() }?.let { "${it}F" },
+                            ).joinToString(" · ").takeIf { it.isNotBlank() },
+                            value = "${item.txns} 人次",
+                            status = item.avgCentsPerTxn?.let { "人均 ¥${formatMoney(it / 100.0)}" },
+                        )
+                    },
+                ),
+            )
         )
     }
 
@@ -166,6 +193,23 @@ class GetLostFoundCapability(
                         lines = lines,
                         route = spec.openRoute,
                         trust = AssistantTrust.UNTRUSTED,
+                        card = AssistantCard(
+                            kind = "lost_found",
+                            headline = response.data.total.toString(),
+                            headlineSuffix = "条",
+                            subtitle = stateLabel,
+                            items = items.take(MAX_ITEMS).map { item ->
+                                AssistantCardItem(
+                                    title = item.title,
+                                    subtitle = listOfNotNull(
+                                        item.lostType?.typeName,
+                                        item.campusName,
+                                    ).joinToString(" · ").takeIf { it.isNotBlank() },
+                                    value = item.createtime?.take(16),
+                                    status = item.linkman,
+                                )
+                            },
+                        ),
                     )
                 )
             }
@@ -236,6 +280,20 @@ class GetPhoneBookCapability(
                 summary = "找到 ${matches.size} 个号码",
                 lines = lines,
                 route = spec.openRoute,
+                card = AssistantCard(
+                    kind = "phone_book",
+                    headline = matches.size.toString(),
+                    headlineSuffix = "个号码",
+                    items = matches.map { (group, entry) ->
+                        AssistantCardItem(
+                            title = entry.name,
+                            subtitle = group,
+                            value = listOfNotNull(entry.tel, entry.tel2)
+                                .distinct()
+                                .joinToString(" / "),
+                        )
+                    },
+                ),
             )
         )
     }
@@ -303,6 +361,18 @@ class GetNoticesCapability(
                 lines = lines,
                 route = spec.openRoute,
                 trust = AssistantTrust.UNTRUSTED,
+                card = AssistantCard(
+                    kind = "notices",
+                    headline = notices.size.toString(),
+                    headlineSuffix = "条",
+                    subtitle = "未读 ${snapshot.unreadCount} 条",
+                    items = notices.map { notice ->
+                        AssistantCardItem(
+                            title = notice.title,
+                            subtitle = "${sourceLabel(notice.sourceId)} · ${notice.publishedOn}",
+                        )
+                    },
+                ),
             )
         )
     }
