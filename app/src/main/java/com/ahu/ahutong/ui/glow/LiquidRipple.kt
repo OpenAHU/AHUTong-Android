@@ -53,8 +53,6 @@ half4 main(float2 coord) {
     float freq = 0.055 / uScale;
 
     float wave = waveBand(d, mainRadius, widthPx, uStrength * (1.0 - 0.5 * uProgress), freq);
-    wave += waveBand(d, mainRadius - 70.0 * uScale, widthPx * 0.75, uStrength * 0.5, freq * 1.05);
-    wave += waveBand(d, mainRadius - 150.0 * uScale, widthPx * 0.5, uStrength * 0.28, freq * 1.1);
 
     float settle = smoothstep(0.8, 1.0, uProgress);
     float ambient = sin(d / (110.0 * uScale) - uAmbientPhase * 6.28318) * 0.8 * uScale * settle;
