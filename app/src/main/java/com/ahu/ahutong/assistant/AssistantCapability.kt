@@ -26,6 +26,8 @@ data class AssistantCapabilitySpec(
     val parameters: JsonObject,
     val sensitivity: AssistantSensitivity,
     val kind: AssistantCapabilityKind = AssistantCapabilityKind.READ,
+    /** 数据来源，给模型与结果卡展示用（例如「教务系统」「一卡通系统」）。 */
+    val source: String = "本机数据",
     /** 结果对应的既有页面；UI 只负责跳转，不复制执行逻辑。 */
     val openRoute: String? = null,
 )

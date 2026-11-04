@@ -32,10 +32,10 @@ class AssistantCapabilityRegistryTest {
 
     @Test
     fun exportsOpenAiToolSchemas() {
-        val registry = AssistantCapabilityRegistry(listOf(FakeCapability(spec("free_classroom"))))
+        val registry = AssistantCapabilityRegistry(listOf(FakeCapability(spec("get_free_rooms"))))
         val schema = registry.toolSchemas().toString()
         assertTrue(schema.contains("\"type\":\"function\""))
-        assertTrue(schema.contains("\"name\":\"free_classroom\""))
+        assertTrue(schema.contains("\"name\":\"get_free_rooms\""))
         assertTrue(schema.contains("\"parameters\""))
     }
 }

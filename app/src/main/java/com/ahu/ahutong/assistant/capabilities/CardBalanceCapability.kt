@@ -21,12 +21,13 @@ class CardBalanceCapability(
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
-        id = "card_balance",
+        id = "get_balance",
         title = "校园卡余额",
-        description = "查询校园卡当前余额（只读，不涉及充值）。",
+        description = "查询校园一卡通的当前余额与过渡余额（只读，不涉及充值）。",
         parameters = JsonParser.parseString("""{"type":"object","properties":{},"additionalProperties":false}""")
             .asJsonObject,
         sensitivity = AssistantSensitivity.FINANCIAL,
+        source = "一卡通系统",
     )
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome =

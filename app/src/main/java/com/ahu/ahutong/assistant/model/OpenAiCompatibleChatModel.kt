@@ -1,11 +1,11 @@
 package com.ahu.ahutong.assistant.model
 
+import com.ahu.ahutong.data.network.AhuHttp
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -22,10 +22,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
  */
 class OpenAiCompatibleChatModel(
     private val config: AssistantModelConfig,
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
-        .build(),
+    private val client: OkHttpClient = AhuHttp.plain(
+        connectTimeoutSeconds = 15,
+        readTimeoutSeconds = 90,
+    ).build(),
 ) : AssistantChatModel {
 
     override val name: String get() = config.model

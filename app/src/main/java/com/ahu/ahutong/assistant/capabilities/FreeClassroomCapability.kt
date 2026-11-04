@@ -26,9 +26,9 @@ class FreeClassroomCapability(
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
-        id = "free_classroom",
+        id = "get_free_rooms",
         title = "空闲教室",
-        description = "查询某校区某天全天空闲的教室，可按节次筛选。默认今天、磬苑校区、1-13 节。",
+        description = "查询指定日期（默认今天）某校区的空闲教室。campusId: 1=磬苑校区，2=龙河校区；units 为节次，默认 1-13；building 可按教学楼筛选。",
         parameters = JsonParser.parseString(
             """
             {
@@ -40,7 +40,8 @@ class FreeClassroomCapability(
                   "type": "array",
                   "items": { "type": "string" },
                   "description": "节次，默认 1-13"
-                }
+                },
+                "building": { "type": "string", "description": "教学楼名称，例如 博学北楼；不传返回全部" }
               },
               "additionalProperties": false
             }
@@ -55,6 +56,7 @@ class FreeClassroomCapability(
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: today()
         val campusId = arguments.get("campusId")?.asInt?.takeIf { it == 1 || it == 2 } ?: 1
+        val building = arguments.stringArg("building")
         val units = arguments.get("units")?.asJsonArray
             ?.mapNotNull { runCatching { it.asString }.getOrNull() }
             ?.filter { it.toIntOrNull() in 1..13 }
@@ -72,6 +74,7 @@ class FreeClassroomCapability(
         )
         return try {
             val rooms = loadRooms(request)
+                .filter { room -> building == null || room.building.nameZh.contains(building, ignoreCase = true) }
                 .distinctBy { "${it.id}-${it.building.id}" }
                 .sortedWith(compareBy({ it.building.nameZh }, { it.floor }, { it.nameZh }))
             val campusName = if (campusId == 2) "龙河校区" else "磬苑校区"

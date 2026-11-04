@@ -220,7 +220,10 @@ private fun ChatBubble(
 }
 
 private fun AssistantTurn.toChatMessage(): AssistantChatMessage = when (val result = outcome) {
-    null -> AssistantChatMessage.Assistant("第一版只会回答课表、空教室和校园卡余额。")
+    null -> AssistantChatMessage.Assistant(
+        "我可以查课表、空教室、成绩、绩点排名、考试、余额、账单、电费、考勤、培养方案、评教、通知、失物招领、邮箱、电话本、作业、章节进度、天气和必吃榜；" +
+            "充值、评教提交、发邮件等会打开原页面由你确认。"
+    )
     is AssistantOutcome.Success -> AssistantChatMessage.Assistant(
         summary = result.answer.summary,
         lines = result.answer.lines,
