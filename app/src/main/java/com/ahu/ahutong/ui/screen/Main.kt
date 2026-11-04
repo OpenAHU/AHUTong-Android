@@ -997,7 +997,12 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
-        // 全局最上层：盖住底部导航与页面内容（AI 键只写入状态）。
+        // 光效盖住底部导航与页面内容，但输入栏仍在光效之上。
+        com.ahu.ahutong.ui.glow.ScreenEdgeGlow(
+            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible &&
+                !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible,
+            origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
+        )
         com.ahu.ahutong.ui.screen.assistant.AssistantImeMode()
         com.ahu.ahutong.ui.screen.assistant.AssistantOverlay(
             scheduleViewModel = scheduleViewModel,
@@ -1012,11 +1017,6 @@ fun Main(
                 com.ahu.ahutong.ui.glow.AssistantGlowState.visible = false
                 navController.navigate(route) { launchSingleTop = true }
             },
-        )
-        com.ahu.ahutong.ui.glow.ScreenEdgeGlow(
-            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible &&
-                !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible,
-            origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
         )
 
         }
