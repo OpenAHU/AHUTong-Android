@@ -21,15 +21,15 @@ class AssistantNavigateCapability(
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
         val extra = detail(arguments)?.takeIf { it.isNotBlank() }
         val summary = buildString {
-            append("已为你打开「")
+            append("「")
             append(spec.title)
-            append("」")
-            append("，请在原页面确认")
+            append("」需要在原页面确认")
             if (extra != null) {
-                append("：")
+                append("（")
                 append(extra)
+                append("）")
             }
-            append("。")
+            append("，点下方「打开页面」继续。")
         }
         return AssistantOutcome.Success(AssistantAnswer(summary = summary, route = spec.openRoute))
     }

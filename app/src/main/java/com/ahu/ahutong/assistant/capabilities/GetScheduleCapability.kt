@@ -41,12 +41,14 @@ class GetScheduleCapability(
             ?: return message("课表还没缓存，打开课表页刷新一次")
 
         val startDate = today()
+        val startWeekday = scheduleConfig.weekDay.takeIf { it in 1..7 }
+            ?: startDate.dayOfWeek.value
         val lines = mutableListOf<String>()
         var count = 0
         for (offset in 0 until days) {
             val date = startDate.plusDays(offset.toLong())
             val weekday = date.dayOfWeek.value
-            val week = scheduleConfig.week + ((scheduleConfig.weekDay - 1 + offset) / 7)
+            val week = scheduleConfig.week + ((startWeekday - 1 + offset) / 7)
             val dayCourses = courses
                 .filter { course -> course.occursOn(weekday, week) }
                 .sortedBy { course -> course.startTime ?: Int.MAX_VALUE }
