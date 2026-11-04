@@ -795,6 +795,7 @@ private suspend fun runStream(
     } finally {
         flushJob?.cancel()
         flushJob = null
+        AssistantChatState.finishStreaming()
         AssistantChatState.updateRunning(false)
         AssistantChatState.updateStatus(null)
     }

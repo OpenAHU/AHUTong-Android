@@ -123,6 +123,11 @@ object AssistantChatState {
         runJob = null
         running = false
         status = null
+        finishStreaming()
+    }
+
+    /** 运行结束时兜底收尾，确保不会因为漏掉 Done 而一直按纯文本渲染。 */
+    fun finishStreaming() {
         val streaming = _items.lastOrNull() as? AssistantChatItem.Assistant
         if (streaming?.streaming == true) {
             if (streaming.text.isBlank()) {

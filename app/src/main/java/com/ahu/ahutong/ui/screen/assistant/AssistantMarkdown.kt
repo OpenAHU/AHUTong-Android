@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.util.Base64
 import android.view.View
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -168,7 +169,7 @@ private fun MarkdownMarkdown(text: String, modifier: Modifier) {
     )
 }
 
-private const val MATH_HEIGHT_TIMEOUT_MS = 2_500L
+private const val MATH_HEIGHT_TIMEOUT_MS = 6_000L
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -197,6 +198,8 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = false
                 settings.allowFileAccess = true
+                settings.allowFileAccessFromFileURLs = true
+                settings.allowUniversalAccessFromFileURLs = true
                 settings.allowContentAccess = false
                 settings.blockNetworkLoads = true
                 settings.builtInZoomControls = false
@@ -213,7 +216,34 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
                     },
                     "AndroidHeight",
                 )
+                fun measureHeight(view: WebView) {
+                    view.evaluateJavascript(
+                        "(function(){var d=document.documentElement;var b=document.body;" +
+                            "return Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);})()"
+                    ) { value ->
+                        val measured = value?.trim('"')?.toFloatOrNull()?.toInt() ?: 0
+                        if (measured > 0) height = measured
+                    }
+                }
+
                 webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String?) {
+                        super.onPageFinished(view, url)
+                        view.postDelayed({ measureHeight(view) }, 120)
+                        view.postDelayed({ measureHeight(view) }, 800)
+                        view.postDelayed({ measureHeight(view) }, 1_600)
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView,
+                        request: WebResourceRequest?,
+                        error: WebResourceError?,
+                    ) {
+                        if (request?.isForMainFrame == true) {
+                            view.post { failed = true }
+                        }
+                    }
+
                     override fun shouldOverrideUrlLoading(
                         view: WebView?,
                         request: WebResourceRequest?,
@@ -256,7 +286,7 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
         },
         modifier = modifier
             .fillMaxWidth()
-            .height(if (height > 0) height.dp else 1.dp),
+            .height(if (height > 0) height.dp else 160.dp),
         onRelease = { it.destroy() },
     )
 }
