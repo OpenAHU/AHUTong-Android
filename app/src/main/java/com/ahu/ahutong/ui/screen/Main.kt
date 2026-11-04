@@ -101,6 +101,7 @@ import com.ahu.ahutong.ui.screen.settings.PrivacyPolicyScreen
 import com.ahu.ahutong.ui.screen.settings.License
 import com.ahu.ahutong.R
 import androidx.compose.ui.res.stringResource
+import com.ahu.ahutong.ui.screen.settings.AiSettings
 import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.settings.ThemeLab
 import com.ahu.ahutong.ui.screen.settings.ThemeColorSettings
@@ -815,6 +816,10 @@ fun Main(
                     onOpenThemeColors = { navController.navigate("settings__theme_color") },
                     undergraduateEnabled = undergraduateEnabled
                 )
+            }
+
+            animatedComposable("settings__ai") {
+                AiSettings(onBack = { navController.popBackStack() })
             }
 
             animatedComposable("settings__theme_lab") {

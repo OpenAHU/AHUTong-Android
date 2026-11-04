@@ -91,6 +91,7 @@ class AppActionCatalogTest {
             "settings__privacy_policy" to AppActionId.OPEN_PRIVACY_POLICY,
             "settings__theme_lab" to AppActionId.OPEN_THEME_LAB,
             "settings__theme_color" to AppActionId.OPEN_THEME_COLORS,
+            "settings__ai" to AppActionId.OPEN_AI_SETTINGS,
             "scan" to AppActionId.OPEN_SCANNER,
             "billing" to AppActionId.VIEW_BILLING,
             "billing_stats" to AppActionId.VIEW_BILLING_STATS

@@ -24,7 +24,13 @@ sealed interface AssistantRuntimeEvent {
     data object AssistantStart : AssistantRuntimeEvent
     data class AssistantDelta(val text: String) : AssistantRuntimeEvent
     data class AssistantMessage(val text: String) : AssistantRuntimeEvent
-    data class ToolResultEvent(val toolId: String, val ok: Boolean, val summary: String?) : AssistantRuntimeEvent
+    data class ToolResultEvent(
+        val toolId: String,
+        val ok: Boolean,
+        val summary: String?,
+        /** 能力对应的既有页面；UI 只负责跳转。 */
+        val route: String? = null,
+    ) : AssistantRuntimeEvent
     data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantRuntimeEvent
     data class Failed(val message: String) : AssistantRuntimeEvent
     data object Done : AssistantRuntimeEvent
@@ -163,7 +169,7 @@ class AssistantRuntime(
                             }
                             emit(
                                 AssistantRuntimeEvent.ToolResultEvent(
-                                    call.name, true, outcome.answer.summary
+                                    call.name, true, outcome.answer.summary, capability.spec.openRoute
                                 )
                             )
                             messages += toolMessage(call, successPayload(outcome))

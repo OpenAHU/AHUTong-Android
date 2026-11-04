@@ -67,7 +67,8 @@ enum class AppActionId(val stableId: String) {
     VIEW_BILLING("VIEW_BILLING"),
     VIEW_BILLING_STATS("VIEW_BILLING_STATS"),
     OPEN_SCANNER("OPEN_SCANNER"),
-    OPEN_THEME_COLORS("OPEN_THEME_COLORS");
+    OPEN_THEME_COLORS("OPEN_THEME_COLORS"),
+    OPEN_AI_SETTINGS("OPEN_AI_SETTINGS");
 
     companion object {
         private val byStableId = entries.associateBy(AppActionId::stableId)
