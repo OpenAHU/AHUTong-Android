@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -43,6 +42,7 @@ import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.FactCheck
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.NorthEast
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Quiz
@@ -53,6 +53,8 @@ import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material.icons.rounded.TrackChanges
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -61,7 +63,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,6 +81,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.assistant.AssistantCard
 import com.ahu.ahutong.assistant.AssistantCardItem
 import com.ahu.ahutong.assistant.AssistantCardTone
@@ -182,10 +184,25 @@ fun AssistantChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                        .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleMedium)
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = {
                         AssistantChatState.close()
@@ -201,12 +218,12 @@ fun AssistantChatScreen(
                         .fillMaxWidth(),
                     state = listState,
                     contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 10.dp,
-                        bottom = 150.dp,
+                        start = 14.dp,
+                        end = 14.dp,
+                        top = 6.dp,
+                        bottom = 130.dp,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(displayItems, key = { it.key }) { display ->
                         when (display) {
@@ -310,11 +327,11 @@ private fun UserBubble(text: String) {
                         listOf(colors.primary.copy(alpha = 0.82f), colors.primary)
                     )
                 )
-                .padding(horizontal = 16.dp, vertical = 11.dp),
+                .padding(horizontal = 12.dp, vertical = 9.dp),
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
                 color = colors.onPrimary,
             )
         }
@@ -329,80 +346,41 @@ private fun AssistantTurnBubble(
     onOpenRoute: (String) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(colors.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    tint = colors.primary,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                ASSISTANT_NAME,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.primary,
-            )
-        }
-        Spacer(Modifier.height(7.dp))
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = colors.surfaceContainerLow,
-            contentColor = colors.onSurface,
-            shape = RoundedCornerShape(
-                topStart = 8.dp,
-                topEnd = 22.dp,
-                bottomEnd = 22.dp,
-                bottomStart = 22.dp,
-            ),
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                var hasContent = false
-                items.forEach { item ->
-                    when (item) {
-                        is AssistantChatItem.Assistant -> {
-                            if (item.text.isNotBlank()) {
-                                if (hasContent) HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-                                AssistantMarkdown(
-                                    text = item.text,
-                                    streaming = item.streaming,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                hasContent = true
-                            }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        var hasContent = false
+        items.forEach { item ->
+            when (item) {
+                is AssistantChatItem.Assistant -> {
+                    if (item.text.isNotBlank()) {
+                        if (hasContent) {
+                            HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
                         }
-                        is AssistantChatItem.Tool -> {
-                            if (hasContent) HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-                            ToolCard(
-                                item = item,
-                                expanded = item.id in expandedTools,
-                                onToggle = { onToggleTool(item.id) },
-                                onOpenRoute = onOpenRoute,
-                            )
-                            hasContent = true
-                        }
-                        else -> Unit
+                        AssistantMarkdown(
+                            text = item.text,
+                            streaming = item.streaming,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        hasContent = true
                     }
                 }
-                if (!hasContent) {
-                    Text(
-                        "…",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.onSurfaceVariant,
+                is AssistantChatItem.Tool -> {
+                    if (hasContent) {
+                        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+                    }
+                    ToolCard(
+                        item = item,
+                        expanded = item.id in expandedTools,
+                        onToggle = { onToggleTool(item.id) },
+                        onOpenRoute = onOpenRoute,
                     )
+                    hasContent = true
                 }
+                else -> Unit
             }
         }
     }
@@ -417,97 +395,119 @@ private fun ToolCard(
 ) {
     val colors = MaterialTheme.colorScheme
     val event = item.event
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onToggle)
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = colors.surfaceContainerLow,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(
                 modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (event.ok) colors.primaryContainer else colors.errorContainer
-                    ),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = toolIcon(event.toolId),
-                    contentDescription = null,
-                    tint = if (event.ok) colors.primary else colors.error,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    event.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = colors.onSurface,
-                )
-                Text(
-                    when {
-                        !event.ok -> "执行失败"
-                        event.navigateOnly -> "需要确认"
-                        else -> "执行成功"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (event.ok) colors.primary else colors.error,
-                )
-            }
-            Text(
-                if (expanded) "收起" else "查看",
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.primary,
-            )
-        }
-
-        AnimatedVisibility(visible = expanded) {
-            Column(
-                modifier = Modifier.padding(top = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (!event.ok) {
-                    Text(
-                        event.summary ?: "执行失败",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.error,
-                    )
-                } else if (event.card != null) {
-                    AssistantCardView(event.card)
-                } else {
-                    Text(
-                        event.summary.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurface,
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (event.ok) colors.primaryContainer else colors.errorContainer
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = toolIcon(event.toolId),
+                        contentDescription = null,
+                        tint = if (event.ok) colors.primary else colors.error,
+                        modifier = Modifier.size(14.dp),
                     )
                 }
-                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-                Text(
-                    buildString {
-                        append("来源：")
-                        append(event.source)
-                        append(" · 更新于 ")
-                        append(formatTimestamp(event.fetchedAt))
-                        if (event.trust == AssistantTrust.UNTRUSTED) {
-                            append(" · 外部内容，仅作参考")
-                        }
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (event.trust == AssistantTrust.UNTRUSTED) {
-                        colors.error
-                    } else {
-                        colors.onSurfaceVariant
-                    },
-                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        event.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurface,
+                    )
+                    Text(
+                        when {
+                            !event.ok -> "执行失败"
+                            event.navigateOnly -> "需要确认"
+                            else -> "执行成功"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (event.ok) colors.primary else colors.error,
+                    )
+                }
+                IconButton(
+                    onClick = onToggle,
+                    modifier = Modifier.size(30.dp),
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        contentDescription = if (expanded) "收起" else "查看",
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                event.route?.let { route ->
+                    IconButton(
+                        onClick = { onOpenRoute(route) },
+                        modifier = Modifier.size(30.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.NorthEast,
+                            contentDescription = "打开页面",
+                            tint = colors.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
             }
-        }
-        event.route?.let { route ->
-            TextButton(onClick = { onOpenRoute(route) }) { Text("打开页面") }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier.padding(top = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (!event.ok) {
+                        Text(
+                            event.summary ?: "执行失败",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.error,
+                        )
+                    } else if (event.card != null) {
+                        AssistantCardView(event.card)
+                    } else {
+                        Text(
+                            event.summary.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurface,
+                        )
+                    }
+                    HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+                    Text(
+                        buildString {
+                            append("来源：")
+                            append(event.source)
+                            append(" · 更新于 ")
+                            append(formatTimestamp(event.fetchedAt))
+                            if (event.trust == AssistantTrust.UNTRUSTED) {
+                                append(" · 外部内容，仅作参考")
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (event.trust == AssistantTrust.UNTRUSTED) {
+                            colors.error
+                        } else {
+                            colors.onSurfaceVariant
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -515,27 +515,27 @@ private fun ToolCard(
 @Composable
 private fun AssistantCardView(card: AssistantCard) {
     val colors = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (card.headline != null) {
             Row(verticalAlignment = Alignment.Bottom) {
                 card.headlinePrefix?.let {
                     Text(
                         it,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = colors.primary,
                     )
                     Spacer(Modifier.width(2.dp))
                 }
                 Text(
                     card.headline,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.headlineSmall,
                     color = colors.primary,
                 )
                 card.headlineSuffix?.let {
                     Spacer(Modifier.width(4.dp))
                     Text(
                         it,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         color = colors.primary,
                     )
                 }
@@ -562,7 +562,7 @@ private fun AssistantCardView(card: AssistantCard) {
                         )
                         Text(
                             stat.value,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.onSurface,
                         )
@@ -575,7 +575,7 @@ private fun AssistantCardView(card: AssistantCard) {
             if (item.group != null && item.group != previousGroup) {
                 Text(
                     item.group,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.primary,
                 )
@@ -602,7 +602,7 @@ private fun CardItemRow(item: AssistantCardItem) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 item.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurface,
             )
             item.subtitle?.takeIf { it.isNotBlank() }?.let {
@@ -617,7 +617,7 @@ private fun CardItemRow(item: AssistantCardItem) {
             Spacer(Modifier.width(10.dp))
             Text(
                 it,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.onSurface,
             )
@@ -650,18 +650,18 @@ private fun StatusPill(text: String, onCancel: () -> Unit) {
             color = colors.surfaceContainerHigh,
         ) {
             Row(
-                modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(12.dp),
-                    strokeWidth = 1.8.dp,
+                    modifier = Modifier.size(10.dp),
+                    strokeWidth = 1.6.dp,
                     color = colors.primary,
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     color = colors.onSurfaceVariant,
                 )
                 Spacer(Modifier.width(10.dp))
@@ -684,14 +684,14 @@ private fun ErrorCard(text: String) {
     val colors = MaterialTheme.colorScheme
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         color = colors.errorContainer,
         contentColor = colors.onErrorContainer,
     ) {
         Text(
             text,
-            modifier = Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(12.dp),
+            style = MaterialTheme.typography.bodySmall,
             color = colors.error,
         )
     }

@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.font.FontFamily
@@ -107,7 +108,7 @@ fun AssistantMarkdown(
         Text(
             text = text,
             modifier = modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
             color = MaterialTheme.colorScheme.onSurface,
         )
         return
@@ -133,21 +134,33 @@ private fun MarkdownMarkdown(text: String, modifier: Modifier) {
             tableBackground = colors.surfaceContainerHigh.copy(alpha = 0.55f),
         ),
         typography = markdownTypography(
-            h1 = MaterialTheme.typography.titleLarge,
-            h2 = MaterialTheme.typography.titleMedium,
-            h3 = MaterialTheme.typography.titleSmall,
-            h4 = MaterialTheme.typography.titleSmall,
-            h5 = MaterialTheme.typography.titleSmall,
-            h6 = MaterialTheme.typography.titleSmall,
-            text = MaterialTheme.typography.bodyLarge,
-            code = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            inlineCode = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-            quote = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
-            paragraph = MaterialTheme.typography.bodyLarge,
-            ordered = MaterialTheme.typography.bodyLarge,
-            bullet = MaterialTheme.typography.bodyLarge,
-            list = MaterialTheme.typography.bodyLarge,
-            table = MaterialTheme.typography.bodySmall,
+            h1 = MaterialTheme.typography.titleMedium.copy(lineHeight = 20.sp),
+            h2 = MaterialTheme.typography.titleSmall.copy(lineHeight = 19.sp),
+            h3 = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 20.sp,
+            ),
+            h4 = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 20.sp,
+            ),
+            h5 = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 20.sp,
+            ),
+            h6 = MaterialTheme.typography.bodyMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 20.sp,
+            ),
+            text = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            code = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            inlineCode = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            quote = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+            paragraph = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            ordered = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            bullet = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            list = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            table = MaterialTheme.typography.bodySmall.copy(lineHeight = 17.sp),
             textLink = TextLinkStyles(
                 style = SpanStyle(
                     color = colors.primary,
