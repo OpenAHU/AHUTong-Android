@@ -142,7 +142,7 @@ fun AssistantInputBar(
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
                 cornerRadius = corner,
-                style = Stroke(width = with(density) { 5.dp.toPx() }),
+                style = Stroke(width = with(density) { 7.dp.toPx() }),
                 alpha = 0.32f * glowAlpha
             )
         }
@@ -155,7 +155,7 @@ fun AssistantInputBar(
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
                 cornerRadius = corner,
-                style = Stroke(width = with(density) { 1.2.dp.toPx() }),
+                style = Stroke(width = with(density) { 2.dp.toPx() }),
                 alpha = 0.75f * glowAlpha
             )
         }
@@ -203,7 +203,7 @@ fun AssistantInputBar(
                         drawCircle(
                             brush = Brush.sweepGradient(*inputGlowStops(phase.value).toTypedArray()),
                             radius = size.minDimension / 2f,
-                            style = Stroke(width = with(density) { 1.5.dp.toPx() }),
+                            style = Stroke(width = with(density) { 2.dp.toPx() }),
                             alpha = 0.9f
                         )
                     }
