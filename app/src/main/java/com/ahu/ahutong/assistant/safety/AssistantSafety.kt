@@ -1,0 +1,85 @@
+package com.ahu.ahutong.assistant.safety
+
+import com.ahu.ahutong.assistant.AssistantCapabilityKind
+import com.ahu.ahutong.assistant.AssistantCapabilitySpec
+import com.ahu.ahutong.assistant.AssistantSensitivity
+import kotlinx.coroutines.CompletableDeferred
+
+enum class AssistantPolicyDecision {
+    /** 只读能力：直接执行。 */
+    ALLOW,
+
+    /** 写操作：必须在 UI 上得到用户确认后才执行。 */
+    REQUIRE_APPROVAL,
+}
+
+/**
+ * 工具策略：能力自己声明 kind/sensitivity，这里统一决定"要不要停下来问人"。
+ * 当前没有任何写能力，但策略先立住，后续加充值/评教时不需要改运行时。
+ */
+object AssistantToolPolicy {
+
+    fun decide(spec: AssistantCapabilitySpec): AssistantPolicyDecision = when {
+        spec.kind == AssistantCapabilityKind.READ || spec.kind == AssistantCapabilityKind.NAVIGATE ->
+            AssistantPolicyDecision.ALLOW
+
+        spec.sensitivity == AssistantSensitivity.FINANCIAL ->
+            AssistantPolicyDecision.REQUIRE_APPROVAL
+
+        else -> AssistantPolicyDecision.REQUIRE_APPROVAL
+    }
+
+    fun riskText(spec: AssistantCapabilitySpec): String = when {
+        spec.sensitivity == AssistantSensitivity.FINANCIAL -> "涉及资金，需要本机确认"
+        spec.kind == AssistantCapabilityKind.WRITE -> "会修改数据，需要确认"
+        else -> "只读操作"
+    }
+}
+
+data class AssistantApprovalRequest(
+    val id: String,
+    val toolId: String,
+    val title: String,
+    val summary: String,
+    val risk: String,
+    val requiresPaymentPassword: Boolean = false,
+    /** 本轮读过外部内容时，提示用户不要被网页/邮件/通知里的文字带着走。 */
+    val untrustedWarning: String? = null,
+)
+
+data class AssistantApprovalDecision(
+    val approved: Boolean,
+    /** 只在本机内存里传给写能力，不进模型上下文、不写历史。 */
+    val paymentPassword: String? = null,
+)
+
+/**
+ * 写操作的暂停点：运行时创建 deferred 并挂起，UI 通过 approve/reject 放行。
+ * Android 侧在主线程调用，运行时在任意线程 await。
+ */
+class AssistantApprovalGate {
+
+    private var pending: CompletableDeferred<AssistantApprovalDecision>? = null
+
+    @Synchronized
+    fun prepare(): CompletableDeferred<AssistantApprovalDecision> {
+        pending?.cancel()
+        return CompletableDeferred<AssistantApprovalDecision>().also { pending = it }
+    }
+
+    @Synchronized
+    fun approve(paymentPassword: String? = null) {
+        pending?.complete(AssistantApprovalDecision(approved = true, paymentPassword = paymentPassword))
+    }
+
+    @Synchronized
+    fun reject() {
+        pending?.complete(AssistantApprovalDecision(approved = false))
+    }
+
+    @Synchronized
+    fun cancel() {
+        pending?.cancel()
+        pending = null
+    }
+}

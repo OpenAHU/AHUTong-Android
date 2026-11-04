@@ -1,5 +1,6 @@
 package com.ahu.ahutong.assistant
 
+import com.ahu.ahutong.assistant.model.AssistantToolSpec
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 
@@ -16,6 +17,15 @@ class AssistantCapabilityRegistry(capabilities: List<AssistantCapability>) {
     val all: List<AssistantCapability> get() = ordered
 
     fun find(id: String): AssistantCapability? = byId[id]
+
+    /** 给模型网关用的工具描述（与 toolSchemas 同源）。 */
+    fun toolSpecs(): List<AssistantToolSpec> = ordered.map { capability ->
+        AssistantToolSpec(
+            name = capability.spec.id,
+            description = capability.spec.description,
+            parameters = capability.spec.parameters,
+        )
+    }
 
     fun toolSchemas(): JsonArray = JsonArray().apply {
         ordered.forEach { capability ->

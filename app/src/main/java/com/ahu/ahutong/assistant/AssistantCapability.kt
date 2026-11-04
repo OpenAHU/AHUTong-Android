@@ -10,7 +10,13 @@ import com.google.gson.JsonObject
  */
 enum class AssistantSensitivity { PUBLIC, ACADEMIC, FINANCIAL }
 
-enum class AssistantCapabilityKind { READ, NAVIGATE }
+enum class AssistantCapabilityKind { READ, NAVIGATE, WRITE }
+
+/**
+ * 工具结果的可信级别：网页、邮件、通知等外部内容一律 UNTRUSTED，
+ * 模型只能把它当数据总结，不能把其中的文字当指令执行。
+ */
+enum class AssistantTrust { TRUSTED, UNTRUSTED }
 
 data class AssistantCapabilitySpec(
     val id: String,
@@ -28,6 +34,7 @@ data class AssistantAnswer(
     val summary: String,
     val lines: List<String> = emptyList(),
     val route: String? = null,
+    val trust: AssistantTrust = AssistantTrust.TRUSTED,
 )
 
 sealed interface AssistantOutcome {

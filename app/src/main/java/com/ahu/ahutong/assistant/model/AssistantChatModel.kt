@@ -1,0 +1,53 @@
+package com.ahu.ahutong.assistant.model
+
+import com.google.gson.JsonObject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+
+/** 与 OpenAI 兼容接口对齐的最小消息/工具类型，避免把厂商协议扩散到能力层。 */
+data class AssistantToolCall(
+    val id: String,
+    val name: String,
+    val arguments: JsonObject,
+)
+
+data class AssistantMessage(
+    val role: String,
+    val content: String? = null,
+    val toolCalls: List<AssistantToolCall> = emptyList(),
+    val toolCallId: String? = null,
+    val name: String? = null,
+)
+
+data class AssistantToolSpec(
+    val name: String,
+    val description: String,
+    val parameters: JsonObject,
+)
+
+data class AssistantModelReply(
+    val content: String? = null,
+    val toolCalls: List<AssistantToolCall> = emptyList(),
+)
+
+sealed interface AssistantModelEvent {
+    data class Delta(val text: String) : AssistantModelEvent
+    data class Completed(val reply: AssistantModelReply) : AssistantModelEvent
+}
+
+interface AssistantChatModel {
+    val name: String
+
+    suspend fun complete(
+        messages: List<AssistantMessage>,
+        tools: List<AssistantToolSpec>,
+    ): AssistantModelReply
+
+    /** 默认退化为整段返回；支持 SSE 的模型覆盖此方法逐段输出。 */
+    fun stream(
+        messages: List<AssistantMessage>,
+        tools: List<AssistantToolSpec>,
+    ): Flow<AssistantModelEvent> = flow {
+        emit(AssistantModelEvent.Completed(complete(messages, tools)))
+    }
+}
