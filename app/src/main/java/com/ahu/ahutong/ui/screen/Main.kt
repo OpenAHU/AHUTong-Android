@@ -1009,7 +1009,8 @@ fun Main(
             },
         )
         com.ahu.ahutong.ui.glow.ScreenEdgeGlow(
-            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible,
+            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible &&
+                !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible,
             origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
         )
 

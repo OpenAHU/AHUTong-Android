@@ -175,8 +175,10 @@ internal fun Home(
     var assistantOrigin by remember { mutableStateOf<Offset?>(null) }
     // 点击后整页像被按了一下：透镜涟漪从 AI 键向四周推开。
     val rippleProgress = remember { Animatable(1f) }
-    LaunchedEffect(AssistantGlowState.visible) {
-        if (AssistantGlowState.visible) {
+    val aiLayerActive = AssistantGlowState.visible &&
+        !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible
+    LaunchedEffect(aiLayerActive) {
+        if (aiLayerActive) {
             rippleProgress.snapTo(0f)
             // 等光团飘到顶边“爆开”的瞬间，再从光点位置向外推水波。
             delay(360)
@@ -471,7 +473,7 @@ internal fun Home(
                     progress = rippleProgress.value,
                     center = assistantOrigin?.let { Offset(it.x, 0f) },
                     strength = 12.dp,
-                    ambient = AssistantGlowState.visible
+                    ambient = aiLayerActive
                 )
         ) {
         // 标题栏模糊采样层：只包滚动内容（头部自身在层外，避免自采样）；
