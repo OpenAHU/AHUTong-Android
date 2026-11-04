@@ -3,6 +3,13 @@ package com.ahu.ahutong.ui.glow
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -26,6 +33,7 @@ uniform float2 uResolution;
 uniform float uProgress;
 uniform float uStrength;
 uniform float uSettle;
+uniform float uAmbientPhase;
 uniform float uScale;
 
 half4 main(float2 coord) {
@@ -44,7 +52,12 @@ half4 main(float2 coord) {
     float settleWave = sin(uSettle * 6.28318) * exp(-uSettle * 2.4) * uStrength * 0.30;
     float settleField = settleWave * exp(-pow((d - maxD * 0.5) / (maxD * 0.35), 2.0));
 
-    float2 offset = dir * (wave + settleField);
+    // 主波铺满后常驻的微幅起伏：直到关掉光效前都在轻轻呼吸。
+    float ambient = sin(d / (110.0 * uScale) - uAmbientPhase * 6.28318)
+        * 0.8 * uScale
+        * smoothstep(0.8, 1.0, uProgress);
+
+    float2 offset = dir * (wave + settleField + ambient);
     float dispersion = 0.3 * uScale;
     half4 sampled = content.eval(coord + offset);
     half r = content.eval(coord + offset + dir * dispersion).r;
@@ -64,21 +77,36 @@ fun Modifier.liquidRipple(
     settle: Float,
     center: Offset?,
     strength: Dp,
+    ambient: Boolean = false,
 ): Modifier = composed {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         center == null ||
-        (progress >= 1f && settle >= 1f)
+        (!ambient && progress >= 1f && settle >= 1f)
     ) {
         return@composed this
     }
     val strengthPx = with(LocalDensity.current) { strength.toPx() }
     val shader = remember { RuntimeShader(LIQUID_RIPPLE_AGSL) }
+    val phase: State<Float> = if (ambient) {
+        rememberInfiniteTransition(label = "liquid-ripple")
+            .animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 2_600, easing = LinearEasing)
+                ),
+                label = "liquid-ripple-phase"
+            )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
     this.graphicsLayer {
         shader.setFloatUniform("uCenter", center.x, center.y)
         shader.setFloatUniform("uResolution", size.width.toFloat(), size.height.toFloat())
         shader.setFloatUniform("uProgress", progress)
         shader.setFloatUniform("uStrength", strengthPx)
         shader.setFloatUniform("uSettle", settle)
+        shader.setFloatUniform("uAmbientPhase", phase.value)
         shader.setFloatUniform("uScale", density)
         renderEffect = RenderEffect
             .createRuntimeShaderEffect(shader, "content")
