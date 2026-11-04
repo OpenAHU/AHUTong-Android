@@ -53,6 +53,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -106,7 +107,7 @@ import com.ahu.ahutong.ui.screen.main.home.CourseStrip
 import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
 import com.ahu.ahutong.ui.screen.assistant.AssistantSheet
-import com.ahu.ahutong.ui.glow.GlowTestOverlay
+import com.ahu.ahutong.ui.glow.ScreenEdgeGlow
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
@@ -169,6 +170,7 @@ internal fun Home(
     val noticeAccountId = accountId
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
     var showAssistant by remember { mutableStateOf(false) }
+    var assistantOrigin by remember { mutableStateOf<Offset?>(null) }
     val noticeUnreadCount = noticeSnapshot?.takeIf { it.accountId == noticeAccountId }?.unreadCount ?: 0
     LaunchedEffect(isActive, noticeAccountId) {
         if (isActive && AHUCache.isPrivacyAccepted() &&
@@ -467,7 +469,14 @@ internal fun Home(
         val assistantButton: @Composable () -> Unit = {
             HomeAssistantButton(
                 onClick = { showAssistant = true },
-                backdrop = headerControlsBackdrop
+                backdrop = headerControlsBackdrop,
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    val topLeft = coordinates.positionInWindow()
+                    assistantOrigin = Offset(
+                        x = topLeft.x + coordinates.size.width / 2f,
+                        y = topLeft.y + coordinates.size.height / 2f,
+                    )
+                }
             )
         }
         val trailingContent: @Composable RowScope.() -> Unit = {
@@ -640,6 +649,10 @@ internal fun Home(
                 )
             }
         }
+        ScreenEdgeGlow(
+            visible = showAssistant,
+            origin = assistantOrigin,
+        )
         if (showAssistant) {
             AssistantSheet(
                 scheduleViewModel = scheduleViewModel,
@@ -649,9 +662,6 @@ internal fun Home(
                     navController.navigate(route) { launchSingleTop = true }
                 }
             )
-        }
-        if (BuildConfig.DEBUG) {
-            GlowTestOverlay()
         }
         }
         }
