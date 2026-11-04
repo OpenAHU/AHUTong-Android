@@ -48,17 +48,17 @@ half4 main(float2 coord) {
     float2 dir = d > 0.001 ? delta / d : float2(0.0);
     float maxD = length(uResolution);
 
-    float widthPx = mix(140.0, 460.0, uProgress) * uScale;
+    float widthPx = mix(130.0, 420.0, uProgress) * uScale;
     float mainRadius = uProgress * maxD * 1.06;
-    float freq = 0.055 / uScale;
+    float freq = 0.04 / uScale;
 
-    float wave = waveBand(d, mainRadius, widthPx, uStrength * (1.0 - 0.5 * uProgress), freq);
+    float wave = waveBand(d, mainRadius, widthPx, uStrength * (1.0 - 0.7 * uProgress), freq);
 
     float settle = smoothstep(0.8, 1.0, uProgress);
-    float ambient = sin(d / (110.0 * uScale) - uAmbientPhase * 6.28318) * 0.8 * uScale * settle;
+    float ambient = sin(d / (130.0 * uScale) - uAmbientPhase * 6.28318) * 0.4 * uScale * settle;
 
     float2 offset = dir * (wave + ambient);
-    float dispersion = 0.7 * uScale;
+    float dispersion = 0.35 * uScale;
     half4 sampled = content.eval(coord + offset);
     half r = content.eval(coord + offset + dir * dispersion).r;
     half b = content.eval(coord + offset - dir * dispersion).b;
@@ -92,7 +92,7 @@ fun Modifier.liquidRipple(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 2_600, easing = LinearEasing)
+                    animation = tween(durationMillis = 3_600, easing = LinearEasing)
                 ),
                 label = "liquid-ripple-phase"
             )
