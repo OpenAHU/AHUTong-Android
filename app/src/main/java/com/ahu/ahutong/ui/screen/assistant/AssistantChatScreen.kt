@@ -936,8 +936,9 @@ private suspend fun runStream(
 
     val gate = com.ahu.ahutong.assistant.safety.AssistantApprovalGate()
     AssistantChatState.attachGate(gate)
+    val history = AssistantChatState.consumeHistory()
     try {
-        service.stream(question, gate).collect { event ->
+        service.stream(question, history, gate).collect { event ->
             when (event) {
                 is AssistantServiceEvent.Status -> AssistantChatState.updateStatus(event.text)
                 AssistantServiceEvent.AssistantStart -> {

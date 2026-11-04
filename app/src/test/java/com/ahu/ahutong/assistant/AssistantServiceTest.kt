@@ -103,6 +103,32 @@ class AssistantServiceTest {
     }
 
     @Test
+    fun sendsPreviousTurnsToTheModel() = runBlocking {
+        var seen: List<AssistantMessage> = emptyList()
+        val model = object : AssistantChatModel {
+            override val name = "capturing"
+            override suspend fun complete(
+                messages: List<AssistantMessage>,
+                tools: List<AssistantToolSpec>,
+            ): AssistantModelReply {
+                seen = messages
+                return AssistantModelReply(content = "收到")
+            }
+        }
+        val service = AssistantService(registry(), modelFactory = { model })
+        service.stream(
+            question = "第二问",
+            history = listOf(
+                AssistantMessage(role = "user", content = "第一问"),
+                AssistantMessage(role = "assistant", content = "第一答"),
+            ),
+        ).collect { }
+        assertTrue(seen.any { it.role == "user" && it.content == "第一问" })
+        assertTrue(seen.any { it.role == "assistant" && it.content == "第一答" })
+        assertEquals("第二问", seen.last().content)
+    }
+
+    @Test
     fun noModelKeepsEverythingLocal() = runBlocking {
         val service = AssistantService(registry(), modelFactory = { null })
         val turn = service.ask("查教务处电话")

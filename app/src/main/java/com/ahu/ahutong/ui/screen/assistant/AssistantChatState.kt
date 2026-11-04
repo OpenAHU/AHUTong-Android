@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.ahu.ahutong.assistant.AssistantServiceEvent
+import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
 import kotlinx.coroutines.Job
@@ -60,10 +61,12 @@ object AssistantChatState {
     private var nextId = 0
     private var runJob: Job? = null
     private var approvalGate: AssistantApprovalGate? = null
+    private var pendingHistory: List<AssistantMessage> = emptyList()
 
     fun open(question: String) {
         cancelRun()
         _items.clear()
+        pendingHistory = emptyList()
         _items += AssistantChatItem.User(newId(), question)
         pendingQuestion = question
         visible = true
@@ -71,8 +74,26 @@ object AssistantChatState {
 
     fun send(question: String) {
         if (running) return
+        pendingHistory = buildHistory()
         _items += AssistantChatItem.User(newId(), question)
         pendingQuestion = question
+    }
+
+    /** 只回放用户与助手文本；工具卡、审批卡和错误不进入模型上下文。 */
+    private fun buildHistory(): List<AssistantMessage> = _items.mapNotNull { item ->
+        when (item) {
+            is AssistantChatItem.User -> AssistantMessage(role = "user", content = item.text)
+            is AssistantChatItem.Assistant -> item.text
+                .takeIf { it.isNotBlank() }
+                ?.let { AssistantMessage(role = "assistant", content = it) }
+            else -> null
+        }
+    }.takeLast(24)
+
+    fun consumeHistory(): List<AssistantMessage> {
+        val history = pendingHistory
+        pendingHistory = emptyList()
+        return history
     }
 
     fun consumePending(): String? {

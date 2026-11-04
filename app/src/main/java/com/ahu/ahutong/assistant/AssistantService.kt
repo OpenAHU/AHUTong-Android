@@ -1,6 +1,7 @@
 package com.ahu.ahutong.assistant
 
 import com.ahu.ahutong.assistant.model.AssistantChatModel
+import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
 import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
@@ -58,11 +59,12 @@ class AssistantService(
 
     fun stream(
         question: String,
+        history: List<AssistantMessage> = emptyList(),
         gate: AssistantApprovalGate = AssistantApprovalGate(),
     ): Flow<AssistantServiceEvent> = flow {
         val model = runCatching { modelFactory() }.getOrNull()
         if (model != null) {
-            emitModel(question, model, gate)
+            emitModel(question, history, model, gate)
         } else {
             emitLocal(question, gate)
         }
@@ -70,6 +72,7 @@ class AssistantService(
 
     private suspend fun FlowCollector<AssistantServiceEvent>.emitModel(
         question: String,
+        history: List<AssistantMessage>,
         model: AssistantChatModel,
         gate: AssistantApprovalGate,
     ) {
@@ -89,7 +92,7 @@ class AssistantService(
             writeJournal = writeJournal,
         )
         var done = false
-        runtime.run(emptyList(), question, gate).collect { event ->
+        runtime.run(history, question, gate).collect { event ->
             when (event) {
                 is AssistantRuntimeEvent.Status -> emit(AssistantServiceEvent.Status(event.text))
                 AssistantRuntimeEvent.AssistantStart -> emit(AssistantServiceEvent.AssistantStart)
@@ -260,7 +263,7 @@ class AssistantService(
         var failure: String? = null
         var route: String? = null
         val gate = AssistantApprovalGate()
-        stream(question, gate).collect { event ->
+        stream(question, gate = gate).collect { event ->
             when (event) {
                 is AssistantServiceEvent.ApprovalRequired -> gate.reject()
                 is AssistantServiceEvent.AssistantMessage -> text = event.text
