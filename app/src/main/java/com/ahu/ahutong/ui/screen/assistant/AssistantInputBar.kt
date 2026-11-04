@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -24,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -32,10 +30,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 
 /**
- * AI 输入栏：底部胶囊输入框 + 圆形发送键。
+ * AI 输入栏：胶囊输入框 + 圆形发送键。
  *
- * 刻意不依赖任何一套组件包（Radiant / Miuix / 默认），只用 MaterialTheme 语义色
- * 与 Compose 基础原语，因此三套用户主题下外观与行为一致。
+ * 不依赖任何组件包；颜色全部取自 MaterialTheme 语义色，随深浅色与用户主题自动变化。
+ * 发送键使用主题色 primary。
  */
 @Composable
 fun AssistantInputBar(
@@ -47,20 +45,16 @@ fun AssistantInputBar(
     placeholder: String = "问点什么…"
 ) {
     val haptics = LocalHapticFeedback.current
+    val colors = MaterialTheme.colorScheme
     val canSend = enabled && value.isNotBlank()
-    val shape = RoundedCornerShape(24.dp)
-    // 自研配色：深色玻璃底 + 白字，不取主题容器色，三套主题下外观一致。
+    val shape = RoundedCornerShape(28.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Color(0xE61A1A1C))
-            .border(
-                width = 0.75.dp,
-                color = Color.White.copy(alpha = 0.12f),
-                shape = shape
-            )
-            .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            .background(colors.surfaceContainerHigh)
+            .border(width = 1.dp, color = colors.outlineVariant.copy(alpha = 0.8f), shape = shape)
+            .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -69,10 +63,10 @@ fun AssistantInputBar(
             onValueChange = onValueChange,
             modifier = Modifier
                 .weight(1f)
-                .padding(vertical = 8.dp),
+                .padding(vertical = 10.dp),
             enabled = enabled,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-            cursorBrush = SolidColor(Color.White),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+            cursorBrush = SolidColor(colors.primary),
             maxLines = 4,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(
@@ -87,8 +81,8 @@ fun AssistantInputBar(
                 if (value.isEmpty()) {
                     Text(
                         text = placeholder,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.55f)
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.onSurfaceVariant
                     )
                 }
                 innerTextField()
@@ -96,12 +90,9 @@ fun AssistantInputBar(
         )
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(40.dp)
                 .clip(CircleShape)
-                .background(
-                    if (canSend) Color.White
-                    else Color.White.copy(alpha = 0.18f)
-                )
+                .background(if (canSend) colors.primary else colors.surfaceVariant)
                 .clickable(enabled = canSend) {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onSend()
@@ -111,9 +102,8 @@ fun AssistantInputBar(
             Icon(
                 imageVector = Icons.Rounded.ArrowUpward,
                 contentDescription = "发送",
-                tint = if (canSend) Color(0xFF1A1A1C)
-                else Color.White.copy(alpha = 0.45f),
-                modifier = Modifier.size(20.dp)
+                tint = if (canSend) colors.onPrimary else colors.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
             )
         }
     }

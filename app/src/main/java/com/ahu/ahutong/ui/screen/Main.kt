@@ -993,16 +993,25 @@ fun Main(
             viewModel = electricityAlertViewModel
         )
         // 全局最上层：盖住底部导航与页面内容（AI 键只写入状态）。
-        com.ahu.ahutong.ui.glow.ScreenEdgeGlow(
-            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible,
-            origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
-        )
         com.ahu.ahutong.ui.screen.assistant.AssistantOverlay(
             scheduleViewModel = scheduleViewModel,
             onOpenRoute = { route ->
                 navController.navigate(route) { launchSingleTop = true }
             },
         )
+        com.ahu.ahutong.ui.screen.assistant.AssistantChatScreen(
+            scheduleViewModel = scheduleViewModel,
+            onOpenRoute = { route ->
+                com.ahu.ahutong.ui.screen.assistant.AssistantChatState.close()
+                com.ahu.ahutong.ui.glow.AssistantGlowState.visible = false
+                navController.navigate(route) { launchSingleTop = true }
+            },
+        )
+        com.ahu.ahutong.ui.glow.ScreenEdgeGlow(
+            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible,
+            origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
+        )
+
         }
     }
     }
