@@ -510,7 +510,7 @@ internal fun Home(
                     } else {
                         Toast.makeText(
                             context,
-                            "请先在 设置 → AI 设置 中配置模型；如果您不希望使用 AI 功能，也可以前往 AI 设置页关闭该入口。",
+                            "请先配置模型；若您不希望使用AI功能，也可以前往 AI 设置页关闭该入口",
                             Toast.LENGTH_LONG,
                         ).show()
                     }
