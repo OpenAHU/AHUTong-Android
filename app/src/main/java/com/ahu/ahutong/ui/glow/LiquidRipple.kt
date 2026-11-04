@@ -45,7 +45,9 @@ half4 main(float2 coord) {
     float bandWidth = mix(120.0, 260.0, uProgress) * uScale;
     float x = (d - radius) / bandWidth;
     float profile = x * exp(-x * x) * 2.3;
-    float wave = profile * uStrength * (1.0 - 0.55 * uProgress);
+    // 起步包络：波前从 0 半径出发时本来会先“鼓”一下，用前 10% 进度把振幅拉起来。
+    float ramp = smoothstep(0.0, 0.10, uProgress);
+    float wave = profile * uStrength * (1.0 - 0.55 * uProgress) * ramp;
 
     // 主波铺满后常驻的微幅起伏：直到关掉光效前都在轻轻呼吸。
     float ambient = sin(d / (110.0 * uScale) - uAmbientPhase * 6.28318)
@@ -75,6 +77,7 @@ fun Modifier.liquidRipple(
 ): Modifier = composed {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         center == null ||
+        progress <= 0f ||
         (!ambient && progress >= 1f)
     ) {
         return@composed this
