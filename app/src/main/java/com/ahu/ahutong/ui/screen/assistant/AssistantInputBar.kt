@@ -112,7 +112,7 @@ fun AssistantInputBar(
             label = "input-glow-phase"
         )
 
-    val container = if (dark) Color(0xFF1C1C1E).copy(alpha = 0.92f) else Color.White.copy(alpha = 0.94f)
+    val container = if (dark) Color(0xFF1C1C1E) else Color.White
     val textColor = if (dark) Color.White else Color(0xFF111111)
     val hintColor = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.42f)
     val disabledBg = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.06f)
