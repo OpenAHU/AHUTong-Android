@@ -45,6 +45,7 @@ object AssistantIntentParser {
         Rule("get_grades", listOf("成绩", "绩点", "分数", "挂科")),
         Rule("get_exams", listOf("考试", "考场", "补考")),
         Rule("get_lost_found", listOf("失物", "寻物", "丢了", "捡到")),
+        Rule("web_search", listOf("联网搜索", "网上搜索", "查新闻", "搜一下网上")),
         Rule("get_balance", listOf("余额", "饭卡", "一卡通", "卡里", "校园卡")),
         Rule("get_electricity", listOf("电费", "电量", "还剩多少电")),
         Rule("get_attendance", listOf("考勤", "缺勤", "迟到", "请假记录")),
@@ -81,6 +82,10 @@ object AssistantIntentParser {
         parsePage(text)?.let { addProperty("page", it) }
         parseLimit(text)?.let { addProperty("limit", it) }
         parseAmount(text)?.let { addProperty("amount", it) }
+        parseBank(text)?.let { addProperty("bank", it) }
+        parseBathroom(text)?.let { addProperty("bathroom", it) }
+        parsePhone(text)?.let { addProperty("phone", it) }
+        if ("全部" in text || "所有" in text) addProperty("all", true)
         parsePeriod(text)?.let { addProperty("period", it) }
         if ("刷新" in text || "同步" in text || "最新" in text) addProperty("refresh", true)
         if ("未读" in text) addProperty("unread_only", true)
@@ -193,6 +198,22 @@ object AssistantIntentParser {
     private fun parseAmount(text: String): String? =
         Regex("(\\d+(?:\\.\\d{1,2})?)\\s*(?:元|块钱|块)").find(text)?.groupValues?.get(1)
 
+    private fun parseBank(text: String): String? = when {
+        "农业银行" in text || "农行" in text -> "agricultural"
+        "招商银行" in text || "招行" in text -> "cmb"
+        "支付宝" in text -> "alipay"
+        else -> null
+    }
+
+    private fun parseBathroom(text: String): String? = when {
+        "竹园" in text || "龙河" in text -> "竹园/龙河"
+        "桔园" in text || "蕙园" in text -> "桔园/蕙园"
+        else -> null
+    }
+
+    private fun parsePhone(text: String): String? =
+        Regex("1\\d{10}").find(text)?.value
+
     private fun parsePeriod(text: String): String? = when {
         "本月" in text -> "month"
         "全部" in text || "总榜" in text || "历史" in text -> "all"
@@ -218,6 +239,7 @@ object AssistantIntentParser {
                 ?: Regex("(.+?)(?:的)?(?:电话|号码)").find(text)?.groupValues?.get(1)
             "get_mail" -> Regex("搜索(.+?)(?:的)?(?:邮件|邮件吗)?").find(text)?.groupValues?.get(1)
             "get_lost_found" -> Regex("找(.+?)的?(?:失物|寻物)").find(text)?.groupValues?.get(1)
+            "web_search" -> Regex("(?:联网搜索|网上搜索|搜一下|搜索)(.+)").find(text)?.groupValues?.get(1)
             else -> null
         }?.trim()?.takeIf { it.length >= 2 }
     }

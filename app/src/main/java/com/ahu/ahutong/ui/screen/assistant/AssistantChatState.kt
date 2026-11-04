@@ -5,7 +5,11 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.ahu.ahutong.assistant.AssistantServiceEvent
+import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
+import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
 import kotlinx.coroutines.Job
+
+enum class AssistantApprovalDecision { PENDING, APPROVED, REJECTED }
 
 sealed interface AssistantChatItem {
     val id: String
@@ -21,6 +25,12 @@ sealed interface AssistantChatItem {
     data class Tool(
         override val id: String,
         val event: AssistantServiceEvent.ToolResult,
+    ) : AssistantChatItem
+
+    data class Approval(
+        override val id: String,
+        val request: AssistantApprovalRequest,
+        val decision: AssistantApprovalDecision = AssistantApprovalDecision.PENDING,
     ) : AssistantChatItem
 
     data class Error(override val id: String, val text: String) : AssistantChatItem
@@ -49,6 +59,7 @@ object AssistantChatState {
 
     private var nextId = 0
     private var runJob: Job? = null
+    private var approvalGate: AssistantApprovalGate? = null
 
     fun open(question: String) {
         cancelRun()
@@ -72,6 +83,37 @@ object AssistantChatState {
 
     fun attachJob(job: Job) {
         runJob = job
+    }
+
+    fun attachGate(gate: AssistantApprovalGate) {
+        approvalGate = gate
+    }
+
+    fun appendApproval(request: AssistantApprovalRequest) {
+        _items += AssistantChatItem.Approval(newId(), request)
+    }
+
+    fun approve(paymentPassword: String?) {
+        val pending = _items.lastOrNull { it is AssistantChatItem.Approval && it.decision == AssistantApprovalDecision.PENDING }
+            as? AssistantChatItem.Approval ?: return
+        updateApprovalDecision(pending.id, AssistantApprovalDecision.APPROVED)
+        approvalGate?.approve(paymentPassword)
+        approvalGate = null
+    }
+
+    fun reject() {
+        val pending = _items.lastOrNull { it is AssistantChatItem.Approval && it.decision == AssistantApprovalDecision.PENDING }
+            as? AssistantChatItem.Approval ?: return
+        updateApprovalDecision(pending.id, AssistantApprovalDecision.REJECTED)
+        approvalGate?.reject()
+        approvalGate = null
+    }
+
+    private fun updateApprovalDecision(id: String, decision: AssistantApprovalDecision) {
+        val index = _items.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val item = _items[index] as? AssistantChatItem.Approval ?: return
+        _items[index] = item.copy(decision = decision)
     }
 
     fun updateRunning(value: Boolean) {
@@ -121,8 +163,17 @@ object AssistantChatState {
     fun cancelRun() {
         runJob?.cancel()
         runJob = null
+        approvalGate?.cancel()
+        approvalGate = null
         running = false
         status = null
+        _items.replaceAll { item ->
+            if (item is AssistantChatItem.Approval && item.decision == AssistantApprovalDecision.PENDING) {
+                item.copy(decision = AssistantApprovalDecision.REJECTED)
+            } else {
+                item
+            }
+        }
         finishStreaming()
     }
 

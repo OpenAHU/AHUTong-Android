@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -56,13 +57,16 @@ import androidx.compose.material.icons.rounded.TrackChanges
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,6 +83,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,6 +94,7 @@ import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantService
 import com.ahu.ahutong.assistant.AssistantServiceEvent
 import com.ahu.ahutong.assistant.AssistantTrust
+import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import java.text.SimpleDateFormat
@@ -240,6 +247,11 @@ fun AssistantChatScreen(
                                 },
                                 onOpenRoute = onOpenRoute,
                             )
+                            is ChatDisplay.Approval -> ApprovalCard(
+                                item = display.item,
+                                onApprove = AssistantChatState::approve,
+                                onReject = AssistantChatState::reject,
+                            )
                             is ChatDisplay.Error -> ErrorCard(display.item.text)
                         }
                     }
@@ -282,6 +294,10 @@ private sealed interface ChatDisplay {
         override val key: String get() = items.first().id
     }
 
+    data class Approval(val item: AssistantChatItem.Approval) : ChatDisplay {
+        override val key: String get() = item.id
+    }
+
     data class Error(val item: AssistantChatItem.Error) : ChatDisplay {
         override val key: String get() = item.id
     }
@@ -304,6 +320,10 @@ private fun buildChatDisplay(items: List<AssistantChatItem>): List<ChatDisplay> 
             is AssistantChatItem.User -> {
                 flushTurn()
                 result += ChatDisplay.User(item)
+            }
+            is AssistantChatItem.Approval -> {
+                flushTurn()
+                result += ChatDisplay.Approval(item)
             }
             is AssistantChatItem.Error -> {
                 flushTurn()
@@ -680,6 +700,183 @@ private fun StatusPill(text: String, onCancel: () -> Unit) {
 }
 
 @Composable
+private fun ApprovalCard(
+    item: AssistantChatItem.Approval,
+    onApprove: (String?) -> Unit,
+    onReject: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val request = item.request
+    val pending = item.decision == AssistantApprovalDecision.PENDING
+    val needsPassword = request.requiresPaymentPassword
+    var password by remember(item.id) { mutableStateOf("") }
+    val statusText = when (item.decision) {
+        AssistantApprovalDecision.PENDING -> "等待确认"
+        AssistantApprovalDecision.APPROVED -> "已确认"
+        AssistantApprovalDecision.REJECTED -> "已取消"
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = colors.surfaceContainerHigh,
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(colors.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(15.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "需要你确认",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface,
+                    )
+                    Text(
+                        statusText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (pending) colors.primary else colors.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Text(
+                request.summary.take(400),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurface,
+            )
+            request.untrustedWarning?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = colors.error)
+            }
+            request.arguments.entrySet().forEach { (key, value) ->
+                if (key != "paymentPassword" && key != "password") {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            labelFor(key),
+                            modifier = Modifier.width(64.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant,
+                        )
+                        Text(
+                            approvalValue(key, value.toString()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurface,
+                        )
+                    }
+                }
+            }
+            if (pending && needsPassword) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { input -> password = input.filter(Char::isDigit).take(6) },
+                    label = { Text("校园卡支付密码（6 位）") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true,
+                    supportingText = {
+                        Text(
+                            "只在本机确认时使用，不保存、不发给模型。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Text(
+                request.risk,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.surfaceContainerLow)
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+            )
+            if (pending) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onReject) { Text("取消") }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val secret = password.takeIf { needsPassword && it.length == 6 }
+                            password = ""
+                            onApprove(secret)
+                        },
+                        enabled = !needsPassword || password.length == 6,
+                    ) {
+                        Text("确认执行")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun labelFor(key: String): String = when (key) {
+    "amount" -> "金额"
+    "bank" -> "银行卡"
+    "bathroom" -> "浴室"
+    "phone" -> "手机号"
+    "to" -> "收件人"
+    "cc" -> "抄送"
+    "subject" -> "主题"
+    "body" -> "正文"
+    "teacher" -> "教师"
+    "all" -> "全部"
+    "semester" -> "学期"
+    "title" -> "标题"
+    "description" -> "描述"
+    "type" -> "类型"
+    "campus" -> "校区"
+    "state" -> "类型"
+    "id" -> "ID"
+    "index" -> "序号"
+    "label" -> "名称"
+    "room" -> "房间"
+    else -> key
+}
+
+private fun approvalValue(key: String, raw: String): String {
+    val value = raw.trim('"')
+    return when (key) {
+        "amount" -> "¥$value"
+        "bank" -> when (value) {
+            "agricultural", "agricultural_bank" -> "中国农业银行"
+            "cmb", "china_merchants_bank" -> "招商银行"
+            "alipay" -> "支付宝"
+            else -> value
+        }
+        "state" -> when (value) {
+            "1" -> "失物招领"
+            "2" -> "寻物启事"
+            else -> value
+        }
+        else -> value.take(160)
+    }
+}
+
+@Composable
 private fun ErrorCard(text: String) {
     val colors = MaterialTheme.colorScheme
     Surface(
@@ -737,8 +934,10 @@ private suspend fun runStream(
         }
     }
 
+    val gate = com.ahu.ahutong.assistant.safety.AssistantApprovalGate()
+    AssistantChatState.attachGate(gate)
     try {
-        service.stream(question).collect { event ->
+        service.stream(question, gate).collect { event ->
             when (event) {
                 is AssistantServiceEvent.Status -> AssistantChatState.updateStatus(event.text)
                 AssistantServiceEvent.AssistantStart -> {
@@ -767,6 +966,15 @@ private suspend fun runStream(
                         streamingId = null
                     }
                     AssistantChatState.appendTool(event)
+                    AssistantChatState.updateStatus(null)
+                }
+                is AssistantServiceEvent.ApprovalRequired -> {
+                    flushNow()
+                    streamingId?.let {
+                        AssistantChatState.finishAssistant(it, null)
+                        streamingId = null
+                    }
+                    AssistantChatState.appendApproval(event.request)
                     AssistantChatState.updateStatus(null)
                 }
                 is AssistantServiceEvent.Failed -> {

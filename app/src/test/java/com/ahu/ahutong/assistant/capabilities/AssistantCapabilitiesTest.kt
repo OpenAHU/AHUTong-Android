@@ -28,9 +28,12 @@ class AssistantCapabilitiesTest {
         "get_phone_book",
         "get_course_tasks",
         "get_weather",
+        "web_search",
     )
 
-    private val expectedActionIds = setOf(
+    private val expectedActionIds = setOf("add_calendar_event")
+
+    private val expectedWriteIds = setOf(
         "recharge_card",
         "recharge_electricity",
         "recharge_bathroom",
@@ -40,7 +43,6 @@ class AssistantCapabilitiesTest {
         "publish_lost_found",
         "delete_lost_found",
         "switch_electricity_condition",
-        "add_calendar_event",
     )
 
     @Test
@@ -48,7 +50,7 @@ class AssistantCapabilitiesTest {
         val capabilities = AssistantCapabilities.all(config = { null }, cachedSchedule = { null })
         val ids = capabilities.map { it.spec.id }
         assertEquals(ids.size, ids.toSet().size)
-        assertEquals(expectedReadIds + expectedActionIds, ids.toSet())
+        assertEquals(expectedReadIds + expectedActionIds + expectedWriteIds, ids.toSet())
     }
 
     @Test
@@ -60,6 +62,27 @@ class AssistantCapabilitiesTest {
                 assertEquals(AssistantCapabilityKind.NAVIGATE, capability.spec.kind)
                 assertTrue(capability.spec.openRoute != null)
             }
+    }
+
+    @Test
+    fun writeCapabilitiesRequireConfirmation() {
+        val capabilities = AssistantCapabilities.all(config = { null }, cachedSchedule = { null })
+        capabilities
+            .filter { it.spec.id in expectedWriteIds }
+            .forEach { capability ->
+                assertEquals(AssistantCapabilityKind.WRITE, capability.spec.kind)
+                assertTrue(capability.spec.requiresConfirmation)
+                assertTrue(capability.spec.openRoute != null)
+            }
+    }
+
+    @Test
+    fun paymentCapabilitiesAskForThePasswordLocally() {
+        val capabilities = AssistantCapabilities.all(config = { null }, cachedSchedule = { null })
+        val paymentIds = setOf("recharge_electricity", "recharge_bathroom", "recharge_network")
+        capabilities
+            .filter { it.spec.id in paymentIds }
+            .forEach { capability -> assertTrue(capability.spec.requiresPaymentPassword) }
     }
 
     @Test

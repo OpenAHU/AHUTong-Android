@@ -3,6 +3,7 @@ package com.ahu.ahutong.assistant.safety
 import com.ahu.ahutong.assistant.AssistantCapabilityKind
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
 import com.ahu.ahutong.assistant.AssistantSensitivity
+import com.google.gson.JsonObject
 import kotlinx.coroutines.CompletableDeferred
 
 enum class AssistantPolicyDecision {
@@ -42,6 +43,7 @@ data class AssistantApprovalRequest(
     val title: String,
     val summary: String,
     val risk: String,
+    val arguments: JsonObject = JsonObject(),
     val requiresPaymentPassword: Boolean = false,
     /** 本轮读过外部内容时，提示用户不要被网页/邮件/通知里的文字带着走。 */
     val untrustedWarning: String? = null,

@@ -30,6 +30,10 @@ data class AssistantCapabilitySpec(
     val source: String = "本机数据",
     /** 结果对应的既有页面；UI 只负责跳转，不复制执行逻辑。 */
     val openRoute: String? = null,
+    /** 写操作是否必须先让用户确认。 */
+    val requiresConfirmation: Boolean = kind == AssistantCapabilityKind.WRITE,
+    /** 是否需要在确认卡里采集校园卡支付密码。 */
+    val requiresPaymentPassword: Boolean = false,
 )
 
 data class AssistantAnswer(
@@ -82,4 +86,11 @@ sealed interface AssistantOutcome {
 interface AssistantCapability {
     val spec: AssistantCapabilitySpec
     suspend fun execute(arguments: JsonObject): AssistantOutcome
+
+    /** 需要本机支付密码的能力覆盖它；密码只在本次调用内使用。 */
+    suspend fun executeWithSecret(arguments: JsonObject, secret: String?): AssistantOutcome =
+        execute(arguments)
+
+    /** 确认卡里补充展示的业务信息，例如电费房间；不要在这里发起扣款。 */
+    suspend fun describe(arguments: JsonObject): String? = null
 }

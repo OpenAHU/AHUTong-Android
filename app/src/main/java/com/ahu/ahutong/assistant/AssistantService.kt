@@ -4,6 +4,11 @@ import com.ahu.ahutong.assistant.model.AssistantChatModel
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
 import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
+import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
+import com.ahu.ahutong.assistant.safety.AssistantToolPolicy
+import com.ahu.ahutong.assistant.safety.AssistantWriteOutcome
+import com.ahu.ahutong.assistant.safety.InMemoryAssistantWriteJournal
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -34,6 +39,7 @@ sealed interface AssistantServiceEvent {
         val trust: AssistantTrust = AssistantTrust.TRUSTED,
         val navigateOnly: Boolean = false,
     ) : AssistantServiceEvent
+    data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantServiceEvent
     data class Failed(val message: String) : AssistantServiceEvent
     data object Done : AssistantServiceEvent
 }
@@ -41,28 +47,47 @@ sealed interface AssistantServiceEvent {
 /**
  * 一次问答：
  * - 配置了模型时走 [AssistantRuntime]（工具循环 + 流式文本）；
- * - 未配置模型时完全本地，仍然产出同样的工具卡/状态事件。
+ * - 未配置模型时完全本地，仍然产出同样的工具卡/状态/审批事件。
  */
 class AssistantService(
     private val registry: AssistantCapabilityRegistry,
     private val parse: (String) -> AssistantIntent = AssistantIntentParser::parse,
     private val modelFactory: () -> AssistantChatModel? = DEFAULT_MODEL_FACTORY,
 ) {
-    fun stream(question: String): Flow<AssistantServiceEvent> = flow {
+    private val writeJournal = InMemoryAssistantWriteJournal()
+
+    fun stream(
+        question: String,
+        gate: AssistantApprovalGate = AssistantApprovalGate(),
+    ): Flow<AssistantServiceEvent> = flow {
         val model = runCatching { modelFactory() }.getOrNull()
         if (model != null) {
-            emitModel(question, model)
+            emitModel(question, model, gate)
         } else {
-            emitLocal(question)
+            emitLocal(question, gate)
         }
     }
 
     private suspend fun FlowCollector<AssistantServiceEvent>.emitModel(
         question: String,
         model: AssistantChatModel,
+        gate: AssistantApprovalGate,
     ) {
-        val runtime = AssistantRuntime(model, registry)
-        val gate = AssistantApprovalGate()
+        val soul = AssistantPreferences.soulFor(AssistantPreferences.personality())
+        val prompt = buildString {
+            append(AssistantRuntime.DEFAULT_SYSTEM_PROMPT.trimEnd())
+            if (soul.isNotBlank()) {
+                appendLine()
+                appendLine()
+                append(soul)
+            }
+        }
+        val runtime = AssistantRuntime(
+            model = model,
+            registry = registry,
+            systemPrompt = prompt,
+            writeJournal = writeJournal,
+        )
         var done = false
         runtime.run(emptyList(), question, gate).collect { event ->
             when (event) {
@@ -84,10 +109,9 @@ class AssistantService(
                         navigateOnly = event.navigateOnly,
                     )
                 )
-                is AssistantRuntimeEvent.ApprovalRequired -> {
-                    // 当前注册表没有 WRITE 能力；真出现时也不替用户确认，交回原页面。
-                    gate.reject()
-                }
+                is AssistantRuntimeEvent.ApprovalRequired -> emit(
+                    AssistantServiceEvent.ApprovalRequired(event.request)
+                )
                 is AssistantRuntimeEvent.Failed -> emit(AssistantServiceEvent.Failed(event.message))
                 AssistantRuntimeEvent.Done -> {
                     done = true
@@ -98,7 +122,10 @@ class AssistantService(
         if (!done) emit(AssistantServiceEvent.Done)
     }
 
-    private suspend fun FlowCollector<AssistantServiceEvent>.emitLocal(question: String) {
+    private suspend fun FlowCollector<AssistantServiceEvent>.emitLocal(
+        question: String,
+        gate: AssistantApprovalGate,
+    ) {
         val intent = parse(question)
         val capability = intent.capabilityId?.let(registry::find)
         if (capability == null) {
@@ -106,14 +133,94 @@ class AssistantService(
             emit(AssistantServiceEvent.Done)
             return
         }
+        val isWrite = capability.spec.kind == AssistantCapabilityKind.WRITE
+        var secret: String? = null
+
+        if (isWrite) {
+            val blocked = writeJournal.check(capability.spec.id, intent.arguments)
+            if (blocked != null) {
+                emit(
+                    AssistantServiceEvent.ToolResult(
+                        toolId = capability.spec.id,
+                        title = capability.spec.title,
+                        ok = false,
+                        summary = blocked,
+                        source = capability.spec.source,
+                    )
+                )
+                emit(AssistantServiceEvent.AssistantMessage(blocked))
+                emit(AssistantServiceEvent.Done)
+                return
+            }
+            val deferred = gate.prepare()
+            val detail = runCatching { capability.describe(intent.arguments) }.getOrNull()
+            emit(
+                AssistantServiceEvent.ApprovalRequired(
+                    AssistantApprovalRequest(
+                        id = UUID.randomUUID().toString(),
+                        toolId = capability.spec.id,
+                        title = capability.spec.title,
+                        summary = buildString {
+                            append(capability.spec.title)
+                            if (intent.arguments.size() > 0) {
+                                append("：")
+                                append(intent.arguments.entrySet().joinToString("，") { "${it.key}=${it.value}" })
+                            }
+                            detail?.takeIf { it.isNotBlank() }?.let {
+                                appendLine()
+                                append(it)
+                            }
+                        },
+                        risk = AssistantToolPolicy.riskText(capability.spec),
+                        arguments = intent.arguments,
+                        requiresPaymentPassword = capability.spec.requiresPaymentPassword,
+                    )
+                )
+            )
+            val decision = deferred.await()
+            if (!decision.approved) {
+                emit(
+                    AssistantServiceEvent.ToolResult(
+                        toolId = capability.spec.id,
+                        title = capability.spec.title,
+                        ok = false,
+                        summary = "已取消",
+                        source = capability.spec.source,
+                    )
+                )
+                emit(AssistantServiceEvent.AssistantMessage("已取消这次操作。"))
+                emit(AssistantServiceEvent.Done)
+                return
+            }
+            secret = decision.paymentPassword
+            writeJournal.begin(capability.spec.id, intent.arguments)
+        }
+
         emit(AssistantServiceEvent.Status("正在执行：${capability.spec.title}…"))
         val outcome = try {
-            capability.execute(intent.arguments)
+            if (isWrite) {
+                capability.executeWithSecret(intent.arguments, secret)
+            } else {
+                capability.execute(intent.arguments)
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             AssistantOutcome.Failure("exception", error.message ?: "执行失败")
         }
+        if (isWrite) {
+            val writeOutcome = when (outcome) {
+                is AssistantOutcome.Success -> AssistantWriteOutcome.SUCCESS
+                is AssistantOutcome.Failure ->
+                    if (outcome.code == "network" || outcome.code == "timeout") {
+                        AssistantWriteOutcome.UNKNOWN
+                    } else {
+                        AssistantWriteOutcome.KNOWN_FAILURE
+                    }
+            }
+            writeJournal.finish(capability.spec.id, intent.arguments, writeOutcome)
+        }
+
         when (outcome) {
             is AssistantOutcome.Success -> {
                 emit(
@@ -147,13 +254,15 @@ class AssistantService(
         emit(AssistantServiceEvent.Done)
     }
 
-    /** 兼容旧调用：把事件流压成一次结果。 */
+    /** 兼容旧调用：把事件流压成一次结果；写操作在无人确认的调用里自动取消。 */
     suspend fun ask(question: String): AssistantTurn {
         var text: String? = null
         var failure: String? = null
         var route: String? = null
-        stream(question).collect { event ->
+        val gate = AssistantApprovalGate()
+        stream(question, gate).collect { event ->
             when (event) {
+                is AssistantServiceEvent.ApprovalRequired -> gate.reject()
                 is AssistantServiceEvent.AssistantMessage -> text = event.text
                 is AssistantServiceEvent.ToolResult -> if (event.ok) route = event.route ?: route
                 is AssistantServiceEvent.Failed -> failure = event.message
@@ -178,6 +287,6 @@ class AssistantService(
         const val HELP_TEXT =
             "我可以查课表、空教室、成绩、绩点排名、考试、余额、账单、电费、考勤、培养方案、评教、" +
                 "通知、失物招领、邮箱、电话本、作业、章节进度、天气和必吃榜；" +
-                "充值、评教提交、发邮件等会打开原页面由你确认。"
+                "充值、评教提交、发邮件等会先弹确认卡，确认后再执行。"
     }
 }

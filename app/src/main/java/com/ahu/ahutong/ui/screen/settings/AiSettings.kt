@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.assistant.AssistantPersonality
+import com.ahu.ahutong.assistant.AssistantPreferences
 import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelConfig
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
@@ -30,10 +32,13 @@ import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsBackdropContainer
+import com.ahu.ahutong.ui.components.SettingsChoice
 import com.ahu.ahutong.ui.components.SettingsConfirmationDialog
 import com.ahu.ahutong.ui.components.SettingsInfoRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
+import com.ahu.ahutong.ui.components.SettingsSelectRow
+import com.ahu.ahutong.ui.components.SettingsToggleRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,8 +54,15 @@ fun AiSettings(onBack: () -> Unit = {}) {
     var stored by remember {
         mutableStateOf(runCatching { AssistantModelConfigStore.load() }.getOrNull())
     }
-    var baseUrl by remember { mutableStateOf(stored?.baseUrl.orEmpty()) }
-    var modelName by remember { mutableStateOf(stored?.model.orEmpty()) }
+    var baseUrl by remember {
+        mutableStateOf(stored?.baseUrl?.takeIf { it.isNotBlank() } ?: AssistantPreferences.DEFAULT_BASE_URL)
+    }
+    var modelName by remember {
+        mutableStateOf(stored?.model?.takeIf { it.isNotBlank() } ?: AssistantPreferences.DEFAULT_MODEL)
+    }
+    var personality by remember { mutableStateOf(AssistantPreferences.personality()) }
+    var searchEnabled by remember { mutableStateOf(AssistantPreferences.searchEnabled()) }
+    val supportsSearch = baseUrl.contains("deepseek.com", ignoreCase = true)
     var apiKey by remember { mutableStateOf("") }
     var testing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -197,6 +209,50 @@ fun AiSettings(onBack: () -> Unit = {}) {
             }
 
             SettingsSection(
+                title = "助手性格",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop,
+            ) {
+                SettingsSelectRow(
+                    title = "性格",
+                    selected = personality,
+                    choices = AssistantPersonality.entries.map {
+                        SettingsChoice(it, it.label)
+                    },
+                    subtitle = personality.description,
+                    showDivider = false,
+                    onSelected = {
+                        personality = it
+                        AssistantPreferences.setPersonality(it)
+                        status = "已切换为${it.label}"
+                    },
+                )
+            }
+
+            SettingsSection(
+                title = "联网搜索",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop,
+            ) {
+                SettingsToggleRow(
+                    title = "允许联网搜索",
+                    subtitle = if (supportsSearch) {
+                        "需要实时信息时通过 DeepSeek 官方搜索获取网页结果"
+                    } else {
+                        "当前接口暂不支持联网搜索；目前仅 DeepSeek 官方接口可用"
+                    },
+                    selected = searchEnabled && supportsSearch,
+                    enabled = supportsSearch,
+                    backdrop = backdrop,
+                    showDivider = false,
+                    onSelectedChange = {
+                        searchEnabled = it
+                        AssistantPreferences.setSearchEnabled(it)
+                    },
+                )
+            }
+
+            SettingsSection(
                 title = "当前模式",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop,
@@ -220,8 +276,8 @@ fun AiSettings(onBack: () -> Unit = {}) {
             ) {
                 Text(
                     text = "启用模型后，你的问题以及工具返回的文本（课表、成绩、余额、账单、邮件摘要等）" +
-                        "会作为上下文发送到所填模型服务；密码与支付密码不会进入能力结果。" +
-                        "仅在信任该服务时启用。",
+                        "会作为上下文发送到所填模型服务；写操作会先弹确认卡，" +
+                        "支付密码只在本机确认时使用、不进入模型上下文。仅在信任该服务时启用。",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

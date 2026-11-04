@@ -35,5 +35,15 @@ object AssistantCapabilities {
         GetAssignmentsCapability(),
         GetCourseTasksCapability(),
         GetWeatherCapability(),
+        WebSearchCapability(),
+        RechargeCardCapability(),
+        RechargeElectricityCapability(),
+        RechargeBathroomCapability(),
+        RechargeNetworkCapability(),
+        SendMailCapability(),
+        PublishLostFoundCapability(),
+        DeleteLostFoundCapability(),
+        SwitchElectricityConditionCapability(),
+        SubmitEvaluationCapability(),
     ) + navigateCapabilities()
 }
