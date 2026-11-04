@@ -245,6 +245,7 @@ dependencies {
     implementation(libs.kyant0.backdrop)
     implementation(libs.kyant0.capsule)
     implementation(libs.markwon.core)
+    implementation(libs.markdown.renderer.m3)
     implementation(libs.commonmark.tables)
     implementation(libs.commonmark.strikethrough)
 

@@ -3,15 +3,12 @@ package com.ahu.ahutong.ui.screen.assistant
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
-import android.text.method.LinkMovementMethod
 import android.util.Base64
 import android.view.View
-import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.TextView
 import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,8 +26,16 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
+import com.mikepenz.markdown.m3.markdownTypography
 import androidx.compose.ui.viewinterop.AndroidView
-import io.noties.markwon.Markwon
 import kotlinx.coroutines.delay
 
 private val inlineMath = Regex("""(?<!\$)\$(?!\$)[^$\n]+\$(?!\$)""")
@@ -109,37 +114,57 @@ fun AssistantMarkdown(
     if (text.containsMath()) {
         KatexMarkdown(text = text, modifier = modifier)
     } else {
-        MarkwonMarkdown(text = text, modifier = modifier)
+        MarkdownMarkdown(text = text, modifier = modifier)
     }
 }
 
 @Composable
-private fun MarkwonMarkdown(text: String, modifier: Modifier) {
-    val context = LocalContext.current
+private fun MarkdownMarkdown(text: String, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val safe = remember(text) { AssistantMarkdownSafety.sanitize(text) }
-    val markwon = remember(context) { Markwon.create(context) }
-    AndroidView(
-        factory = { ctx ->
-            TextView(ctx).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                )
-                setPadding(0, 0, 0, 0)
-                includeFontPadding = false
-                background = null
-                textSize = 16f
-                setLineSpacing(0f, 1.28f)
-                movementMethod = LinkMovementMethod.getInstance()
-            }
-        },
-        update = { view ->
-            view.setTextColor(colors.onSurface.toArgb())
-            view.setLinkTextColor(colors.primary.toArgb())
-            markwon.setMarkdown(view, safe)
-        },
+    Markdown(
+        content = safe,
+        colors = markdownColor(
+            text = colors.onSurface,
+            codeBackground = colors.surfaceContainerHigh,
+            inlineCodeBackground = colors.primaryContainer,
+            dividerColor = colors.outlineVariant,
+            tableBackground = colors.surfaceContainerHigh.copy(alpha = 0.55f),
+        ),
+        typography = markdownTypography(
+            h1 = MaterialTheme.typography.titleLarge,
+            h2 = MaterialTheme.typography.titleMedium,
+            h3 = MaterialTheme.typography.titleSmall,
+            h4 = MaterialTheme.typography.titleSmall,
+            h5 = MaterialTheme.typography.titleSmall,
+            h6 = MaterialTheme.typography.titleSmall,
+            text = MaterialTheme.typography.bodyLarge,
+            code = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+            inlineCode = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
+            quote = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+            paragraph = MaterialTheme.typography.bodyLarge,
+            ordered = MaterialTheme.typography.bodyLarge,
+            bullet = MaterialTheme.typography.bodyLarge,
+            list = MaterialTheme.typography.bodyLarge,
+            table = MaterialTheme.typography.bodySmall,
+            textLink = TextLinkStyles(
+                style = SpanStyle(
+                    color = colors.primary,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.Underline,
+                ),
+            ),
+        ),
         modifier = modifier.fillMaxWidth(),
+        loading = {},
+        error = { errorModifier ->
+            Text(
+                text = text,
+                modifier = errorModifier,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.onSurface,
+            )
+        },
     )
 }
 
@@ -161,7 +186,7 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
     }
 
     if (failed) {
-        MarkwonMarkdown(text = text, modifier = modifier)
+        MarkdownMarkdown(text = text, modifier = modifier)
         return
     }
 
