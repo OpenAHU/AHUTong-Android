@@ -997,6 +997,12 @@ fun Main(
             visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible,
             origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
         )
+        com.ahu.ahutong.ui.screen.assistant.AssistantOverlay(
+            scheduleViewModel = scheduleViewModel,
+            onOpenRoute = { route ->
+                navController.navigate(route) { launchSingleTop = true }
+            },
+        )
         }
     }
     }

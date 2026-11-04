@@ -111,7 +111,6 @@ import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.glow.liquidRipple
-import com.ahu.ahutong.ui.screen.assistant.AssistantSheet
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
@@ -174,7 +173,6 @@ internal fun Home(
     val noticeAccountId = accountId
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
     var assistantOrigin by remember { mutableStateOf<Offset?>(null) }
-    var showAssistant by remember { mutableStateOf(false) }
     // 点击后整页像被按了一下：透镜涟漪从 AI 键向四周推开。
     val rippleProgress = remember { Animatable(1f) }
     LaunchedEffect(AssistantGlowState.visible) {
@@ -493,10 +491,7 @@ internal fun Home(
         }
         val assistantButton: @Composable () -> Unit = {
             HomeAssistantButton(
-                onClick = {
-                    showAssistant = true
-                    AssistantGlowState.visible = true
-                },
+                onClick = { AssistantGlowState.visible = !AssistantGlowState.visible },
                 backdrop = headerControlsBackdrop,
                 modifier = Modifier.onGloballyPositioned { coordinates ->
                     val topLeft = coordinates.positionInWindow()
@@ -678,20 +673,6 @@ internal fun Home(
                     rootTopLeft = rootTopLeft
                 )
             }
-        }
-        if (showAssistant) {
-            AssistantSheet(
-                scheduleViewModel = scheduleViewModel,
-                onDismiss = {
-                    showAssistant = false
-                    AssistantGlowState.visible = false
-                },
-                onOpenRoute = { route ->
-                    showAssistant = false
-                    AssistantGlowState.visible = false
-                    navController.navigate(route) { launchSingleTop = true }
-                }
-            )
         }
         }
         }
