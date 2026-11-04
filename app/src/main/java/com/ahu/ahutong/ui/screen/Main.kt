@@ -992,6 +992,11 @@ fun Main(
             paymentQrCommands = paymentQrCommands,
             viewModel = electricityAlertViewModel
         )
+        // 全局最上层：盖住底部导航与页面内容（AI 键只写入状态）。
+        com.ahu.ahutong.ui.glow.ScreenEdgeGlow(
+            visible = com.ahu.ahutong.ui.glow.AssistantGlowState.visible,
+            origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
+        )
         }
     }
     }

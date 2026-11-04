@@ -1,26 +1,19 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Send
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,7 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.assistant.AssistantCapabilityRegistry
 import com.ahu.ahutong.assistant.AssistantOutcome
@@ -94,11 +86,7 @@ fun AssistantSheet(
     }
 
     AppModalBottomSheet(title = "AI 助手", onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "直接问，结果来自现有功能的数据；不会替你执行充值等操作。",
                 style = MaterialTheme.typography.bodySmall,
@@ -107,40 +95,41 @@ fun AssistantSheet(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SUGGESTIONS.forEach { suggestion ->
-                    TextButton(onClick = { input = suggestion; ask(suggestion) }) {
+                    TextButton(onClick = {
+                        input = suggestion
+                        ask(suggestion)
+                    }) {
                         Text(suggestion, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
-            OutlinedTextField(
+            turn?.let { current ->
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    AssistantAnswerBlock(
+                        turn = current,
+                        onOpenRoute = onOpenRoute,
+                        onRetry = { ask(current.question) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            AssistantInputBar(
                 value = input,
                 onValueChange = { input = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("例如：今天有什么课") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { ask(input) }),
-                trailingIcon = {
-                    if (running) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        IconButton(onClick = { ask(input) }, enabled = input.isNotBlank()) {
-                            Icon(Icons.Rounded.Send, contentDescription = "发送")
-                        }
-                    }
-                }
+                onSend = {
+                    val question = input
+                    input = ""
+                    ask(question)
+                },
+                enabled = !running
             )
-            Spacer(Modifier.height(12.dp))
-            when (val current = turn) {
-                null -> Unit
-                else -> AssistantAnswerBlock(
-                    turn = current,
-                    onOpenRoute = onOpenRoute,
-                    onRetry = { ask(current.question) },
-                )
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
         }
     }
 }

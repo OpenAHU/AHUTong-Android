@@ -43,6 +43,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -106,8 +109,9 @@ import com.ahu.ahutong.ui.screen.main.home.homeWidgetEditGesture
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
 import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
+import com.ahu.ahutong.ui.glow.AssistantGlowState
+import com.ahu.ahutong.ui.glow.liquidRipple
 import com.ahu.ahutong.ui.screen.assistant.AssistantSheet
-import com.ahu.ahutong.ui.glow.ScreenEdgeGlow
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
@@ -169,8 +173,23 @@ internal fun Home(
     }
     val noticeAccountId = accountId
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
-    var showAssistant by remember { mutableStateOf(false) }
     var assistantOrigin by remember { mutableStateOf<Offset?>(null) }
+    var showAssistant by remember { mutableStateOf(false) }
+    // 点击后整页像被按了一下：透镜涟漪从 AI 键向四周推开。
+    val rippleProgress = remember { Animatable(1f) }
+    LaunchedEffect(AssistantGlowState.visible) {
+        if (AssistantGlowState.visible) {
+            rippleProgress.snapTo(0f)
+            // 等光团飘到顶边“爆开”的瞬间，再从光点位置向外推水波。
+            delay(360)
+            rippleProgress.animateTo(
+                1f,
+                tween(980, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
+            )
+        } else {
+            rippleProgress.snapTo(1f)
+        }
+    }
     val noticeUnreadCount = noticeSnapshot?.takeIf { it.accountId == noticeAccountId }?.unreadCount ?: 0
     LaunchedEffect(isActive, noticeAccountId) {
         if (isActive && AHUCache.isPrivacyAccepted() &&
@@ -450,6 +469,12 @@ internal fun Home(
                     enabled = isActive && !isEditingHome,
                     onEnterEdit = ::enterHomeEditMode
                 )
+                .liquidRipple(
+                    progress = rippleProgress.value,
+                    center = assistantOrigin?.let { Offset(it.x, 0f) },
+                    strength = 12.dp,
+                    ambient = AssistantGlowState.visible
+                )
         ) {
         // 标题栏模糊采样层：只包滚动内容（头部自身在层外，避免自采样）；
         // 模糊关闭时 headerBackdropSource 零开销直通
@@ -468,14 +493,19 @@ internal fun Home(
         }
         val assistantButton: @Composable () -> Unit = {
             HomeAssistantButton(
-                onClick = { showAssistant = true },
+                onClick = {
+                    showAssistant = true
+                    AssistantGlowState.visible = true
+                },
                 backdrop = headerControlsBackdrop,
                 modifier = Modifier.onGloballyPositioned { coordinates ->
                     val topLeft = coordinates.positionInWindow()
-                    assistantOrigin = Offset(
+                    val center = Offset(
                         x = topLeft.x + coordinates.size.width / 2f,
                         y = topLeft.y + coordinates.size.height / 2f,
                     )
+                    assistantOrigin = center
+                    AssistantGlowState.origin = center
                 }
             )
         }
@@ -649,16 +679,16 @@ internal fun Home(
                 )
             }
         }
-        ScreenEdgeGlow(
-            visible = showAssistant,
-            origin = assistantOrigin,
-        )
         if (showAssistant) {
             AssistantSheet(
                 scheduleViewModel = scheduleViewModel,
-                onDismiss = { showAssistant = false },
+                onDismiss = {
+                    showAssistant = false
+                    AssistantGlowState.visible = false
+                },
                 onOpenRoute = { route ->
                     showAssistant = false
+                    AssistantGlowState.visible = false
                     navController.navigate(route) { launchSingleTop = true }
                 }
             )
