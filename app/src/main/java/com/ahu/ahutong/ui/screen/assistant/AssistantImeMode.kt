@@ -14,7 +14,7 @@ import com.ahu.ahutong.ui.glow.AssistantGlowState
 @Composable
 fun AssistantImeMode() {
     val activity = LocalContext.current as? Activity
-    val visible = AssistantGlowState.visible
+    val visible = AssistantGlowState.visible && !AssistantChatState.visible
     DisposableEffect(activity, visible) {
         val window = activity?.window
         val original = window?.attributes?.softInputMode

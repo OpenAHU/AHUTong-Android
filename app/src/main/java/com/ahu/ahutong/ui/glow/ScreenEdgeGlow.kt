@@ -37,6 +37,9 @@ import kotlinx.coroutines.launch
 object AssistantGlowState {
     var visible by mutableStateOf(false)
     var origin by mutableStateOf<Offset?>(null)
+
+    /** 光带是否已经扩散到屏幕底部；输入栏只在扩散完成后出现。 */
+    var revealed by mutableStateOf(false)
 }
 
 private const val GLOW_AGSL = """
@@ -152,6 +155,7 @@ fun ScreenEdgeGlow(
     val lift = remember { Animatable(0f) }
     LaunchedEffect(visible) {
         if (visible) {
+            AssistantGlowState.revealed = false
             reveal.snapTo(0f)
             lift.snapTo(0f)
             launch { fade.animateTo(1f, tween(160)) }
@@ -159,8 +163,10 @@ fun ScreenEdgeGlow(
             launch {
                 delay(300)
                 reveal.animateTo(1f, tween(950, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
+                AssistantGlowState.revealed = true
             }
         } else {
+            AssistantGlowState.revealed = false
             fade.animateTo(0f, tween(350, easing = FastOutSlowInEasing))
         }
     }

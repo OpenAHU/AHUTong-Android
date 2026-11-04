@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -47,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantTurn
+import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import kotlinx.coroutines.launch
 
@@ -87,7 +87,10 @@ fun AssistantChatScreen(
         if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
     }
 
-    BackHandler(enabled = AssistantChatState.visible) { AssistantChatState.close() }
+    BackHandler(enabled = AssistantChatState.visible) {
+        AssistantChatState.close()
+        AssistantGlowState.visible = false
+    }
 
     AnimatedVisibility(
         visible = AssistantChatState.visible,
@@ -105,7 +108,6 @@ fun AssistantChatScreen(
                 Modifier
                     .fillMaxSize()
                     .systemBarsPadding()
-                    .imePadding()
             ) {
                 Row(
                     modifier = Modifier
@@ -115,7 +117,10 @@ fun AssistantChatScreen(
                 ) {
                     Text("AI 助手", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { AssistantChatState.close() }) {
+                    IconButton(onClick = {
+                        AssistantChatState.close()
+                        AssistantGlowState.visible = false
+                    }) {
                         Icon(Icons.Rounded.Close, contentDescription = "关闭")
                     }
                 }
