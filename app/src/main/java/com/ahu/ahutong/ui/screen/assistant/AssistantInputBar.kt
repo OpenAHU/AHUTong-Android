@@ -147,7 +147,7 @@ fun AssistantInputBar(
                 size = Size(size.width - stroke, size.height - stroke),
                 cornerRadius = CornerRadius((size.height - stroke) / 2f, (size.height - stroke) / 2f),
                 style = Stroke(width = stroke),
-                alpha = 0.32f * glowAlpha
+                alpha = 0.45f * glowAlpha
             )
         }
         // 内层细描边。
@@ -163,7 +163,7 @@ fun AssistantInputBar(
                 size = Size(size.width - stroke, size.height - stroke),
                 cornerRadius = CornerRadius((size.height - stroke) / 2f, (size.height - stroke) / 2f),
                 style = Stroke(width = stroke),
-                alpha = 0.85f * glowAlpha
+                alpha = 1f
             )
         }
         Row(
