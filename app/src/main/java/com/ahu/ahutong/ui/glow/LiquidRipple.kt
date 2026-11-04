@@ -32,7 +32,6 @@ uniform float2 uCenter;
 uniform float2 uResolution;
 uniform float uProgress;
 uniform float uStrength;
-uniform float uSettle;
 uniform float uAmbientPhase;
 uniform float uScale;
 
@@ -48,16 +47,12 @@ half4 main(float2 coord) {
     float profile = x * exp(-x * x) * 2.3;
     float wave = profile * uStrength * (1.0 - 0.55 * uProgress);
 
-    // 主波过后的一次性回弹：一个周期内衰减到 0，用于“缓动”收尾。
-    float settleWave = sin(uSettle * 6.28318) * exp(-uSettle * 2.4) * uStrength * 0.30;
-    float settleField = settleWave * exp(-pow((d - maxD * 0.5) / (maxD * 0.35), 2.0));
-
     // 主波铺满后常驻的微幅起伏：直到关掉光效前都在轻轻呼吸。
     float ambient = sin(d / (110.0 * uScale) - uAmbientPhase * 6.28318)
         * 0.8 * uScale
         * smoothstep(0.8, 1.0, uProgress);
 
-    float2 offset = dir * (wave + settleField + ambient);
+    float2 offset = dir * (wave + ambient);
     float dispersion = 0.3 * uScale;
     half4 sampled = content.eval(coord + offset);
     half r = content.eval(coord + offset + dir * dispersion).r;
@@ -74,14 +69,13 @@ half4 main(float2 coord) {
  */
 fun Modifier.liquidRipple(
     progress: Float,
-    settle: Float,
     center: Offset?,
     strength: Dp,
     ambient: Boolean = false,
 ): Modifier = composed {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         center == null ||
-        (!ambient && progress >= 1f && settle >= 1f)
+        (!ambient && progress >= 1f)
     ) {
         return@composed this
     }
@@ -105,7 +99,6 @@ fun Modifier.liquidRipple(
         shader.setFloatUniform("uResolution", size.width.toFloat(), size.height.toFloat())
         shader.setFloatUniform("uProgress", progress)
         shader.setFloatUniform("uStrength", strengthPx)
-        shader.setFloatUniform("uSettle", settle)
         shader.setFloatUniform("uAmbientPhase", phase.value)
         shader.setFloatUniform("uScale", density)
         renderEffect = RenderEffect
