@@ -993,6 +993,7 @@ fun Main(
             viewModel = electricityAlertViewModel
         )
         // 全局最上层：盖住底部导航与页面内容（AI 键只写入状态）。
+        com.ahu.ahutong.ui.screen.assistant.AssistantImeMode()
         com.ahu.ahutong.ui.screen.assistant.AssistantOverlay(
             scheduleViewModel = scheduleViewModel,
             onOpenRoute = { route ->
