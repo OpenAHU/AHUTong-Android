@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.assistant.AssistantPersonality
 import com.ahu.ahutong.assistant.AssistantPreferences
 import com.ahu.ahutong.assistant.model.AssistantMessage
@@ -90,8 +91,14 @@ fun AiSettings(onBack: () -> Unit = {}) {
             return
         }
         stored = runCatching { AssistantModelConfigStore.load() }.getOrNull()
+        AssistantPreferences.setConnectionVerified(false)
+        if (!supportsSearch) {
+            searchEnabled = false
+            AssistantPreferences.setSearchEnabled(false)
+        }
+        AssistantAccessState.refresh()
         apiKey = ""
-        status = "已保存，AI 入口将优先使用模型"
+        status = "已保存，请测试连通性后再使用 AI 入口"
         Toast.makeText(context, "AI 设置已保存", Toast.LENGTH_SHORT).show()
     }
 
@@ -105,7 +112,7 @@ fun AiSettings(onBack: () -> Unit = {}) {
         testing = true
         status = "正在连接…"
         scope.launch {
-            val message = withContext(Dispatchers.IO) {
+            val outcome = withContext(Dispatchers.IO) {
                 runCatching {
                     val chat = OpenAiCompatibleChatModel(
                         AssistantModelConfig(
@@ -123,12 +130,19 @@ fun AiSettings(onBack: () -> Unit = {}) {
                     )
                     reply.content?.takeIf { it.isNotBlank() }
                         ?: "连接成功（模型未返回文本）"
-                }.getOrElse { error ->
-                    "连接失败：" + (error.message ?: error.javaClass.simpleName)
                 }
             }
+            val success = outcome.isSuccess
+            AssistantPreferences.setConnectionVerified(success)
+            if (!supportsSearch) {
+                searchEnabled = false
+                AssistantPreferences.setSearchEnabled(false)
+            }
+            AssistantAccessState.refresh()
             testing = false
-            status = message.take(160)
+            status = outcome.getOrElse { error ->
+                "连接失败：" + (error.message ?: error.javaClass.simpleName)
+            }.take(160)
         }
     }
 
@@ -311,6 +325,8 @@ fun AiSettings(onBack: () -> Unit = {}) {
             destructive = true,
             onConfirm = {
                 runCatching { AssistantModelConfigStore.clear() }
+                AssistantPreferences.setConnectionVerified(false)
+                AssistantAccessState.refresh()
                 stored = null
                 baseUrl = ""
                 modelName = ""

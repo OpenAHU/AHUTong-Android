@@ -47,6 +47,7 @@ object AssistantPreferences {
     private const val PREFS = "assistant_preferences"
     private const val KEY_PERSONALITY = "personality"
     private const val KEY_SEARCH = "search_enabled"
+    private const val KEY_VERIFIED = "connection_verified"
 
     private val prefs by lazy {
         AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -71,6 +72,14 @@ object AssistantPreferences {
     fun searchEnabled(): Boolean = runCatching {
         prefs.getBoolean(KEY_SEARCH, true)
     }.getOrDefault(true)
+
+    fun connectionVerified(): Boolean = runCatching {
+        prefs.getBoolean(KEY_VERIFIED, false)
+    }.getOrDefault(false)
+
+    fun setConnectionVerified(verified: Boolean) {
+        runCatching { prefs.edit().putBoolean(KEY_VERIFIED, verified).apply() }
+    }
 
     fun setSearchEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_SEARCH, enabled).apply()

@@ -240,7 +240,6 @@ fun Settings(
             )
             SettingsActionRow(
                 title = "AI 设置",
-                subtitle = "模型服务与能力入口",
                 leadingIcon = when {
                     useMiuixIcons -> MiuixIcons.Useful.Info
                     isRadiant -> null

@@ -92,12 +92,12 @@ class AssistantServiceTest {
     }
 
     @Test
-    fun streamEmitsToolCardAndStatusForLocalRouting() = runBlocking {
+    fun noModelDoesNotFallBackToKeywordRouting() = runBlocking {
         val service = AssistantService(registry(), modelFactory = { null })
         val events = mutableListOf<AssistantServiceEvent>()
         service.stream("查教务处电话").collect { events += it }
-        assertTrue(events.any { it is AssistantServiceEvent.Status })
-        assertTrue(events.any { it is AssistantServiceEvent.ToolResult })
+        assertTrue(events.none { it is AssistantServiceEvent.ToolResult })
+        assertTrue(events.none { it is AssistantServiceEvent.Status })
         assertTrue(events.any { it is AssistantServiceEvent.AssistantMessage })
         assertTrue(events.last() is AssistantServiceEvent.Done)
     }
@@ -129,10 +129,11 @@ class AssistantServiceTest {
     }
 
     @Test
-    fun noModelKeepsEverythingLocal() = runBlocking {
+    fun noModelReturnsAConfigurationPrompt() = runBlocking {
         val service = AssistantService(registry(), modelFactory = { null })
         val turn = service.ask("查教务处电话")
-        assertEquals("get_phone_book", turn.capabilityId)
-        assertTrue(turn.outcome is AssistantOutcome.Success)
+        assertEquals(null, turn.capabilityId)
+        val outcome = turn.outcome as AssistantOutcome.Success
+        assertTrue(outcome.answer.summary.contains("配置模型"))
     }
 }

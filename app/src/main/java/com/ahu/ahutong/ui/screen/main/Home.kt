@@ -109,6 +109,7 @@ import com.ahu.ahutong.ui.screen.main.home.homeWidgetEditGesture
 import com.ahu.ahutong.ui.screen.main.home.CourseStrip
 import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
+import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.glow.liquidRipple
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
@@ -175,6 +176,11 @@ internal fun Home(
     var assistantOrigin by remember { mutableStateOf<Offset?>(null) }
     // 点击后整页像被按了一下：透镜涟漪从 AI 键向四周推开。
     val rippleProgress = remember { Animatable(1f) }
+    LaunchedEffect(Unit) { AssistantAccessState.ensureLoaded() }
+    val assistantReady = AssistantAccessState.ready
+    LaunchedEffect(assistantReady) {
+        if (!assistantReady) AssistantGlowState.visible = false
+    }
     val aiLayerActive = AssistantGlowState.visible &&
         !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible
     LaunchedEffect(aiLayerActive) {
@@ -521,7 +527,7 @@ internal fun Home(
                         mode = WeatherHomeMode.Compact,
                         backdrop = headerControlsBackdrop
                     )
-                    assistantButton()
+                    if (assistantReady) assistantButton()
                     scanButton()
                 }
             } else if (isEditingHome) {
@@ -531,7 +537,7 @@ internal fun Home(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    assistantButton()
+                    if (assistantReady) assistantButton()
                     scanButton()
                 }
             }
