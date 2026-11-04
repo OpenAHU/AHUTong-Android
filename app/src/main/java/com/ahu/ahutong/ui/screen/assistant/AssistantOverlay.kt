@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.assistant.AssistantCapabilityRegistry
@@ -106,7 +107,7 @@ fun AssistantOverlay(
                     .padding(
                         start = 20.dp,
                         end = 20.dp,
-                        bottom = if (imeVisible) 10.dp else 100.dp,
+                        bottom = 10.dp,
                     ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -140,7 +141,8 @@ private fun AssistantResultBubble(
 ) {
     val outcome = turn.outcome
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = Color(0xE61A1A1C),
+        contentColor = Color.White,
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -166,21 +168,31 @@ private fun AssistantResultBubble(
                         Text(
                             text = line,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color.White.copy(alpha = 0.7f),
                         )
                     }
                     outcome.answer.route?.let { route ->
-                        TextButton(onClick = { onOpenRoute(route) }) { Text("打开页面") }
+                        TextButton(
+                            onClick = { onOpenRoute(route) },
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                contentColor = Color.White
+                            )
+                        ) { Text("打开页面") }
                     }
                 }
                 is AssistantOutcome.Failure -> {
                     Text(
                         text = outcome.message,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
+                        color = Color(0xFFFF8A80),
                     )
                     if (outcome.retryable) {
-                        TextButton(onClick = onRetry) { Text("再试一次") }
+                        TextButton(
+                            onClick = onRetry,
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                contentColor = Color.White
+                            )
+                        ) { Text("再试一次") }
                     }
                 }
             }
