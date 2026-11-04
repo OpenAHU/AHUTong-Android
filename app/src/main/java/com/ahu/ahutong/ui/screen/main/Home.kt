@@ -106,6 +106,7 @@ import com.ahu.ahutong.ui.screen.main.home.CourseStrip
 import com.ahu.ahutong.ui.screen.main.home.HomeScanButton
 import com.ahu.ahutong.ui.screen.main.home.HomeAssistantButton
 import com.ahu.ahutong.ui.screen.assistant.AssistantSheet
+import com.ahu.ahutong.ui.glow.GlowTestOverlay
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.ahu.ahutong.ui.screen.main.home.rememberHomeWeatherConfig
@@ -648,6 +649,9 @@ internal fun Home(
                     navController.navigate(route) { launchSingleTop = true }
                 }
             )
+        }
+        if (BuildConfig.DEBUG) {
+            GlowTestOverlay()
         }
         }
         }
