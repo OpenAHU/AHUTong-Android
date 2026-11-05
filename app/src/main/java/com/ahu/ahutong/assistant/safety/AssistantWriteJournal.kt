@@ -1,6 +1,7 @@
 package com.ahu.ahutong.assistant.safety
 
 import com.google.gson.JsonObject
+import java.math.BigDecimal
 import java.security.MessageDigest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,16 +64,25 @@ class InMemoryAssistantWriteJournal : AssistantWriteJournal {
     }
 
     private fun fingerprint(toolId: String, arguments: JsonObject): String {
-        val canonical = arguments.entrySet()
-            .filterNot { (key, _) -> key in SENSITIVE_KEYS }
-            .sortedBy { it.key }
-            .joinToString("&") { (key, value) -> "$key=${value}" }
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest("$toolId|$canonical".toByteArray())
+            .digest("$toolId|${canonicalWriteArguments(arguments)}".toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
     }
-
-    private companion object {
-        val SENSITIVE_KEYS = setOf("password", "paymentPassword", "payPassword", "pwd")
-    }
 }
+
+internal fun canonicalWriteArguments(arguments: JsonObject): String =
+    arguments.entrySet()
+        .filterNot { (key, _) -> key in SENSITIVE_KEYS }
+        .sortedBy { it.key }
+        .joinToString("&") { (key, value) ->
+            val canonical = if (value.isJsonPrimitive && value.asJsonPrimitive.isNumber) {
+                runCatching {
+                    BigDecimal(value.asString).stripTrailingZeros().toPlainString()
+                }.getOrDefault(value.asString)
+            } else {
+                value.toString().trim()
+            }
+            "$key=$canonical"
+        }
+
+private val SENSITIVE_KEYS = setOf("password", "paymentPassword", "payPassword", "pwd")

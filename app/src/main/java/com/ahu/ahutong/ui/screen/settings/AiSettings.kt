@@ -65,7 +65,12 @@ fun AiSettings(onBack: () -> Unit = {}) {
     var personality by remember { mutableStateOf(AssistantPreferences.personality()) }
     var searchEnabled by remember { mutableStateOf(AssistantPreferences.searchEnabled()) }
     var serviceEnabled by remember { mutableStateOf(AssistantPreferences.serviceEnabled()) }
-    val supportsSearch = baseUrl.contains("deepseek.com", ignoreCase = true)
+    val secureEndpoint = AssistantModelConfig(
+        baseUrl = baseUrl.trim(),
+        model = "placeholder",
+        apiKey = "placeholder",
+    ).isSecureEndpoint
+    val supportsSearch = secureEndpoint && baseUrl.contains("deepseek.com", ignoreCase = true)
     var apiKey by remember { mutableStateOf("") }
     var testing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -75,6 +80,10 @@ fun AiSettings(onBack: () -> Unit = {}) {
 
     fun save() {
         val key = keyForSave()
+        if (!secureEndpoint) {
+            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (baseUrl.isBlank() || modelName.isBlank() || key.isNullOrBlank()) {
             Toast.makeText(context, "请填写 Base URL、模型名和 API Key", Toast.LENGTH_SHORT).show()
             return
@@ -104,6 +113,10 @@ fun AiSettings(onBack: () -> Unit = {}) {
 
     fun testConnection() {
         val key = keyForSave()
+        if (!secureEndpoint) {
+            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (baseUrl.isBlank() || modelName.isBlank() || key.isNullOrBlank()) {
             Toast.makeText(context, "请先填写完整配置", Toast.LENGTH_SHORT).show()
             return

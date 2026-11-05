@@ -51,18 +51,13 @@ class PersistentAssistantWriteJournal : AssistantWriteJournal {
 
     private fun key(toolId: String, arguments: JsonObject): String {
         val account = runCatching { SessionStore.currentUser()?.xh.orEmpty() }.getOrDefault("")
-        val canonical = arguments.entrySet()
-            .filterNot { (name, _) -> name in SENSITIVE_KEYS }
-            .sortedBy { it.key }
-            .joinToString("&") { (name, value) -> "$name=${value}" }
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest("$account|$toolId|$canonical".toByteArray())
+            .digest("$account|$toolId|${canonicalWriteArguments(arguments)}".toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
     }
 
     private companion object {
         const val PREFS = "assistant_write_journal"
         const val KEY_BLOCKED = "blocked_v1"
-        val SENSITIVE_KEYS = setOf("password", "paymentPassword", "payPassword", "pwd")
     }
 }

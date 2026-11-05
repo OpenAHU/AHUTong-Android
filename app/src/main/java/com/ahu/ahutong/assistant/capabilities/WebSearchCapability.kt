@@ -52,6 +52,9 @@ class WebSearchCapability(
             ?: return AssistantOutcome.Failure("invalid_arguments", "query 不能为空")
         val config = config()
             ?: return AssistantOutcome.Failure("not_configured", "请先在 AI 设置中配置模型接口和 API Key")
+        if (!config.isSecureEndpoint) {
+            return AssistantOutcome.Failure("insecure_endpoint", "Base URL 必须使用 HTTPS（本机开发地址除外）")
+        }
         if (!config.baseUrl.contains("deepseek.com", ignoreCase = true)) {
             return AssistantOutcome.Failure("search_unsupported", "当前接口暂不支持联网搜索")
         }

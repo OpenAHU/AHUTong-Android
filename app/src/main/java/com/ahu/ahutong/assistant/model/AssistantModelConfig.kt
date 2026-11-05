@@ -15,6 +15,18 @@ data class AssistantModelConfig(
     val isConfigured: Boolean
         get() = baseUrl.isNotBlank() && model.isNotBlank() && apiKey.isNotBlank()
 
+    /** API Key 只能走 HTTPS；仅为本机开发地址保留明文 HTTP。 */
+    val isSecureEndpoint: Boolean
+        get() {
+            val value = baseUrl.trim().lowercase()
+            if (value.startsWith("https://")) return true
+            if (!value.startsWith("http://")) return false
+            val host = value.removePrefix("http://")
+                .substringBefore('/')
+                .substringBefore(':')
+            return host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "10.0.2.2"
+        }
+
     fun endpoint(): String = baseUrl.trimEnd('/') + "/chat/completions"
 
     override fun toString(): String = "AssistantModelConfig(baseUrl=$baseUrl, model=$model, apiKey=***)"
