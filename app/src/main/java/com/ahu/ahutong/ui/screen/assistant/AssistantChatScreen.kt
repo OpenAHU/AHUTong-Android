@@ -208,7 +208,7 @@ fun AssistantChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 4.dp),
+                        .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -228,13 +228,13 @@ fun AssistantChatScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.weight(1f))
-                    AssistantCircleIconButton(
+                    AssistantHeaderIconButton(
                         icon = Icons.Rounded.History,
                         description = "历史对话",
                         onClick = AssistantChatState::openHistory,
                     )
-                    Spacer(Modifier.width(4.dp))
-                    AssistantCircleIconButton(
+                    Spacer(Modifier.width(8.dp))
+                    AssistantHeaderIconButton(
                         icon = Icons.Rounded.Close,
                         description = "关闭",
                         onClick = {

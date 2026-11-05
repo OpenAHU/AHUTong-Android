@@ -91,8 +91,8 @@ fun AssistantOverlay(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
-                        .padding(bottom = 6.dp)
-                        .width(36.dp)
+                        .padding(bottom = 12.dp)
+                        .width(72.dp)
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f))

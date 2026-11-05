@@ -1,6 +1,5 @@
 package com.ahu.ahutong.ui.screen.assistant
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +44,7 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-internal fun AssistantCircleIconButton(
+internal fun AssistantHeaderIconButton(
     icon: ImageVector,
     description: String,
     onClick: () -> Unit,
@@ -53,9 +52,8 @@ internal fun AssistantCircleIconButton(
     val colors = MaterialTheme.colorScheme
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(40.dp)
             .clip(CircleShape)
-            .background(colors.surfaceContainerHigh)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -63,7 +61,7 @@ internal fun AssistantCircleIconButton(
             imageVector = icon,
             contentDescription = description,
             tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(19.dp),
+            modifier = Modifier.size(22.dp),
         )
     }
 }
@@ -96,28 +94,21 @@ internal fun AssistantHistoryPage(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 6.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
+                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AssistantCircleIconButton(
+                AssistantHeaderIconButton(
                     icon = Icons.AutoMirrored.Rounded.ArrowBack,
                     description = "返回",
                     onClick = onBack,
                 )
                 Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "历史对话",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        "共 ${sessions.size} 个会话",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                AssistantCircleIconButton(
+                Text(
+                    "历史对话",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                AssistantHeaderIconButton(
                     icon = Icons.Rounded.Add,
                     description = "新建对话",
                     onClick = onNewChat,
@@ -146,11 +137,6 @@ internal fun AssistantHistoryPage(
                                     "还没有历史对话。",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                )
-                                Text(
-                                    "每次点「新建对话」都会保留上一段对话，可以在这里切回来。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
