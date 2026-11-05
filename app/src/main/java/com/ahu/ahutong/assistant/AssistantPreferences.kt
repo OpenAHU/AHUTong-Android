@@ -48,6 +48,7 @@ object AssistantPreferences {
     private const val KEY_PERSONALITY = "personality"
     private const val KEY_SEARCH = "search_enabled"
     private const val KEY_SERVICE_ENABLED = "service_enabled"
+    private const val KEY_AI_PRIVACY_SUMMARY_SEEN = "ai_privacy_summary_seen"
 
     private val prefs by lazy {
         AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -79,6 +80,14 @@ object AssistantPreferences {
 
     fun setServiceEnabled(enabled: Boolean) {
         runCatching { prefs.edit().putBoolean(KEY_SERVICE_ENABLED, enabled).apply() }
+    }
+
+    fun aiPrivacySummarySeen(): Boolean = runCatching {
+        prefs.getBoolean(KEY_AI_PRIVACY_SUMMARY_SEEN, false)
+    }.getOrDefault(false)
+
+    fun markAiPrivacySummarySeen() {
+        runCatching { prefs.edit().putBoolean(KEY_AI_PRIVACY_SUMMARY_SEEN, true).apply() }
     }
 
     fun setSearchEnabled(enabled: Boolean) {

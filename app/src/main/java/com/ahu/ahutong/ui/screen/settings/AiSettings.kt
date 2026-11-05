@@ -33,6 +33,9 @@ import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
+import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsBackdropContainer
@@ -79,6 +82,7 @@ fun AiSettings(
     var testing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
     var showClear by remember { mutableStateOf(false) }
+    var showPrivacySummary by remember { mutableStateOf(false) }
 
     fun keyForSave(): String? = apiKey.trim().takeIf { it.isNotBlank() } ?: stored?.apiKey
 
@@ -113,6 +117,9 @@ fun AiSettings(
         apiKey = ""
         status = "已保存，AI 入口将使用该模型"
         Toast.makeText(context, "AI 设置已保存", Toast.LENGTH_SHORT).show()
+        if (!AssistantPreferences.aiPrivacySummarySeen()) {
+            showPrivacySummary = true
+        }
     }
 
     fun testConnection() {
@@ -353,6 +360,58 @@ fun AiSettings(
                 Toast.makeText(context, "已清除模型配置", Toast.LENGTH_SHORT).show()
             },
             onDismiss = { showClear = false },
+        )
+    }
+
+    if (showPrivacySummary) {
+        val dismissSummary = {
+            showPrivacySummary = false
+            AssistantPreferences.markAiPrivacySummarySeen()
+        }
+        AppDialog(
+            title = "AI 服务使用须知",
+            subtitle = "首次保存配置时，向你说明数据会去哪里",
+            onDismiss = dismissSummary,
+            contentScrollable = true,
+            titleStyle = MaterialTheme.typography.headlineSmall,
+            actions = listOf(
+                AppDialogAction(
+                    label = "查看完整政策",
+                    onClick = {
+                        dismissSummary()
+                        onOpenPrivacyPolicy()
+                    },
+                ),
+                AppDialogAction(
+                    label = "我知道了",
+                    onClick = dismissSummary,
+                    style = AppDialogActionStyle.Primary,
+                ),
+            ),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                AiSummaryLine("对话内容、最近 24 条历史与本轮必要的工具结果，会发送到你配置的模型服务（默认 DeepSeek）。")
+                AiSummaryLine("课表、成绩、余额、账单、邮件等工具在学校系统执行；结果摘要可能随请求发送给模型。")
+                AiSummaryLine("写操作会先弹确认卡；校园卡支付密码只在本机使用，不保存、不发送给模型。")
+                AiSummaryLine("对话历史保存在本机，可在历史页逐段删除；清除模型配置不会删除历史。")
+                AiSummaryLine("AI 回答可能不准确，请以学校系统和业务页面为准。")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AiSummaryLine(text: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "•",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
