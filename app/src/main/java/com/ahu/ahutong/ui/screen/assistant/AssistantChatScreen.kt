@@ -273,7 +273,15 @@ fun AssistantChatScreen(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background)
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0f to MaterialTheme.colorScheme.background,
+                                    0.55f to MaterialTheme.colorScheme.background,
+                                    1f to Color.Transparent,
+                                )
+                            )
+                        )
                         .statusBarsPadding()
                         .padding(bottom = 12.dp)
                 ) {
