@@ -94,7 +94,6 @@ fun Settings(
     onNavigateToDebug: () -> Unit,
     onNavigateToLicense: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit = {},
-    onNavigateToAiPrivacyPolicy: () -> Unit = {},
     onNavigateToContributors: () -> Unit,
     onNavigateToFeedback: () -> Unit,
     onDataCleared: () -> Unit,
@@ -311,12 +310,6 @@ fun Settings(
                 title = "隐私政策",
                 leadingIcon = Icons.Outlined.PrivacyTip,
                 onClick = onNavigateToPrivacyPolicy
-            )
-            SettingsActionRow(
-                title = "AI 服务隐私政策",
-                subtitle = "模型调用、对话历史与工具数据的处理方式",
-                leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
-                onClick = onNavigateToAiPrivacyPolicy
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.setting_clear),
