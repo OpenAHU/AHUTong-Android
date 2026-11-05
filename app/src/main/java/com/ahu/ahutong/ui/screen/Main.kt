@@ -796,6 +796,21 @@ fun Main(
                     PrivacyPolicyScreen(markdown = it, onBack = { navController.popBackStack() })
                 }
             }
+            animatedComposable("settings__ai_privacy") {
+                val res = LocalContext.current.resources
+                val policyMarkdown by produceState<String?>(null) {
+                    value = withContext(Dispatchers.IO) {
+                        res.openRawResource(R.raw.ai_privacy_policy).bufferedReader().use { it.readText() }
+                    }
+                }
+                policyMarkdown?.let {
+                    PrivacyPolicyScreen(
+                        markdown = it,
+                        title = "AI 服务隐私政策",
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+            }
             animatedComposable("settings__license") {
                 License(
                     title = stringResource(R.string.license),
@@ -819,7 +834,10 @@ fun Main(
             }
 
             animatedComposable("settings__ai") {
-                AiSettings(onBack = { navController.popBackStack() })
+                AiSettings(
+                    onBack = { navController.popBackStack() },
+                    onOpenPrivacyPolicy = { navController.navigate("settings__ai_privacy") },
+                )
             }
 
             animatedComposable("settings__theme_lab") {

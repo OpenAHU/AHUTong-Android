@@ -12,9 +12,13 @@ import com.ahu.ahutong.ui.markdown.AppMarkdown
  * 隐私政策全文阅读页。内容由 :app 从 res/raw 注入（资源归属约定同 License/Contributors）。
  */
 @Composable
-fun PrivacyPolicyScreen(markdown: String, onBack: () -> Unit) {
+fun PrivacyPolicyScreen(
+    markdown: String,
+    onBack: () -> Unit,
+    title: String = "隐私政策",
+) {
     AppPageScaffold(
-        title = "隐私政策",
+        title = title,
         onBack = onBack,
         modifier = Modifier.fillMaxSize(),
         freeContent = {

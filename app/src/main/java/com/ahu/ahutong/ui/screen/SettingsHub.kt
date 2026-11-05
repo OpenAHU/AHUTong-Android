@@ -61,6 +61,7 @@ fun SettingsHub(
         onNavigateToDebug = { navController.navigate("debug") },
         onNavigateToLicense = { navController.navigate("settings__license") },
         onNavigateToPrivacyPolicy = { navController.navigate("settings__privacy_policy") },
+        onNavigateToAiPrivacyPolicy = { navController.navigate("settings__ai_privacy") },
         onNavigateToContributors = { navController.navigate("settings__contributors") },
         onNavigateToFeedback = { context.startActivity(FeedbackActivity.intent(context)) },
         onDataCleared = { navController.navigate("login") { popUpTo(0) } },

@@ -18,9 +18,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.R
 import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.assistant.AssistantPersonality
 import com.ahu.ahutong.assistant.AssistantPreferences
@@ -49,7 +51,10 @@ import kotlinx.coroutines.withContext
  * Key 与支付码缓存共用 Android Keystore，不落明文、不进日志。
  */
 @Composable
-fun AiSettings(onBack: () -> Unit = {}) {
+fun AiSettings(
+    onBack: () -> Unit = {},
+    onOpenPrivacyPolicy: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var stored by remember {
@@ -299,17 +304,16 @@ fun AiSettings(onBack: () -> Unit = {}) {
             }
 
             SettingsSection(
-                title = "数据说明",
+                title = "隐私",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop,
             ) {
-                Text(
-                    text = "启用模型后，你的问题以及工具返回的文本（课表、成绩、余额、账单、邮件摘要等）" +
-                        "会作为上下文发送到所填模型服务；写操作会先弹确认卡，" +
-                        "支付密码只在本机确认时使用、不进入模型上下文。仅在信任该服务时启用。",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                SettingsActionRow(
+                    title = "AI 服务隐私政策",
+                    subtitle = "模型调用、对话历史与工具数据的处理方式",
+                    leadingPainter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+                    showDivider = false,
+                    onClick = onOpenPrivacyPolicy,
                 )
             }
 
