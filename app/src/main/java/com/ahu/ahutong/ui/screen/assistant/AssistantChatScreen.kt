@@ -276,9 +276,9 @@ fun AssistantChatScreen(
                         .background(
                             Brush.verticalGradient(
                                 colorStops = arrayOf(
-                                    // 保留一点透明度，让背后的彩色晕动透上来，避免变成一条死白/死黑。
-                                    0f to MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
-                                    0.55f to MaterialTheme.colorScheme.background.copy(alpha = 0.40f),
+                                    // 上一版基础上再收一档透明度，只留一点彩色晕动，保证标题可读。
+                                    0f to MaterialTheme.colorScheme.background.copy(alpha = 0.90f),
+                                    0.55f to MaterialTheme.colorScheme.background.copy(alpha = 0.56f),
                                     1f to Color.Transparent,
                                 )
                             )
