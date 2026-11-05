@@ -1,4 +1,4 @@
-# AhuTong Intelligence Soul
+# AHUTong Intelligence Soul
 
 ## 标准
 

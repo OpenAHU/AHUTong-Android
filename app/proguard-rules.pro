@@ -52,6 +52,18 @@
 -keep class com.ahu.ahutong.data.notice.CampusNotice { *; }
 -keep class com.ahu.ahutong.data.notice.CampusNoticeSnapshot { *; }
 -keep class com.ahu.ahutong.data.notice.CampusNoticeSourceStatus { *; }
+# AI 对话历史是本机 Gson 缓存：会话、工具卡与卡片条目的字段名即 JSON 键名，
+# 在 -repackageclasses + R8 full mode 下必须整类保留，否则读档会变成空条目。
+-keep class com.ahu.ahutong.ui.screen.assistant.AssistantHistorySnapshot { *; }
+-keep class com.ahu.ahutong.ui.screen.assistant.AssistantHistorySession { *; }
+-keep class com.ahu.ahutong.ui.screen.assistant.AssistantHistoryItem { *; }
+-keep class com.ahu.ahutong.assistant.AssistantServiceEvent$ToolResult { *; }
+-keep class com.ahu.ahutong.assistant.AssistantCard { *; }
+-keep class com.ahu.ahutong.assistant.AssistantCardItem { *; }
+-keep class com.ahu.ahutong.assistant.AssistantCardStat { *; }
+-keep enum com.ahu.ahutong.assistant.AssistantCardTone { *; }
+-keep enum com.ahu.ahutong.assistant.AssistantTrust { *; }
+
 # The automatic electricity query/prompt dates must survive R8 and app upgrades as stable JSON.
 -keep class com.ahu.ahutong.electricity.ElectricityAlertMarker { *; }
 -keep class com.ahu.ahutong.electricity.ElectricityRoomForecast { *; }

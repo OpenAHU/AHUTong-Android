@@ -6,7 +6,9 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,6 +43,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.FactCheck
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.NorthEast
@@ -179,6 +182,10 @@ fun AssistantChatScreen(
         AssistantGlowState.visible = false
     }
 
+    BackHandler(enabled = AssistantChatState.historyVisible) {
+        AssistantChatState.closeHistory()
+    }
+
     AnimatedVisibility(
         visible = AssistantChatState.visible,
         enter = slideInVertically(
@@ -221,12 +228,20 @@ fun AssistantChatScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = {
-                        AssistantChatState.close()
-                        AssistantGlowState.visible = false
-                    }) {
-                        Icon(Icons.Rounded.Close, contentDescription = "关闭")
-                    }
+                    AssistantCircleIconButton(
+                        icon = Icons.Rounded.History,
+                        description = "历史对话",
+                        onClick = AssistantChatState::openHistory,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    AssistantCircleIconButton(
+                        icon = Icons.Rounded.Close,
+                        description = "关闭",
+                        onClick = {
+                            AssistantChatState.close()
+                            AssistantGlowState.visible = false
+                        },
+                    )
                 }
 
                 LazyColumn(
@@ -288,6 +303,23 @@ fun AssistantChatScreen(
                         enabled = !running,
                     )
                 }
+                }
+
+                AnimatedVisibility(
+                    visible = AssistantChatState.historyVisible,
+                    enter = slideInHorizontally(
+                        animationSpec = tween(280, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f))
+                    ) { it } + fadeIn(tween(160)),
+                    exit = slideOutHorizontally(tween(240)) { it } + fadeOut(tween(140)),
+                ) {
+                    AssistantHistoryPage(
+                        sessions = AssistantChatState.sessions,
+                        currentSessionId = AssistantChatState.currentSessionId,
+                        onBack = AssistantChatState::closeHistory,
+                        onNewChat = AssistantChatState::startNewSession,
+                        onOpen = AssistantChatState::switchTo,
+                        onDelete = AssistantChatState::deleteSession,
+                    )
                 }
             }
         }
@@ -352,7 +384,7 @@ private fun UserBubble(text: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(22.dp, 22.dp, 8.dp, 22.dp))
+                .clip(RoundedCornerShape(2.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(colors.primary.copy(alpha = 0.82f), colors.primary)
@@ -1018,6 +1050,7 @@ private suspend fun runStream(
         AssistantChatState.finishStreaming()
         AssistantChatState.updateRunning(false)
         AssistantChatState.updateStatus(null)
+        AssistantChatState.persist()
     }
 }
 
@@ -1049,7 +1082,7 @@ private fun formatTimestamp(epochMillis: Long): String = runCatching {
     SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(epochMillis))
 }.getOrDefault("")
 
-private const val ASSISTANT_NAME = "AhuTong Intelligence"
+private const val ASSISTANT_NAME = "AHUTong Intelligence"
 private const val DELTA_FLUSH_INTERVAL_MS = 33L
 private const val BOTTOM_JUMP_PX = 100_000f
 private const val BOTTOM_SETTLE_MAX_FRAMES = 60

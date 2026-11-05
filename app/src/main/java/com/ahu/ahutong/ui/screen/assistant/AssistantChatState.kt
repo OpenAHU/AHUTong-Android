@@ -8,6 +8,7 @@ import com.ahu.ahutong.assistant.AssistantServiceEvent
 import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
+import java.util.UUID
 import kotlinx.coroutines.Job
 
 enum class AssistantApprovalDecision { PENDING, APPROVED, REJECTED }
@@ -55,28 +56,125 @@ object AssistantChatState {
     var running by mutableStateOf(false)
         private set
 
+    var historyVisible by mutableStateOf(false)
+        private set
+
+    var sessions by mutableStateOf<List<AssistantSessionSummary>>(emptyList())
+        private set
+
+    var currentSessionId by mutableStateOf<String?>(null)
+        private set
+
     private val _items = mutableStateListOf<AssistantChatItem>()
     val items: List<AssistantChatItem> get() = _items
 
-    private var nextId = 0
+    private val historyStore = AssistantHistoryStore()
+    private var historyLoaded = false
     private var runJob: Job? = null
     private var approvalGate: AssistantApprovalGate? = null
     private var pendingHistory: List<AssistantMessage> = emptyList()
 
+    /** 从主页输入框发送：接着当前会话继续，不再每次清空。 */
     fun open(question: String) {
+        ensureHistoryLoaded()
         cancelRun()
-        _items.clear()
-        pendingHistory = emptyList()
+        pendingHistory = buildHistory()
         _items += AssistantChatItem.User(newId(), question)
         pendingQuestion = question
+        visible = true
+        persist()
+    }
+
+    /** 在 AI 层上滑进入对话页，不发送、不预付问题。 */
+    fun openBlank() {
+        ensureHistoryLoaded()
+        cancelRun()
         visible = true
     }
 
     fun send(question: String) {
         if (running) return
+        ensureHistoryLoaded()
         pendingHistory = buildHistory()
         _items += AssistantChatItem.User(newId(), question)
         pendingQuestion = question
+        persist()
+    }
+
+    fun openHistory() {
+        ensureHistoryLoaded()
+        refreshSessions()
+        historyVisible = true
+    }
+
+    fun closeHistory() {
+        historyVisible = false
+    }
+
+    fun startNewSession() {
+        ensureHistoryLoaded()
+        cancelRun()
+        if (_items.isNotEmpty()) {
+            persist()
+            val id = UUID.randomUUID().toString()
+            currentSessionId = id
+            _items.clear()
+            runCatching { historyStore.startSession(id) }
+        }
+        refreshSessions()
+        historyVisible = false
+        visible = true
+    }
+
+    fun switchTo(sessionId: String) {
+        ensureHistoryLoaded()
+        if (sessionId == currentSessionId) {
+            historyVisible = false
+            return
+        }
+        cancelRun()
+        persist()
+        val items = runCatching { historyStore.switchTo(sessionId) }.getOrNull() ?: return
+        currentSessionId = sessionId
+        _items.clear()
+        _items += items
+        historyVisible = false
+        visible = true
+        refreshSessions()
+    }
+
+    fun deleteSession(sessionId: String) {
+        ensureHistoryLoaded()
+        if (sessionId == currentSessionId) {
+            cancelRun()
+            val snapshot = runCatching { historyStore.delete(sessionId) }.getOrNull()
+            currentSessionId = snapshot?.currentId ?: UUID.randomUUID().toString()
+            _items.clear()
+            if (snapshot != null) _items += snapshot.items
+        } else {
+            runCatching { historyStore.delete(sessionId) }
+        }
+        refreshSessions()
+    }
+
+    fun persist() {
+        val id = currentSessionId ?: return
+        runCatching { historyStore.save(id, _items.toList()) }
+        refreshSessions()
+    }
+
+    private fun ensureHistoryLoaded() {
+        if (historyLoaded) return
+        historyLoaded = true
+        val snapshot = runCatching { historyStore.load() }.getOrNull()
+        currentSessionId = snapshot?.currentId ?: UUID.randomUUID().toString()
+        sessions = snapshot?.summaries.orEmpty()
+        _items.clear()
+        if (snapshot != null) _items += snapshot.items
+    }
+
+    private fun refreshSessions() {
+        sessions = runCatching { historyStore.summaries() }.getOrDefault(emptyList())
     }
 
     /** 只回放用户与助手文本；工具卡、审批卡和错误不进入模型上下文。 */
@@ -210,9 +308,11 @@ object AssistantChatState {
 
     fun close() {
         cancelRun()
+        persist()
         visible = false
+        historyVisible = false
         pendingQuestion = null
     }
 
-    private fun newId(): String = (++nextId).toString()
+    private fun newId(): String = UUID.randomUUID().toString()
 }

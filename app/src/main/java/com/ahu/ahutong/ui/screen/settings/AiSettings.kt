@@ -170,7 +170,7 @@ fun AiSettings(onBack: () -> Unit = {}) {
                 SettingsToggleRow(
                     title = "开启 AI 服务",
                     subtitle = if (serviceEnabled) {
-                        "主页显示 AhuTong Intelligence 入口"
+                        "主页显示 AHUTong Intelligence 入口"
                     } else {
                         "主页隐藏 AI 入口，已打开的 AI 层会关闭"
                     },
