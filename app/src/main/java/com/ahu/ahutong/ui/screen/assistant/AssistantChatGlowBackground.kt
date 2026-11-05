@@ -35,7 +35,7 @@ internal fun AssistantChatGlowBackground(modifier: Modifier = Modifier) {
             label = "chat-glow-phase"
         )
     val colors = ASSISTANT_GLOW_COLORS
-    val alpha = if (dark) 0.16f else 0.10f
+    val alpha = if (dark) 0.16f else 0.20f
 
     Canvas(modifier = modifier) {
         val t = phase * 2f * PI.toFloat()
