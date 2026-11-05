@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
@@ -216,7 +216,7 @@ fun AssistantChatScreen(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .systemBarsPadding()
+                        .statusBarsPadding()
                 ) {
                 Row(
                     modifier = Modifier
@@ -266,7 +266,8 @@ fun AssistantChatScreen(
                         start = 14.dp,
                         end = 14.dp,
                         top = 6.dp,
-                        bottom = 0.dp,
+                        // 输入栏浮在列表上方；底部留出它的高度，最后一条不会被遮住。
+                        bottom = 104.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
