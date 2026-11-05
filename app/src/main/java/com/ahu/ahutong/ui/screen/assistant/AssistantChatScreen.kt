@@ -2,6 +2,7 @@ package com.ahu.ahutong.ui.screen.assistant
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
@@ -43,7 +44,6 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.FactCheck
@@ -56,12 +56,10 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Quiz
 import androidx.compose.material.icons.rounded.RateReview
 import androidx.compose.material.icons.rounded.ReceiptLong
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Send
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TrackChanges
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -95,6 +93,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,6 +102,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ahu.ahutong.R
 import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.assistant.AssistantCard
 import com.ahu.ahutong.assistant.AssistantCardItem
@@ -447,7 +447,7 @@ private fun UserBubble(text: String) {
                         listOf(colors.primary.copy(alpha = 0.82f), colors.primary)
                     )
                 )
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(8.dp),
         ) {
             Text(
                 text = text,
@@ -533,11 +533,11 @@ private fun AssistantActionRow(
             .padding(top = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AssistantMiniAction(Icons.Rounded.ContentCopy, "复制") {
+        AssistantMiniAction(R.drawable.ic_assistant_copy, "复制") {
             clipboard.setText(AnnotatedString(text))
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         }
-        AssistantMiniAction(Icons.Rounded.Share, "转发") {
+        AssistantMiniAction(R.drawable.ic_assistant_share, "转发") {
             if (text.isNotBlank()) {
                 val send = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
@@ -552,7 +552,7 @@ private fun AssistantActionRow(
             }
         }
         AssistantMiniAction(
-            icon = Icons.Rounded.Refresh,
+            icon = R.drawable.ic_assistant_refresh,
             description = "重新回答",
             enabled = regenerateEnabled,
             onClick = onRegenerate,
@@ -568,6 +568,7 @@ private fun AssistantActionRow(
         Text(
             "回答由AI生成，可能存在错误",
             style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Light,
             color = colors.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -577,7 +578,7 @@ private fun AssistantActionRow(
 
 @Composable
 private fun AssistantMiniAction(
-    icon: ImageVector,
+    @DrawableRes icon: Int,
     description: String,
     enabled: Boolean = true,
     onClick: () -> Unit,
@@ -591,7 +592,7 @@ private fun AssistantMiniAction(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = icon,
+            painter = painterResource(icon),
             contentDescription = description,
             tint = colors.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.35f),
             modifier = Modifier.size(16.dp),
