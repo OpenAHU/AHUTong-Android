@@ -60,7 +60,7 @@ internal fun AssistantHeaderIconButton(
             painter = painterResource(icon),
             contentDescription = description,
             tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(18.dp),
         )
     }
 }
