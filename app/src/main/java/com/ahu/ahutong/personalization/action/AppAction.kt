@@ -145,6 +145,7 @@ object AppActionCatalog {
         spec(AppActionId.OPEN_PLUGIN, ActionFamily.TECHNICAL, "plugin/{pluginId}", "打开插件", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_EARLY_ACCESS, ActionFamily.SETTINGS, "settings__early_access", "抢先体验", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__privacy_policy", "隐私政策", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_AI_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__ai_privacy", "AI 服务隐私政策", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_THEME_LAB, ActionFamily.SETTINGS, "settings__theme_lab", "主题实验室", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_THEME_COLORS, ActionFamily.SETTINGS, "settings__theme_color", "主题色", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_AI_SETTINGS, ActionFamily.SETTINGS, "settings__ai", "AI 设置", labelEligible = false, predictable = false, suggestible = false),
@@ -245,7 +246,7 @@ object AppActionCatalog {
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records",
-        "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy",
+        "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__ai_privacy",
         "settings__theme_lab", "settings__theme_color", "settings__ai", "scan", "camera", "billing", "billing_stats"
     )
 
