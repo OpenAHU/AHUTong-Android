@@ -112,8 +112,11 @@ import com.ahu.ahutong.assistant.AssistantService
 import com.ahu.ahutong.assistant.AssistantServiceEvent
 import com.ahu.ahutong.assistant.AssistantTrust
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
+import com.ahu.ahutong.ui.components.headerBackdropSource
+import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.state.ScheduleViewModel
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -213,7 +216,15 @@ fun AssistantChatScreen(
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
         ) {
+            val headerBg = MaterialTheme.colorScheme.background
+            val headerBlurLayer = rememberLayerBackdrop()
             Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .headerBackdropSource(headerBlurLayer)
+                        .background(headerBg)
+                ) {
                 AssistantChatGlowBackground(Modifier.matchParentSize())
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -268,20 +279,13 @@ fun AssistantChatScreen(
                         }
                     }
                 }
+                }
 
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    0f to MaterialTheme.colorScheme.background,
-                                    0.55f to MaterialTheme.colorScheme.background,
-                                    1f to Color.Transparent,
-                                )
-                            )
-                        )
+                        .headerScrim(headerBg, headerBlurLayer)
                         .statusBarsPadding()
                         .padding(bottom = 12.dp)
                 ) {
