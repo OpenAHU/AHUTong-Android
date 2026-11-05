@@ -8,10 +8,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.R
+import com.ahu.ahutong.ui.components.AppHeaderIconButton
+import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.liquidFloatingSurface
 import com.kyant.backdrop.Backdrop
 
@@ -44,17 +48,27 @@ fun HomeAssistantButton(
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = null
 ) {
-    Box(
-        modifier = HomeHeaderGlass(backdrop, modifier)
-            .size(HomeHeaderControlHeight)
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+    if (isRadiantUi) {
+        Box(
+            modifier = HomeHeaderGlass(backdrop, modifier)
+                .size(HomeHeaderControlHeight)
+                .clickable(role = Role.Button, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+                contentDescription = "AI 助手",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    } else {
+        AppHeaderIconButton(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_assistant_sparkle_fill),
             contentDescription = "AI 助手",
-            modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.onSurface
+            onClick = onClick,
+            modifier = modifier.size(HomeHeaderControlHeight),
+            backdrop = backdrop,
         )
     }
 }
@@ -70,18 +84,28 @@ fun HomeScanButton(
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = null
 ) {
-    Box(
-        modifier = HomeHeaderGlass(backdrop, modifier)
-            .size(HomeHeaderControlHeight)
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        // iconpark「扫码」线性图标（与导航栏、小工具同一套矢量语言），随容器 tint 变色
-        Icon(
-            painter = painterResource(R.drawable.ic_nav_camera),
+    if (isRadiantUi) {
+        Box(
+            modifier = HomeHeaderGlass(backdrop, modifier)
+                .size(HomeHeaderControlHeight)
+                .clickable(role = Role.Button, onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            // iconpark「扫码」线性图标（与导航栏、小工具同一套矢量语言），随容器 tint 变色
+            Icon(
+                painter = painterResource(R.drawable.ic_nav_camera),
+                contentDescription = "相机",
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    } else {
+        AppHeaderIconButton(
+            imageVector = ImageVector.vectorResource(R.drawable.ic_nav_camera),
             contentDescription = "相机",
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurface
+            onClick = onClick,
+            modifier = modifier.size(HomeHeaderControlHeight),
+            backdrop = backdrop,
         )
     }
 }
