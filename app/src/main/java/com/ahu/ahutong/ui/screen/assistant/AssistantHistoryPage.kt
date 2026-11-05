@@ -86,69 +86,72 @@ internal fun AssistantHistoryPage(
         color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .systemBarsPadding()
-        ) {
-            Row(
+        Box(Modifier.fillMaxSize()) {
+            AssistantChatGlowBackground(Modifier.matchParentSize())
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .fillMaxSize()
+                    .systemBarsPadding()
             ) {
-                AssistantHeaderIconButton(
-                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
-                    description = "返回",
-                    onClick = onBack,
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "历史对话",
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                AssistantHeaderIconButton(
-                    icon = Icons.Rounded.Add,
-                    description = "新建对话",
-                    onClick = onNewChat,
-                )
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (sessions.isEmpty()) {
-                    item(key = "empty") {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AssistantHeaderIconButton(
+                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        description = "返回",
+                        onClick = onBack,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "历史对话",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    AssistantHeaderIconButton(
+                        icon = Icons.Rounded.Add,
+                        description = "新建对话",
+                        onClick = onNewChat,
+                    )
+                }
+    
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (sessions.isEmpty()) {
+                        item(key = "empty") {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
                             ) {
-                                Text(
-                                    "还没有历史对话。",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Text(
+                                        "还没有历史对话。",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                items(sessions, key = { it.id }) { session ->
-                    HistorySessionCard(
-                        session = session,
-                        current = session.id == currentSessionId,
-                        onOpen = { onOpen(session.id) },
-                        onDelete = { deleting = session },
-                    )
+                    items(sessions, key = { it.id }) { session ->
+                        HistorySessionCard(
+                            session = session,
+                            current = session.id == currentSessionId,
+                            onOpen = { onOpen(session.id) },
+                            onDelete = { deleting = session },
+                        )
+                    }
                 }
             }
         }

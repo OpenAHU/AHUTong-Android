@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.assistant
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
@@ -21,6 +22,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.FactCheck
@@ -52,10 +56,12 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Quiz
 import androidx.compose.material.icons.rounded.RateReview
 import androidx.compose.material.icons.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TrackChanges
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -85,10 +91,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.assistant.AssistantAccessState
@@ -130,6 +142,7 @@ fun AssistantChatScreen(
     val status = AssistantChatState.status
     val running = AssistantChatState.running
     val displayItems = buildChatDisplay(items)
+    val roundEnds = roundEndTurnKeys(displayItems)
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
 
@@ -253,25 +266,36 @@ fun AssistantChatScreen(
                         start = 14.dp,
                         end = 14.dp,
                         top = 6.dp,
-                        bottom = 130.dp,
+                        bottom = 0.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(displayItems, key = { it.key }) { display ->
                         when (display) {
                             is ChatDisplay.User -> UserBubble(display.item.text)
-                            is ChatDisplay.Turn -> AssistantTurnBubble(
-                                items = display.items,
-                                expandedTools = expandedTools,
-                                onToggleTool = { id ->
-                                    expandedTools = if (id in expandedTools) {
-                                        expandedTools - id
-                                    } else {
-                                        expandedTools + id
-                                    }
-                                },
-                                onOpenRoute = onOpenRoute,
-                            )
+                            is ChatDisplay.Turn -> {
+                                val streaming =
+                                    (display.items.lastOrNull() as? AssistantChatItem.Assistant)
+                                        ?.streaming == true
+                                AssistantTurnBubble(
+                                    items = display.items,
+                                    expandedTools = expandedTools,
+                                    onToggleTool = { id ->
+                                        expandedTools = if (id in expandedTools) {
+                                            expandedTools - id
+                                        } else {
+                                            expandedTools + id
+                                        }
+                                    },
+                                    onOpenRoute = onOpenRoute,
+                                    showActions = display.key in roundEnds && !streaming && !running,
+                                    actionsText = actionsTextOf(display.items),
+                                    regenerateEnabled = !running,
+                                    onRegenerate = {
+                                        display.userItem?.let { AssistantChatState.regenerate(it.id) }
+                                    },
+                                )
+                            }
                             is ChatDisplay.Approval -> ApprovalCard(
                                 item = display.item,
                                 onApprove = AssistantChatState::approve,
@@ -287,9 +311,13 @@ fun AssistantChatScreen(
                     }
                 }
 
+                }
+
                 Box(
                     modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .navigationBarsPadding()
                         .padding(start = 16.dp, end = 16.dp, bottom = 10.dp + rememberEffectiveImePadding())
                 ) {
                     AssistantInputBar(
@@ -302,7 +330,6 @@ fun AssistantChatScreen(
                         },
                         enabled = !running,
                     )
-                }
                 }
 
                 AnimatedVisibility(
@@ -333,7 +360,10 @@ private sealed interface ChatDisplay {
         override val key: String get() = item.id
     }
 
-    data class Turn(val items: List<AssistantChatItem>) : ChatDisplay {
+    data class Turn(
+        val items: List<AssistantChatItem>,
+        val userItem: AssistantChatItem.User?,
+    ) : ChatDisplay {
         override val key: String get() = items.first().id
     }
 
@@ -349,10 +379,11 @@ private sealed interface ChatDisplay {
 private fun buildChatDisplay(items: List<AssistantChatItem>): List<ChatDisplay> {
     val result = mutableListOf<ChatDisplay>()
     val turn = mutableListOf<AssistantChatItem>()
+    var lastUser: AssistantChatItem.User? = null
 
     fun flushTurn() {
         if (turn.isNotEmpty()) {
-            result += ChatDisplay.Turn(turn.toList())
+            result += ChatDisplay.Turn(turn.toList(), lastUser)
             turn.clear()
         }
     }
@@ -362,6 +393,7 @@ private fun buildChatDisplay(items: List<AssistantChatItem>): List<ChatDisplay> 
             is AssistantChatItem.Assistant, is AssistantChatItem.Tool -> turn += item
             is AssistantChatItem.User -> {
                 flushTurn()
+                lastUser = item
                 result += ChatDisplay.User(item)
             }
             is AssistantChatItem.Approval -> {
@@ -378,19 +410,44 @@ private fun buildChatDisplay(items: List<AssistantChatItem>): List<ChatDisplay> 
     return result
 }
 
+/** 每一轮只把操作栏挂在最后一段回复下面，避免审批卡把一轮拆成两个操作栏。 */
+private fun roundEndTurnKeys(displays: List<ChatDisplay>): Set<String> {
+    val lastTurnByUser = mutableMapOf<String, String>()
+    var currentUser: String? = null
+    displays.forEach { display ->
+        when (display) {
+            is ChatDisplay.User -> currentUser = display.item.id
+            is ChatDisplay.Turn -> currentUser?.let { lastTurnByUser[it] = display.key }
+            else -> Unit
+        }
+    }
+    return lastTurnByUser.values.toSet()
+}
+
+private fun actionsTextOf(items: List<AssistantChatItem>): String {
+    val text = items.filterIsInstance<AssistantChatItem.Assistant>()
+        .map { it.text.trim() }
+        .filter { it.isNotBlank() }
+        .joinToString("\n\n")
+    if (text.isNotBlank()) return text
+    return items.filterIsInstance<AssistantChatItem.Tool>()
+        .mapNotNull { it.event.summary?.takeIf(String::isNotBlank) }
+        .joinToString("\n")
+}
+
 @Composable
 private fun UserBubble(text: String) {
     val colors = MaterialTheme.colorScheme
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(2.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(colors.primary.copy(alpha = 0.82f), colors.primary)
                     )
                 )
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
         ) {
             Text(
                 text = text,
@@ -407,6 +464,10 @@ private fun AssistantTurnBubble(
     expandedTools: Set<String>,
     onToggleTool: (String) -> Unit,
     onOpenRoute: (String) -> Unit,
+    showActions: Boolean,
+    actionsText: String,
+    regenerateEnabled: Boolean,
+    onRegenerate: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
@@ -446,6 +507,95 @@ private fun AssistantTurnBubble(
                 else -> Unit
             }
         }
+        if (showActions) {
+            AssistantActionRow(
+                text = actionsText,
+                regenerateEnabled = regenerateEnabled,
+                onRegenerate = onRegenerate,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssistantActionRow(
+    text: String,
+    regenerateEnabled: Boolean,
+    onRegenerate: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val haptics = LocalHapticFeedback.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AssistantMiniAction(Icons.Rounded.ContentCopy, "复制") {
+            clipboard.setText(AnnotatedString(text))
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+        AssistantMiniAction(Icons.Rounded.Share, "转发") {
+            if (text.isNotBlank()) {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                runCatching {
+                    context.startActivity(
+                        Intent.createChooser(send, "转发回答")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+        }
+        AssistantMiniAction(
+            icon = Icons.Rounded.Refresh,
+            description = "重新回答",
+            enabled = regenerateEnabled,
+            onClick = onRegenerate,
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .width(1.dp)
+                .height(12.dp)
+                .background(colors.outlineVariant)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "回答由AI生成，可能存在错误",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun AssistantMiniAction(
+    icon: ImageVector,
+    description: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = colors.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.35f),
+            modifier = Modifier.size(16.dp),
+        )
     }
 }
 

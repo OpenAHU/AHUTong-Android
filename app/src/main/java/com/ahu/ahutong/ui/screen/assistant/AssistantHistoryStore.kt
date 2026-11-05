@@ -70,23 +70,6 @@ internal class AssistantHistoryStore {
         write(data.copy(currentId = id, sessions = sessions))
     }
 
-    fun startSession(id: String) = synchronized(lock) {
-        val data = read()
-        val sessions = data.sessions.orEmpty()
-        val next = if (sessions.any { it.id == id }) {
-            data.copy(currentId = id)
-        } else {
-            data.copy(
-                currentId = id,
-                sessions = sessions + AssistantHistorySession(
-                    id = id,
-                    updatedAt = System.currentTimeMillis(),
-                ),
-            )
-        }
-        write(next)
-    }
-
     fun switchTo(id: String): List<AssistantChatItem>? = synchronized(lock) {
         val data = read()
         val session = data.sessions.orEmpty().firstOrNull { it.id == id } ?: return@synchronized null

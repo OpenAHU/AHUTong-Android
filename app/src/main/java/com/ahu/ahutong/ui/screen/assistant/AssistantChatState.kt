@@ -74,22 +74,29 @@ object AssistantChatState {
     private var approvalGate: AssistantApprovalGate? = null
     private var pendingHistory: List<AssistantMessage> = emptyList()
 
-    /** 从主页输入框发送：接着当前会话继续，不再每次清空。 */
+    /** 从主页输入框进入：每次都开一段新对话。 */
     fun open(question: String) {
         ensureHistoryLoaded()
         cancelRun()
-        pendingHistory = buildHistory()
+        beginNewSession()
+        pendingHistory = emptyList()
         _items += AssistantChatItem.User(newId(), question)
         pendingQuestion = question
         visible = true
         persist()
     }
 
-    /** 在 AI 层上滑进入对话页，不发送、不预付问题。 */
+    /** 在 AI 层上滑进入对话页：新开一段空对话，不发送问题。 */
     fun openBlank() {
         ensureHistoryLoaded()
         cancelRun()
+        beginNewSession()
         visible = true
+    }
+
+    private fun beginNewSession() {
+        currentSessionId = UUID.randomUUID().toString()
+        _items.clear()
     }
 
     fun send(question: String) {
@@ -114,13 +121,8 @@ object AssistantChatState {
     fun startNewSession() {
         ensureHistoryLoaded()
         cancelRun()
-        if (_items.isNotEmpty()) {
-            persist()
-            val id = UUID.randomUUID().toString()
-            currentSessionId = id
-            _items.clear()
-            runCatching { historyStore.startSession(id) }
-        }
+        if (_items.isNotEmpty()) persist()
+        beginNewSession()
         refreshSessions()
         historyVisible = false
         visible = true
@@ -177,16 +179,36 @@ object AssistantChatState {
         sessions = runCatching { historyStore.summaries() }.getOrDefault(emptyList())
     }
 
-    /** 只回放用户与助手文本；工具卡、审批卡和错误不进入模型上下文。 */
-    private fun buildHistory(): List<AssistantMessage> = _items.mapNotNull { item ->
-        when (item) {
-            is AssistantChatItem.User -> AssistantMessage(role = "user", content = item.text)
-            is AssistantChatItem.Assistant -> item.text
-                .takeIf { it.isNotBlank() }
-                ?.let { AssistantMessage(role = "assistant", content = it) }
-            else -> null
+    /** 重新回答某一轮：丢弃该用户消息之后的全部内容，再按同一问题重跑。 */
+    fun regenerate(userItemId: String) {
+        if (running || pendingQuestion != null) return
+        ensureHistoryLoaded()
+        val index = _items.indexOfFirst { it.id == userItemId }
+        if (index < 0) return
+        val user = _items[index] as? AssistantChatItem.User ?: return
+        val history = historyOf(_items.take(index))
+        while (_items.size > index + 1) {
+            _items.removeAt(_items.lastIndex)
         }
-    }.takeLast(24)
+        pendingHistory = history
+        pendingQuestion = user.text
+        status = null
+        persist()
+    }
+
+    /** 只回放用户与助手文本；工具卡、审批卡和错误不进入模型上下文。 */
+    private fun buildHistory(): List<AssistantMessage> = historyOf(_items)
+
+    private fun historyOf(items: List<AssistantChatItem>): List<AssistantMessage> =
+        items.mapNotNull { item ->
+            when (item) {
+                is AssistantChatItem.User -> AssistantMessage(role = "user", content = item.text)
+                is AssistantChatItem.Assistant -> item.text
+                    .takeIf { it.isNotBlank() }
+                    ?.let { AssistantMessage(role = "assistant", content = it) }
+                else -> null
+            }
+        }.takeLast(24)
 
     fun consumeHistory(): List<AssistantMessage> {
         val history = pendingHistory
