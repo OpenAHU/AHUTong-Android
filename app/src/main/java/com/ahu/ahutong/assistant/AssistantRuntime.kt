@@ -136,8 +136,9 @@ class AssistantRuntime(
                                     id = UUID.randomUUID().toString(),
                                     toolId = capability.spec.id,
                                     title = capability.spec.title,
+                                    // 参数由确认卡按 key 做人类可读展示，不再把模型原始 JSON 拼进标题。
                                     summary = buildString {
-                                        append(summarizeApproval(capability, call.arguments))
+                                        append(capability.spec.title)
                                         detail?.takeIf { it.isNotBlank() }?.let {
                                             appendLine()
                                             append(it)
@@ -288,15 +289,6 @@ class AssistantRuntime(
             append(SECURITY_REMINDER.trim())
         }
     }
-
-    private fun summarizeApproval(capability: AssistantCapability, arguments: JsonObject): String =
-        buildString {
-            append(capability.spec.title)
-            if (arguments.size() > 0) {
-                append("：")
-                append(arguments.entrySet().joinToString("，") { "${it.key}=${it.value}" })
-            }
-        }
 
     private fun successPayload(outcome: AssistantOutcome.Success): JsonObject = JsonObject().apply {
         addProperty("ok", true)
