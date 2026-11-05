@@ -1,10 +1,9 @@
 package com.ahu.ahutong.ui.screen.assistant
 
-import android.app.Activity
 import android.view.WindowManager
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.platform.LocalContext
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 
 /**
@@ -13,7 +12,7 @@ import com.ahu.ahutong.ui.glow.AssistantGlowState
  */
 @Composable
 fun AssistantImeMode() {
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
     val visible = AssistantGlowState.visible
     DisposableEffect(activity, visible) {
         val window = activity?.window
