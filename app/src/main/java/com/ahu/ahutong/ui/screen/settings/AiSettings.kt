@@ -36,7 +36,6 @@ import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsBackdropContainer
 import com.ahu.ahutong.ui.components.SettingsChoice
 import com.ahu.ahutong.ui.components.SettingsConfirmationDialog
-import com.ahu.ahutong.ui.components.SettingsInfoRow
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.SettingsSelectRow
@@ -267,7 +266,6 @@ fun AiSettings(onBack: () -> Unit = {}) {
                     choices = AssistantPersonality.entries.map {
                         SettingsChoice(it, it.label)
                     },
-                    subtitle = personality.description,
                     showDivider = false,
                     onSelected = {
                         personality = it
@@ -297,23 +295,6 @@ fun AiSettings(onBack: () -> Unit = {}) {
                         searchEnabled = it
                         AssistantPreferences.setSearchEnabled(it)
                     },
-                )
-            }
-
-            SettingsSection(
-                title = "当前模式",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop,
-            ) {
-                SettingsInfoRow(
-                    title = if (stored != null) "模型驱动" else "本地规则",
-                    subtitle = if (stored != null) {
-                        "${stored?.model.orEmpty()} · Key 已保存"
-                    } else {
-                        "未配置模型，AI 入口只做本地关键词路由"
-                    },
-                    value = if (stored != null) "已启用" else "未配置",
-                    showDivider = false,
                 )
             }
 
@@ -354,7 +335,7 @@ fun AiSettings(onBack: () -> Unit = {}) {
     if (showClear) {
         SettingsConfirmationDialog(
             title = "清除模型配置？",
-            message = "AI 入口会回到本地关键词路由，需要重新填写才能再次使用模型。",
+            message = "清除后需要重新填写模型配置才能再次使用 AI 功能。",
             confirmLabel = "清除",
             destructive = true,
             onConfirm = {
