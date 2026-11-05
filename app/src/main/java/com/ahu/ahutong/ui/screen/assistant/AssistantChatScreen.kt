@@ -273,16 +273,7 @@ fun AssistantChatScreen(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colorStops = arrayOf(
-                                    // 上一版基础上再收一档透明度，只留一点彩色晕动，保证标题可读。
-                                    0f to MaterialTheme.colorScheme.background.copy(alpha = 0.90f),
-                                    0.55f to MaterialTheme.colorScheme.background.copy(alpha = 0.56f),
-                                    1f to Color.Transparent,
-                                )
-                            )
-                        )
+                        .background(MaterialTheme.colorScheme.background)
                         .statusBarsPadding()
                         .padding(bottom = 12.dp)
                 ) {
