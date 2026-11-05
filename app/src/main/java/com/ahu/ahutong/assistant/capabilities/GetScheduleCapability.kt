@@ -5,6 +5,8 @@ import com.ahu.ahutong.assistant.AssistantCapability
 import com.ahu.ahutong.assistant.AssistantCapabilitySpec
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
+import com.ahu.ahutong.core.common.AhuResult
+import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.google.gson.JsonObject
@@ -17,14 +19,21 @@ import java.time.LocalDate
 class GetScheduleCapability(
     private val config: () -> ScheduleConfigBean?,
     private val cached: () -> List<Course>?,
+    private val refresh: suspend () -> AhuResult<List<Course>> = {
+        AHURepository.getSchedule(isRefresh = true)
+    },
+    private val fetchedAt: () -> Long? = { AHURepository.getScheduleFetchedAt() },
     private val today: () -> LocalDate = LocalDate::now,
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
         id = "get_schedule",
         title = "查询课表",
-        description = "查询从今天起指定天数内的课程安排。days 默认 7，范围 1-30。只读本地已缓存的课表。",
-        parameters = schema("days" to intProp("查询天数，默认 7", minimum = 1, maximum = 30)),
+        description = "查询从今天起指定天数内的课程安排。days 默认 7，范围 1-30。默认读本地缓存；refresh=true 时先刷新教务课表，失败回退缓存。",
+        parameters = schema(
+            "days" to intProp("查询天数，默认 7", minimum = 1, maximum = 30),
+            "refresh" to boolProp("是否强制刷新课表，默认 false"),
+        ),
         sensitivity = AssistantSensitivity.ACADEMIC,
         source = "教务系统",
         openRoute = "schedule",
@@ -32,13 +41,27 @@ class GetScheduleCapability(
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
         val days = (arguments.intArg("days") ?: DEFAULT_DAYS).coerceIn(1, 30)
+        val refreshRequested = arguments.boolArg("refresh", false)
         val scheduleConfig = config()
             ?: return message("课表还没准备好，打开课表页刷新一次")
         if (!scheduleConfig.isInSemester) {
             return message("现在不在教学周，最近 $days 天没有课程")
         }
-        val courses = cached()
-            ?: return message("课表还没缓存，打开课表页刷新一次")
+        var refreshed = false
+        val courses = if (refreshRequested) {
+            when (val result = refresh()) {
+                is AhuResult.Success -> {
+                    refreshed = true
+                    result.value
+                }
+                is AhuResult.Failure -> cached()
+            }
+        } else {
+            cached()
+        } ?: return message(
+            if (refreshRequested) "课表刷新失败且本地没有缓存，打开课表页重试一次"
+            else "课表还没缓存，打开课表页刷新一次"
+        )
 
         val startDate = today()
         val startWeekday = scheduleConfig.weekDay.takeIf { it in 1..7 }
@@ -93,9 +116,10 @@ class GetScheduleCapability(
         if (count == 0) {
             return message(if (days == 1) "今天没有课" else "最近 $days 天没有课")
         }
+        val prefix = if (refreshRequested && !refreshed) "刷新失败，已使用本地缓存。" else ""
         return AssistantOutcome.Success(
             AssistantAnswer(
-                summary = if (days == 1) "今天有 $count 节课" else "最近 $days 天有 $count 节课",
+                summary = prefix + if (days == 1) "今天有 $count 节课" else "最近 $days 天有 $count 节课",
                 lines = lines,
                 route = spec.openRoute,
                 card = com.ahu.ahutong.assistant.AssistantCard(
@@ -105,6 +129,8 @@ class GetScheduleCapability(
                     subtitle = if (days == 1) "今天" else "最近 $days 天",
                     items = cardItems,
                 ),
+                refreshed = refreshed,
+                fetchedAt = runCatching { fetchedAt() }.getOrNull(),
             )
         )
     }

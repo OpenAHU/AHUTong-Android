@@ -24,21 +24,35 @@ import com.google.gson.JsonObject
  * 全部复用既有 repository / gateway，不做额外的网络请求编排。
  */
 class GetGradesCapability(
-    private val load: suspend () -> AhuResult<Grade> = { AHURepository.getGrade(isRefresh = false) },
+    private val load: suspend (Boolean) -> AhuResult<Grade> = { refresh ->
+        AHURepository.getGrade(isRefresh = refresh)
+    },
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
         id = "get_grades",
         title = "查询成绩",
-        description = "查询成绩。term 不传时返回各学期汇总；传学期（例如 2025-2026 或 上学期）时返回该学期课程成绩。",
-        parameters = schema("term" to stringProp("学期名称或关键字，例如 2025-2026 学年第一学期")),
+        description = "查询成绩。term 不传时返回各学期汇总；传学期（例如 2025-2026 或 上学期）时返回该学期课程成绩。" +
+            "默认读本地缓存；refresh=true 时先刷新教务成绩，失败回退缓存。",
+        parameters = schema(
+            "term" to stringProp("学期名称或关键字，例如 2025-2026 学年第一学期"),
+            "refresh" to boolProp("是否强制刷新成绩，默认 false"),
+        ),
         sensitivity = AssistantSensitivity.ACADEMIC,
         source = "教务系统",
         openRoute = "grade",
     )
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
-        return when (val result = load()) {
+        val refresh = arguments.boolArg("refresh", false)
+        var refreshed = refresh
+        var result = load(refresh)
+        if (refresh && result is AhuResult.Failure) {
+            result = load(false)
+            refreshed = false
+        }
+        val prefix = if (refresh && !refreshed) "刷新失败，已使用本地缓存。" else ""
+        return when (result) {
             is AhuResult.Failure -> result.error.asAssistantFailure()
             is AhuResult.Success -> {
                 val grade = result.value
@@ -68,7 +82,7 @@ class GetGradesCapability(
                     }
                     AssistantOutcome.Success(
                         AssistantAnswer(
-                            summary = "共 ${terms.size} 个学期，平均绩点 " +
+                            summary = prefix + "共 ${terms.size} 个学期，平均绩点 " +
                                 grade.totalGradePointAverage.orEmpty().ifBlank { "-" },
                             lines = lines,
                             route = spec.openRoute,
@@ -88,6 +102,8 @@ class GetGradesCapability(
                                     )
                                 },
                             ),
+                            refreshed = refreshed,
+                            fetchedAt = if (refreshed) System.currentTimeMillis() else null,
                         )
                     )
                 } else {
@@ -110,7 +126,7 @@ class GetGradesCapability(
                     val more = (courses.size - lines.size).takeIf { it > 0 }?.let { "…还有 $it 门" }
                     AssistantOutcome.Success(
                         AssistantAnswer(
-                            summary = "${selected.schoolYear.orEmpty()} 第${selected.term.orEmpty()}学期 " +
+                            summary = prefix + "${selected.schoolYear.orEmpty()} 第${selected.term.orEmpty()}学期 " +
                                 "${courses.size} 门课程，绩点 " +
                                 selected.termGradePointAverage.orEmpty().ifBlank { "-" },
                             lines = lines + listOfNotNull(more),
@@ -134,6 +150,8 @@ class GetGradesCapability(
                                     )
                                 },
                             ),
+                            refreshed = refreshed,
+                            fetchedAt = if (refreshed) System.currentTimeMillis() else null,
                         )
                     )
                 }
@@ -177,6 +195,7 @@ class GetGpaRankCapability(
     private val currentStudentId: () -> String? = { SessionStore.currentUser()?.xh },
     private val cached: (String) -> GpaRankInfo? = { AHUCache.getGpaRankInfo(it) },
     private val load: suspend (String) -> AhuResult<GpaRankInfo> = { AHURepository.getGpaRankInfo(it) },
+    private val save: (String, GpaRankInfo) -> Unit = { id, info -> AHUCache.saveGpaRankInfo(id, info) },
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
@@ -191,10 +210,16 @@ class GetGpaRankCapability(
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
         val studentId = currentStudentId()?.takeIf { it.isNotBlank() } ?: return notLoggedIn(spec)
-        val rank = cached(studentId) ?: when (val result = load(studentId)) {
-            is AhuResult.Failure -> return result.error.asAssistantFailure()
-            is AhuResult.Success -> result.value
+        var refreshed = false
+        val rank = when (val result = load(studentId)) {
+            is AhuResult.Failure -> cached(studentId) ?: return result.error.asAssistantFailure()
+            is AhuResult.Success -> {
+                runCatching { save(studentId, result.value) }
+                refreshed = true
+                result.value
+            }
         }
+        val prefix = if (!refreshed) "实时获取失败，以下为缓存数据。" else ""
         val lines = buildList {
             rank.gpaSemesterSubs.forEach { semester ->
                 add(
@@ -206,7 +231,7 @@ class GetGpaRankCapability(
         }
         return AssistantOutcome.Success(
             AssistantAnswer(
-                summary = "全程平均绩点 ${"%.2f".format(rank.gpa)}，" +
+                summary = prefix + "全程平均绩点 ${"%.2f".format(rank.gpa)}，" +
                     "专业排名 ${rank.majorRank}/${rank.majorHeadCount}",
                 lines = lines,
                 route = spec.openRoute,
@@ -228,6 +253,8 @@ class GetGpaRankCapability(
                     },
                     note = rank.updatedDateTimeStr.takeIf { it.isNotBlank() }?.let { "数据更新于 $it" },
                 ),
+                refreshed = refreshed,
+                fetchedAt = if (refreshed) System.currentTimeMillis() else null,
             )
         )
     }
@@ -242,15 +269,17 @@ class GetExamsCapability(
             (user.xh.orEmpty() to user.name.orEmpty()).takeIf { user.xh.isNullOrBlank().not() }
         }
     },
-    private val load: suspend (String, String) -> AhuResult<List<com.ahu.ahutong.data.model.Exam>> =
-        { id, name -> AHURepository.getExamInfo(isRefresh = false, studentID = id, studentName = name) },
+    private val load: suspend (String, String, Boolean) -> AhuResult<List<com.ahu.ahutong.data.model.Exam>> =
+        { id, name, refresh ->
+            AHURepository.getExamInfo(isRefresh = refresh, studentID = id, studentName = name)
+        },
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
         id = "get_exams",
         title = "查询考试安排",
-        description = "查询教务系统里的期末考试安排：课程、时间、地点与座位号。",
-        parameters = emptySchema(),
+        description = "查询教务系统里的期末考试安排：课程、时间、地点与座位号。默认读本地缓存；refresh=true 时先刷新教务考试安排，失败回退缓存。",
+        parameters = schema("refresh" to boolProp("是否强制刷新考试安排，默认 false")),
         sensitivity = AssistantSensitivity.ACADEMIC,
         source = "教务系统",
         openRoute = "exam",
@@ -258,13 +287,21 @@ class GetExamsCapability(
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
         val (studentId, studentName) = student() ?: return notLoggedIn(spec)
-        return when (val result = load(studentId, studentName)) {
+        val refresh = arguments.boolArg("refresh", false)
+        var refreshed = refresh
+        var result = load(studentId, studentName, refresh)
+        if (refresh && result is AhuResult.Failure) {
+            result = load(studentId, studentName, false)
+            refreshed = false
+        }
+        val prefix = if (refresh && !refreshed) "刷新失败，已使用本地缓存。" else ""
+        return when (result) {
             is AhuResult.Failure -> result.error.asAssistantFailure()
             is AhuResult.Success -> {
                 val exams = result.value
                 if (exams.isEmpty()) {
                     return AssistantOutcome.Success(
-                        AssistantAnswer("目前没有考试安排", route = spec.openRoute)
+                        AssistantAnswer(prefix + "目前没有考试安排", route = spec.openRoute)
                     )
                 }
                 val upcoming = exams.filter { it.finished != true }
@@ -287,7 +324,7 @@ class GetExamsCapability(
                 }
                 AssistantOutcome.Success(
                     AssistantAnswer(
-                        summary = "共 ${exams.size} 场考试，未结束 ${upcoming.size} 场",
+                        summary = prefix + "共 ${exams.size} 场考试，未结束 ${upcoming.size} 场",
                         lines = lines,
                         route = spec.openRoute,
                         card = AssistantCard(
@@ -305,6 +342,8 @@ class GetExamsCapability(
                                 )
                             },
                         ),
+                        refreshed = refreshed,
+                        fetchedAt = if (refreshed) System.currentTimeMillis() else null,
                     )
                 )
             }
@@ -336,10 +375,21 @@ class GetProgramCompletionCapability(
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
         if (!SessionStore.isLoggedIn()) return notLoggedIn(spec)
-        val (program, _) = cached() ?: when (val result = refresh()) {
-            is AhuResult.Failure -> return result.error.asAssistantFailure()
-            is AhuResult.Success -> result.value
+        var refreshed = false
+        var fetchedAt = 0L
+        val program = when (val result = refresh()) {
+            is AhuResult.Failure -> cached()?.let { (cachedProgram, cachedAt) ->
+                refreshed = false
+                fetchedAt = cachedAt
+                cachedProgram
+            } ?: return result.error.asAssistantFailure()
+            is AhuResult.Success -> {
+                refreshed = true
+                fetchedAt = result.value.second
+                result.value.first
+            }
         }
+        val prefix = if (!refreshed) "实时刷新失败，以下为缓存数据。" else ""
         val unpassed = program.modules.flatMap { module ->
             module.courses.filter { it.status != "PASSED" }
         }.take(MAX_UNPASSED)
@@ -359,7 +409,7 @@ class GetProgramCompletionCapability(
         }
         return AssistantOutcome.Success(
             AssistantAnswer(
-                summary = "培养方案完成 ${program.progressPercent}，已修 " +
+                summary = prefix + "培养方案完成 ${program.progressPercent}，已修 " +
                     "${formatCredit(program.passedCredits)}/${formatCredit(program.requiredCredits)} 学分",
                 lines = lines,
                 route = spec.openRoute,
@@ -397,6 +447,8 @@ class GetProgramCompletionCapability(
                         }
                     }.takeIf { it.isNotBlank() },
                 ),
+                refreshed = refreshed,
+                fetchedAt = fetchedAt.takeIf { it > 0L },
             )
         )
     }

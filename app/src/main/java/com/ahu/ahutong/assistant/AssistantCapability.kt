@@ -43,6 +43,10 @@ data class AssistantAnswer(
     val trust: AssistantTrust = AssistantTrust.TRUSTED,
     /** 对话页工具卡的结构化数据；为空时卡片退化为 summary + lines。 */
     val card: AssistantCard? = null,
+    /** 本次是否刚向业务系统刷新；false/null 表示来自缓存或未知。 */
+    val refreshed: Boolean? = null,
+    /** 数据本身的时间（缓存写入或刷新完成），不是展示时间。 */
+    val fetchedAt: Long? = null,
 )
 
 enum class AssistantCardTone { NEUTRAL, ACCENT, SUCCESS, DANGER }
