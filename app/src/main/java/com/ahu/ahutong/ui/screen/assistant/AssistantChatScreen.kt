@@ -688,7 +688,7 @@ private fun ToolCard(
                     Icon(
                         imageVector = if (expanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
                         contentDescription = if (expanded) "收起" else "查看",
-                        tint = colors.onSurfaceVariant,
+                        tint = colors.primary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -938,7 +938,7 @@ private fun ApprovalCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = colors.surfaceContainerHigh,
+        color = colors.surfaceContainerLow,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -1023,7 +1023,7 @@ private fun ApprovalCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surfaceContainerLow)
+                    .background(colors.surfaceContainer)
                     .padding(horizontal = 10.dp, vertical = 7.dp),
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.onSurfaceVariant,
