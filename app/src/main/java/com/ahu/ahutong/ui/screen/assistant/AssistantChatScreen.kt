@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.assistant.AssistantCard
 import com.ahu.ahutong.assistant.AssistantCardItem
 import com.ahu.ahutong.assistant.AssistantCardTone
@@ -164,6 +165,13 @@ fun AssistantChatScreen(
     LaunchedEffect(AssistantChatState.pendingQuestion) {
         val question = AssistantChatState.consumePending() ?: return@LaunchedEffect
         AssistantChatState.attachJob(scope.launch { runStream(service, scope, question) })
+    }
+
+    LaunchedEffect(AssistantAccessState.enabled) {
+        if (!AssistantAccessState.enabled) {
+            AssistantChatState.close()
+            AssistantGlowState.visible = false
+        }
     }
 
     BackHandler(enabled = AssistantChatState.visible) {

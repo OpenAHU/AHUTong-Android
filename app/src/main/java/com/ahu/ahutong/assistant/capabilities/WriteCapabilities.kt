@@ -8,6 +8,7 @@ import com.ahu.ahutong.assistant.AssistantCard
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.assistant.AssistantTrust
+import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.adapter.RepositoryElectricityDepositSource
@@ -94,11 +95,7 @@ class RechargeCardCapability(
                 ?: return AssistantOutcome.Failure("order_failed", "没有开通充值订单，请稍后再试")
         }
         return when (val result = source.pay(orderId, bank)) {
-            is AhuResult.Failure -> AssistantOutcome.Failure(
-                "recharge_failed",
-                result.error.asAssistantFailure().message,
-                retryable = false,
-            )
+            is AhuResult.Failure -> paymentUncertain("校园卡充值", result.error)
             is AhuResult.Success -> success(
                 amount = amount,
                 target = bankLabel(bank),
@@ -178,11 +175,7 @@ class RechargeElectricityCapability(
         return when (val result = source.pay(
             ElectricityPayment(controller, formatAmount(amount), password, room.details)
         )) {
-            is AhuResult.Failure -> AssistantOutcome.Failure(
-                "recharge_failed",
-                result.error.asAssistantFailure().message,
-                retryable = false,
-            )
+            is AhuResult.Failure -> paymentUncertain("电费充值", result.error)
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已提交电费充值 ¥${formatAmount(amount)}",
@@ -259,11 +252,7 @@ class RechargeBathroomCapability(
         return when (val result = source.pay(
             BathroomPayment(bathroom, formatAmount(amount), password, account)
         )) {
-            is AhuResult.Failure -> AssistantOutcome.Failure(
-                "recharge_failed",
-                result.error.asAssistantFailure().message,
-                retryable = false,
-            )
+            is AhuResult.Failure -> paymentUncertain("浴室缴费", result.error)
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已提交浴室缴费 ¥${formatAmount(amount)}",
@@ -315,11 +304,7 @@ class RechargeNetworkCapability(
             is AhuResult.Success -> result.value
         }
         return when (val result = source.pay(snapshot, formatAmount(amount), password)) {
-            is AhuResult.Failure -> AssistantOutcome.Failure(
-                "recharge_failed",
-                result.error.asAssistantFailure().message,
-                retryable = false,
-            )
+            is AhuResult.Failure -> paymentUncertain("网费充值", result.error)
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已提交网费充值 ¥${formatAmount(amount)}",
@@ -390,8 +375,8 @@ class SendMailCapability(
             throw cancelled
         } catch (error: Exception) {
             AssistantOutcome.Failure(
-                "mail_send_failed",
-                error.message ?: "邮件发送失败，请先检查已发送避免重复",
+                "uncertain",
+                "邮件发送结果未知，请先检查已发送，避免重复发送",
                 retryable = false,
             )
         }
@@ -465,7 +450,7 @@ class PublishLostFoundCapability : AssistantCapability {
             state = state.toString(),
         )
         return when (val result = AHURepository.publishLostFound(request)) {
-            is AhuResult.Failure -> result.error.asAssistantFailure()
+            is AhuResult.Failure -> writeFailure("发布失物招领", result.error)
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已发布${if (state == 1) "失物招领" else "寻物启事"}：$title",
@@ -503,7 +488,7 @@ class DeleteLostFoundCapability : AssistantCapability {
         val id = arguments.stringArg("id")
             ?: return AssistantOutcome.Failure("invalid_arguments", "缺少 id")
         return when (val result = AHURepository.deleteLostFound(id)) {
-            is AhuResult.Failure -> result.error.asAssistantFailure()
+            is AhuResult.Failure -> writeFailure("删除失物招领", result.error)
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已删除失物招领",
@@ -595,6 +580,33 @@ class SwitchElectricityConditionCapability(
         selection.floor?.value,
         selection.room?.value,
     ).joinToString("|") { it ?: "" }
+}
+
+private fun paymentUncertain(action: String, error: AhuError): AssistantOutcome.Failure =
+    AssistantOutcome.Failure(
+        "uncertain",
+        "$action 结果未知，请先核对余额/账单，确认没有到账前不要重复操作",
+        retryable = false,
+    )
+
+private fun writeFailure(action: String, error: AhuError): AssistantOutcome.Failure =
+    if (error is AhuError.ProtocolChanged || error is AhuError.Unknown) {
+        AssistantOutcome.Failure(
+            "uncertain",
+            "$action 结果未知（${error.userMessage()}），请先核对结果，避免重复提交",
+            retryable = false,
+        )
+    } else {
+        error.asAssistantFailure()
+    }
+
+private fun AhuError.userMessage(): String = when (this) {
+    AhuError.Network -> "网络异常"
+    AhuError.Timeout -> "请求超时"
+    is AhuError.Unauthorized -> message
+    is AhuError.ProtocolChanged -> detail
+    is AhuError.Server -> message
+    is AhuError.Unknown -> message
 }
 
 private fun formatAmount(value: Double): String =

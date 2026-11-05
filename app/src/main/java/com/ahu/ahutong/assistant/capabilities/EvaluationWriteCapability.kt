@@ -55,6 +55,11 @@ class SubmitEvaluationCapability(
         requiresConfirmation = true,
     )
 
+    override suspend fun describe(arguments: JsonObject): String? {
+        if (arguments.boolArg("all", false)) return "范围：该学期全部待评教师"
+        return arguments.stringArg("teacher")?.let { "教师：$it" }
+    }
+
     override suspend fun execute(arguments: JsonObject): AssistantOutcome =
         AssistantOutcome.Failure("confirmation_required", "需要本机确认后才能提交评教")
 
@@ -93,19 +98,29 @@ class SubmitEvaluationCapability(
             return AssistantOutcome.Failure("evaluation_empty", "没有匹配的待评教师")
         }
         val failures = mutableListOf<String>()
+        var uncertain = false
         var submitted = 0
         val presetValue = preset()
         targets.forEach { (task, teacher) ->
             when (val result = submitOne(task, teacher, presetValue)) {
                 is AhuResult.Success -> submitted++
-                is AhuResult.Failure -> failures += "${teacher.teacherName}: ${result.error.toUserMessage()}"
+                is AhuResult.Failure -> {
+                    failures += "${teacher.teacherName}: ${result.error.toUserMessage()}"
+                    if (result.error.uncertain()) uncertain = true
+                }
             }
         }
         val semesterLabel = selected.nameZh.ifBlank { selected.schoolYear }
-        return if (submitted == 0) {
+        return if (submitted == 0 && !uncertain) {
             AssistantOutcome.Failure(
                 "evaluation_failed",
                 "评教提交失败：" + failures.take(2).joinToString("；"),
+            )
+        } else if (uncertain || submitted > 0 && failures.isNotEmpty()) {
+            AssistantOutcome.Failure(
+                "uncertain",
+                "评教提交结果未知：已成功 $submitted 项，${failures.size} 项需要核对；请先到评教页确认，避免重复提交",
+                retryable = false,
             )
         } else {
             AssistantOutcome.Success(
@@ -226,6 +241,11 @@ class SubmitEvaluationCapability(
                 questionAnsSaveList = answers,
             ),
         )
+    }
+
+    private fun AhuError.uncertain(): Boolean = when (this) {
+        AhuError.Network, AhuError.Timeout, is AhuError.ProtocolChanged, is AhuError.Unknown -> true
+        else -> false
     }
 
     private fun AhuError.toUserMessage(): String = when (this) {

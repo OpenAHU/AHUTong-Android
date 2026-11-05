@@ -25,6 +25,7 @@ class OpenAiCompatibleChatModel(
     private val client: OkHttpClient = AhuHttp.plain(
         connectTimeoutSeconds = 15,
         readTimeoutSeconds = 90,
+        captureDiagnostics = false,
     ).build(),
 ) : AssistantChatModel {
 

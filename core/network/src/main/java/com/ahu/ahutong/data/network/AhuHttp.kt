@@ -23,10 +23,14 @@ object AhuHttp {
         callTimeoutSeconds: Long? = null,
         retryOnConnectionFailure: Boolean = true,
         followRedirects: Boolean = true,
-        followSslRedirects: Boolean = true
+        followSslRedirects: Boolean = true,
+        captureDiagnostics: Boolean = true
     ): OkHttpClient.Builder = OkHttpClient.Builder()
         .dns(AliyunDns)
-        .addNetworkInterceptor(FeedbackNetworkInterceptor())
+        .apply {
+            // 模型请求包含 Bearer Key 和用户对话，不能进入反馈诊断环。
+            if (captureDiagnostics) addNetworkInterceptor(FeedbackNetworkInterceptor())
+        }
         .connectTimeout(connectTimeoutSeconds, TimeUnit.SECONDS)
         .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
         .writeTimeout(writeTimeoutSeconds, TimeUnit.SECONDS)

@@ -98,7 +98,11 @@ class WebSearchCapability(
             .addHeader("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
-        val client = AhuHttp.plain(connectTimeoutSeconds = 15, readTimeoutSeconds = 30).build()
+        val client = AhuHttp.plain(
+            connectTimeoutSeconds = 15,
+            readTimeoutSeconds = 30,
+            captureDiagnostics = false,
+        ).build()
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {

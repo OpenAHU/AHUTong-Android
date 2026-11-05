@@ -6,7 +6,9 @@ import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
 import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
+import com.ahu.ahutong.assistant.safety.AssistantWriteJournal
 import com.ahu.ahutong.assistant.safety.InMemoryAssistantWriteJournal
+import com.ahu.ahutong.assistant.safety.PersistentAssistantWriteJournal
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
@@ -48,7 +50,11 @@ class AssistantService(
     private val registry: AssistantCapabilityRegistry,
     private val modelFactory: () -> AssistantChatModel? = DEFAULT_MODEL_FACTORY,
 ) {
-    private val writeJournal = InMemoryAssistantWriteJournal()
+    private val writeJournal: AssistantWriteJournal = runCatching {
+        PersistentAssistantWriteJournal()
+    }.getOrElse {
+        InMemoryAssistantWriteJournal()
+    }
 
     fun stream(
         question: String,

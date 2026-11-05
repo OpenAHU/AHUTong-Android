@@ -179,7 +179,15 @@ class AssistantRuntime(
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (error: Exception) {
-                        AssistantOutcome.Failure("exception", error.message ?: "执行失败")
+                        if (capability.spec.kind == AssistantCapabilityKind.WRITE) {
+                            AssistantOutcome.Failure(
+                                "uncertain",
+                                "操作结果未知，请先到原页面确认，避免重复扣款或重复提交",
+                                retryable = false,
+                            )
+                        } else {
+                            AssistantOutcome.Failure("exception", error.message ?: "执行失败")
+                        }
                     }
                     if (capability.spec.kind == AssistantCapabilityKind.WRITE) {
                         writeJournal?.finish(capability.spec.id, call.arguments, outcome.toWriteOutcome())
@@ -318,7 +326,7 @@ class AssistantRuntime(
     private fun AssistantOutcome.toWriteOutcome(): AssistantWriteOutcome = when (this) {
         is AssistantOutcome.Success -> AssistantWriteOutcome.SUCCESS
         is AssistantOutcome.Failure ->
-            if (code == "network" || code == "timeout") AssistantWriteOutcome.UNKNOWN
+            if (code == "network" || code == "timeout" || code == "uncertain") AssistantWriteOutcome.UNKNOWN
             else AssistantWriteOutcome.KNOWN_FAILURE
     }
 
@@ -338,7 +346,7 @@ class AssistantRuntime(
 3. 写操作必须等用户在确认卡中同意后才算执行，不要提前声称完成。
 4. 回答简洁，使用中文；需要展示明细时交给结果卡片，不要重复罗列。
 5. 工具返回结果后，直接基于结果回答用户；不要重新自我介绍，也不要忽略工具结果。
-6. 需要实时信息（新闻、政策、赛事、天气、校外资料等）时调用 web_search；引用搜索结果时说明来源。
+6. 需要实时信息（新闻、政策、赛事、天气、校外资料等）时调用 web_search；引用搜索结果时说明来源。搜索词不要包含学号、姓名、手机号、邮箱、余额等个人数据。
 7. 数学公式使用 \( ... \) 行内、\[ ... \] 块级；不要用单个美元符号作为公式分隔符，避免与货币符号冲突。
 8. 充值/缴费只有在用户本轮明确说出金额和收款对象时才能调用；金额或对象不清楚就先追问，不要猜，也不要替用户选。
 9. 充值/缴费会真实扣款。失败后不要自动重试，先让用户核对余额和账单，确认没到账再征得同意重新发起。
