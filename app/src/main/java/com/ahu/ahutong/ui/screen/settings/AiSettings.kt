@@ -390,7 +390,7 @@ fun AiSettings(
             ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                AiSummaryLine("对话内容、最近 24 条历史与本轮必要的工具结果，会发送到你配置的模型服务（默认 DeepSeek）。")
+                AiSummaryLine("对话内容、最近 24 条历史与本轮必要的工具结果，会发送到你配置的模型服务。")
                 AiSummaryLine("课表、成绩、余额、账单、邮件等工具在学校系统执行；结果摘要可能随请求发送给模型。")
                 AiSummaryLine("写操作会先弹确认卡；校园卡支付密码只在本机使用，不保存、不发送给模型。")
                 AiSummaryLine("对话历史保存在本机，可在历史页逐段删除；清除模型配置不会删除历史。")
