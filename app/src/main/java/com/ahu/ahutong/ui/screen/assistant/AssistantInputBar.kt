@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -135,27 +136,35 @@ fun AssistantInputBar(
                     renderEffect = BlurEffect(blurPx, blurPx, TileMode.Decal)
                 }
         ) {
-            val corner = CornerRadius(size.height / 2f, size.height / 2f)
+            val stroke = with(density) { 7.dp.toPx() }
+            val inset = stroke / 2f
+            val radius = (with(density) { 28.dp.toPx() } - inset).coerceAtLeast(0f)
             drawRoundRect(
                 brush = Brush.sweepGradient(
                     colorStops = inputGlowStops(phase.value).toTypedArray(),
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
-                cornerRadius = corner,
-                style = Stroke(width = with(density) { 7.dp.toPx() }),
+                topLeft = Offset(inset, inset),
+                size = Size(size.width - stroke, size.height - stroke),
+                cornerRadius = CornerRadius(radius, radius),
+                style = Stroke(width = stroke),
                 alpha = 0.32f * glowAlpha
             )
         }
         // 内层细描边。
         Canvas(Modifier.matchParentSize()) {
-            val corner = CornerRadius(size.height / 2f, size.height / 2f)
+            val stroke = with(density) { 2.dp.toPx() }
+            val inset = stroke / 2f
+            val radius = (with(density) { 28.dp.toPx() } - inset).coerceAtLeast(0f)
             drawRoundRect(
                 brush = Brush.sweepGradient(
                     colorStops = inputGlowStops(phase.value).toTypedArray(),
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
-                cornerRadius = corner,
-                style = Stroke(width = with(density) { 2.dp.toPx() }),
+                topLeft = Offset(inset, inset),
+                size = Size(size.width - stroke, size.height - stroke),
+                cornerRadius = CornerRadius(radius, radius),
+                style = Stroke(width = stroke),
                 alpha = 0.75f * glowAlpha
             )
         }
