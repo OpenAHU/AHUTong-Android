@@ -207,16 +207,6 @@ fun AssistantInputBar(
                 }
             )
             Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                if (canSend) {
-                    Canvas(Modifier.matchParentSize()) {
-                        drawCircle(
-                            brush = Brush.sweepGradient(*inputGlowStops(phase.value).toTypedArray()),
-                            radius = size.minDimension / 2f,
-                            style = Stroke(width = with(density) { 2.dp.toPx() }),
-                            alpha = 0.9f
-                        )
-                    }
-                }
                 Box(
                     modifier = Modifier
                         .size(40.dp)
