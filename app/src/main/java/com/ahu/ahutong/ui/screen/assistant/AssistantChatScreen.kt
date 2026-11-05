@@ -191,11 +191,13 @@ fun AssistantChatScreen(
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
         ) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .systemBarsPadding()
-            ) {
+            Box(Modifier.fillMaxSize()) {
+                AssistantChatGlowBackground(Modifier.matchParentSize())
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding()
+                ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -285,6 +287,7 @@ fun AssistantChatScreen(
                         },
                         enabled = !running,
                     )
+                }
                 }
             }
         }

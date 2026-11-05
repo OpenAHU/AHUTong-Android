@@ -52,22 +52,13 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.sin
 
-private val INPUT_GLOW_COLORS = listOf(
-    0xFFBC82F3,
-    0xFFF5B9EA,
-    0xFF8D9FFF,
-    0xFFFF6778,
-    0xFFFFBA71,
-    0xFFC686FF,
-)
-
 /** 与边缘光同一套颜色的角向渐变；停靠点随相位缓慢漂移。 */
 private fun inputGlowStops(phase: Float): List<Pair<Float, Color>> {
-    val raw = INPUT_GLOW_COLORS.mapIndexed { index, color ->
-        val base = index / INPUT_GLOW_COLORS.size.toFloat()
+    val raw = ASSISTANT_GLOW_COLORS.mapIndexed { index, color ->
+        val base = index / ASSISTANT_GLOW_COLORS.size.toFloat()
         val drift = 0.10f * sin((phase * 2f * PI + index * 1.7).toFloat())
         val position = ((base + drift) % 1f + 1f) % 1f
-        position to Color(color)
+        position to color
     }.sortedBy { it.first }
     val start = raw.first()
     val end = raw.last()
