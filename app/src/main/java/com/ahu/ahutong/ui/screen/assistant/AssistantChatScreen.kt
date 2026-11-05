@@ -21,12 +21,15 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
@@ -141,6 +144,7 @@ fun AssistantChatScreen(
     val running = AssistantChatState.running
     val displayItems = buildChatDisplay(items)
     val roundEnds = roundEndTurnKeys(displayItems)
+    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
 
@@ -211,59 +215,14 @@ fun AssistantChatScreen(
         ) {
             Box(Modifier.fillMaxSize()) {
                 AssistantChatGlowBackground(Modifier.matchParentSize())
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.weight(1f))
-                    AssistantHeaderIconButton(
-                        icon = R.drawable.ic_assistant_history,
-                        description = "历史对话",
-                        onClick = AssistantChatState::openHistory,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    AssistantHeaderIconButton(
-                        icon = R.drawable.ic_assistant_close,
-                        description = "关闭",
-                        onClick = {
-                            AssistantChatState.close()
-                            AssistantGlowState.visible = false
-                        },
-                    )
-                }
-
                 LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                     state = listState,
                     contentPadding = PaddingValues(
                         start = 14.dp,
                         end = 14.dp,
-                        top = 6.dp,
+                        // 标题栏是渐变遮罩，列表从它下面穿过。
+                        top = statusBarTop + 68.dp,
                         // 输入栏浮在列表上方；底部留出它的高度，最后一条不会被遮住。
                         bottom = 104.dp,
                     ),
@@ -310,6 +269,60 @@ fun AssistantChatScreen(
                     }
                 }
 
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colorStops = arrayOf(
+                                    0f to MaterialTheme.colorScheme.background,
+                                    0.55f to MaterialTheme.colorScheme.background,
+                                    1f to Color.Transparent,
+                                )
+                            )
+                        )
+                        .statusBarsPadding()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.weight(1f))
+                        AssistantHeaderIconButton(
+                            icon = R.drawable.ic_assistant_history,
+                            description = "历史对话",
+                            onClick = AssistantChatState::openHistory,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        AssistantHeaderIconButton(
+                            icon = R.drawable.ic_assistant_close,
+                            description = "关闭",
+                            onClick = {
+                                AssistantChatState.close()
+                                AssistantGlowState.visible = false
+                            },
+                        )
+                    }
                 }
 
                 Box(
