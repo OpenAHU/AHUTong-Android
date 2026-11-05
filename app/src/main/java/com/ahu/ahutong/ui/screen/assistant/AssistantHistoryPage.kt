@@ -15,11 +15,9 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -35,17 +33,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
 internal fun AssistantHeaderIconButton(
-    icon: ImageVector,
+    @DrawableRes icon: Int,
     description: String,
     onClick: () -> Unit,
 ) {
@@ -58,7 +57,7 @@ internal fun AssistantHeaderIconButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = icon,
+            painter = painterResource(icon),
             contentDescription = description,
             tint = colors.onSurfaceVariant,
             modifier = Modifier.size(22.dp),
@@ -100,7 +99,7 @@ internal fun AssistantHistoryPage(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     AssistantHeaderIconButton(
-                        icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                        icon = R.drawable.ic_assistant_back,
                         description = "返回",
                         onClick = onBack,
                     )
@@ -111,7 +110,7 @@ internal fun AssistantHistoryPage(
                         style = MaterialTheme.typography.titleSmall,
                     )
                     AssistantHeaderIconButton(
-                        icon = Icons.Rounded.Add,
+                        icon = R.drawable.ic_assistant_add,
                         description = "新建对话",
                         onClick = onNewChat,
                     )

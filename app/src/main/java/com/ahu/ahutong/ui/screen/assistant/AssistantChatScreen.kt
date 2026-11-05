@@ -43,11 +43,9 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.FactCheck
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.NorthEast
@@ -242,13 +240,13 @@ fun AssistantChatScreen(
                     Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.weight(1f))
                     AssistantHeaderIconButton(
-                        icon = Icons.Rounded.History,
+                        icon = R.drawable.ic_assistant_history,
                         description = "历史对话",
                         onClick = AssistantChatState::openHistory,
                     )
                     Spacer(Modifier.width(8.dp))
                     AssistantHeaderIconButton(
-                        icon = Icons.Rounded.Close,
+                        icon = R.drawable.ic_assistant_close,
                         description = "关闭",
                         onClick = {
                             AssistantChatState.close()
@@ -596,7 +594,7 @@ private fun AssistantMiniAction(
             painter = painterResource(icon),
             contentDescription = description,
             tint = colors.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.35f),
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(14.dp),
         )
     }
 }
