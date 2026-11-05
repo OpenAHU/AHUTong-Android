@@ -3,8 +3,6 @@ package com.ahu.ahutong.ui.screen.main.home
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -53,7 +51,7 @@ fun HomeAssistantButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.AutoAwesome,
+            painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
             contentDescription = "AI 助手",
             modifier = Modifier.size(18.dp),
             tint = MaterialTheme.colorScheme.onSurface

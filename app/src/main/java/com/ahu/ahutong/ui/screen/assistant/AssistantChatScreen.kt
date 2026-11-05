@@ -42,7 +42,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Assignment
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
@@ -303,7 +302,7 @@ fun AssistantChatScreen(
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.AutoAwesome,
+                                painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(14.dp),
@@ -647,12 +646,22 @@ private fun ToolCard(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = toolIcon(event.toolId),
-                        contentDescription = null,
-                        tint = if (event.ok) colors.primary else colors.error,
-                        modifier = Modifier.size(14.dp),
-                    )
+                    val vector = toolIcon(event.toolId)
+                    if (vector != null) {
+                        Icon(
+                            imageVector = vector,
+                            contentDescription = null,
+                            tint = if (event.ok) colors.primary else colors.error,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+                            contentDescription = null,
+                            tint = if (event.ok) colors.primary else colors.error,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
                 }
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -944,7 +953,7 @@ private fun ApprovalCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
+                        painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
                         contentDescription = null,
                         tint = colors.primary,
                         modifier = Modifier.size(15.dp),
@@ -1221,7 +1230,7 @@ private suspend fun runStream(
     }
 }
 
-private fun toolIcon(name: String): ImageVector = when (name) {
+private fun toolIcon(name: String): ImageVector? = when (name) {
     "get_schedule" -> Icons.Rounded.CalendarMonth
     "get_assignments" -> Icons.Rounded.Assignment
     "get_grades", "get_gpa_rank" -> Icons.Rounded.School
@@ -1242,7 +1251,7 @@ private fun toolIcon(name: String): ImageVector = when (name) {
     "get_evaluation_tasks", "submit_evaluation" -> Icons.Rounded.RateReview
     "recharge_card", "recharge_electricity", "recharge_bathroom", "recharge_network" -> Icons.Rounded.Payments
     "add_calendar_event" -> Icons.Rounded.Event
-    else -> Icons.Rounded.AutoAwesome
+    else -> null
 }
 
 private fun formatTimestamp(epochMillis: Long): String = runCatching {

@@ -23,7 +23,6 @@ import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.outlined.Update
 import com.ahu.ahutong.ui.haptics.HapticAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -240,12 +239,7 @@ fun Settings(
             )
             SettingsActionRow(
                 title = "AI 设置",
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Info
-                    isRadiant -> null
-                    else -> Icons.Rounded.AutoAwesome
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_experiment) else null,
+                leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
                 onClick = onNavigateToAiSettings
             )
             SettingsActionRow(

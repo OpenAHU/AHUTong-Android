@@ -437,7 +437,16 @@ fun SettingsActionRow(
                     )
                 }
                 leadingPainter?.let { painter ->
-                    Icon(painter = painter, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Icon(
+                        painter = painter,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = if (destructive) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MiuixTheme.colorScheme.primary
+                        }
+                    )
                 }
                 SettingsRowText(title = title, subtitle = subtitle, destructive = destructive,
                     modifier = Modifier.weight(1f))
