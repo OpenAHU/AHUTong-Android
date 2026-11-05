@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,12 +45,14 @@ data class RepositoryUiState(
 data class RepositorySharedUiState(
     val downloadedPaths: Set<String> = emptySet(),
     val downloadProgress: Map<String, Float> = emptyMap(),
-    val downloadingPath: String? = null,
     val isCacheWarming: Boolean = false,
     val cacheWarmUpCount: Int = 0,
     val indexDownloadBytes: Long? = null,
     val indexDownloadTotalBytes: Long? = null
-)
+) {
+    val downloadingPaths: Set<String> get() = downloadProgress.keys
+    val downloadingPath: String? get() = downloadingPaths.lastOrNull()
+}
 
 data class RepositoryScrollPosition(
     val index: Int = 0,
@@ -170,7 +173,7 @@ class RepositoryViewModel @Inject constructor(
     init {
         viewModelScope.launchSafe {
             val downloadedPaths = withContext(ioDispatcher) { refreshDownloadedSet() }
-            _sharedState.value = _sharedState.value.copy(downloadedPaths = downloadedPaths)
+            _sharedState.update { it.copy(downloadedPaths = downloadedPaths) }
         }
         // The app-scoped repository coalesces calls and keeps the completed result
         // until this process ends. Starting it here never blocks the directory.
@@ -281,29 +284,29 @@ class RepositoryViewModel @Inject constructor(
         if (hasStartedWarmUp && !forceRefresh) return
         hasStartedWarmUp = true
         warmUpFailure = null
-        _sharedState.value = _sharedState.value.copy(
+        _sharedState.update { it.copy(
             isCacheWarming = true,
             cacheWarmUpCount = 0,
             indexDownloadBytes = null,
             indexDownloadTotalBytes = null
-        )
+        ) }
         warmUpJob = viewModelScope.launch {
             try {
                 repository.warmUpAllContentCaches(
                     forceRefresh = forceRefresh,
                     onProgress = { fetchedCount ->
-                        _sharedState.value = _sharedState.value.copy(
+                        _sharedState.update { it.copy(
                             isCacheWarming = true,
                             cacheWarmUpCount = fetchedCount,
                             indexDownloadBytes = null,
                             indexDownloadTotalBytes = null
-                        )
+                        ) }
                     },
                     onDownloadProgress = { downloaded, total ->
-                        _sharedState.value = _sharedState.value.copy(
+                        _sharedState.update { it.copy(
                             indexDownloadBytes = downloaded,
                             indexDownloadTotalBytes = total.takeIf { it > 0L }
-                        )
+                        ) }
                     }
                 )
                 val states = withContext(ioDispatcher) {
@@ -320,30 +323,30 @@ class RepositoryViewModel @Inject constructor(
                     }
                 }
                 _directoryStates.value = states
-                _sharedState.value = _sharedState.value.copy(
+                _sharedState.update { it.copy(
                     isCacheWarming = false,
                     cacheWarmUpCount = 0,
                     indexDownloadBytes = null,
                     indexDownloadTotalBytes = null
-                )
+                ) }
             } catch (cancelled: CancellationException) {
                 hasStartedWarmUp = false
-                _sharedState.value = _sharedState.value.copy(
+                _sharedState.update { it.copy(
                     isCacheWarming = false,
                     indexDownloadBytes = null,
                     indexDownloadTotalBytes = null
-                )
+                ) }
                 throw cancelled
             } catch (error: Exception) {
                 UserNoticeHolder.reportUnexpected(error)
                 warmUpFailure = error
                 hasStartedWarmUp = false
-                _sharedState.value = _sharedState.value.copy(
+                _sharedState.update { it.copy(
                     isCacheWarming = false,
                     cacheWarmUpCount = 0,
                     indexDownloadBytes = null,
                     indexDownloadTotalBytes = null
-                )
+                ) }
             }
         }
     }
@@ -363,52 +366,30 @@ class RepositoryViewModel @Inject constructor(
     fun downloadFile(item: GitHubContentItem) = downloadFile(item, allowStoragePrompt = true)
 
     private fun downloadFile(item: GitHubContentItem, allowStoragePrompt: Boolean) {
+        val path = item.path
+        if (path in _sharedState.value.downloadingPaths) return
+        _sharedState.update { it.copy(downloadProgress = it.downloadProgress + (path to 0f)) }
         viewModelScope.launch {
-            val path = item.path
-            _sharedState.value = _sharedState.value.copy(
-                downloadingPath = path,
-                downloadProgress = _sharedState.value.downloadProgress + (path to 0f)
-            )
             try {
                 val file = repository.downloadFile(path) { progress ->
-                    _sharedState.value = _sharedState.value.copy(
-                        downloadProgress = _sharedState.value.downloadProgress + (path to progress)
-                    )
+                    _sharedState.update { it.copy(downloadProgress = it.downloadProgress + (path to progress)) }
                 }
                 if (file != null) {
                     val downloads = withContext(ioDispatcher) { refreshDownloadedSet() }
-                    _sharedState.value = _sharedState.value.copy(
-                        downloadingPath = null,
-                        downloadedPaths = downloads,
-                        downloadProgress = _sharedState.value.downloadProgress - path
-                    )
+                    _sharedState.update { it.copy(downloadedPaths = it.downloadedPaths + downloads) }
                     _message.value = "下载完成: ${item.name}"
                 } else {
-                    _sharedState.value = _sharedState.value.copy(
-                        downloadingPath = null,
-                        downloadProgress = _sharedState.value.downloadProgress - path
-                    )
                     setPathError(item.parentPath(), buildDownloadErrorMessage(item.name))
                 }
             } catch (cancelled: CancellationException) {
-                _sharedState.value = _sharedState.value.copy(
-                    downloadingPath = null,
-                    downloadProgress = _sharedState.value.downloadProgress - path
-                )
                 throw cancelled
             } catch (_: SecurityException) {
-                _sharedState.value = _sharedState.value.copy(
-                    downloadingPath = null,
-                    downloadProgress = _sharedState.value.downloadProgress - path
-                )
                 requestStoragePermission(PendingStorageAction.Download(item), allowStoragePrompt)
             } catch (e: Exception) {
-                _sharedState.value = _sharedState.value.copy(
-                    downloadingPath = null,
-                    downloadProgress = _sharedState.value.downloadProgress - path
-                )
                 val unexpected = UserNoticeHolder.reportUnexpected(e)
                 setPathError(item.parentPath(), if (unexpected) "下载失败，请查看错误详情" else buildDownloadErrorMessage(e.message))
+            } finally {
+                _sharedState.update { it.copy(downloadProgress = it.downloadProgress - path) }
             }
         }
     }
@@ -450,9 +431,9 @@ class RepositoryViewModel @Inject constructor(
                     Result.failure(exception)
                 }
                 result.onSuccess { deletion ->
-                    _sharedState.value = _sharedState.value.copy(
+                    _sharedState.update { it.copy(
                         downloadedPaths = deletion.remainingFiles.mapTo(mutableSetOf()) { it.path }
-                    )
+                    ) }
                 }
                 onComplete(result)
             }

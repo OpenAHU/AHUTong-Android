@@ -10,6 +10,7 @@ import com.ahu.ahutong.data.session.SessionStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 /**
@@ -81,7 +82,7 @@ object NoteStore {
     fun renameSubject(id: String, newName: String): Boolean {
         if (id == UNFILED_SUBJECT_ID) return false
         val trimmed = newName.trim()
-        if (trimmed.isEmpty()) return false
+        if (trimmed.isEmpty() || trimmed == UNFILED_SUBJECT_NAME) return false
         val list = readSubjects()
         if (list.any { it.id != id && it.name == trimmed }) return false
         if (list.none { it.id == id }) return false
@@ -93,15 +94,66 @@ object NoteStore {
     @Synchronized
     fun deleteSubject(id: String) {
         if (id == UNFILED_SUBJECT_ID) return
-        writeSubjects(readSubjects().filter { it.id != id })
-        val photos = readPhotos()
-        if (photos.any { it.subjectId == id }) {
-            writePhotos(photos.map {
-                if (it.subjectId == id) it.copy(subjectId = UNFILED_SUBJECT_ID, source = NoteSource.UNFILED)
-                else it
-            })
+        // Keep all paths in the same account even if the session changes during file IO.
+        val account = accountDir()
+        val subjectsIndex = File(account, "note_subjects.json")
+        val photosIndex = File(account, "note_photos.json")
+        val subjects = read<NoteSubject>(subjectsIndex, subjectListType)
+        if (subjects.none { it.id == id }) return
+        val photos = read<NotePhoto>(photosIndex, photoListType)
+        val sourceDirectory = File(account, id)
+        val copies = mutableListOf<Pair<NotePhoto, File>>()
+        var photoIndexChanged = false
+        try {
+            val updated = photos.map { photo ->
+                if (photo.subjectId != id) photo else {
+                    val source = File(sourceDirectory, photo.fileName)
+                    if (!source.isFile) throw IOException("笔记照片不存在，未删除科目")
+                    val targetDirectory = File(account, UNFILED_SUBJECT_ID)
+                    if (!targetDirectory.isDirectory && !targetDirectory.mkdirs()) {
+                        throw IOException("无法访问未归档文件夹，未删除科目")
+                    }
+                    val destination = reservePhotoFile(targetDirectory, photo.fileName)
+                    copies += photo to destination
+                    source.inputStream().use { input ->
+                        destination.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    if (source.length() != destination.length()) {
+                        throw IOException("笔记照片复制不完整，未删除科目")
+                    }
+                    photo.copy(
+                        subjectId = UNFILED_SUBJECT_ID,
+                        fileName = destination.name,
+                        source = NoteSource.UNFILED
+                    )
+                }
+            }
+            if (copies.isNotEmpty()) {
+                write(photosIndex, gson.toJson(updated, photoListType))
+                photoIndexChanged = true
+            }
+            write(subjectsIndex, gson.toJson(subjects.filter { it.id != id }, subjectListType))
+        } catch (failure: Exception) {
+            val restored = !photoIndexChanged || runCatching {
+                write(photosIndex, gson.toJson(photos, photoListType))
+            }.onFailure { failure.addSuppressed(it) }.isSuccess
+            // If rollback itself fails, retain both copies so either index still points to valid bytes.
+            if (restored) copies.forEach { (_, destination) -> runCatching { destination.delete() } }
+            throw failure
         }
-        subjectDir(id).deleteRecursively()
+        // Only remove known originals after both indexes are saved; unregistered files are preserved.
+        copies.forEach { (photo, _) -> runCatching { File(sourceDirectory, photo.fileName).delete() } }
+        runCatching { sourceDirectory.delete() }
+    }
+
+    private fun reservePhotoFile(directory: File, originalName: String): File {
+        var candidate = File(directory, originalName)
+        while (!candidate.createNewFile()) {
+            val original = File(originalName)
+            val suffix = original.extension.takeIf { it.isNotEmpty() }?.let { ".$it" }.orEmpty()
+            candidate = File(directory, "${original.nameWithoutExtension}_${UUID.randomUUID()}$suffix")
+        }
+        return candidate
     }
 
     fun subjectDir(subjectId: String): File =
@@ -238,8 +290,8 @@ object NoteStore {
         val tmp = File(file.parentFile, "${file.name}.tmp")
         tmp.writeText(json)
         if (!tmp.renameTo(file)) {
-            file.writeText(json)
             tmp.delete()
+            throw IOException("无法保存笔记索引")
         }
     }
 }

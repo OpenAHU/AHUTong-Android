@@ -40,7 +40,7 @@ fun HomeHeaderGlass(
 ): Modifier = if (backdrop != null) modifier.liquidFloatingSurface(backdrop) else modifier
 
 /**
- * 主页标题栏的 AI 助手入口：与扫码钮同材质、同尺寸。
+ * 主页标题栏的 AI 助手入口：Radiant 用玻璃材质，Miuix/Material 用组件包原生样式。
  */
 @Composable
 fun HomeAssistantButton(
@@ -74,9 +74,7 @@ fun HomeAssistantButton(
 }
 
 /**
- * 主页标题栏的扫码入口。
- *
- * 36dp × ContinuousCapsule = 正圆；与天气胶囊同高、同材质。
+ * 主页标题栏的相机入口，与天气胶囊同高；Radiant 用玻璃材质，Miuix/Material 由组件包提供样式。
  */
 @Composable
 fun HomeScanButton(

@@ -272,7 +272,7 @@ fun Repository(
                         RepositoryItemRow(
                             item = item,
                             isDownloaded = item.path in sharedState.downloadedPaths,
-                            isDownloading = item.path == sharedState.downloadingPath,
+                            isDownloading = item.path in sharedState.downloadingPaths,
                             progress = sharedState.downloadProgress[item.path] ?: 0f,
                             directorySummary = state.directorySummaries[item.path],
                             onItemClick = {

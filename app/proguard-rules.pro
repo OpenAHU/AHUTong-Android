@@ -47,6 +47,10 @@
 # These models are deserialized both from the native bridge and from local Gson caches. Field-only
 # rules do not prevent vertical class merging, which is unsafe for reflection-based construction.
 -keep class com.ahu.ahutong.data.model.** { *; }
+# Note indexes persist Gson field and enum names across app upgrades.
+-keep class com.ahu.ahutong.data.notes.NoteSubject { *; }
+-keep class com.ahu.ahutong.data.notes.NotePhoto { *; }
+-keep enum com.ahu.ahutong.data.notes.NoteSource { *; }
 # Campus-notice snapshots are encrypted Gson caches. Preserve the complete contracts, including
 # generic Map/List element signatures, so cached source statuses cannot become LinkedTreeMap.
 -keep class com.ahu.ahutong.data.notice.CampusNotice { *; }

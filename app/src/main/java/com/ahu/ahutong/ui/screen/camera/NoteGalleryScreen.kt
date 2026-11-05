@@ -32,10 +32,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -63,17 +60,21 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.notes.NotePhoto
 import com.ahu.ahutong.data.notes.NoteStore
 import com.ahu.ahutong.data.notes.NoteSubject
-import com.ahu.ahutong.data.notes.UNFILED_SUBJECT_ID
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.AppPageScaffold
+import com.ahu.ahutong.ui.components.AppSelectField
+import com.ahu.ahutong.ui.components.AppSelectOption
+import com.ahu.ahutong.ui.components.LiquidGlassAppHost
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -99,7 +100,7 @@ fun NoteGalleryScreen(
     var photos by remember { mutableStateOf<List<NotePhoto>>(emptyList()) }
     var refreshTick by remember { mutableIntStateOf(0) }
     var selection by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var showFilterMenu by remember { mutableStateOf(false) }
+    var showSubjectManager by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
@@ -110,6 +111,7 @@ fun NoteGalleryScreen(
             NoteStore.subjects() to NoteStore.photos(filterId)
         }
         subjects = loadedSubjects
+        if (filterId != null && loadedSubjects.none { it.id == filterId }) filterId = null
         photos = loadedPhotos
     }
 
@@ -123,10 +125,9 @@ fun NoteGalleryScreen(
         onChanged()
     }
 
-    val filterLabel = when (filterId) {
-        null -> "全部"
-        UNFILED_SUBJECT_ID -> "未归档"
-        else -> subjects.firstOrNull { it.id == filterId }?.name ?: "全部"
+    val filterOptions = remember(subjects) {
+        listOf(AppSelectOption<String?>(null, "全部")) +
+            subjects.map { AppSelectOption<String?>(it.id, it.name) }
     }
     val multiSelect = selection.isNotEmpty()
 
@@ -138,7 +139,7 @@ fun NoteGalleryScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    LiquidGlassAppHost(Modifier.fillMaxSize()) {
         AppPageScaffold(
             title = if (multiSelect) "已选 ${selection.size} 张" else "笔记",
             onBack = { if (multiSelect) selection = emptySet() else onDismiss() },
@@ -160,132 +161,121 @@ fun NoteGalleryScreen(
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     )
                 } else {
-                    Box {
-                        Row(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .clickable { showFilterMenu = true }
-                                .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                filterLabel,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Icon(
-                                Icons.Rounded.ArrowDropDown, "筛选科目",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showFilterMenu,
-                            onDismissRequest = { showFilterMenu = false }
-                        ) {
-                            DropdownMenuItem(text = { Text("全部") }, onClick = {
-                                filterId = null
-                                showFilterMenu = false
-                            })
-                            DropdownMenuItem(text = { Text("未归档") }, onClick = {
-                                filterId = UNFILED_SUBJECT_ID
-                                showFilterMenu = false
-                            })
-                            subjects.filter { it.id != UNFILED_SUBJECT_ID }.forEach { subject ->
-                                DropdownMenuItem(text = { Text(subject.name) }, onClick = {
-                                    filterId = subject.id
-                                    showFilterMenu = false
-                                })
-                            }
-                        }
-                    }
+                    Text(
+                        "管理科目",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.clip(CircleShape)
+                            .clickable(enabled = !busy) { showSubjectManager = true }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
                 }
             },
             freeContent = {
-                if (photos.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("还没有笔记", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    val grouped = remember(photos) {
-                        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
-                        val today = fmt.format(Date())
-                        photos.groupBy {
-                            val day = fmt.format(Date(it.takenAt))
-                            if (day == today) "今天" else day
-                        }.toList()
-                    }
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 12.dp, end = 12.dp,
-                            top = 4.dp, bottom = if (multiSelect) 96.dp else 24.dp
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        grouped.forEach { (label, dayPhotos) ->
-                            item(key = "header_$label", span = { GridItemSpan(maxLineSpan) }) {
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
-                                )
+                Column(Modifier.fillMaxSize()) {
+                    AppSelectField(
+                        label = "科目",
+                        selected = filterId,
+                        options = filterOptions,
+                        onSelected = { filterId = it },
+                        enabled = !busy && !multiSelect,
+                        miuixStandalone = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                            .semantics { contentDescription = "筛选科目" }
+                    )
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        if (photos.isEmpty()) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("还没有笔记", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            items(count = dayPhotos.size, key = { dayPhotos[it].id }) { index ->
-                                val photo = dayPhotos[index]
-                                val overallIndex = photos.indexOf(photo)
-                                GalleryCell(
-                                    photo = photo,
-                                    selectedIndex = selection.toList().indexOf(photo.id).takeIf { it >= 0 },
-                                    onClick = {
-                                        if (selection.isNotEmpty()) {
-                                            selection = if (photo.id in selection) selection - photo.id
-                                            else selection + photo.id
-                                        } else viewerIndex = overallIndex
-                                    },
-                                    onLongClick = {
-                                        selection = if (photo.id in selection) selection - photo.id
-                                        else selection + photo.id
+                        } else {
+                            val grouped = remember(photos) {
+                                val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
+                                val today = fmt.format(Date())
+                                photos.groupBy {
+                                    val day = fmt.format(Date(it.takenAt))
+                                    if (day == today) "今天" else day
+                                }.toList()
+                            }
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 12.dp, end = 12.dp,
+                                    top = 4.dp, bottom = if (multiSelect) 96.dp else 24.dp
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                grouped.forEach { (label, dayPhotos) ->
+                                    item(key = "header_$label", span = { GridItemSpan(maxLineSpan) }) {
+                                        Text(
+                                            label,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
+                                        )
                                     }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (multiSelect) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .navigationBarsPadding()
-                            .padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        GalleryAction("移动") { showMoveDialog = true }
-                        GalleryAction("导出") {
-                            if (busy) return@GalleryAction
-                            busy = true
-                            scope.launch {
-                                val count = withContext(Dispatchers.IO) {
-                                    NoteStore.exportToGallery(selection)
+                                    items(count = dayPhotos.size, key = { dayPhotos[it].id }) { index ->
+                                        val photo = dayPhotos[index]
+                                        val overallIndex = photos.indexOf(photo)
+                                        GalleryCell(
+                                            photo = photo,
+                                            selectedIndex = selection.toList().indexOf(photo.id).takeIf { it >= 0 },
+                                            onClick = {
+                                                if (selection.isNotEmpty()) {
+                                                    selection = if (photo.id in selection) selection - photo.id
+                                                    else selection + photo.id
+                                                } else viewerIndex = overallIndex
+                                            },
+                                            onLongClick = {
+                                                selection = if (photo.id in selection) selection - photo.id
+                                                else selection + photo.id
+                                            }
+                                        )
+                                    }
                                 }
-                                busy = false
-                                toast("已导出 $count 张")
-                                selection = emptySet()
                             }
                         }
-                        GalleryAction("删除", danger = true) { showDeleteConfirm = true }
+
+                        if (multiSelect) {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    .navigationBarsPadding()
+                                    .padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GalleryAction("移动") { showMoveDialog = true }
+                                GalleryAction("导出") {
+                                    if (busy) return@GalleryAction
+                                    busy = true
+                                    scope.launch {
+                                        val count = withContext(Dispatchers.IO) {
+                                            NoteStore.exportToGallery(selection)
+                                        }
+                                        busy = false
+                                        toast("已导出 $count 张")
+                                        selection = emptySet()
+                                    }
+                                }
+                                GalleryAction("删除", danger = true) { showDeleteConfirm = true }
+                            }
+                        }
                     }
                 }
             }
         )
+
+        if (showSubjectManager) {
+            NoteSubjectManagerDialog(
+                onDismiss = { showSubjectManager = false },
+                onChanged = { refreshAll() }
+            )
+        }
 
         if (showMoveDialog) {
             val targets = subjects
