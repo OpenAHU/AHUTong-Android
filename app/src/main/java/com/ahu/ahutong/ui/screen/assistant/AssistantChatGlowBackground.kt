@@ -35,16 +35,16 @@ internal fun AssistantChatGlowBackground(modifier: Modifier = Modifier) {
             label = "chat-glow-phase"
         )
     val colors = ASSISTANT_GLOW_COLORS
-    val alpha = if (dark) 0.085f else 0.055f
+    val alpha = if (dark) 0.16f else 0.10f
 
     Canvas(modifier = modifier) {
         val t = phase * 2f * PI.toFloat()
         drawRect(
             Brush.linearGradient(
                 colors = listOf(
-                    colors[0].copy(alpha = alpha * 0.32f),
+                    colors[0].copy(alpha = alpha * 0.42f),
                     colors[0].copy(alpha = 0f),
-                    colors[2].copy(alpha = alpha * 0.28f),
+                    colors[2].copy(alpha = alpha * 0.36f),
                 ),
                 start = Offset(0f, 0f),
                 end = Offset(size.width, size.height),
@@ -91,7 +91,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.glowBlob(
         brush = Brush.radialGradient(
             colors = listOf(
                 color.copy(alpha = alpha),
-                color.copy(alpha = alpha * 0.28f),
+                color.copy(alpha = alpha * 0.36f),
                 color.copy(alpha = 0f),
             ),
             center = center,
