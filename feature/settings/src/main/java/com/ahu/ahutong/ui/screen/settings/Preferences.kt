@@ -8,8 +8,19 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import com.ahu.ahutong.ui.haptics.HapticCheckbox as Checkbox
@@ -141,7 +152,23 @@ fun Preferences(
             scrollEnabled = !isToggleHorizontalDragActive
         ) {
             LaunchedEffect(section) { pageScrollState.scrollTo(0) }
-            if (section == null) {
+            AnimatedContent(
+                targetState = section,
+                transitionSpec = {
+                    val forward = targetState != null
+                    val enter = slideInHorizontally(tween(280)) { if (forward) it / 3 else -it / 3 } +
+                        fadeIn(tween(180))
+                    val exit = slideOutHorizontally(tween(240)) { if (forward) -it / 3 else it / 3 } +
+                        fadeOut(tween(140))
+                    (enter togetherWith exit).using(SizeTransform(clip = false))
+                },
+                label = "preferences-section",
+            ) { targetSection ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+            if (targetSection == null) {
                 PreferencesHubContent(
                     backdrop = backdrop,
                     onOpenSection = { section = it },
@@ -149,7 +176,7 @@ fun Preferences(
                     undergraduateEnabled = undergraduateEnabled,
                 )
             }
-            if (section == PreferencesSection.APPEARANCE) ThemeSettingsSection(
+            if (targetSection == PreferencesSection.APPEARANCE) ThemeSettingsSection(
                 viewModel = viewModel,
                 backdrop = backdrop,
                 onOpenDetails = onOpenThemeLab,
@@ -157,7 +184,7 @@ fun Preferences(
                 onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
             )
 
-            if (section == PreferencesSection.HOME) SettingsSection(
+            if (targetSection == PreferencesSection.HOME) SettingsSection(
                 title = "主页与充值",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -180,7 +207,7 @@ fun Preferences(
                 )
             }
 
-            if (section == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
+            if (targetSection == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
                 title = "通知",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -243,7 +270,7 @@ fun Preferences(
                 )
             }
 
-            if (section == PreferencesSection.INTELLIGENCE) SettingsSection(
+            if (targetSection == PreferencesSection.INTELLIGENCE) SettingsSection(
                 title = "智能体验",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -281,7 +308,7 @@ fun Preferences(
                 }
             }
 
-            if (section == PreferencesSection.DATA) SettingsSection(
+            if (targetSection == PreferencesSection.DATA) SettingsSection(
                 title = "数据与隐私",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -343,6 +370,8 @@ fun Preferences(
                     showDivider = false,
                     onClick = { showClearLearningConfirm = true }
                 )
+            }
+                }
             }
         }
     }
