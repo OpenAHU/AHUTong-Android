@@ -8,6 +8,34 @@ import kotlin.test.assertTrue
 
 class HapticPolicyTest {
     @Test
+    fun nestedButtonsPreserveTheBusinessEventAndSuppressTheGenericClick() {
+        for (event in listOf(AppHapticEvent.Expand, AppHapticEvent.Collapse, AppHapticEvent.Confirm)) {
+            val limiter = HapticRateLimiter()
+            val pulses = mutableListOf<AppHapticEvent>()
+            val feedback: (AppHapticEvent) -> Unit = {
+                if (limiter.accept(0)) pulses += it
+            }
+            var actions = 0
+            performHapticAction(AppHapticEvent.Click, feedback) {
+                performHapticAction(event, feedback) { actions++ }
+            }
+            assertEquals(1, actions)
+            assertEquals(listOf(event), pulses)
+        }
+    }
+
+    @Test
+    fun failedActionDoesNotEmitAConfirmationPulse() {
+        val pulses = mutableListOf<AppHapticEvent>()
+        runCatching {
+            performHapticAction(AppHapticEvent.Confirm, { pulses += it }) {
+                error("Action rejected")
+            }
+        }
+        assertTrue(pulses.isEmpty())
+    }
+
+    @Test
     fun disabledSystemFeedbackNeverConsumesTheNextEnabledInteraction() {
         val limiter = HapticRateLimiter()
         assertFalse(limiter.accept(0, enabled = false))

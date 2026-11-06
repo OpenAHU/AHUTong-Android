@@ -42,6 +42,7 @@ import com.ahu.ahutong.appwidget.ScheduleWidgetPreviewContent
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.screen.main.DesktopScheduleWidgetPreview
+import com.ahu.ahutong.ui.screen.main.desktopSchedulePreviewHeight
 import com.ahu.ahutong.ui.theme.AHUTheme
 import com.ahu.ahutong.ui.theme.AhuThemeConfig
 import java.io.File
@@ -71,7 +72,7 @@ class DesktopWidgetPreviewTest {
         val measuredHeight = AtomicInteger()
         val measuredBounds = AtomicReference<Rect?>()
         var dayBackgroundColor: Int? = null
-        ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+        launchIsolatedTestActivity().use { scenario ->
             for (night in listOf(false, true)) {
                 measuredHeight.set(0)
                 measuredBounds.set(null)
@@ -105,8 +106,8 @@ class DesktopWidgetPreviewTest {
                 while (measuredBounds.get() == null && SystemClock.elapsedRealtime() < layoutDeadline) SystemClock.sleep(50)
                 for (label in listOf("高等数学", "大学英语", "博北A201", "博南B102")) awaitVisibleLabel(label)
                 instrumentation.waitForIdleSync()
-                assertEquals("The production preview must remain 176dp tall at the default font size",
-                    (176 * context.resources.displayMetrics.density).roundToInt(), measuredHeight.get())
+                assertEquals("The production preview must include both full course detail rows",
+                    (208 * context.resources.displayMetrics.density).roundToInt(), measuredHeight.get())
                 // Copy directly from the rendered Window surface to preserve all child outline clipping.
                 SystemClock.sleep(200)
                 val bounds = measuredBounds.get() ?: throw AssertionError("The preview has no window bounds")
@@ -159,13 +160,13 @@ class DesktopWidgetPreviewTest {
     fun actualWidgetPreviewFitsCompactBoundsAndHasNoRefreshOrLaunchActions() = runBlocking {
         for (night in listOf(false, true)) {
             val context = previewContext(night)
-            val remoteViews = GlanceRemoteViews().compose(context, DpSize(340.dp, 176.dp)) {
+            val remoteViews = GlanceRemoteViews().compose(context, DpSize(340.dp, 208.dp)) {
                 ScheduleWidgetPreviewContent()
             }.remoteViews
             instrumentation.runOnMainSync {
                 val host = RoundedPreviewHost(context)
                 host.addView(remoteViews.apply(context, host), FrameLayout.LayoutParams(-1, -1))
-                layout(host, 340, 176)
+                layout(host, 340, 208)
                 val texts = descendants(host).filterIsInstance<TextView>()
                 for (expected in listOf("还剩 2 节", "刷新", "高等数学", "大学英语", "博北A201", "博南B102")) {
                     val label = findLabel(texts, expected)
@@ -210,9 +211,9 @@ class DesktopWidgetPreviewTest {
 
     @Test
     fun largeFontPreviewsKeepAllLabelsInsideTheBoundedHeight() = runBlocking {
-        for (fontScale in listOf(1.5f, 2f)) {
+        for (fontScale in listOf(1f, 1.5f, 2f)) {
             val context = previewContext(night = false, fontScale = fontScale)
-            val height = (176f * fontScale.coerceIn(1f, 1.5f)).roundToInt()
+            val height = desktopSchedulePreviewHeight(fontScale).value.roundToInt()
             val remoteViews = GlanceRemoteViews().compose(context, DpSize(340.dp, height.dp)) {
                 ScheduleWidgetPreviewContent()
             }.remoteViews
@@ -268,6 +269,13 @@ class DesktopWidgetPreviewTest {
             val layout = text.layout ?: throw AssertionError("$description has no text layout for <${text.text}>")
             assertTrue("$description truncates <${text.text}>",
                 (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
+            assertTrue("$description clips lines in <${text.text}>",
+                layout.height <= text.height - text.compoundPaddingTop - text.compoundPaddingBottom)
+            var ancestor = text.parent as? ViewGroup
+            while (ancestor != null && ancestor !== host) {
+                if (ancestor.clipChildren) assertVisibleInside(ancestor, text, description)
+                ancestor = ancestor.parent as? ViewGroup
+            }
         }
     }
 

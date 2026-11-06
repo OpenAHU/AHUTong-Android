@@ -20,8 +20,8 @@ fun Modifier.hapticClickable(
 ): Modifier = composed {
     val feedback = rememberAppHapticFeedback()
     this.foundationClickable(enabled, onClickLabel, role) {
-        if (enabled) feedback.perform(AppHapticEvent.Click)
         onClick()
+        if (enabled) feedback.perform(AppHapticEvent.Click)
     }
 }
 
@@ -35,8 +35,8 @@ fun Modifier.hapticClickable(
 ): Modifier = composed {
     val feedback = rememberAppHapticFeedback()
     this.foundationClickable(interactionSource, indication, enabled, onClickLabel, role) {
-        if (enabled) feedback.perform(AppHapticEvent.Click)
         onClick()
+        if (enabled) feedback.perform(AppHapticEvent.Click)
     }
 }
 
@@ -60,10 +60,10 @@ fun Modifier.hapticCombinedClickable(
             action()
         } },
         onDoubleClick = onDoubleClick?.let { action -> {
-            if (enabled) feedback.perform(AppHapticEvent.Click)
             action()
+            if (enabled) feedback.perform(AppHapticEvent.Click)
         } },
-        onClick = { if (enabled) feedback.perform(AppHapticEvent.Click); onClick() }
+        onClick = { onClick(); if (enabled) feedback.perform(AppHapticEvent.Click) }
     )
 }
 
@@ -90,10 +90,10 @@ fun Modifier.hapticCombinedClickable(
             action()
         } },
         onDoubleClick = onDoubleClick?.let { action -> {
-            if (enabled) feedback.perform(AppHapticEvent.Click)
             action()
+            if (enabled) feedback.perform(AppHapticEvent.Click)
         } },
-        onClick = { if (enabled) feedback.perform(AppHapticEvent.Click); onClick() }
+        onClick = { onClick(); if (enabled) feedback.perform(AppHapticEvent.Click) }
     )
 }
 

@@ -60,6 +60,11 @@ internal class FeedbackCoordinator(
     @Synchronized fun showPreview() {
         ensureAccount()
         if (state.value.submitting) return
+        if (state.value.description.isBlank()) {
+            previewSubmission = null
+            mutableState.value = state.value.copy(preview = null, status = "请先填写问题描述")
+            return
+        }
         val selectedAttachments = attachments()
         val text = selectedAttachments.joinToString("\n\n") { "【${logLabel(it.filename)}】\n${it.text}" }
             .ifBlank { "未选择日志，将只提交问题描述。" }

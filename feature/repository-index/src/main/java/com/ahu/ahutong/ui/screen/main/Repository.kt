@@ -306,7 +306,7 @@ fun Repository(
 
                     if (!state.isLoading && state.items.isNotEmpty()) {
                         item {
-                            RepositoryFooter()
+                            RepositoryFooter(gitHubUrl = viewModel.getGitHubUrl(path))
                         }
                     }
                 }
@@ -802,7 +802,7 @@ internal fun formatSize(bytes: Long): String {
 }
 
 @Composable
-private fun RepositoryFooter() {
+private fun RepositoryFooter(gitHubUrl: String) {
     val isDark = isSystemInDarkTheme()
     val context = LocalContext.current
     val textColor = if (isDark) {
@@ -830,7 +830,7 @@ private fun RepositoryFooter() {
             modifier = Modifier.clickable {
                 val intent = android.content.Intent(
                     android.content.Intent.ACTION_VIEW,
-                    android.net.Uri.parse("https://github.com/Kaltsit-cell/AHU-CS-Repository")
+                    android.net.Uri.parse(gitHubUrl)
                 ).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
                 context.startActivity(intent)
             }

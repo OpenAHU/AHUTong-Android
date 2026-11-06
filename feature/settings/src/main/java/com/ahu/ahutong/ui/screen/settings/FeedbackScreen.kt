@@ -105,9 +105,15 @@ fun FeedbackScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         FeedbackLogChoices(state, onCategoryChange)
+        Text(
+            if (state.description.isBlank()) "请先填写问题描述，再预览并发送反馈。"
+            else "预览确认后，点击预览窗口底部的“发送反馈”即可提交。",
+            style = settingsSecondaryTextStyle(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         AppButton(onClick = onPreview,
             modifier = Modifier.fillMaxWidth().testTag("feedback_preview"),
-            enabled = !state.submitting) {
+            enabled = !state.submitting && state.description.isNotBlank()) {
             Text("预览反馈")
         }
     }

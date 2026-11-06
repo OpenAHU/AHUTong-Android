@@ -463,7 +463,7 @@ fun CameraScreen(
                                     bitmap = it.asImageBitmap(),
                                     contentDescription = null,
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    contentScale = ContentScale.Fit
                                 )
                             }
                             ScanOverlay(

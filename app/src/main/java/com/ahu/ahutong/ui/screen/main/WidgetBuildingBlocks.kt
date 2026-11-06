@@ -141,7 +141,7 @@ internal fun DesktopScheduleWidgetPreview(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val renderer = remember { androidx.glance.appwidget.GlanceRemoteViews() }
-    val previewHeight = (176f * configuration.fontScale.coerceIn(1f, 1.5f)).dp
+    val previewHeight = desktopSchedulePreviewHeight(configuration.fontScale)
     BoxWithConstraints(modifier.widthIn(max = 360.dp).fillMaxWidth().height(previewHeight)) {
         val size = androidx.compose.ui.unit.DpSize(maxWidth, previewHeight)
         val preview by produceState<Result<android.widget.RemoteViews>?>(null, context, size, configuration.uiMode) {
@@ -177,6 +177,9 @@ internal fun DesktopScheduleWidgetPreview(modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** Include both course detail rows and let accessibility font sizes grow without a height cap. */
+internal fun desktopSchedulePreviewHeight(fontScale: Float) = (208f * fontScale.coerceAtLeast(1f)).dp
 
 /**
  * 「全部小工具」页的分类网格卡：图标 + 名字横排矮宽卡（48dp 高，图标 20dp）。
