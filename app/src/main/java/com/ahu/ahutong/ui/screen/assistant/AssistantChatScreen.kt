@@ -99,9 +99,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
@@ -162,6 +164,7 @@ fun AssistantChatScreen(
     val running = AssistantChatState.running
     val displayItems = buildChatDisplay(items)
     val roundEnds = roundEndTurnKeys(displayItems)
+    val activeTurnKey = displayItems.lastOrNull { it is ChatDisplay.Turn }?.key
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
@@ -280,6 +283,7 @@ fun AssistantChatScreen(
                                         }
                                     },
                                     onOpenRoute = onOpenRoute,
+                                    showRouteLinks = display.key != activeTurnKey || (!running && !streaming),
                                     showActions = display.key in roundEnds && !streaming && !running,
                                     actionsText = actionsTextOf(display.items),
                                     regenerateEnabled = !running,
@@ -540,6 +544,7 @@ private fun AssistantTurnBubble(
     expandedRows: Set<String>,
     onToggleRow: (String) -> Unit,
     onOpenRoute: (String) -> Unit,
+    showRouteLinks: Boolean,
     showActions: Boolean,
     actionsText: String,
     regenerateEnabled: Boolean,
@@ -575,7 +580,7 @@ private fun AssistantTurnBubble(
             .mapNotNull { it.event.route }
             .distinct()
             .take(MAX_ROUTE_LINKS)
-        if (routes.isNotEmpty()) {
+        if (showRouteLinks && routes.isNotEmpty()) {
             ToolRouteLinks(routes = routes, onOpenRoute = onOpenRoute)
         }
         if (showActions) {
@@ -765,15 +770,39 @@ private fun ToolRouteLinks(routes: List<String>, onOpenRoute: (String) -> Unit) 
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         routes.forEach { route ->
-            Text(
-                routeLabel(route),
+            Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .clickable { onOpenRoute(route) }
+                    .drawBehind {
+                        val y = size.height - 1.dp.toPx()
+                        drawLine(
+                            color = colors.primary.copy(alpha = 0.55f),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(
+                                floatArrayOf(1.5.dp.toPx(), 2.dp.toPx()),
+                                0f,
+                            ),
+                        )
+                    }
                     .padding(vertical = 3.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.primary,
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    routeLabel(route),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.primary,
+                )
+                Spacer(Modifier.width(2.dp))
+                Icon(
+                    imageVector = Icons.Rounded.NorthEast,
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(13.dp),
+                )
+            }
         }
     }
 }
