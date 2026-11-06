@@ -164,7 +164,8 @@ object AppActionCatalog {
         "xuexiaotong" to AppActionId.VIEW_SCHOOL_CALENDAR,
         "widgets" to AppActionId.OPEN_TOOLS,
         // 聚合相机：新路由名，旧 "scan" 保留兼容
-        "camera" to AppActionId.OPEN_SCANNER
+        "camera" to AppActionId.OPEN_SCANNER,
+        "settings__privacy_general" to AppActionId.OPEN_PRIVACY_POLICY
     )
     private val commandRoutePrefixes: Map<AppActionId, Set<String>> = mapOf(
         AppActionId.OPEN_PAYMENT_QR to setOf("home"),
@@ -247,7 +248,7 @@ object AppActionCatalog {
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records",
-        "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__ai_privacy",
+        "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__privacy_general", "settings__ai_privacy",
         "settings__theme_lab", "settings__theme_color", "settings__ai", "scan", "camera", "billing", "billing_stats"
     )
 

@@ -97,6 +97,7 @@ import com.ahu.ahutong.ui.screen.settings.EarlyAccessScreen
 import com.ahu.ahutong.ui.screen.settings.EarlyAccessInvitationHost
 import com.ahu.ahutong.data.preview.EarlyAccessManager
 import com.ahu.ahutong.ui.screen.settings.Debug
+import com.ahu.ahutong.ui.screen.settings.PrivacyPolicyHubScreen
 import com.ahu.ahutong.ui.screen.settings.PrivacyPolicyScreen
 import com.ahu.ahutong.ui.screen.settings.License
 import com.ahu.ahutong.R
@@ -787,22 +788,23 @@ fun Main(
                 EarlyAccessScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("settings__privacy_policy") {
+                PrivacyPolicyHubScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenGeneral = { navController.navigate("settings__privacy_general") },
+                    onOpenAi = { navController.navigate("settings__ai_privacy") },
+                )
+            }
+            animatedComposable("settings__privacy_general") {
                 val res = LocalContext.current.resources
-                val generalPolicy by produceState<String?>(null) {
+                val policyMarkdown by produceState<String?>(null) {
                     value = withContext(Dispatchers.IO) {
                         res.openRawResource(R.raw.privacy_policy).bufferedReader().use { it.readText() }
                     }
                 }
-                val aiPolicy by produceState<String?>(null) {
-                    value = withContext(Dispatchers.IO) {
-                        res.openRawResource(R.raw.ai_privacy_policy).bufferedReader().use { it.readText() }
-                    }
-                }
-                if (generalPolicy != null && aiPolicy != null) {
+                policyMarkdown?.let {
                     PrivacyPolicyScreen(
-                        markdown = generalPolicy.orEmpty(),
-                        aiMarkdown = aiPolicy.orEmpty(),
-                        startWithHub = true,
+                        markdown = it,
+                        title = "安大通隐私政策",
                         onBack = { navController.popBackStack() },
                     )
                 }
