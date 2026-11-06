@@ -901,7 +901,7 @@ private fun AssistantActionRow(
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            "回答由AI生成，可能存在错误",
+            "AI生成答案，可能有误",
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Light,
