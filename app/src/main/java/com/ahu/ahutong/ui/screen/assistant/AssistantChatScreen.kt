@@ -920,6 +920,13 @@ private fun AssistantActionRow(
                     .background(colors.outlineVariant)
             )
             Spacer(Modifier.width(6.dp))
+            Icon(
+                painter = painterResource(R.drawable.ic_assistant_sparkle_mini),
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(10.dp),
+            )
+            Spacer(Modifier.width(2.dp))
             Text(
                 formatTokenCount(tokens),
                 style = MaterialTheme.typography.labelSmall,
