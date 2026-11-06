@@ -71,21 +71,120 @@ class GitSyncTest(unittest.TestCase):
     def remote_git(self, *args):
         return sync.git(self.root, "--git-dir", str(self.remote), *args)
 
-    def test_updates_both_branches_without_merging_features_and_is_idempotent(self):
+    def test_updates_both_branches_to_one_commit_and_is_idempotent(self):
         head = sync.git(self.repo, "rev-parse", "HEAD")
+        develop = self.remote_git("rev-parse", "develop")
         self.assertEqual(["master", "develop"], sync.sync_versions(self.repo, 304006, "3.4.3-beta3"))
+        self.assertEqual(self.remote_git("rev-parse", "master"), self.remote_git("rev-parse", "develop"))
         heads = {}
         for branch in sync.BRANCHES:
             text = self.remote_git("show", f"{branch}:{sync.GRADLE}")
             self.assertEqual(gradle(304006, "3.4.3-beta3").strip(), text)
-            self.assertEqual(f"{branch} feature", self.remote_git("show", f"{branch}:feature.md"))
-            self.assertEqual(sync.GRADLE, self.remote_git("diff-tree", "--no-commit-id", "--name-only", "-r", branch))
+            self.assertEqual("develop feature", self.remote_git("show", f"{branch}:feature.md"))
+            self.assertEqual(sync.GRADLE, self.remote_git("diff", "--name-only", develop, branch))
             heads[branch] = self.remote_git("rev-parse", branch)
+        self.assertEqual(heads["master"], heads["develop"])
         self.assertEqual([], sync.sync_versions(self.repo, 304006, "3.4.3-beta3"))
         self.assertEqual(heads, {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES})
         self.assertEqual(head, sync.git(self.repo, "rev-parse", "HEAD"))
         self.assertEqual(gradle(), self.gradle.read_text(encoding="utf-8"))
         self.assertEqual("", sync.git(self.repo, "status", "--porcelain"))
+
+    def test_equal_trees_with_different_commits_create_one_two_parent_sync(self):
+        (self.repo / "feature.md").write_text("develop feature\n", encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "feat: equivalent master change")
+        sync.git(self.repo, "push", "origin", "master")
+        parents = [self.remote_git("rev-parse", branch) for branch in sync.BRANCHES]
+        self.assertNotEqual(*parents)
+        self.assertEqual(self.remote_git("rev-parse", "master^{tree}"),
+                         self.remote_git("rev-parse", "develop^{tree}"))
+        sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(self.remote_git("rev-parse", "master"), self.remote_git("rev-parse", "develop"))
+        self.assertEqual(parents, self.remote_git("show", "-s", "--format=%P", "master").split())
+        self.assertEqual(sync.GRADLE, self.remote_git("diff", "--name-only", parents[0], "master"))
+
+    def test_divergent_nonconflicting_features_are_really_merged(self):
+        (self.repo / "master-only.md").write_text("keep master\n", encoding="utf-8")
+        sync.git(self.repo, "add", ".")
+        sync.git(self.repo, "commit", "-m", "feat: master only")
+        sync.git(self.repo, "push", "origin", "master")
+        parents = [self.remote_git("rev-parse", branch) for branch in sync.BRANCHES]
+        sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(self.remote_git("rev-parse", "master"), self.remote_git("rev-parse", "develop"))
+        self.assertEqual(parents, self.remote_git("show", "-s", "--format=%P", "master").split())
+        self.assertEqual("keep master", self.remote_git("show", "master:master-only.md"))
+        self.assertEqual("develop feature", self.remote_git("show", "master:feature.md"))
+
+    def test_conflicting_branch_content_fails_without_moving_either_ref(self):
+        (self.repo / "feature.md").write_text("incompatible master feature\n", encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "feat: conflicting master change")
+        sync.git(self.repo, "push", "origin", "master")
+        heads = {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES}
+        with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+            sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(heads, {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES})
+        self.assertEqual(1, len(sync.git(self.repo, "worktree", "list", "--porcelain").split("worktree ")) - 1)
+
+    def test_newer_prepared_version_is_preserved_when_versions_conflict(self):
+        self.gradle.write_text(gradle(305000, "3.5.0-debug1"), encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "chore: prepare newer version")
+        sync.git(self.repo, "push", "origin", "master")
+        sync.git(self.repo, "switch", "develop")
+        self.gradle.write_text(gradle(304007, "3.4.4-beta1"), encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "chore: another prepared version")
+        sync.git(self.repo, "push", "origin", "develop")
+        sync.git(self.repo, "switch", "master")
+        parents = [self.remote_git("rev-parse", branch) for branch in sync.BRANCHES]
+        sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(self.remote_git("rev-parse", "master"), self.remote_git("rev-parse", "develop"))
+        self.assertEqual(gradle(305000, "3.5.0-debug1").strip(), self.remote_git("show", f"master:{sync.GRADLE}"))
+        self.assertEqual(parents, self.remote_git("show", "-s", "--format=%P", "master").split())
+        self.assertEqual("develop feature", self.remote_git("show", "master:feature.md"))
+
+    def test_same_newer_code_with_different_names_is_rejected(self):
+        for branch, name in (("master", "3.5.0-beta1"), ("develop", "3.5.0-beta2")):
+            sync.git(self.repo, "switch", branch)
+            self.gradle.write_text(gradle(305000, name), encoding="utf-8")
+            sync.git(self.repo, "commit", "-am", "chore: prepare conflicting identity")
+            sync.git(self.repo, "push", "origin", branch)
+        heads = {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES}
+        with self.assertRaisesRegex(ValueError, "different versionName"):
+            sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(heads, {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES})
+
+    def test_conflicting_nonversion_gradle_content_is_never_overwritten(self):
+        for branch, sdk in (("master", 35), ("develop", 36)):
+            sync.git(self.repo, "switch", branch)
+            self.gradle.write_text(gradle() + f"compileSdk = {sdk}\n", encoding="utf-8")
+            sync.git(self.repo, "commit", "-am", "build: conflicting Gradle content")
+            sync.git(self.repo, "push", "origin", branch)
+        heads = {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES}
+        with self.assertRaisesRegex(ValueError, "Non-version Gradle contents conflict"):
+            sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(heads, {branch: self.remote_git("rev-parse", branch) for branch in sync.BRANCHES})
+
+    def test_nonconflicting_gradle_edits_survive_version_conflict_resolution(self):
+        self.gradle.write_text("// master Gradle content\n" + gradle(304007, "3.4.4-beta1"), encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "build: master Gradle edit")
+        sync.git(self.repo, "push", "origin", "master")
+        sync.git(self.repo, "switch", "develop")
+        self.gradle.write_text(gradle(304008, "3.4.4-beta2") + "// develop Gradle content\n", encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "build: develop Gradle edit")
+        sync.git(self.repo, "push", "origin", "develop")
+        sync.sync_versions(self.repo, 304006, "3.4.3-beta3")
+        self.assertEqual(self.remote_git("rev-parse", "master"), self.remote_git("rev-parse", "develop"))
+        expected = "// master Gradle content\n" + gradle(304008, "3.4.4-beta2") + "// develop Gradle content"
+        self.assertEqual(expected, self.remote_git("show", f"master:{sync.GRADLE}"))
+
+    def test_already_newer_descendant_is_fast_forwarded_without_a_new_commit(self):
+        sync.git(self.repo, "switch", "develop")
+        self.gradle.write_text(gradle(305000, "3.5.0"), encoding="utf-8")
+        sync.git(self.repo, "commit", "-am", "chore: newer published version")
+        sync.git(self.repo, "push", "origin", "develop")
+        descendant = self.remote_git("rev-parse", "develop")
+        self.assertEqual(["master"], sync.sync_versions(self.repo, 304006, "3.4.3-beta3"))
+        self.assertEqual(descendant, self.remote_git("rev-parse", "master"))
+        self.assertEqual(descendant, self.remote_git("rev-parse", "develop"))
 
     def test_concurrent_push_is_preserved_and_atomic_retry_succeeds(self):
         original_git = sync.git
@@ -115,6 +214,7 @@ class GitSyncTest(unittest.TestCase):
             self.assertEqual(["master", "develop"], sync.sync_versions(self.repo, 305000, "3.5.0"))
         self.assertEqual(2, pushes)
         self.assertEqual("keep this commit", self.remote_git("show", "develop:concurrent.md"))
+        self.assertEqual(self.remote_git("rev-parse", "master"), self.remote_git("rev-parse", "develop"))
         for branch in sync.BRANCHES:
             self.assertIn('versionCode = 305000', self.remote_git("show", f"{branch}:{sync.GRADLE}"))
 

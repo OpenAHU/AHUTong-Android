@@ -83,6 +83,7 @@ class FeedbackCoordinatorTest {
         assertNotNull(coordinator.exportText())
         coordinator.finishExport(true, generation)
         coordinator.setCategory(DiagnosticCategory.NETWORK, true)
+        coordinator.setDescription("检查网络日志")
         coordinator.showPreview()
         assertTrue(coordinator.state.value.preview!!.contains("synthetic-cookie"))
         assertFalse(coordinator.state.value.preview!!.contains("synthetic-password"))
@@ -106,10 +107,31 @@ class FeedbackCoordinatorTest {
 
     @Test fun emptyMessageIsRejectedButLogExportNeedsNoMessage() {
         val coordinator = coordinator()
+        coordinator.showPreview()
+        assertNull(coordinator.state.value.preview)
+        assertEquals("请先填写问题描述", coordinator.state.value.status)
+        coordinator.setDescription(" \n\t ")
+        coordinator.showPreview()
+        assertNull(coordinator.state.value.preview)
         coordinator.submit()
         assertTrue(transport.feedbacks.isEmpty())
         assertNotNull(coordinator.exportText())
         assertNull(coordinator.exportText())
+    }
+
+    @Test fun blankPreviewDoesNotCollectLogsOrPrepareASubmission() {
+        var snapshots = 0
+        val coordinator = FeedbackCoordinator(transport, { snapshots++; "synthetic log" },
+            { "test environment" }, { generation })
+        coordinator.setDescription(" \n\t ")
+        coordinator.showPreview()
+        assertEquals(0, snapshots)
+        assertNull(coordinator.state.value.preview)
+        assertTrue(transport.feedbacks.isEmpty())
+        coordinator.setDescription("打开页面后没有加载内容")
+        coordinator.showPreview()
+        assertEquals(2, snapshots)
+        assertNotNull(coordinator.state.value.preview)
     }
 
     @Test fun sendingUsesThePreviewedSnapshotAndKeepsPreviewVisible() {

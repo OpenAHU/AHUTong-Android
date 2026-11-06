@@ -30,7 +30,7 @@ import com.ahu.ahutong.ui.screen.scan.QrAnalyzer
 import com.ahu.ahutong.ui.screen.scan.QrDetection
 import com.ahu.ahutong.ui.screen.scan.QrCameraSession
 import com.ahu.ahutong.ui.screen.scan.ScannerZoomState
-import com.ahu.ahutong.ui.screen.scan.freezeQrFrame
+import com.ahu.ahutong.ui.screen.scan.QrFrozenFrame
 import java.util.concurrent.Executors
 
 /**
@@ -160,14 +160,17 @@ internal fun CameraPreviewHost(
                     }
                 },
                 onFrame = { found, image ->
-                    val snapshot = runCatching { freezeQrFrame(image) }.getOrNull()
+                    val frame = QrFrozenFrame(image)
                     mainExecutor.execute {
-                        if (active && snapshot != null &&
-                            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-                        ) {
-                            session.close(controller.cameraInfo, controller.cameraControl)
-                            currentOnScanFrame(found, snapshot)
-                        } else snapshot?.recycle()
+                        try {
+                            if (active && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                                val (displayedTargets, snapshot) = frame.inPreview(previewView, found)
+                                session.close(controller.cameraInfo, controller.cameraControl)
+                                currentOnScanFrame(displayedTargets, snapshot)
+                            }
+                        } catch (_: Exception) {
+                            if (active) currentOnError()
+                        } finally { frame.bitmap.recycle() }
                     }
                 }
             )

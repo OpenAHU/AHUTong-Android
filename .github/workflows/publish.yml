@@ -273,7 +273,7 @@ jobs:
           fi
 
   sync-published-version:
-    name: 发布成功后提交版本号到 master 和 develop
+    name: 发布成功后以同一提交同步 master 和 develop
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -285,15 +285,43 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-          # Only this job retains the repository token for the two version commits.
+          # Only this job retains credentials for the shared version commit's atomic push.
           persist-credentials: true
 
-      - name: 仅更新两个版本字段，原子推送到两个分支
+      - name: 生成共同版本提交，原子推送到两个分支
         env:
           VERSION_CODE: ${{ needs.publish.outputs.version_code }}
           VERSION_NAME: ${{ needs.publish.outputs.version_name }}
         run: |
           python3 scripts/ci_sync_version.py --version-code "$VERSION_CODE" --version-name "$VERSION_NAME"
+
+  publish-github-release:
+    name: 发布 APK 和 SHA-256，并填写 GitHub Release 更新说明
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: 检出实际构建提交的发布脚本
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: 下载已经签名并校验的固定产物
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.publish.outputs.artifact_name }}
+          path: release-artifact
+
+      - name: 校验并发布 APK、校验值和 Release 更新说明
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILT_COMMIT: ${{ github.sha }}
+        run: |
+          python3 scripts/ci_github_release.py --payload-dir release-artifact \
+            --repo "$GITHUB_REPOSITORY" --commit "$BUILT_COMMIT"
 
   record-sentry-deployment:
     name: 服务器发布成功后完成 Sentry 版本与部署记录

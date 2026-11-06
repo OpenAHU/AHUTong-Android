@@ -79,6 +79,8 @@ import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.util.Locale
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.ui.haptics.AppHapticEvent
+import com.ahu.ahutong.ui.haptics.rememberAppHapticFeedback
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -92,6 +94,7 @@ fun CampusCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val feedback = rememberAppHapticFeedback()
     val preferencesManager = remember { PreferencesManager(context = context) }
     val paymentQrCommands = remember {
         EntryPointAccessors.fromApplication(
@@ -161,13 +164,17 @@ fun CampusCard(
             if (showQrcode) {
                 QRcodeView(
                     balance = balance,
-                    onBack = { isQrcode = false }
+                    onBack = {
+                        feedback.perform(AppHapticEvent.Collapse)
+                        isQrcode = false
+                    }
                 )
             } else {
                 CardView(
                     balance = balance,
                     transitionBalance = transitionBalance,
                     onClick = {
+                        feedback.perform(AppHapticEvent.Expand)
                         behaviorRuntime.recordActionIntentAsync(
                             AppActionId.OPEN_PAYMENT_QR,
                             ActionSource.ORGANIC
@@ -303,6 +310,7 @@ private fun formatCampusCardBalance(balance: Double): String {
 
 @Composable
 private fun QRcodeView(balance: Double, onBack: () -> Unit) {
+    val feedback = rememberAppHapticFeedback()
     val discoveryViewModel: DiscoveryViewModel = hiltViewModel()
     val qrcodeBitmap by discoveryViewModel.qrcode.collectAsState()
     val finished by discoveryViewModel.state.collectAsState()
@@ -414,6 +422,7 @@ private fun QRcodeView(balance: Double, onBack: () -> Unit) {
             // 右侧全屏
             IconButton(
                 onClick = {
+                    feedback.perform(AppHapticEvent.Expand)
                     showFullScreen = true
                 },
                 modifier = Modifier.align(Alignment.CenterEnd)
@@ -475,10 +484,16 @@ private fun QRcodeView(balance: Double, onBack: () -> Unit) {
                 },
                 properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
+                val fullScreenFeedback = rememberAppHapticFeedback()
+                androidx.activity.compose.BackHandler {
+                    fullScreenFeedback.perform(AppHapticEvent.Collapse)
+                    showFullScreen = false
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .clickable {
+                            fullScreenFeedback.perform(AppHapticEvent.Collapse)
                             showFullScreen = false
                         },
                     contentAlignment = Alignment.Center

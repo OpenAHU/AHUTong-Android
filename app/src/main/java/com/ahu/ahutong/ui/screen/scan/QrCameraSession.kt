@@ -49,8 +49,10 @@ internal class QrCameraSession(private val mainExecutor: Executor) {
                     preview.width.toFloat(), preview.height.toFloat())
                 runCatching {
                     val metering = preview.meteringPointFactory.createPoint(projected.x, projected.y)
-                    control.startFocusAndMetering(FocusMeteringAction.Builder(metering)
-                        .setAutoCancelDuration(2, TimeUnit.SECONDS).build())
+                    val action = FocusMeteringAction.Builder(metering)
+                        // Briefly meter a newly settled QR, then return to continuous AF.
+                        .setAutoCancelDuration(800, TimeUnit.MILLISECONDS).build()
+                    if (info.isFocusMeteringSupported(action)) control.startFocusAndMetering(action) else null
                 }.getOrNull()?.let {
                     ownsMetering = true
                     it.observeCompletion()

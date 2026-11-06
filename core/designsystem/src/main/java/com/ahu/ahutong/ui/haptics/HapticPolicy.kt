@@ -2,7 +2,17 @@ package com.ahu.ahutong.ui.haptics
 
 import kotlin.math.roundToInt
 
-enum class AppHapticEvent { Click, Selection, ToggleOn, ToggleOff, LongPress, Confirm, Reject }
+enum class AppHapticEvent { Click, Selection, ToggleOn, ToggleOff, Expand, Collapse, LongPress, Confirm, Reject }
+
+/** An inner business action can supply a more specific event before the generic click fallback. */
+internal inline fun performHapticAction(
+    event: AppHapticEvent,
+    feedback: (AppHapticEvent) -> Unit,
+    action: () -> Unit
+) {
+    action()
+    feedback(event)
+}
 
 /** Shared by all component themes and nested dialogs; duplicate callbacks produce one pulse. */
 internal class HapticRateLimiter {

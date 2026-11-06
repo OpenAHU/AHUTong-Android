@@ -46,6 +46,30 @@ class QrCameraAssistTest {
     }
 
     @Test
+    fun stationaryTargetDoesNotKeepRestartingAutoFocus() {
+        val assist = QrCameraAssist()
+        val target = small.copy(size = 0.5f)
+        assist.update(0, zoom, target)
+        assertEquals(target.center, assist.update(50_000_000L, zoom, target).meteringPoint)
+        repeat(100) { frame ->
+            assertNull(assist.update(100_000_000L + frame * 50_000_000L, zoom, target).meteringPoint)
+        }
+    }
+
+    @Test
+    fun targetMovementAndZoomChangesRefocusOnlyAfterSettling() {
+        val assist = QrCameraAssist()
+        val target = small.copy(size = 0.5f)
+        assist.update(0, zoom, target)
+        assist.update(50_000_000L, zoom, target)
+        val moved = target.copy(center = QrPoint(0.7f, 0.5f))
+        assertNull(assist.update(1_000_000_000L, zoom, moved).meteringPoint)
+        assertEquals(moved.center, assist.update(1_050_000_000L, zoom, moved).meteringPoint)
+        assertNull(assist.update(1_100_000_000L, zoom.copy(ratio = 2f), moved).meteringPoint)
+        assertEquals(moved.center, assist.update(2_000_000_000L, zoom.copy(ratio = 2f), moved).meteringPoint)
+    }
+
+    @Test
     fun movingOrInvalidCandidatesNeverDriveTheZoomMotor() {
         val assist = QrCameraAssist()
         for (index in 0..10) {
@@ -118,13 +142,11 @@ class QrCameraAssistTest {
     }
 
     @Test
-    fun absentFinderPatternsRetryCentreMeteringWithoutChangingZoom() {
+    fun absentFinderPatternsLeaveContinuousFocusRunningWithoutSingleShotRetries() {
         val assist = QrCameraAssist()
-        assertEquals(QrCameraAdjustment(meteringPoint = QrPoint(0.5f, 0.5f)),
-            assist.update(0, zoom, null))
+        assertEquals(QrCameraAdjustment(), assist.update(0, zoom, null))
         assertEquals(QrCameraAdjustment(), assist.update(1_000_000_000L, zoom, null))
-        assertEquals(QrCameraAdjustment(meteringPoint = QrPoint(0.5f, 0.5f)),
-            assist.update(1_500_000_000L, zoom, null))
+        assertEquals(QrCameraAdjustment(), assist.update(1_500_000_000L, zoom, null))
         assist.onManualInteraction(2_000_000_000L, 1f)
         assertEquals(QrCameraAdjustment(), assist.update(3_000_000_000L, zoom, null))
     }

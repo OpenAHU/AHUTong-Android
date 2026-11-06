@@ -20,7 +20,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.ahu.ahutong.data.weather.WeatherApi
+import com.ahu.ahutong.data.weather.WeatherCache
 import com.ahu.ahutong.data.weather.WeatherResponse
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -35,6 +39,8 @@ import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -53,20 +59,30 @@ fun HomeWeatherWidget(
     if (!config.showOnHome) return
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    var weather by remember { mutableStateOf<WeatherResponse?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val cache = remember { WeatherCache.home }
+    var weather by remember { mutableStateOf(cache.peek()) }
     var hasError by remember { mutableStateOf(false) }
 
-    LaunchedEffect(context) {
-        hasError = false
-        runCatching {
-            withContext(Dispatchers.IO) {
-                val city = getCityFromLocation(context)
-                WeatherApi.API.getWeather(city = city)
+    LaunchedEffect(context, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (isActive) {
+                weather = cache.peek()
+                hasError = false
+                try {
+                    weather = cache.getOrRefresh {
+                        withContext(Dispatchers.IO) {
+                            val city = getCityFromLocation(context)
+                            WeatherApi.API.getWeather(city = city)
+                        }
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    hasError = weather == null
+                }
+                delay(WeatherCache.FRESH_MS)
             }
-        }.onSuccess {
-            weather = it
-        }.onFailure {
-            hasError = true
         }
     }
 

@@ -3,14 +3,20 @@ package com.ahu.ahutong.ui
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.ahu.ahutong.MainActivity
+import androidx.activity.ComponentActivity
 import com.ahu.ahutong.core.common.diagnostics.DiagnosticCategory
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
@@ -33,11 +39,55 @@ import org.junit.runner.RunWith
 class FeedbackScreenWindowTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
 
+    @Test(timeout = 120_000)
+    fun previewRequiresNonBlankDescriptionAcrossThemes() {
+        launchIsolatedTestActivity().use { scenario ->
+            AppUiTheme.entries.forEach { theme ->
+                val previews = AtomicInteger()
+                val draft = mutableStateOf(FeedbackUiState())
+                val themeMarker = "合成反馈主题 ${theme.name}"
+                scenario.onActivity { activity ->
+                    activity.setContent {
+                        AHUTheme(AhuThemeConfig(
+                            appUiTheme = theme,
+                            themeColorHex = null,
+                            themeMode = AppThemeMode.FOLLOW_SYSTEM
+                        )) {
+                            key(theme) {
+                                Box(Modifier.fillMaxSize().semantics { contentDescription = themeMarker }) {
+                                    FeedbackScreen(
+                                        state = draft.value,
+                                        onDescriptionChange = { draft.value = draft.value.copy(description = it) },
+                                        onCategoryChange = { _, _ -> },
+                                        onPreview = { previews.incrementAndGet() },
+                                        onDismissPreview = {}, onSubmit = {}, onBack = {}
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                awaitNode(themeMarker).recycleNode()
+                awaitClickTargetEnabled("预览反馈", false, "Empty draft must disable preview ($theme)")
+                assertDisabledClickDoesNotPreview(previews, theme)
+                scenario.onActivity { draft.value = FeedbackUiState(description = " \n\t ") }
+                instrumentation.waitForIdleSync()
+                awaitClickTargetEnabled("预览反馈", false, "Whitespace must disable preview ($theme)")
+                assertDisabledClickDoesNotPreview(previews, theme)
+                scenario.onActivity { draft.value = FeedbackUiState(description = "合成反馈描述") }
+                instrumentation.waitForIdleSync()
+                awaitClickTargetEnabled("预览反馈", true, "Nonblank draft must enable preview ($theme)")
+                click("预览反馈")
+                assertEquals("Nonblank draft enables preview ($theme)", 1, previews.get())
+            }
+        }
+    }
+
     @Test(timeout = 60_000)
     fun encryptedExportAndShareUseSelectedLogsWithoutRequiringDescription() {
         val exported = AtomicReference<Set<DiagnosticCategory>>()
         val shared = AtomicReference<Set<DiagnosticCategory>>()
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+        launchIsolatedTestActivity().use { scenario ->
             scenario.onActivity { activity ->
                 activity.setContent {
                     AHUTheme(AhuThemeConfig(
@@ -72,7 +122,7 @@ class FeedbackScreenWindowTest {
 
     @Test(timeout = 120_000)
     fun sensitiveLogsRequireSelectionAndPreviewAndSubmissionWorkAcrossThemes() {
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+        launchIsolatedTestActivity().use { scenario ->
             AppUiTheme.entries.forEach { theme ->
                 val previews = AtomicInteger()
                 val submissions = AtomicInteger()
@@ -187,25 +237,44 @@ class FeedbackScreenWindowTest {
     }
 
     private fun click(label: String) {
-        val node = awaitNode(label)
-        try {
-            var candidate: AccessibilityNodeInfo? = findAncestor(node) { it.isCheckable && it.isClickable }
-                ?: AccessibilityNodeInfo.obtain(node)
+        val deadline = SystemClock.uptimeMillis() + 8_000
+        do {
+            val node = awaitNode(label)
+            var handled = false
             try {
-                while (candidate != null && !candidate.isClickable) {
-                    val parent = candidate.parent
-                    candidate.recycleNode()
-                    candidate = parent
-                }
-                assertTrue("'$label' did not handle click",
-                    candidate?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true)
-            } finally {
-                candidate?.recycleNode()
+                val target = findAncestor(node) { it.isCheckable && it.isClickable }
+                    ?: findAncestor(node) { it.isClickable }
+                try {
+                    if (target?.isEnabled == true && target.isVisibleToUser) {
+                        handled = target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    }
+                } finally { target?.recycleNode() }
+            } finally { node.recycleNode() }
+            if (handled) {
+                instrumentation.waitForIdleSync()
+                return
             }
-        } finally {
-            node.recycleNode()
-        }
+            SystemClock.sleep(80)
+        } while (SystemClock.uptimeMillis() < deadline)
+        throw AssertionError("'$label' did not handle a click before the deadline")
+    }
+
+    private fun assertDisabledClickDoesNotPreview(previews: AtomicInteger, theme: AppUiTheme) {
+        val node = awaitNode("预览反馈")
+        try {
+            val target = findAncestor(node) {
+                it.className?.toString() == "android.widget.Button" || it.isClickable
+            }
+            try {
+                assertTrue("Preview must expose a button ($theme)", target != null)
+                assertFalse("Preview button must be disabled ($theme)", target!!.isEnabled)
+                // Accessibility must not bypass the same enabled guard used by touch input.
+                target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } finally { target?.recycleNode() }
+        } finally { node.recycleNode() }
         instrumentation.waitForIdleSync()
+        SystemClock.sleep(100)
+        assertEquals("Disabled preview must never call onPreview ($theme)", 0, previews.get())
     }
 
     private fun isEnabledClickTarget(node: AccessibilityNodeInfo): Boolean {
@@ -220,6 +289,18 @@ class FeedbackScreenWindowTest {
         } finally {
             candidate?.recycleNode()
         }
+    }
+
+    private fun awaitClickTargetEnabled(label: String, expected: Boolean, message: String) {
+        val deadline = SystemClock.uptimeMillis() + 3_000
+        var actual: Boolean
+        do {
+            val node = awaitNode(label)
+            try { actual = isEnabledClickTarget(node) } finally { node.recycleNode() }
+            if (actual == expected) return
+            SystemClock.sleep(80)
+        } while (SystemClock.uptimeMillis() < deadline)
+        assertEquals(message, expected, actual)
     }
 
     private fun awaitNode(label: String): AccessibilityNodeInfo {

@@ -1,17 +1,11 @@
 package com.ahu.ahutong.ui.haptics
 
 import android.content.Context
-import android.media.AudioAttributes
 import android.os.Build
 import android.os.SystemClock
-import android.os.VibrationAttributes
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.View
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -64,9 +58,16 @@ fun rememberAppHapticFeedback(): AppHapticFeedback {
         AppHapticFeedback { event ->
             if (!enabled.value) return@AppHapticFeedback
             if (controller != null) controller.perform(event, view)
-            else fallback.performHapticFeedback(if (event == AppHapticEvent.LongPress) {
-                HapticFeedbackType.LongPress
-            } else HapticFeedbackType.TextHandleMove)
+            else if (event != AppHapticEvent.Collapse) {
+                fallback.performHapticFeedback(when (event) {
+                    AppHapticEvent.LongPress -> HapticFeedbackType.LongPress
+                    AppHapticEvent.Confirm -> HapticFeedbackType.Confirm
+                    AppHapticEvent.Reject -> HapticFeedbackType.Reject
+                    AppHapticEvent.ToggleOn -> HapticFeedbackType.ToggleOn
+                    AppHapticEvent.ToggleOff -> HapticFeedbackType.ToggleOff
+                    else -> HapticFeedbackType.TextHandleMove
+                })
+            }
         }
     }
 }
@@ -77,7 +78,7 @@ fun rememberHapticAction(
     action: () -> Unit
 ): () -> Unit {
     val feedback = rememberAppHapticFeedback()
-    return { feedback.perform(event); action() }
+    return { performHapticAction(event, feedback::perform, action) }
 }
 
 private fun HapticFeedbackType.toAppEvent(): AppHapticEvent = when (this) {
@@ -92,18 +93,9 @@ private fun HapticFeedbackType.toAppEvent(): AppHapticEvent = when (this) {
     else -> AppHapticEvent.Click
 }
 
-/** Uses public, manufacturer-calibrated primitives; no assumptions about motor type or frequency. */
+/** Uses public, manufacturer-calibrated feedback events without assuming a motor type or frequency. */
 private class AndroidHapticController(private val context: Context) {
     private val rateLimiter = HapticRateLimiter()
-    private val vibrator: Vibrator? = runCatching {
-        if (Build.VERSION.SDK_INT >= 31) context.getSystemService(VibratorManager::class.java)?.defaultVibrator
-        else context.getSystemService(Vibrator::class.java)
-    }.getOrNull()
-    // Android 11's primitive support query is unreliable; advanced effects require Android 12+.
-    private val supportsPrimitives = Build.VERSION.SDK_INT >= 31 && runCatching {
-        vibrator?.let { it.hasVibrator() && it.areAllPrimitivesSupported(
-            VibrationEffect.Composition.PRIMITIVE_TICK, VibrationEffect.Composition.PRIMITIVE_CLICK) } == true
-    }.getOrDefault(false)
 
     fun perform(event: AppHapticEvent, view: View) {
         if (!view.isAttachedToWindow || !view.hasWindowFocus() || !view.isShown || !view.isHapticFeedbackEnabled) return
@@ -111,29 +103,10 @@ private class AndroidHapticController(private val context: Context) {
             Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 0) != 0
         }.getOrDefault(false)
         if (!rateLimiter.accept(SystemClock.elapsedRealtimeNanos(), enabled)) return
-        val primitive = when (event) {
-            AppHapticEvent.Selection, AppHapticEvent.ToggleOff -> VibrationEffect.Composition.PRIMITIVE_TICK
-            AppHapticEvent.Click, AppHapticEvent.ToggleOn -> VibrationEffect.Composition.PRIMITIVE_CLICK
-            else -> null
-        }
-        if (supportsPrimitives && primitive != null && Build.VERSION.SDK_INT >= 31) {
-            val scale = if (event == AppHapticEvent.ToggleOn || event == AppHapticEvent.ToggleOff) 0.7f else 0.5f
-            if (runCatching { playPrimitive(primitive, scale) }.isSuccess) return
-        }
-        // Semantic constants include platform fallbacks and preserve the device's long-press/result feel.
+        // A quiet close still consumes this interaction so an outer button cannot add a click.
+        if (event == AppHapticEvent.Collapse) return
+        // Keep OEM-calibrated on/off, selection and result effects instead of replacing them with a click.
         runCatching { view.performHapticFeedback(event.platformConstant()) }
-    }
-
-    @RequiresApi(31)
-    private fun playPrimitive(primitive: Int, scale: Float) {
-        val effect = VibrationEffect.startComposition().addPrimitive(primitive, scale).compose()
-        if (Build.VERSION.SDK_INT >= 33) {
-            vibrator?.vibrate(effect, VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_TOUCH).build())
-        } else {
-            vibrator?.vibrate(effect, AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
-        }
     }
 }
 
@@ -145,6 +118,9 @@ private fun AppHapticEvent.platformConstant(): Int = when (this) {
         else HapticFeedbackConstants.CONTEXT_CLICK
     AppHapticEvent.ToggleOff -> if (Build.VERSION.SDK_INT >= 34) HapticFeedbackConstants.TOGGLE_OFF
         else HapticFeedbackConstants.CLOCK_TICK
+    AppHapticEvent.Expand -> if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.GESTURE_START
+        else HapticFeedbackConstants.VIRTUAL_KEY
+    AppHapticEvent.Collapse -> HapticFeedbackConstants.CONTEXT_CLICK // Consumed silently before dispatch.
     AppHapticEvent.LongPress -> HapticFeedbackConstants.LONG_PRESS
     AppHapticEvent.Confirm -> if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM
         else HapticFeedbackConstants.CONTEXT_CLICK

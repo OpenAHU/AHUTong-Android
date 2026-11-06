@@ -149,6 +149,7 @@ import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
+import com.ahu.ahutong.feedback.feedbackDestinations
 
 private val primaryDestinationRoutes = listOf("home", "schedule", "xuexiaotong", "settings")
 
@@ -784,6 +785,7 @@ fun Main(
             animatedComposable("settings__early_access") {
                 EarlyAccessScreen(onBack = { navController.popBackStack() })
             }
+            feedbackDestinations(navController, onExit = { navController.popBackStack() })
             animatedComposable("settings__privacy_policy") {
                 val res = LocalContext.current.resources
                 val policyMarkdown by produceState<String?>(null) {
@@ -943,6 +945,7 @@ fun Main(
 
         val productUiBlocked = !canUseBusinessPages || effectiveRoute == "login" || effectiveRoute == "setup" ||
             effectiveRoute == "splash" || effectiveRoute == "scan" || effectiveRoute == "camera" || effectiveRoute?.contains("deposit") == true ||
+            effectiveRoute?.startsWith("settings__feedback") == true ||
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||
             suggestionOverlayBlocked || imeVisible

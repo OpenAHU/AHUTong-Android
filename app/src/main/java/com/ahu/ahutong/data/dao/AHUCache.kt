@@ -985,6 +985,12 @@ object AHUCache {
 
     // === 天气 adcode 缓存（用于精准到区级） ===
 
+    fun saveHomeWeatherSnapshot(snapshot: String) {
+        initPutString("home_weather_snapshot_v1", snapshot)
+    }
+
+    fun getHomeWeatherSnapshot(): String? = initGetString("home_weather_snapshot_v1")
+
     fun saveWeatherAdcode(adcode: String) {
         initPutString("weather_adcode", adcode)
     }

@@ -19,6 +19,8 @@ internal class QrCameraAssist {
     private var lastSeen: Long? = null
     private var lastZoom: Long? = null
     private var lastMetering: Long? = null
+    private var meteredTarget: QrPotentialTarget? = null
+    private var meteredZoom: Float? = null
     private var manualUntil = Long.MIN_VALUE
     private var baseline: Float? = null
     private var requested: Float? = null
@@ -33,6 +35,8 @@ internal class QrCameraAssist {
         requested = null
         requestOrigin = null
         lastSeen = null
+        meteredTarget = null
+        meteredZoom = null
     }
 
     /** Restore only zoom owned by this session, including a request CameraX has not applied yet. */
@@ -77,11 +81,12 @@ internal class QrCameraAssist {
         if (target == null) {
             previous = null
             stableFrames = 0
-            // Defocus can hide even the finder patterns. Periodically re-meter the aim area.
-            val metering = if (elapsed(lastMetering, nowNanos, 1_500_000_000L)) {
-                lastMetering = nowNanos
-                QrPoint(0.5f, 0.5f)
-            } else null
+            // Leave an empty viewfinder to CameraX's continuous AF. Repeated single-shot AF
+            // interrupts it and visibly hunts even when the camera and subject are stationary.
+            if (lastSeen?.let { nowNanos - it >= 1_500_000_000L } == true) {
+                meteredTarget = null
+                meteredZoom = null
+            }
             val start = baseline
             val autoRatio = requested
             if (start != null && autoRatio != null &&
@@ -93,9 +98,9 @@ internal class QrCameraAssist {
                 requestOrigin = zoom.ratio
                 requested = restored
                 lastZoom = nowNanos
-                return QrCameraAdjustment(zoomRatio = restored, meteringPoint = metering)
+                return QrCameraAdjustment(zoomRatio = restored)
             }
-            return QrCameraAdjustment(meteringPoint = metering)
+            return QrCameraAdjustment()
         }
 
         lastSeen = nowNanos
@@ -107,8 +112,15 @@ internal class QrCameraAssist {
         previous = target
         if (stableFrames < 2) return QrCameraAdjustment()
 
-        val metering = if (elapsed(lastMetering, nowNanos, 1_200_000_000L)) {
+        val lastTarget = meteredTarget
+        val changed = lastTarget == null ||
+            hypot(lastTarget.center.x - target.center.x, lastTarget.center.y - target.center.y) >= 0.12f ||
+            target.size / lastTarget.size !in 0.65f..1.55f ||
+            meteredZoom?.let { abs(it - zoom.ratio) >= 0.1f } == true
+        val metering = if (changed && elapsed(lastMetering, nowNanos, 800_000_000L)) {
             lastMetering = nowNanos
+            meteredTarget = target
+            meteredZoom = zoom.ratio
             target.center
         } else null
         val maxAutoRatio = minOf(4f, zoom.maxRatio)

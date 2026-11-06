@@ -661,13 +661,18 @@ private fun ScannerCameraPreview(
                     }
                 },
                 onFrame = { found, image ->
-                    val snapshot = freezeQrFrame(image)
+                    val frame = QrFrozenFrame(image)
                     mainExecutor.execute {
-                        if (!disposed && cameraBindingId == bindingId &&
-                            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                            session.close(camera?.cameraInfo, camera?.cameraControl)?.let { currentOnZoomRatioChange(it) }
-                            currentOnFrozenFrame(found, snapshot)
-                        } else snapshot.recycle()
+                        try {
+                            if (!disposed && cameraBindingId == bindingId &&
+                                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                                val (displayedTargets, snapshot) = frame.inPreview(previewView, found)
+                                session.close(camera?.cameraInfo, camera?.cameraControl)?.let { currentOnZoomRatioChange(it) }
+                                currentOnFrozenFrame(displayedTargets, snapshot)
+                            }
+                        } catch (_: Exception) {
+                            if (!disposed && cameraBindingId == bindingId) currentOnError()
+                        } finally { frame.bitmap.recycle() }
                     }
                 }
             )
