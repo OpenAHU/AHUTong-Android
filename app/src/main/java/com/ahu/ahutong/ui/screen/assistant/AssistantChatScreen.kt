@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -16,6 +17,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -41,7 +44,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
@@ -49,9 +54,13 @@ import androidx.compose.material.icons.rounded.Assignment
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.FactCheck
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.NorthEast
@@ -90,10 +99,10 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -145,7 +154,8 @@ fun AssistantChatScreen(
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
     var stickToBottom by remember { mutableStateOf(true) }
-    var expandedTools by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var expandedGroups by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var expandedRows by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     val items = AssistantChatState.items
     val status = AssistantChatState.status
@@ -253,12 +263,20 @@ fun AssistantChatScreen(
                                         ?.streaming == true
                                 AssistantTurnBubble(
                                     items = display.items,
-                                    expandedTools = expandedTools,
-                                    onToggleTool = { id ->
-                                        expandedTools = if (id in expandedTools) {
-                                            expandedTools - id
+                                    expandedGroups = expandedGroups,
+                                    onToggleGroup = { id ->
+                                        expandedGroups = if (id in expandedGroups) {
+                                            expandedGroups - id
                                         } else {
-                                            expandedTools + id
+                                            expandedGroups + id
+                                        }
+                                    },
+                                    expandedRows = expandedRows,
+                                    onToggleRow = { id ->
+                                        expandedRows = if (id in expandedRows) {
+                                            expandedRows - id
+                                        } else {
+                                            expandedRows + id
                                         }
                                     },
                                     onOpenRoute = onOpenRoute,
@@ -479,54 +497,86 @@ private fun UserBubble(text: String) {
     }
 }
 
+private data class ToolSegment(
+    val assistant: AssistantChatItem.Assistant?,
+    val tools: List<AssistantChatItem.Tool>,
+) {
+    val key: String get() = assistant?.id ?: tools.firstOrNull()?.id.orEmpty()
+}
+
+/** 按“每段 AI 文本回复”切分工具调用；工具跟随它前面最近的那段文字。 */
+private fun toolSegments(items: List<AssistantChatItem>): List<ToolSegment> {
+    val result = mutableListOf<ToolSegment>()
+    var assistant: AssistantChatItem.Assistant? = null
+    val tools = mutableListOf<AssistantChatItem.Tool>()
+
+    fun flush() {
+        if (assistant != null || tools.isNotEmpty()) {
+            result += ToolSegment(assistant, tools.toList())
+            assistant = null
+            tools.clear()
+        }
+    }
+
+    items.forEach { item ->
+        when (item) {
+            is AssistantChatItem.Assistant -> {
+                flush()
+                assistant = item
+            }
+            is AssistantChatItem.Tool -> tools += item
+            else -> Unit
+        }
+    }
+    flush()
+    return result
+}
+
 @Composable
 private fun AssistantTurnBubble(
     items: List<AssistantChatItem>,
-    expandedTools: Set<String>,
-    onToggleTool: (String) -> Unit,
+    expandedGroups: Set<String>,
+    onToggleGroup: (String) -> Unit,
+    expandedRows: Set<String>,
+    onToggleRow: (String) -> Unit,
     onOpenRoute: (String) -> Unit,
     showActions: Boolean,
     actionsText: String,
     regenerateEnabled: Boolean,
     onRegenerate: () -> Unit,
 ) {
-    val colors = MaterialTheme.colorScheme
+    val segments = toolSegments(items)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        var hasContent = false
-        items.forEach { item ->
-            when (item) {
-                is AssistantChatItem.Assistant -> {
-                    if (item.text.isNotBlank()) {
-                        if (hasContent) {
-                            HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-                        }
-                        AssistantMarkdown(
-                            text = item.text,
-                            streaming = item.streaming,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        hasContent = true
-                    }
-                }
-                is AssistantChatItem.Tool -> {
-                    if (hasContent) {
-                        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-                    }
-                    ToolCard(
-                        item = item,
-                        expanded = item.id in expandedTools,
-                        onToggle = { onToggleTool(item.id) },
-                        onOpenRoute = onOpenRoute,
-                    )
-                    hasContent = true
-                }
-                else -> Unit
+        segments.forEach { segment ->
+            segment.assistant?.text?.takeIf { it.isNotBlank() }?.let { text ->
+                AssistantMarkdown(
+                    text = text,
+                    streaming = segment.assistant.streaming,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
+            if (segment.tools.isNotEmpty()) {
+                ToolCallGroup(
+                    tools = segment.tools,
+                    expanded = segment.key in expandedGroups,
+                    onToggle = { onToggleGroup(segment.key) },
+                    expandedRows = expandedRows,
+                    onToggleRow = onToggleRow,
+                )
+            }
+        }
+        val routes = items
+            .filterIsInstance<AssistantChatItem.Tool>()
+            .mapNotNull { it.event.route }
+            .distinct()
+            .take(MAX_ROUTE_LINKS)
+        if (routes.isNotEmpty()) {
+            ToolRouteLinks(routes = routes, onOpenRoute = onOpenRoute)
         }
         if (showActions) {
             AssistantActionRow(
@@ -536,6 +586,215 @@ private fun AssistantTurnBubble(
             )
         }
     }
+}
+
+@Composable
+private fun ToolCallGroup(
+    tools: List<AssistantChatItem.Tool>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    expandedRows: Set<String>,
+    onToggleRow: (String) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val completed = tools.count { it.event.ok }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "tool-group-chevron",
+    )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 2.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Code,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "$completed/${tools.size} 已完成",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowDown,
+                contentDescription = if (expanded) "收起工具调用" else "展开工具调用",
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(chevronRotation),
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                color = colors.surfaceContainerLow,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.45f)),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 260.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    tools.forEach { tool ->
+                        ToolCallRow(
+                            item = tool,
+                            expanded = tool.id in expandedRows,
+                            onToggle = { onToggleRow(tool.id) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolCallRow(
+    item: AssistantChatItem.Tool,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val event = item.event
+    val expandable = event.card != null || !event.summary.isNullOrBlank()
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "tool-row-chevron",
+    )
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .then(
+                    if (expandable) Modifier.clickable(onClick = onToggle) else Modifier
+                )
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = if (event.ok) Icons.Rounded.CheckCircle else Icons.Rounded.Error,
+                contentDescription = null,
+                tint = if (event.ok) Color(0xFF2E9E6B) else colors.error,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = event.title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (expandable) {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = if (expanded) "收起结果" else "查看结果",
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .rotate(chevronRotation),
+                )
+            }
+        }
+        AnimatedVisibility(visible = expanded && expandable) {
+            Column(
+                modifier = Modifier.padding(start = 26.dp, top = 4.dp, bottom = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (!event.ok) {
+                    Text(
+                        event.summary ?: "执行失败",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.error,
+                    )
+                } else if (event.card != null) {
+                    AssistantCardView(event.card)
+                } else {
+                    Text(
+                        event.summary.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurface,
+                    )
+                }
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+                Text(
+                    buildString {
+                        append("来源：")
+                        append(event.source)
+                        append(" · 更新于 ")
+                        append(formatTimestamp(event.fetchedAt))
+                        if (event.trust == AssistantTrust.UNTRUSTED) {
+                            append(" · 外部内容，仅作参考")
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (event.trust == AssistantTrust.UNTRUSTED) {
+                        colors.error
+                    } else {
+                        colors.onSurfaceVariant
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolRouteLinks(routes: List<String>, onOpenRoute: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 2.dp, top = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        routes.forEach { route ->
+            Text(
+                routeLabel(route),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onOpenRoute(route) }
+                    .padding(vertical = 3.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.primary,
+            )
+        }
+    }
+}
+
+private fun routeLabel(route: String): String = when (route) {
+    "schedule" -> "打开课表"
+    "grade" -> "打开成绩"
+    "exam" -> "打开考试"
+    "free_classroom" -> "打开空闲教室"
+    "attendance_records" -> "打开考勤"
+    "program_completion" -> "打开培养方案"
+    "evaluation" -> "打开评教"
+    "campus_notices" -> "打开通知"
+    "lost_found" -> "打开失物招领"
+    "canteen_ranking" -> "打开必吃榜"
+    "phone_book" -> "打开电话本"
+    "student_mail" -> "打开邮箱"
+    "billing" -> "打开账单"
+    "weather" -> "打开天气"
+    "school_calendar" -> "打开校历"
+    else -> "打开页面"
 }
 
 @Composable
@@ -621,141 +880,6 @@ private fun AssistantMiniAction(
     }
 }
 
-@Composable
-private fun ToolCard(
-    item: AssistantChatItem.Tool,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    onOpenRoute: (String) -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val event = item.event
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = colors.surfaceContainerLow,
-        shape = RoundedCornerShape(14.dp),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(onClick = onToggle),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (event.ok) colors.primaryContainer else colors.errorContainer
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val vector = toolIcon(event.toolId)
-                    if (vector != null) {
-                        Icon(
-                            imageVector = vector,
-                            contentDescription = null,
-                            tint = if (event.ok) colors.primary else colors.error,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    } else {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
-                            contentDescription = null,
-                            tint = if (event.ok) colors.primary else colors.error,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        event.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = colors.onSurface,
-                    )
-                    Text(
-                        when {
-                            !event.ok -> "执行失败"
-                            event.navigateOnly -> "需要确认"
-                            else -> "执行成功"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (event.ok) colors.primary else colors.error,
-                    )
-                }
-                IconButton(
-                    onClick = onToggle,
-                    modifier = Modifier.size(30.dp),
-                ) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                        contentDescription = if (expanded) "收起" else "查看",
-                        tint = colors.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                event.route?.let { route ->
-                    IconButton(
-                        onClick = { onOpenRoute(route) },
-                        modifier = Modifier.size(30.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.NorthEast,
-                            contentDescription = "打开页面",
-                            tint = colors.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                }
-            }
-
-            AnimatedVisibility(visible = expanded) {
-                Column(
-                    modifier = Modifier.padding(top = 2.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (!event.ok) {
-                        Text(
-                            event.summary ?: "执行失败",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.error,
-                        )
-                    } else if (event.card != null) {
-                        AssistantCardView(event.card)
-                    } else {
-                        Text(
-                            event.summary.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurface,
-                        )
-                    }
-                    HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-                    Text(
-                        buildString {
-                            append("来源：")
-                            append(event.source)
-                            append(" · 更新于 ")
-                            append(formatTimestamp(event.fetchedAt))
-                            if (event.trust == AssistantTrust.UNTRUSTED) {
-                                append(" · 外部内容，仅作参考")
-                            }
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (event.trust == AssistantTrust.UNTRUSTED) {
-                            colors.error
-                        } else {
-                            colors.onSurfaceVariant
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun AssistantCardView(card: AssistantCard) {
@@ -1233,34 +1357,11 @@ private suspend fun runStream(
     }
 }
 
-private fun toolIcon(name: String): ImageVector? = when (name) {
-    "get_schedule" -> Icons.Rounded.CalendarMonth
-    "get_assignments" -> Icons.Rounded.Assignment
-    "get_grades", "get_gpa_rank" -> Icons.Rounded.School
-    "get_balance" -> Icons.Rounded.AccountBalanceWallet
-    "get_bills" -> Icons.Rounded.ReceiptLong
-    "get_exams" -> Icons.Rounded.Quiz
-    "get_electricity", "get_electricity_conditions", "switch_electricity_condition" -> Icons.Rounded.Bolt
-    "get_weather" -> Icons.Rounded.WbSunny
-    "get_attendance" -> Icons.Rounded.FactCheck
-    "get_program_completion" -> Icons.Rounded.TrackChanges
-    "get_lost_found", "publish_lost_found", "delete_lost_found" -> Icons.Rounded.Search
-    "get_notices" -> Icons.Rounded.Campaign
-    "get_free_rooms" -> Icons.Rounded.MeetingRoom
-    "get_phone_book" -> Icons.Rounded.Phone
-    "get_mail", "send_mail" -> Icons.Rounded.Email
-    "get_canteen_ranking" -> Icons.Rounded.Restaurant
-    "get_course_tasks" -> Icons.Rounded.MenuBook
-    "get_evaluation_tasks", "submit_evaluation" -> Icons.Rounded.RateReview
-    "recharge_card", "recharge_electricity", "recharge_bathroom", "recharge_network" -> Icons.Rounded.Payments
-    "add_calendar_event" -> Icons.Rounded.Event
-    else -> null
-}
-
 private fun formatTimestamp(epochMillis: Long): String = runCatching {
     SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(epochMillis))
 }.getOrDefault("")
 
+private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"
 private const val DELTA_FLUSH_INTERVAL_MS = 33L
 private const val BOTTOM_JUMP_PX = 100_000f
