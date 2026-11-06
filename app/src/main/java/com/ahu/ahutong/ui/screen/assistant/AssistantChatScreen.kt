@@ -290,7 +290,8 @@ fun AssistantChatScreen(
                                     },
                                     onOpenRoute = onOpenRoute,
                                     showRouteLinks = display.key != activeTurnKey || (!running && !streaming),
-                                    showActions = display.key in roundEnds && !streaming && !running,
+                                    showActions = display.key in roundEnds &&
+                                        (display.key != activeTurnKey || (!running && !streaming)),
                                     actionsText = actionsTextOf(display.items),
                                     regenerateEnabled = !running,
                                     onRegenerate = {
