@@ -100,7 +100,7 @@ class HapticSettingsWindowTest {
     @Suppress("DEPRECATION")
     private fun switchNode(): AccessibilityNodeInfo? {
         fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-            if (node.text?.toString() == "开启haptic触感 (beta)") return AccessibilityNodeInfo.obtain(node)
+            if (node.text?.toString() == "haptics 触感") return AccessibilityNodeInfo.obtain(node)
             for (index in 0 until node.childCount) {
                 val child = node.getChild(index) ?: continue
                 try { find(child)?.let { return it } } finally { child.recycle() }

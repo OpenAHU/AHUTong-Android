@@ -254,7 +254,7 @@ fun ThemeSettingsSection(
             onClick = onOpenThemeColors
         )
         com.ahu.ahutong.ui.components.SettingsToggleRow(
-            title = "开启haptic触感 (beta)",
+            title = "haptics 触感",
             selected = hapticFeedbackEnabled,
             onSelectedChange = viewModel::setHapticFeedbackEnabled,
             backdrop = backdrop,
