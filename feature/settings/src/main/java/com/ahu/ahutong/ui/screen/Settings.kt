@@ -88,7 +88,6 @@ fun Settings(
     onSwitchAccount: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToPreferences: () -> Unit,
-    onNavigateToAiSettings: () -> Unit,
     onNavigateToEarlyAccess: () -> Unit,
     earlyAccessSummary: String,
     onNavigateToDebug: () -> Unit,
@@ -236,11 +235,6 @@ fun Settings(
                     null
                 },
                 onClick = onNavigateToPreferences
-            )
-            SettingsActionRow(
-                title = "AI 设置",
-                leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
-                onClick = onNavigateToAiSettings
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.check_update),

@@ -287,41 +287,24 @@ fun AiSettings(
                 )
             }
 
-            SettingsSection(
-                title = "联网搜索",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop,
-            ) {
-                SettingsToggleRow(
-                    title = "允许联网搜索",
-                    subtitle = if (supportsSearch) {
-                        "需要实时信息时通过 DeepSeek 官方搜索获取网页结果"
-                    } else {
-                        "当前接口暂不支持联网搜索；目前仅 DeepSeek 官方接口可用"
-                    },
-                    selected = searchEnabled && supportsSearch,
-                    enabled = supportsSearch,
+            if (supportsSearch) {
+                SettingsSection(
+                    title = "联网搜索",
+                    modifier = Modifier.padding(horizontal = 16.dp),
                     backdrop = backdrop,
-                    showDivider = false,
-                    onSelectedChange = {
-                        searchEnabled = it
-                        AssistantPreferences.setSearchEnabled(it)
-                    },
-                )
-            }
-
-            SettingsSection(
-                title = "隐私",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop,
-            ) {
-                SettingsActionRow(
-                    title = "AI 服务隐私政策",
-                    subtitle = "模型调用、对话历史与工具数据的处理方式",
-                    leadingPainter = painterResource(R.drawable.ic_assistant_sparkle_fill),
-                    showDivider = false,
-                    onClick = onOpenPrivacyPolicy,
-                )
+                ) {
+                    SettingsToggleRow(
+                        title = "允许联网搜索",
+                        subtitle = "需要实时信息时通过 DeepSeek 官方搜索获取网页结果",
+                        selected = searchEnabled,
+                        backdrop = backdrop,
+                        showDivider = false,
+                        onSelectedChange = {
+                            searchEnabled = it
+                            AssistantPreferences.setSearchEnabled(it)
+                        },
+                    )
+                }
             }
 
             if (stored != null) {

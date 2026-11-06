@@ -787,13 +787,23 @@ fun Main(
             }
             animatedComposable("settings__privacy_policy") {
                 val res = LocalContext.current.resources
-                val policyMarkdown by produceState<String?>(null) {
+                val generalPolicy by produceState<String?>(null) {
                     value = withContext(Dispatchers.IO) {
                         res.openRawResource(R.raw.privacy_policy).bufferedReader().use { it.readText() }
                     }
                 }
-                policyMarkdown?.let {
-                    PrivacyPolicyScreen(markdown = it, onBack = { navController.popBackStack() })
+                val aiPolicy by produceState<String?>(null) {
+                    value = withContext(Dispatchers.IO) {
+                        res.openRawResource(R.raw.ai_privacy_policy).bufferedReader().use { it.readText() }
+                    }
+                }
+                if (generalPolicy != null && aiPolicy != null) {
+                    PrivacyPolicyScreen(
+                        markdown = generalPolicy.orEmpty(),
+                        aiMarkdown = aiPolicy.orEmpty(),
+                        startWithHub = true,
+                        onBack = { navController.popBackStack() },
+                    )
                 }
             }
             animatedComposable("settings__ai_privacy") {
@@ -829,6 +839,7 @@ fun Main(
                     onBack = ::navigateBackFromPreferences,
                     onOpenThemeLab = { navController.navigate("settings__theme_lab") },
                     onOpenThemeColors = { navController.navigate("settings__theme_color") },
+                    onOpenAiSettings = { navController.navigate("settings__ai") },
                     undergraduateEnabled = undergraduateEnabled
                 )
             }

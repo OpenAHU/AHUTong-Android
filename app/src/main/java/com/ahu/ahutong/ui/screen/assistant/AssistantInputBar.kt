@@ -43,30 +43,33 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import kotlin.math.PI
-import kotlin.math.sin
 
-/** 与边缘光同一套颜色的角向渐变；停靠点随相位缓慢漂移。 */
+/**
+ * 角向渐变按闭合色环采样：0 与 1 取同一个颜色，相位只整体平移色环。
+ * 以前每个色标独立漂移、排序后补首尾，漂移交错时会在 3 点钟方向出现断色。
+ */
 private fun inputGlowStops(phase: Float): List<Pair<Float, Color>> {
-    val raw = ASSISTANT_GLOW_COLORS.mapIndexed { index, color ->
-        val base = index / ASSISTANT_GLOW_COLORS.size.toFloat()
-        val drift = 0.10f * sin((phase * 2f * PI + index * 1.7).toFloat())
-        val position = ((base + drift) % 1f + 1f) % 1f
-        position to color
-    }.sortedBy { it.first }
-    val start = raw.first()
-    val end = raw.last()
-    return buildList {
-        if (start.first > 0f) add(0f to start.second)
-        addAll(raw)
-        if (end.first < 1f) add(1f to start.second)
+    val steps = 48
+    return (0..steps).map { index ->
+        val position = index / steps.toFloat()
+        position to cyclicGlowColor(position + phase)
     }
+}
+
+private fun cyclicGlowColor(value: Float): Color {
+    val palette = ASSISTANT_GLOW_COLORS
+    val wrapped = ((value % 1f) + 1f) % 1f
+    val scaled = wrapped * palette.size
+    val index = scaled.toInt() % palette.size
+    val fraction = scaled - scaled.toInt()
+    return lerp(palette[index], palette[(index + 1) % palette.size], fraction)
 }
 
 /**

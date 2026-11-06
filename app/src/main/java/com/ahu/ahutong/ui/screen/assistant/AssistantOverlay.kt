@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -55,6 +56,11 @@ fun AssistantOverlay(
     val visible = AssistantGlowState.visible &&
         AssistantGlowState.revealed &&
         !AssistantChatState.visible
+
+    // AI 层本身也消费返回键：先退出光带层，而不是把整个 App 退掉。
+    BackHandler(enabled = AssistantGlowState.visible && !AssistantChatState.visible) {
+        AssistantGlowState.visible = false
+    }
 
     AnimatedVisibility(
         visible = visible,
