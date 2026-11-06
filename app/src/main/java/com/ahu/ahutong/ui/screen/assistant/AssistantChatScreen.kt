@@ -137,6 +137,8 @@ import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -902,7 +904,7 @@ private fun AssistantActionRow(
         Spacer(Modifier.width(8.dp))
         Text(
             "AI生成答案，可能有误",
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f, fill = false),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Light,
             color = colors.onSurfaceVariant,
@@ -919,7 +921,7 @@ private fun AssistantActionRow(
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                "$tokens Toks",
+                formatTokenCount(tokens),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Light,
                 color = colors.onSurfaceVariant,
@@ -1436,6 +1438,25 @@ private suspend fun runStream(
 private fun formatTimestamp(epochMillis: Long): String = runCatching {
     SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(epochMillis))
 }.getOrDefault("")
+
+private fun formatTokenCount(tokens: Int): String {
+    val divisor = when {
+        tokens >= 1_000_000_000 -> 1_000_000_000L
+        tokens >= 1_000_000 -> 1_000_000L
+        tokens > 1_000 -> 1_000L
+        else -> return "$tokens Toks"
+    }
+    val value = BigDecimal(tokens)
+        .divide(BigDecimal(divisor), 2, RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
+    val suffix = when (divisor) {
+        1_000L -> "k"
+        1_000_000L -> "m"
+        else -> "b"
+    }
+    return "$value$suffix Toks"
+}
 
 private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"
