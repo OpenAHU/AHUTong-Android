@@ -36,6 +36,8 @@ sealed interface AssistantChatItem {
     ) : AssistantChatItem
 
     data class Error(override val id: String, val text: String) : AssistantChatItem
+
+    data class Usage(override val id: String, val totalTokens: Int) : AssistantChatItem
 }
 
 /**
@@ -297,6 +299,12 @@ object AssistantChatState {
 
     fun appendError(text: String) {
         _items += AssistantChatItem.Error(newId(), text)
+    }
+
+    fun appendUsage(totalTokens: Int) {
+        if (totalTokens > 0) {
+            _items += AssistantChatItem.Usage(newId(), totalTokens)
+        }
     }
 
     fun cancelRun() {

@@ -39,6 +39,7 @@ sealed interface AssistantServiceEvent {
         val navigateOnly: Boolean = false,
     ) : AssistantServiceEvent
     data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantServiceEvent
+    data class Usage(val totalTokens: Int) : AssistantServiceEvent
     data class Failed(val message: String) : AssistantServiceEvent
     data object Done : AssistantServiceEvent
 }
@@ -115,6 +116,7 @@ class AssistantService(
                 is AssistantRuntimeEvent.ApprovalRequired -> emit(
                     AssistantServiceEvent.ApprovalRequired(event.request)
                 )
+                is AssistantRuntimeEvent.Usage -> emit(AssistantServiceEvent.Usage(event.totalTokens))
                 is AssistantRuntimeEvent.Failed -> emit(AssistantServiceEvent.Failed(event.message))
                 AssistantRuntimeEvent.Done -> {
                     done = true

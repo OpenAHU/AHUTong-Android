@@ -25,9 +25,25 @@ data class AssistantToolSpec(
     val parameters: JsonObject,
 )
 
+data class AssistantTokenUsage(
+    val promptTokens: Int = 0,
+    val completionTokens: Int = 0,
+    val totalTokens: Int = 0,
+    val cachedTokens: Int? = null,
+) {
+    operator fun plus(other: AssistantTokenUsage): AssistantTokenUsage = AssistantTokenUsage(
+        promptTokens = promptTokens + other.promptTokens,
+        completionTokens = completionTokens + other.completionTokens,
+        totalTokens = totalTokens + other.totalTokens,
+        cachedTokens = listOfNotNull(cachedTokens, other.cachedTokens).takeIf { it.isNotEmpty() }?.sum(),
+    )
+}
+
 data class AssistantModelReply(
     val content: String? = null,
     val toolCalls: List<AssistantToolCall> = emptyList(),
+    /** 厂商返回的本轮 usage；部分兼容接口不返回时为 null。 */
+    val usage: AssistantTokenUsage? = null,
 )
 
 sealed interface AssistantModelEvent {

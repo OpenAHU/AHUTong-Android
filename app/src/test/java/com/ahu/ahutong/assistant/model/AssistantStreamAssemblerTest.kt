@@ -28,6 +28,21 @@ class AssistantStreamAssemblerTest {
     }
 
     @Test
+    fun capturesUsageFromFinalStreamChunk() {
+        val assembler = AssistantStreamAssembler()
+        assembler.accept("""{"choices":[{"delta":{"content":"好"}}]}""")
+        assembler.accept(
+            """{"choices":[],"usage":{"prompt_tokens":120,"completion_tokens":30,"total_tokens":150,"prompt_cache_hit_tokens":20}}"""
+        )
+
+        val usage = assembler.reply().usage
+        assertEquals(120, usage?.promptTokens)
+        assertEquals(30, usage?.completionTokens)
+        assertEquals(150, usage?.totalTokens)
+        assertEquals(20, usage?.cachedTokens)
+    }
+
+    @Test
     fun ignoresMalformedChunks() {
         val assembler = AssistantStreamAssembler()
         assertEquals(null, assembler.accept("not-json"))

@@ -157,6 +157,7 @@ internal class AssistantHistoryStore {
             }
             is AssistantChatItem.Tool -> AssistantHistoryItem(TYPE_TOOL, item.id, tool = item.event)
             is AssistantChatItem.Error -> AssistantHistoryItem(TYPE_ERROR, item.id, text = item.text)
+            is AssistantChatItem.Usage -> AssistantHistoryItem(TYPE_USAGE, item.id, tokens = item.totalTokens)
             is AssistantChatItem.Approval -> null
         }
     }
@@ -168,6 +169,7 @@ internal class AssistantHistoryStore {
             TYPE_ASSISTANT -> AssistantChatItem.Assistant(id, item.text.orEmpty())
             TYPE_TOOL -> item.tool?.let { AssistantChatItem.Tool(id, it) }
             TYPE_ERROR -> AssistantChatItem.Error(id, item.text.orEmpty())
+            TYPE_USAGE -> item.tokens?.takeIf { it > 0 }?.let { AssistantChatItem.Usage(id, it) }
             else -> null
         }
     }
@@ -181,6 +183,7 @@ internal class AssistantHistoryStore {
         const val TYPE_ASSISTANT = "assistant"
         const val TYPE_TOOL = "tool"
         const val TYPE_ERROR = "error"
+        const val TYPE_USAGE = "usage"
     }
 }
 
@@ -201,4 +204,5 @@ internal data class AssistantHistoryItem(
     val id: String? = "",
     val text: String? = null,
     val tool: AssistantServiceEvent.ToolResult? = null,
+    val tokens: Int? = null,
 )

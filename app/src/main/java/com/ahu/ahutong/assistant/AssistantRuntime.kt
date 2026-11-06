@@ -4,6 +4,7 @@ import com.ahu.ahutong.assistant.model.AssistantChatModel
 import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelEvent
 import com.ahu.ahutong.assistant.model.AssistantModelReply
+import com.ahu.ahutong.assistant.model.AssistantTokenUsage
 import com.ahu.ahutong.assistant.model.AssistantToolCall
 import com.ahu.ahutong.assistant.safety.AssistantApprovalGate
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
@@ -41,6 +42,12 @@ sealed interface AssistantRuntimeEvent {
         val navigateOnly: Boolean = false,
     ) : AssistantRuntimeEvent
     data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantRuntimeEvent
+    data class Usage(
+        val promptTokens: Int,
+        val completionTokens: Int,
+        val totalTokens: Int,
+        val cachedTokens: Int?,
+    ) : AssistantRuntimeEvent
     data class Failed(val message: String) : AssistantRuntimeEvent
     data object Done : AssistantRuntimeEvent
 }
@@ -73,6 +80,7 @@ class AssistantRuntime(
 
         emit(AssistantRuntimeEvent.Status("正在理解你的问题…"))
         val untrustedSources = linkedSetOf<String>()
+        var usage = AssistantTokenUsage()
 
         try {
             var step = 0
@@ -84,6 +92,7 @@ class AssistantRuntime(
                     onDelta = { delta -> emit(AssistantRuntimeEvent.AssistantDelta(delta)) },
                 )
                 val reply = collected.reply
+                reply.usage?.let { usage += it }
                 val visibleText = collected.text.trim()
 
                 if (reply.toolCalls.isEmpty()) {
@@ -94,6 +103,16 @@ class AssistantRuntime(
                             answerText.ifBlank { "我没有拿到可用结果。" }
                         )
                     )
+                    if (usage.totalTokens > 0) {
+                        emit(
+                            AssistantRuntimeEvent.Usage(
+                                promptTokens = usage.promptTokens,
+                                completionTokens = usage.completionTokens,
+                                totalTokens = usage.totalTokens,
+                                cachedTokens = usage.cachedTokens,
+                            )
+                        )
+                    }
                     emit(AssistantRuntimeEvent.Done)
                     return@flow
                 }
@@ -231,6 +250,16 @@ class AssistantRuntime(
                         }
                     }
                 }
+            }
+            if (usage.totalTokens > 0) {
+                emit(
+                    AssistantRuntimeEvent.Usage(
+                        promptTokens = usage.promptTokens,
+                        completionTokens = usage.completionTokens,
+                        totalTokens = usage.totalTokens,
+                        cachedTokens = usage.cachedTokens,
+                    )
+                )
             }
             emit(AssistantRuntimeEvent.Failed("步骤过多，已停止"))
         } catch (cancelled: CancellationException) {

@@ -106,6 +106,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -117,6 +120,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.R
@@ -433,7 +437,9 @@ private fun buildChatDisplay(items: List<AssistantChatItem>): List<ChatDisplay> 
 
     items.forEach { item ->
         when (item) {
-            is AssistantChatItem.Assistant, is AssistantChatItem.Tool -> turn += item
+            is AssistantChatItem.Assistant,
+            is AssistantChatItem.Tool,
+            is AssistantChatItem.Usage -> turn += item
             is AssistantChatItem.User -> {
                 flushTurn()
                 lastUser = item
@@ -586,6 +592,10 @@ private fun AssistantTurnBubble(
         if (showActions) {
             AssistantActionRow(
                 text = actionsText,
+                usageTokens = items
+                    .filterIsInstance<AssistantChatItem.Usage>()
+                    .lastOrNull()
+                    ?.totalTokens,
                 regenerateEnabled = regenerateEnabled,
                 onRegenerate = onRegenerate,
             )
@@ -607,6 +617,20 @@ private fun ToolCallGroup(
         targetValue = if (expanded) 180f else 0f,
         label = "tool-group-chevron",
     )
+    val groupScroll = rememberScrollState()
+    // 组内列表到顶/到底时不要再把余量传给外层对话列表，避免页面跟着滚。
+    val consumeScrollChaining = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset = available
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                available
+        }
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -650,7 +674,8 @@ private fun ToolCallGroup(
                 Column(
                     modifier = Modifier
                         .heightIn(max = 260.dp)
-                        .verticalScroll(rememberScrollState())
+                        .nestedScroll(consumeScrollChaining)
+                        .verticalScroll(groupScroll)
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -829,6 +854,7 @@ private fun routeLabel(route: String): String = when (route) {
 @Composable
 private fun AssistantActionRow(
     text: String,
+    usageTokens: Int?,
     regenerateEnabled: Boolean,
     onRegenerate: () -> Unit,
 ) {
@@ -876,12 +902,30 @@ private fun AssistantActionRow(
         Spacer(Modifier.width(8.dp))
         Text(
             "回答由AI生成，可能存在错误",
+            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Light,
             color = colors.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        usageTokens?.takeIf { it > 0 }?.let { tokens ->
+            Spacer(Modifier.width(6.dp))
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .height(12.dp)
+                    .background(colors.outlineVariant)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "$tokens Toks",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Light,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -1352,6 +1396,9 @@ private suspend fun runStream(
                     }
                     AssistantChatState.appendApproval(event.request)
                     AssistantChatState.updateStatus(null)
+                }
+                is AssistantServiceEvent.Usage -> {
+                    AssistantChatState.appendUsage(event.totalTokens)
                 }
                 is AssistantServiceEvent.Failed -> {
                     flushNow()

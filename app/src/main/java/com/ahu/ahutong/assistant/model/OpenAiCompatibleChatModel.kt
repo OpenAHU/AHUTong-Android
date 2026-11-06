@@ -52,6 +52,7 @@ class OpenAiCompatibleChatModel(
             AssistantModelReply(
                 content = message.stringOrNull("content"),
                 toolCalls = message.parseToolCalls(),
+                usage = root.parseUsage(),
             )
         }
     }
@@ -61,12 +62,27 @@ class OpenAiCompatibleChatModel(
         tools: List<AssistantToolSpec>,
     ): Flow<AssistantModelEvent> = flow {
         require(config.isConfigured) { "模型还没配置" }
-        client.newCall(buildRequest(messages, tools, stream = true)).execute().use { response ->
-            if (!response.isSuccessful) {
-                val body = response.body?.string().orEmpty()
-                throw IOException("模型接口返回 ${response.code}：${body.take(300)}")
+        var response = client.newCall(buildRequest(messages, tools, stream = true)).execute()
+        if (!response.isSuccessful && response.code in 400..422) {
+            val code = response.code
+            val body = response.body?.string().orEmpty()
+            response.close()
+            // 少数 OpenAI 兼容实现不认 stream_options；只在这种情况下退回不带 usage 的请求。
+            val rejectedUsageOption = body.contains("stream_options", ignoreCase = true) ||
+                body.contains("include_usage", ignoreCase = true) ||
+                body.contains("unknown", ignoreCase = true)
+            if (!rejectedUsageOption) {
+                throw IOException("模型接口返回 $code：${body.take(300)}")
             }
-            val source = response.body?.source() ?: throw IOException("模型流为空")
+            response = client.newCall(buildRequest(messages, tools, stream = true, includeUsage = false))
+                .execute()
+        }
+        response.use {
+            if (!it.isSuccessful) {
+                val body = it.body?.string().orEmpty()
+                throw IOException("模型接口返回 ${it.code}：${body.take(300)}")
+            }
+            val source = it.body?.source() ?: throw IOException("模型流为空")
             val assembler = AssistantStreamAssembler()
             while (true) {
                 val line = source.readUtf8Line() ?: break
@@ -85,6 +101,7 @@ class OpenAiCompatibleChatModel(
         messages: List<AssistantMessage>,
         tools: List<AssistantToolSpec>,
         stream: Boolean,
+        includeUsage: Boolean = stream,
     ): Request {
         val payload = JsonObject().apply {
             addProperty("model", config.model)
@@ -111,6 +128,9 @@ class OpenAiCompatibleChatModel(
             }
             addProperty("temperature", 0.2)
             addProperty("stream", stream)
+            if (stream && includeUsage) {
+                add("stream_options", JsonObject().apply { addProperty("include_usage", true) })
+            }
         }
         return Request.Builder()
             .url(config.endpoint())
@@ -150,6 +170,34 @@ internal fun AssistantMessage.toJson(): JsonObject = JsonObject().apply {
 private fun JsonObject.stringOrNull(key: String): String? =
     get(key)?.takeIf { !it.isJsonNull }?.asString
 
+/**
+ * 兼容 OpenAI / DeepSeek / Kimi / Qwen 等 OpenAI 协议的 usage：
+ * 常见为顶层 usage，少数实现在 choices[0].usage；缓存字段名也不统一。
+ */
+internal fun JsonObject.parseUsage(): AssistantTokenUsage? {
+    val usage = runCatching { getAsJsonObject("usage") }.getOrNull()
+        ?: runCatching {
+            getAsJsonArray("choices")?.firstOrNull()?.asJsonObject?.getAsJsonObject("usage")
+        }.getOrNull()
+        ?: return null
+    fun number(key: String): Int? =
+        usage.get(key)?.takeIf { !it.isJsonNull }?.asInt
+    val prompt = number("prompt_tokens") ?: number("input_tokens") ?: 0
+    val completion = number("completion_tokens") ?: number("output_tokens") ?: 0
+    val total = number("total_tokens") ?: (prompt + completion)
+    val cached = runCatching {
+        usage.getAsJsonObject("prompt_tokens_details")?.get("cached_tokens")
+            ?.takeIf { !it.isJsonNull }?.asInt
+    }.getOrNull() ?: number("prompt_cache_hit_tokens")
+    if (prompt == 0 && completion == 0 && total == 0) return null
+    return AssistantTokenUsage(
+        promptTokens = prompt,
+        completionTokens = completion,
+        totalTokens = total,
+        cachedTokens = cached,
+    )
+}
+
 private fun JsonObject.parseToolCalls(): List<AssistantToolCall> {
     val array = runCatching { getAsJsonArray("tool_calls") }.getOrNull() ?: return emptyList()
     return array.mapNotNull { element ->
@@ -174,10 +222,12 @@ internal class AssistantStreamAssembler {
 
     private val content = StringBuilder()
     private val calls = sortedMapOf<Int, Accumulator>()
+    private var usage: AssistantTokenUsage? = null
 
     /** 返回本次新增的文本（没有则为 null）。 */
     fun accept(data: String): String? {
         val root = runCatching { JsonParser.parseString(data).asJsonObject }.getOrNull() ?: return null
+        root.parseUsage()?.let { usage = it }
         val delta = root.getAsJsonArray("choices")
             ?.firstOrNull()
             ?.asJsonObject
@@ -215,6 +265,7 @@ internal class AssistantStreamAssembler {
                 }.getOrElse { JsonObject() },
             )
         },
+        usage = usage,
     )
 
     private class Accumulator {
