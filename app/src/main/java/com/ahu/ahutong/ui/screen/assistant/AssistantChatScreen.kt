@@ -170,7 +170,8 @@ fun AssistantChatScreen(
     val running = AssistantChatState.running
     val displayItems = buildChatDisplay(items)
     val roundEnds = roundEndTurnKeys(displayItems)
-    val activeTurnKey = displayItems.lastOrNull { it is ChatDisplay.Turn }?.key
+    // 用户刚发问、还没收到首词时，也要把上一轮的底栏保留下来。
+    val activeUserId = displayItems.lastOrNull { it is ChatDisplay.User }?.key
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
@@ -289,9 +290,10 @@ fun AssistantChatScreen(
                                         }
                                     },
                                     onOpenRoute = onOpenRoute,
-                                    showRouteLinks = display.key != activeTurnKey || (!running && !streaming),
+                                    showRouteLinks = display.userItem?.id != activeUserId ||
+                                        (!running && !streaming),
                                     showActions = display.key in roundEnds &&
-                                        (display.key != activeTurnKey || (!running && !streaming)),
+                                        (display.userItem?.id != activeUserId || (!running && !streaming)),
                                     actionsText = actionsTextOf(display.items),
                                     regenerateEnabled = !running,
                                     onRegenerate = {
