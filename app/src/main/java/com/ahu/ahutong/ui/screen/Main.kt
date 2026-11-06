@@ -103,6 +103,7 @@ import com.ahu.ahutong.R
 import androidx.compose.ui.res.stringResource
 import com.ahu.ahutong.ui.screen.settings.AiSettings
 import com.ahu.ahutong.ui.screen.settings.Preferences
+import com.ahu.ahutong.ui.screen.settings.PreferencesSection
 import com.ahu.ahutong.ui.screen.settings.ThemeLab
 import com.ahu.ahutong.ui.screen.settings.ThemeColorSettings
 import com.ahu.ahutong.ui.screen.setup.Info
@@ -837,11 +838,33 @@ fun Main(
             animatedComposable("preferences") {
                 Preferences(
                     onBack = ::navigateBackFromPreferences,
+                    onOpenSection = { section ->
+                        navController.navigate("preferences/${section.routeKey}")
+                    },
                     onOpenThemeLab = { navController.navigate("settings__theme_lab") },
                     onOpenThemeColors = { navController.navigate("settings__theme_color") },
                     onOpenAiSettings = { navController.navigate("settings__ai") },
                     undergraduateEnabled = undergraduateEnabled
                 )
+            }
+            animatedComposable("preferences/{section}", arguments = listOf(
+                navArgument("section") { type = NavType.StringType }
+            )) { entry ->
+                val section = PreferencesSection.fromRouteKey(
+                    entry.arguments?.getString("section")
+                )
+                if (section == null) {
+                    navController.popBackStack()
+                } else {
+                    Preferences(
+                        section = section,
+                        onBack = { navController.popBackStack() },
+                        onOpenThemeLab = { navController.navigate("settings__theme_lab") },
+                        onOpenThemeColors = { navController.navigate("settings__theme_color") },
+                        onOpenAiSettings = { navController.navigate("settings__ai") },
+                        undergraduateEnabled = undergraduateEnabled
+                    )
+                }
             }
 
             animatedComposable("settings__ai") {

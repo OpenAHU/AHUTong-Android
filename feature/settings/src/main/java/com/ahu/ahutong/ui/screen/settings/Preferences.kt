@@ -5,22 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.text.format.DateUtils
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import com.ahu.ahutong.ui.haptics.HapticCheckbox as Checkbox
@@ -31,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,24 +46,33 @@ import com.ahu.ahutong.ui.components.SettingsToggleRow
 import com.ahu.ahutong.ui.state.PreferencesViewModel
 import com.kyant.backdrop.Backdrop
 
-enum class PreferencesSection(val title: String, val subtitle: String) {
-    APPEARANCE("外观与主题", "主题套装、深色模式、主题色、背景与触感"),
-    HOME("主页与充值", "主页付款码与安全密码键盘"),
-    NOTIFICATIONS("通知提醒", "课前提醒、准时权限与岛卡"),
-    INTELLIGENCE("智能体验", "快捷建议、预加载与本地学习"),
-    DATA("数据与隐私", "本地记录、必吃榜共建与训练数据"),
+enum class PreferencesSection(
+    val routeKey: String,
+    val title: String,
+    val subtitle: String,
+) {
+    APPEARANCE("appearance", "外观与主题", "主题套装、深色模式、主题色、背景与触感"),
+    HOME("home", "主页与充值", "主页付款码与安全密码键盘"),
+    NOTIFICATIONS("notifications", "通知提醒", "课前提醒、准时权限与岛卡"),
+    INTELLIGENCE("intelligence", "智能体验", "快捷建议、预加载与本地学习"),
+    DATA("data", "数据与隐私", "本地记录、必吃榜共建与训练数据");
+
+    companion object {
+        fun fromRouteKey(value: String?): PreferencesSection? =
+            entries.firstOrNull { it.routeKey == value }
+    }
 }
 
 @Composable
 fun Preferences(
     onBack: () -> Unit = {},
+    section: PreferencesSection? = null,
+    onOpenSection: (PreferencesSection) -> Unit = {},
     onOpenThemeLab: () -> Unit = {},
     onOpenThemeColors: () -> Unit = {},
     onOpenAiSettings: () -> Unit = {},
     undergraduateEnabled: Boolean = true
 ) {
-    var section by rememberSaveable { mutableStateOf<PreferencesSection?>(null) }
-    BackHandler(enabled = section != null) { section = null }
     val viewModel: PreferencesViewModel = hiltViewModel()
     val context = LocalContext.current
     var isRequestingPermission by remember { mutableStateOf(false) }
@@ -146,37 +142,21 @@ fun Preferences(
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         SettingsPageLayout(
             title = section?.title ?: "偏好设置",
-            onBack = { if (section != null) section = null else onBack() },
+            onBack = onBack,
             backdrop = backdrop,
             scrollState = pageScrollState,
             scrollEnabled = !isToggleHorizontalDragActive
         ) {
             LaunchedEffect(section) { pageScrollState.scrollTo(0) }
-            AnimatedContent(
-                targetState = section,
-                transitionSpec = {
-                    val forward = targetState != null
-                    val enter = slideInHorizontally(tween(280)) { if (forward) it / 3 else -it / 3 } +
-                        fadeIn(tween(180))
-                    val exit = slideOutHorizontally(tween(240)) { if (forward) -it / 3 else it / 3 } +
-                        fadeOut(tween(140))
-                    (enter togetherWith exit).using(SizeTransform(clip = false))
-                },
-                label = "preferences-section",
-            ) { targetSection ->
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-            if (targetSection == null) {
+            if (section == null) {
                 PreferencesHubContent(
                     backdrop = backdrop,
-                    onOpenSection = { section = it },
+                    onOpenSection = onOpenSection,
                     onOpenAiSettings = onOpenAiSettings,
                     undergraduateEnabled = undergraduateEnabled,
                 )
             }
-            if (targetSection == PreferencesSection.APPEARANCE) ThemeSettingsSection(
+            if (section == PreferencesSection.APPEARANCE) ThemeSettingsSection(
                 viewModel = viewModel,
                 backdrop = backdrop,
                 onOpenDetails = onOpenThemeLab,
@@ -184,7 +164,7 @@ fun Preferences(
                 onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
             )
 
-            if (targetSection == PreferencesSection.HOME) SettingsSection(
+            if (section == PreferencesSection.HOME) SettingsSection(
                 title = "主页与充值",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -207,7 +187,7 @@ fun Preferences(
                 )
             }
 
-            if (targetSection == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
+            if (section == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
                 title = "通知",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -270,7 +250,7 @@ fun Preferences(
                 )
             }
 
-            if (targetSection == PreferencesSection.INTELLIGENCE) SettingsSection(
+            if (section == PreferencesSection.INTELLIGENCE) SettingsSection(
                 title = "智能体验",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -308,7 +288,7 @@ fun Preferences(
                 }
             }
 
-            if (targetSection == PreferencesSection.DATA) SettingsSection(
+            if (section == PreferencesSection.DATA) SettingsSection(
                 title = "数据与隐私",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -370,8 +350,6 @@ fun Preferences(
                     showDivider = false,
                     onClick = { showClearLearningConfirm = true }
                 )
-            }
-                }
             }
         }
     }

@@ -145,6 +145,7 @@ object AppActionCatalog {
         spec(AppActionId.OPEN_PLUGIN, ActionFamily.TECHNICAL, "plugin/{pluginId}", "打开插件", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_EARLY_ACCESS, ActionFamily.SETTINGS, "settings__early_access", "抢先体验", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__privacy_policy", "隐私政策", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_PREFERENCES_SECTION, ActionFamily.SETTINGS, "preferences/{section}", "偏好设置详情", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_AI_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__ai_privacy", "AI 服务隐私政策", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_THEME_LAB, ActionFamily.SETTINGS, "settings__theme_lab", "主题实验室", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_THEME_COLORS, ActionFamily.SETTINGS, "settings__theme_color", "主题色", labelEligible = false, predictable = false, suggestible = false),
@@ -241,7 +242,7 @@ object AppActionCatalog {
         "home", "setup", "login", "info", "profile", "schedule", "tools", "school_calendar", "grade",
         "phone_book", "exam", "evaluation", "free_classroom", "lost_found", "weather",
         "repository", "repository/{path}", "repository_downloads", "repository_settings", "settings",
-        "settings__license", "settings__contributors", "preferences", "electricity_pay",
+        "settings__license", "settings__contributors", "preferences", "preferences/{section}", "electricity_pay",
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
@@ -270,6 +271,7 @@ object AppActionCatalog {
         specByRoute[route]?.let { return it.id }
         routeAliases[route]?.let { return it }
         if (route.startsWith("repository/")) return AppActionId.OPEN_REPOSITORY_DIRECTORY
+        if (route.startsWith("preferences/")) return AppActionId.OPEN_PREFERENCES_SECTION
         if (route.startsWith("plugin/") && route.removePrefix("plugin/").matches(Regex("[a-z0-9_]+"))) {
             return AppActionId.OPEN_PLUGIN
         }
