@@ -115,7 +115,7 @@ internal fun AssistantHistoryPage(
                         onClick = onNewChat,
                     )
                 }
-    
+
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
