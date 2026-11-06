@@ -5,6 +5,10 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -65,7 +69,6 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,6 +80,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -86,10 +90,12 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -274,7 +280,7 @@ fun AssistantChatScreen(
                     }
                     if (status != null) {
                         item(key = "status") {
-                            StatusPill(text = status, onCancel = AssistantChatState::cancelRun)
+                            StatusShimmer(text = status)
                         }
                     }
                 }
@@ -878,43 +884,40 @@ private fun CardItemRow(item: AssistantCardItem) {
 }
 
 @Composable
-private fun StatusPill(text: String, onCancel: () -> Unit) {
+private fun StatusShimmer(text: String) {
     val colors = MaterialTheme.colorScheme
+    val base = colors.onSurfaceVariant
+    val phase by rememberInfiniteTransition(label = "status-shimmer")
+        .animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1_400, easing = LinearEasing)
+            ),
+            label = "status-shimmer-phase"
+        )
+    var textWidth by remember { mutableIntStateOf(0) }
+    val brush = Brush.linearGradient(
+        colors = listOf(
+            base.copy(alpha = 0.35f),
+            base.copy(alpha = 0.95f),
+            base.copy(alpha = 0.35f),
+        ),
+        start = Offset(-textWidth + phase * textWidth * 2f, 0f),
+        end = Offset(phase * textWidth * 2f, 0f),
+    )
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = colors.surfaceContainerHigh,
-        ) {
-            Row(
-                modifier = Modifier.padding(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(10.dp),
-                    strokeWidth = 1.6.dp,
-                    color = colors.primary,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "取消",
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onCancel)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.primary,
-                )
-            }
-        }
+        Text(
+            text = text,
+            modifier = Modifier.onSizeChanged { textWidth = it.width },
+            style = MaterialTheme.typography.bodyMedium.copy(brush = brush),
+            maxLines = 2,
+        )
     }
 }
 
