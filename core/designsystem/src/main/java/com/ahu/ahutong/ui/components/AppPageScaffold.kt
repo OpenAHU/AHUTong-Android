@@ -8,12 +8,17 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -68,6 +73,9 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
  *
  * 注意：壳统一提供 [content] 的水平内边距（Radiant 16dp / 其他主题 20dp），页面内容勿再自带；
  * [lazyContent] 则不加水平 padding（列表项按惯例自带）；[freeContent] 完全自管（课表/校历/学习资料用）。
+ *
+ * 底部系统导航栏（手势条 / 三键栏）不用 padding 避让：滚动内容会延伸到透明栏之后（edge-to-edge），
+ * 由内容末尾的 [BottomNavBarSpacer] 垫高。只有自管滚动的 [freeContent] 无法追加尾部留白，仍以 padding 避开。
  */
 @Composable
 fun AppPageScaffold(
@@ -116,7 +124,8 @@ internal fun ClassicPageScaffoldImpl(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .systemBarsPadding()
+            // 底部不在此避让：滚动区延伸进系统导航栏下方，由内容尾部 Spacer 垫高
+            .windowInsetsPadding(SystemBarsTopAndHorizontal)
     ) {
         ClassicPageScaffoldHeader(
             title = title,
@@ -133,9 +142,11 @@ internal fun ClassicPageScaffoldImpl(
                     .fillMaxWidth()
                     .weight(1f),
                 contentPadding = PaddingValues(bottom = bottomPadding),
-                verticalArrangement = verticalArrangement,
-                content = lazyContent
-            )
+                verticalArrangement = verticalArrangement
+            ) {
+                lazyContent()
+                item(key = BottomNavBarSpacerKey) { BottomNavBarSpacer() }
+            }
         } else if (content != null) {
             Column(
                 modifier = Modifier
@@ -147,14 +158,18 @@ internal fun ClassicPageScaffoldImpl(
                         end = AppComponentTokens.HeaderHorizontalPadding,
                         bottom = bottomPadding
                     ),
-                verticalArrangement = verticalArrangement,
-                content = content
-            )
+                verticalArrangement = verticalArrangement
+            ) {
+                content()
+                BottomNavBarSpacer()
+            }
         } else if (freeContent != null) {
+            // 自管滚动的页面无法在壳里追加尾部留白 → 只能继续用 padding 避开导航栏
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .windowInsetsPadding(BottomNavigationBar),
                 content = freeContent
             )
         }
@@ -200,20 +215,23 @@ internal fun RadiantPageScaffoldImpl(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .systemBarsPadding(),
+                    // 底部不在此避让：列表延伸进系统导航栏下方，由尾部 Spacer 垫高
+                    .windowInsetsPadding(SystemBarsTopAndHorizontal),
                 contentPadding = PaddingValues(
                     top = topPadding,
                     bottom = bottomPadding
                 ),
                 verticalArrangement = verticalArrangement,
-                userScrollEnabled = scrollEnabled,
-                content = lazyContent
-            )
+                userScrollEnabled = scrollEnabled
+            ) {
+                lazyContent()
+                item(key = BottomNavBarSpacerKey) { BottomNavBarSpacer() }
+            }
         } else if (content != null) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .systemBarsPadding()
+                    .windowInsetsPadding(SystemBarsTopAndHorizontal)
                     .verticalScroll(rememberScrollState(), enabled = scrollEnabled)
                     .padding(
                         top = topPadding,
@@ -221,15 +239,19 @@ internal fun RadiantPageScaffoldImpl(
                         end = 16.dp,
                         bottom = bottomPadding
                     ),
-                verticalArrangement = verticalArrangement,
-                content = content
-            )
+                verticalArrangement = verticalArrangement
+            ) {
+                content()
+                BottomNavBarSpacer()
+            }
         } else if (freeContent != null) {
             // 页面自管滚动；壳只负责把内容停在标题栏之下（页面可自行决定穿透或停靠）
+            // 自管滚动无法追加尾部留白 → 只能继续用 padding 避开导航栏
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .systemBarsPadding()
+                    .windowInsetsPadding(SystemBarsTopAndHorizontal)
+                    .windowInsetsPadding(BottomNavigationBar)
                     .padding(top = topPadding),
                 content = freeContent
             )
@@ -276,7 +298,7 @@ internal fun MiuixPageScaffoldImpl(
                     actions.forEach { action ->
                         if (action.painter != null) {
                             IconButton(onClick = action.onClick) {
-                                androidx.compose.material3.Icon(
+                                Icon(
                                     painter = action.painter,
                                     contentDescription = action.contentDescription
                                 )
@@ -298,7 +320,8 @@ internal fun MiuixPageScaffoldImpl(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = paddingValues.calculateTopPadding() + 20.dp)
-                .navigationBarsPadding()
+                // 底部不在此避让：滚动区延伸进系统导航栏下方，由内容尾部 Spacer 垫高
+                .windowInsetsPadding(BottomNavigationBarSides)
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .scrollEndHaptic()
         ) {
@@ -323,9 +346,11 @@ internal fun MiuixPageScaffoldImpl(
                         .weight(1f),
                     contentPadding = PaddingValues(bottom = bottomPadding),
                     verticalArrangement = verticalArrangement,
-                    userScrollEnabled = scrollEnabled,
-                    content = lazyContent
-                )
+                    userScrollEnabled = scrollEnabled
+                ) {
+                    lazyContent()
+                    item(key = BottomNavBarSpacerKey) { BottomNavBarSpacer() }
+                }
             } else if (content != null) {
                 Column(
                     modifier = Modifier
@@ -337,14 +362,18 @@ internal fun MiuixPageScaffoldImpl(
                             end = AppComponentTokens.HeaderHorizontalPadding,
                             bottom = bottomPadding
                         ),
-                    verticalArrangement = verticalArrangement,
-                    content = content
-                )
+                    verticalArrangement = verticalArrangement
+                ) {
+                    content()
+                    BottomNavBarSpacer()
+                }
             } else if (freeContent != null) {
+                // 自管滚动无法追加尾部留白 → 只能继续用 padding 避开导航栏
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        .windowInsetsPadding(BottomNavigationBar),
                     content = freeContent
                 )
             }
@@ -372,7 +401,7 @@ private fun ClassicPageScaffoldHeader(
                 actions.forEach { action ->
                     if (action.painter != null) {
                         IconButton(onClick = action.onClick) {
-                            androidx.compose.material3.Icon(
+                            Icon(
                                 painter = action.painter,
                                 contentDescription = action.contentDescription
                             )
@@ -467,4 +496,29 @@ private fun ClassicPageScaffoldSearchRow(search: SecondarySearchState) {
             }
         )
     }
+}
+
+/* ---------------- 系统导航栏避让 ---------------- */
+
+/** 顶部 + 左右系统栏内边距；底部交给内容尾部的 [BottomNavBarSpacer]。 */
+private val SystemBarsTopAndHorizontal: WindowInsets
+    @Composable get() =
+        WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+
+/** 底部系统导航栏（手势条 / 三键栏）。 */
+private val BottomNavigationBar: WindowInsets
+    @Composable get() =
+        WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+
+/** 横屏时导航栏在侧边，只剩左右内边距（Miuix 顶栏自带顶部 inset）。 */
+private val BottomNavigationBarSides: WindowInsets
+    @Composable get() =
+        WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
+
+/** 尾部垫高项：滚动内容穿过透明导航栏，末尾再留出栏高。 */
+private const val BottomNavBarSpacerKey = "__app_page_bottom_nav_inset"
+
+@Composable
+private fun BottomNavBarSpacer() {
+    Spacer(Modifier.windowInsetsBottomHeight(BottomNavigationBar))
 }
