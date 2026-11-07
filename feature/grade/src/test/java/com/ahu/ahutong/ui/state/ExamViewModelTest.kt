@@ -4,6 +4,7 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.core.designsystem.RefreshState
+import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.data.grade.ExamSource
 import com.ahu.ahutong.personalization.action.AppActionId
@@ -56,6 +57,34 @@ class ExamViewModelTest {
         session: FakeGradeSession = FakeGradeSession(),
         behavior: FakeGradeBehavior = FakeGradeBehavior()
     ) = ExamViewModel(source, session, behavior, dispatcher)
+
+    @Test
+    fun `cached profile metadata includes profiles without exams`() = runTest(dispatcher) {
+        val profiles = listOf(
+            GradeStudentProfile("101", "主修", "", "专业甲"),
+            GradeStudentProfile("202", "微专业", "", "专业乙")
+        )
+        val fake = FakeExamSource(cachedAtMillis = System.currentTimeMillis())
+        val source = object : ExamSource by fake {
+            override fun cachedProfiles() = profiles
+        }
+        val subject = ExamViewModel(source, FakeGradeSession(), FakeGradeBehavior(), dispatcher)
+        subject.loadExam()
+        advanceUntilIdle()
+        assertEquals(profiles, subject.studentProfiles.value)
+        assertEquals(0, fake.fetchCount)
+    }
+
+    @Test
+    fun `profile changes count as changed exam contents`() {
+        val left = examOf("高等数学").apply {
+            studentProfile = GradeStudentProfile("101", "主修", "", "专业甲")
+        }
+        val right = examOf("高等数学").apply {
+            studentProfile = GradeStudentProfile("202", "微专业", "", "专业乙")
+        }
+        assertTrue(!listOf(left).hasSameExamContents(listOf(right)))
+    }
 
     @Test
     fun `logout during cache restore does not publish the old account exams`() = runTest(dispatcher) {
@@ -143,7 +172,7 @@ class ExamViewModelTest {
     }
 
     @Test
-    fun `a failed manual refresh keeps the cached list and returns to idle`() = runTest(dispatcher) {
+    fun `a failed manual refresh keeps cached exams reports the error and returns to idle`() = runTest(dispatcher) {
         val cached = listOf(examOf("高等数学"))
         val source = FakeExamSource(cached = cached, cachedAtMillis = System.currentTimeMillis())
         val subject = viewModel(source = source)
@@ -159,7 +188,7 @@ class ExamViewModelTest {
 
         assertEquals(1, source.fetchCount)
         assertEquals(1, (subject.data.value as AhuResult.Success).value.size)
-        assertNull(subject.errorMessage.value)
+        assertEquals("网络连接失败，请检查网络后重试", subject.errorMessage.value)
         assertEquals(RefreshState.IDLE, subject.refreshState.value)
     }
 

@@ -31,6 +31,17 @@ public class Exam implements Serializable {
     @SerializedName("finished")
     private Boolean finished;
 
+    @SerializedName("studentProfile")
+    private GradeStudentProfile studentProfile;
+
+    public GradeStudentProfile getStudentProfile() {
+        return studentProfile;
+    }
+
+    public void setStudentProfile(GradeStudentProfile studentProfile) {
+        this.studentProfile = studentProfile;
+    }
+
     public String getCourse() {
         return course;
     }
