@@ -783,7 +783,7 @@ private fun ToolCallGroup(
             Icon(
                 painter = painterResource(R.drawable.ic_assistant_bot),
                 contentDescription = null,
-                tint = colors.onSurfaceVariant,
+                tint = colors.primary,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
