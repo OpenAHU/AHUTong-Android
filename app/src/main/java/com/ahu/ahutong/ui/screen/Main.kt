@@ -1060,7 +1060,6 @@ fun Main(
                 !com.ahu.ahutong.ui.screen.assistant.AssistantChatState.visible,
             origin = com.ahu.ahutong.ui.glow.AssistantGlowState.origin,
         )
-        com.ahu.ahutong.ui.screen.assistant.AssistantImeMode()
         com.ahu.ahutong.ui.screen.assistant.AssistantOverlay(
             scheduleViewModel = scheduleViewModel,
             onOpenRoute = { route ->
