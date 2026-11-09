@@ -179,10 +179,14 @@ fun AssistantChatScreen(
     val composerHeight = with(density) { composerHeightPx.toDp() }
     val imeLift = rememberEffectiveImePadding()
     val imeVisible = WindowInsets.isImeVisible
-    // 键盘弹出时，列表仍在底部才把列表一起顶上去；否则只抬输入栏。
-    val liftListWithIme = imeVisible && stickToBottom
+    // 键盘弹出那一刻列表是否在底部；在底部才把列表一起顶上去，否则只抬输入栏。
+    var listLiftedByIme by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible) {
+        listLiftedByIme = imeVisible && !listState.canScrollForward
+    }
+    val liftListWithIme = imeVisible && listLiftedByIme
     val listBottomPadding =
-        (if (composerHeightPx > 0) composerHeight + 16.dp else 104.dp) +
+        (if (composerHeightPx > 0) composerHeight + 32.dp else 104.dp) +
             if (liftListWithIme) imeLift else 0.dp
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
@@ -198,19 +202,7 @@ fun AssistantChatScreen(
         if (!stickToBottom) return@LaunchedEffect
         val target = displayItems.lastIndex + if (status != null) 1 else 0
         if (target < 0) return@LaunchedEffect
-        withFrameNanos { }
-        listState.scrollToItem(target)
-        var stableFrames = 0
-        repeat(BOTTOM_SETTLE_MAX_FRAMES) {
-            if (stableFrames >= BOTTOM_SETTLE_STABLE_FRAMES) return@LaunchedEffect
-            withFrameNanos { }
-            if (!listState.isScrollInProgress && listState.canScrollForward) {
-                listState.dispatchRawDelta(BOTTOM_JUMP_PX)
-                stableFrames = 0
-            } else {
-                stableFrames++
-            }
-        }
+        listState.jumpToBottom(target)
     }
 
     LaunchedEffect(streamingLength) {
@@ -221,10 +213,11 @@ fun AssistantChatScreen(
 
     // 输入栏变高或键盘顶起列表后，若原本就在底部，保持最后一条可见。
     LaunchedEffect(composerHeightPx, imeVisible, liftListWithIme, listBottomPadding) {
-        if (!stickToBottom || composerHeightPx == 0) return@LaunchedEffect
-        withFrameNanos { }
+        if (composerHeightPx == 0) return@LaunchedEffect
+        val atBottom = if (imeVisible) liftListWithIme else !listState.canScrollForward
+        if (!atBottom) return@LaunchedEffect
         val target = displayItems.lastIndex + if (status != null) 1 else 0
-        if (target >= 0) listState.scrollToItem(target)
+        if (target >= 0) listState.jumpToBottom(target)
     }
 
     LaunchedEffect(AssistantChatState.pendingQuestion) {
@@ -1599,6 +1592,22 @@ private fun formatTokenCount(tokens: Int): String {
 private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"
 private const val DELTA_FLUSH_INTERVAL_MS = 33L
+private suspend fun androidx.compose.foundation.lazy.LazyListState.jumpToBottom(targetIndex: Int) {
+    withFrameNanos { }
+    scrollToItem(targetIndex)
+    var stableFrames = 0
+    repeat(BOTTOM_SETTLE_MAX_FRAMES) {
+        if (stableFrames >= BOTTOM_SETTLE_STABLE_FRAMES) return
+        withFrameNanos { }
+        if (!isScrollInProgress && canScrollForward) {
+            dispatchRawDelta(BOTTOM_JUMP_PX)
+            stableFrames = 0
+        } else {
+            stableFrames++
+        }
+    }
+}
+
 private const val BOTTOM_JUMP_PX = 100_000f
 private const val BOTTOM_SETTLE_MAX_FRAMES = 60
 private const val BOTTOM_SETTLE_STABLE_FRAMES = 5
