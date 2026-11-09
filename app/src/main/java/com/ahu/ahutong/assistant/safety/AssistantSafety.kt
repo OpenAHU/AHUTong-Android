@@ -21,6 +21,9 @@ enum class AssistantPolicyDecision {
 object AssistantToolPolicy {
 
     fun decide(spec: AssistantCapabilitySpec): AssistantPolicyDecision = when {
+        // 非写能力也可能要求确认（例如解题前的学术诚信确认）。
+        spec.requiresConfirmation -> AssistantPolicyDecision.REQUIRE_APPROVAL
+
         spec.kind == AssistantCapabilityKind.READ || spec.kind == AssistantCapabilityKind.NAVIGATE ->
             AssistantPolicyDecision.ALLOW
 
@@ -31,8 +34,10 @@ object AssistantToolPolicy {
     }
 
     fun riskText(spec: AssistantCapabilitySpec): String = when {
+        spec.confirmationNote != null -> spec.confirmationNote
         spec.sensitivity == AssistantSensitivity.FINANCIAL -> "涉及资金，需要本机确认"
         spec.kind == AssistantCapabilityKind.WRITE -> "会修改数据，需要确认"
+        spec.requiresConfirmation -> "需要你确认后 AI 才会继续"
         else -> "只读操作"
     }
 }
@@ -47,6 +52,8 @@ data class AssistantApprovalRequest(
     val requiresPaymentPassword: Boolean = false,
     /** 本轮读过外部内容时，提示用户不要被网页/邮件/通知里的文字带着走。 */
     val untrustedWarning: String? = null,
+    /** 确认按钮文案；解题确认用「继续解答」。 */
+    val confirmationAction: String = "确认执行",
 )
 
 data class AssistantApprovalDecision(

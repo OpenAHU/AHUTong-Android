@@ -423,3 +423,31 @@ class GetWorkDetailCapability(
         const val MAX_TOTAL_LENGTH = 12_000
     }
 }
+
+/**
+ * 解题前的学术诚信确认：只有用户明确要求答案、解答或代做时才由模型调用。
+ * 本身不做事，用户确认后模型才继续给出解答。
+ */
+class ConfirmHomeworkHelpCapability : AssistantCapability {
+
+    override val spec = AssistantCapabilitySpec(
+        id = "confirm_homework_help",
+        title = "解题确认",
+        description = "当用户明确要求给出某道作业题的答案、解答或代做时，必须先调用本工具征求用户确认，确认后才能给出解答。只是核对答案、问知识点或要提示时不要调用。",
+        parameters = schema("question" to stringProp("要解答的题号或范围，例如「第3题」")),
+        sensitivity = AssistantSensitivity.ACADEMIC,
+        requiresConfirmation = true,
+        source = "本机",
+        confirmationAction = "继续解答",
+        confirmationNote = "确认后 AI 才会给出解答，请自行判断是否符合课程要求",
+        silent = true,
+    )
+
+    override suspend fun execute(arguments: JsonObject): AssistantOutcome =
+        AssistantOutcome.Success(AssistantAnswer("用户已确认继续解答"))
+
+    override suspend fun describe(arguments: JsonObject): String {
+        val question = arguments.stringArg("question")
+        return if (question != null) "解答范围：$question" else "你要求的是直接解答，不是答案核对"
+    }
+}

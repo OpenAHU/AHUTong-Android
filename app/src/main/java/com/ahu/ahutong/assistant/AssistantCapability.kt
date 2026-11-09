@@ -35,6 +35,12 @@ data class AssistantCapabilitySpec(
     val requiresConfirmation: Boolean = kind == AssistantCapabilityKind.WRITE,
     /** 是否需要在确认卡里采集校园卡支付密码。 */
     val requiresPaymentPassword: Boolean = false,
+    /** 确认类能力的按钮文案（例如「继续解答」）。 */
+    val confirmationAction: String = "确认执行",
+    /** 确认卡里的补充说明；为空时按敏感级别生成。 */
+    val confirmationNote: String? = null,
+    /** 确认类空动作不进入工具调用时间线。 */
+    val silent: Boolean = false,
 )
 
 data class AssistantAnswer(

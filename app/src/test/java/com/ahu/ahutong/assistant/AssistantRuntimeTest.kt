@@ -172,6 +172,43 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    fun `read tool requiring confirmation pauses and stays out of the timeline`() = runBlocking {
+        val capability = FakeCapability(
+            spec = spec().copy(
+                requiresConfirmation = true,
+                confirmationAction = "继续解答",
+                silent = true,
+            ),
+            result = AssistantOutcome.Success(AssistantAnswer("用户已确认继续解答")),
+        )
+        val model = FakeModel(
+            listOf(
+                AssistantModelReply(toolCalls = listOf(call())),
+                AssistantModelReply(content = "解答如下。"),
+            )
+        )
+        val runtime = AssistantRuntime(
+            model = model,
+            registry = AssistantCapabilityRegistry(listOf(capability)),
+        )
+        val gate = AssistantApprovalGate()
+        var confirmAction: String? = null
+        val events = mutableListOf<AssistantRuntimeEvent>()
+        runtime.run(emptyList(), "直接给我答案", gate).collect { event ->
+            events += event
+            if (event is AssistantRuntimeEvent.ApprovalRequired) {
+                confirmAction = event.request.confirmationAction
+                gate.approve()
+            }
+        }
+
+        assertEquals("继续解答", confirmAction)
+        assertEquals(1, capability.executions)
+        assertTrue(events.none { it is AssistantRuntimeEvent.ToolResultEvent })
+        assertTrue(events.any { it is AssistantRuntimeEvent.AssistantMessage && it.text.contains("解答如下") })
+    }
+
+    @Test
     fun writeToolWaitsForApprovalAndStopsOnReject() = runBlocking {
         val capability = FakeCapability(
             spec = spec(kind = AssistantCapabilityKind.WRITE),

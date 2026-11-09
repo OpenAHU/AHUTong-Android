@@ -34,6 +34,7 @@ object AssistantCapabilities {
         GetPhoneBookCapability(),
         GetAssignmentsCapability(),
         GetWorkDetailCapability(),
+        ConfirmHomeworkHelpCapability(),
         GetCourseTasksCapability(),
         GetWeatherCapability(),
         WebSearchCapability(),

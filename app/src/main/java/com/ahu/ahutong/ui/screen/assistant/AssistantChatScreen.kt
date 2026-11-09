@@ -51,6 +51,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Assignment
 import androidx.compose.material.icons.rounded.CalendarMonth
@@ -105,6 +106,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -595,6 +597,9 @@ private fun AssistantTurnBubble(
                 )
             }
         }
+        if (items.any { it is AssistantChatItem.Tool && it.event.ok && it.event.toolId == "get_work_detail" }) {
+            AcademicIntegrityNotice()
+        }
         val routes = items
             .filterIsInstance<AssistantChatItem.Tool>()
             .mapNotNull { it.event.route }
@@ -614,6 +619,36 @@ private fun AssistantTurnBubble(
                 onRegenerate = onRegenerate,
             )
         }
+    }
+}
+
+/** 取作业那一轮的学术诚信提示；只在当轮出现，不做全局常驻。 */
+@Composable
+private fun AcademicIntegrityNotice() {
+    val colors = MaterialTheme.colorScheme
+    val lightSurface = colors.surface.luminance() > 0.5f
+    val accent = if (lightSurface) Color(0xFF9A5A00) else Color(0xFFF0B45A)
+    val container = if (lightSurface) Color(0x1AC2410C) else Color(0x26F59E0B)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(container)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.WarningAmber,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "学术诚信提醒：请善用工具，建议您独立思考完成作业。",
+            style = MaterialTheme.typography.bodySmall,
+            color = accent,
+        )
     }
 }
 
@@ -1348,7 +1383,7 @@ private fun ApprovalCard(
                         },
                         enabled = !needsPassword || password.length == 6,
                     ) {
-                        Text("确认执行")
+                        Text(request.confirmationAction)
                     }
                 }
             }
@@ -1375,6 +1410,7 @@ private fun labelFor(key: String): String = when (key) {
     "state" -> "类型"
     "id" -> "ID"
     "index" -> "序号"
+    "question" -> "题目"
     "label" -> "名称"
     "room" -> "房间"
     else -> key
