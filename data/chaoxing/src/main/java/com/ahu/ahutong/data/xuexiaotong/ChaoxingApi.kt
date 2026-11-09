@@ -340,14 +340,20 @@ class ChaoxingApi(private val context: Context) {
     suspend fun fetchWorkDetailHtml(work: Work): String = withContext(Dispatchers.IO) {
         val referer = "https://mooc1.chaoxing.com/mooc2/work/list?courseId=${work.courseId}"
         val res = get(work.detailUrl, referer)
-        val finalUrl = res.request.url.toString()
+        val finalHttpUrl = res.request.url
+        val finalUrl = finalHttpUrl.toString()
+        // 只带 host + path，避免把 enc 等查询参数写进对话和日志。
+        val finalPage = finalHttpUrl.host +
+            finalHttpUrl.encodedPath.ifBlank { "/" }.take(120)
         res.use { r ->
+            val verifyPage = finalUrl.contains("antispiderShowVerify", ignoreCase = true)
             when {
-                r.code == 202 || finalUrl.contains("antispiderShowVerify") ->
-                    throw IOException("学习通风控验证已触发，请过几小时再试")
-                finalUrl.contains("passport2.chaoxing.com/login") ->
-                    throw IOException("学习通登录态已失效，请回学习通页重新登录")
-                r.code !in 200..299 -> throw IOException("HTTP ${r.code} ${work.detailUrl}")
+                r.code == 202 || verifyPage ->
+                    throw IOException("学习通风控验证已触发（HTTP ${r.code}，最终页 $finalPage），请过几小时再试")
+                finalUrl.contains("passport2.chaoxing.com/login", ignoreCase = true) ->
+                    throw IOException("学习通登录态已失效（HTTP ${r.code}，最终页 $finalPage），请回学习通页重新登录")
+                r.code !in 200..299 ->
+                    throw IOException("学习通页面返回 HTTP ${r.code}（$finalPage）")
                 else -> r.body?.string() ?: ""
             }
         }
