@@ -92,6 +92,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -99,7 +100,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -167,7 +167,6 @@ fun AssistantChatScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var input by remember { mutableStateOf("") }
-    var stickToBottom by remember { mutableStateOf(true) }
     var expandedGroups by remember { mutableStateOf<Set<String>>(emptySet()) }
     var expandedRows by remember { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -189,11 +188,13 @@ fun AssistantChatScreen(
     var previousTurnKey by remember { mutableStateOf<String?>(null) }
     var initialBarMeasured by remember { mutableStateOf(false) }
 
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
-            .collect { (scrolling, canForward) ->
-                if (scrolling) stickToBottom = !canForward
-            }
+    // DS 的“接近底部”：距底部 300px 内都算在底部（约 100dp @3x）。
+    val nearBottom by remember(listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
+            (last.offset + last.size) - info.viewportEndOffset <= 300f
+        }
     }
 
     // 新消息 / 新卡片：用户原本在底部时贴底。
@@ -201,21 +202,21 @@ fun AssistantChatScreen(
         if (activeUserId != null) listState.scrollToItem(Int.MAX_VALUE, 0)
     }
     LaunchedEffect(displayItems.size) {
-        if (stickToBottom) listState.scrollToItem(Int.MAX_VALUE, 0)
+        if (nearBottom) listState.scrollToItem(Int.MAX_VALUE, 0)
     }
     // 首次测到底栏高度后补一次贴底；之后的键盘/展开变化交给 DS 的三闸门。
     LaunchedEffect(bottomBarHeight) {
         if (!initialBarMeasured && bottomBarHeight > 0.dp) {
             initialBarMeasured = true
-            if (stickToBottom) listState.scrollToItem(Int.MAX_VALUE, 0)
+            if (nearBottom) listState.scrollToItem(Int.MAX_VALUE, 0)
         }
     }
 
-    // DS 的贴底三闸门：底栏高度变大、流式中、用户没在滚动、当前消息没切换。
+    // DS 的贴底三闸门：底栏高度变大、仍在底部 300px 内、用户没在滚动、当前消息没切换。
     LaunchedEffect(bottomBarHeight, currentTurnKey) {
         val grew = bottomBarHeight > previousBarHeight
         val sameTurn = currentTurnKey == previousTurnKey
-        if (grew && stickToBottom && !listState.isScrollInProgress && sameTurn) {
+        if (grew && nearBottom && !listState.isScrollInProgress && sameTurn) {
             listState.scrollToItem(Int.MAX_VALUE, 0)
         }
         previousBarHeight = bottomBarHeight
@@ -224,7 +225,7 @@ fun AssistantChatScreen(
 
     // 流式跟随：只跟一屏之内、用户仍在底部的回答；超过一屏就停止抢阅读位置。
     LaunchedEffect(streamingLength, currentTurnKey) {
-        if (streamingLength == 0 || currentTurnKey == null || !stickToBottom) return@LaunchedEffect
+        if (streamingLength == 0 || currentTurnKey == null || !nearBottom) return@LaunchedEffect
         if (listState.isScrollInProgress) return@LaunchedEffect
         val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == currentTurnKey }
             ?: return@LaunchedEffect
