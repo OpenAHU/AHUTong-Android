@@ -349,7 +349,9 @@ class ChaoxingApi(private val context: Context) {
             val verifyPage = finalUrl.contains("antispiderShowVerify", ignoreCase = true)
             when {
                 r.code == 202 || verifyPage ->
-                    throw IOException("学习通风控验证已触发（HTTP ${r.code}，最终页 $finalPage），请过几小时再试")
+                    throw ChaoxingRiskControlException(
+                        "学习通风控验证已触发（HTTP ${r.code}，最终页 $finalPage）"
+                    )
                 finalUrl.contains("passport2.chaoxing.com/login", ignoreCase = true) ->
                     throw IOException("学习通登录态已失效（HTTP ${r.code}，最终页 $finalPage），请回学习通页重新登录")
                 r.code !in 200..299 ->

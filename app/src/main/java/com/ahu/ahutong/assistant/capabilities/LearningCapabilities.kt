@@ -13,6 +13,7 @@ import com.ahu.ahutong.assistant.AssistantTrust
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingApi
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingRiskControlException
 import com.ahu.ahutong.data.xuexiaotong.CourseProgress
 import com.ahu.ahutong.data.xuexiaotong.Store
 import com.ahu.ahutong.data.xuexiaotong.Work
@@ -224,8 +225,13 @@ class GetCourseTasksCapability(
 class GetWorkDetailCapability(
     private val works: () -> List<Work> = Store::getWorks,
     // 直接复用学习通现有会话；失效时由详情页跳转结果兜底，不做重登。
-    private val fetchHtml: suspend (Work) -> String = {
-        ChaoxingApi(AppEnvironmentHolder.context()).fetchWorkDetailHtml(it)
+    // 原生命中风控时改用真实 WebView 会话再取一次，只对取题工具生效。
+    private val fetchHtml: suspend (Work) -> String = { work ->
+        try {
+            ChaoxingApi(AppEnvironmentHolder.context()).fetchWorkDetailHtml(work)
+        } catch (blocked: ChaoxingRiskControlException) {
+            WorkDetailWebViewFetcher.fetch(work)
+        }
     },
     // 只有当前模型声明了视觉能力才抓图，避免给纯文本模型白下载。
     private val visionEnabled: () -> Boolean = {
