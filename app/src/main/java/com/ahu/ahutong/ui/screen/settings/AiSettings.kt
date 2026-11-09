@@ -511,6 +511,7 @@ private fun ModelEditorDialog(
     var labelTouched by remember { mutableStateOf(initial?.providerLabel?.isNotBlank() == true) }
     var testing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(baseUrl, modelName) {
         if (!capabilitiesTouched) {
@@ -520,37 +521,36 @@ private fun ModelEditorDialog(
         if (!labelTouched) providerLabel = providerLabelFor(baseUrl, modelName)
     }
 
-    val secureEndpoint = AssistantModelConfig(
-        baseUrl = baseUrl.trim(),
-        model = "placeholder",
-        apiKey = "placeholder",
-    ).isSecureEndpoint
-    val effectiveKey = apiKey.trim().takeIf { it.isNotBlank() } ?: existingKey.orEmpty()
+    // 校验必须在点击时读取当前输入；不要在组合阶段缓存成 val，否则会拿到旧值。
+    fun currentInput(): Triple<String, String, String> =
+        Triple(baseUrl.trim(), modelName.trim(), apiKey.trim().takeIf { it.isNotBlank() } ?: existingKey.orEmpty())
 
     fun save() {
-        if (!secureEndpoint) {
-            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
-            return
+        val (url, model, key) = currentInput()
+        val secure = AssistantModelConfig(baseUrl = url, model = "placeholder", apiKey = "placeholder").isSecureEndpoint
+        error = when {
+            !secure -> "Base URL 必须使用 HTTPS（本机开发地址除外）"
+            url.isBlank() -> "请填写 Base URL"
+            model.isBlank() -> "请填写模型名"
+            key.isBlank() -> "请填写 API Key"
+            else -> null
         }
-        if (baseUrl.isBlank() || modelName.isBlank() || effectiveKey.isBlank()) {
-            Toast.makeText(context, "请填写 Base URL、模型名和 API Key", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (error != null) return
         val profile = (initial ?: AssistantModelProfile()).copy(
-            name = displayName.trim().ifBlank { modelName.trim() },
-            baseUrl = baseUrl.trim(),
-            model = modelName.trim(),
-            providerLabel = providerLabel.trim().ifBlank { providerLabelFor(baseUrl, modelName) },
+            name = displayName.trim().ifBlank { model },
+            baseUrl = url,
+            model = model,
+            providerLabel = providerLabel.trim().ifBlank { providerLabelFor(url, model) },
             supportsVision = supportsVision,
             supportsThinking = supportsThinking,
         )
         val ok = if (initial == null) {
-            AssistantModelLibrary.add(profile, effectiveKey) != null
+            AssistantModelLibrary.add(profile, key) != null
         } else {
             AssistantModelLibrary.update(profile, apiKey.trim().takeIf { it.isNotBlank() })
         }
         if (!ok) {
-            Toast.makeText(context, "保存失败，无法访问本机安全存储", Toast.LENGTH_SHORT).show()
+            error = "保存失败，无法访问本机安全存储"
             return
         }
         Toast.makeText(context, "模型已保存", Toast.LENGTH_SHORT).show()
@@ -559,14 +559,16 @@ private fun ModelEditorDialog(
 
     fun test() {
         if (testing) return
-        if (!secureEndpoint) {
-            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
-            return
+        val (url, model, key) = currentInput()
+        val secure = AssistantModelConfig(baseUrl = url, model = "placeholder", apiKey = "placeholder").isSecureEndpoint
+        error = when {
+            !secure -> "Base URL 必须使用 HTTPS（本机开发地址除外）"
+            url.isBlank() -> "请填写 Base URL"
+            model.isBlank() -> "请填写模型名"
+            key.isBlank() -> "请填写 API Key"
+            else -> null
         }
-        if (baseUrl.isBlank() || modelName.isBlank() || effectiveKey.isBlank()) {
-            Toast.makeText(context, "请先填写完整配置", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (error != null) return
         testing = true
         status = "正在连接…"
         scope.launch {
@@ -574,9 +576,9 @@ private fun ModelEditorDialog(
                 runCatching {
                     val chat = OpenAiCompatibleChatModel(
                         config = AssistantModelConfig(
-                            baseUrl = baseUrl.trim(),
-                            model = modelName.trim(),
-                            apiKey = effectiveKey,
+                            baseUrl = url,
+                            model = model,
+                            apiKey = key,
                         ).copy(supportsThinking = supportsThinking, supportsVision = supportsVision),
                         thinkingLevel = AssistantThinkingLevel.OFF,
                         maxTokens = 16,
@@ -667,6 +669,13 @@ private fun ModelEditorDialog(
                     capabilitiesTouched = true
                 },
             )
+            error?.let { text ->
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 AppButton(
                     onClick = ::test,

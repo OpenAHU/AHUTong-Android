@@ -44,10 +44,13 @@ data class AssistantModelReply(
     val toolCalls: List<AssistantToolCall> = emptyList(),
     /** 厂商返回的本轮 usage；部分兼容接口不返回时为 null。 */
     val usage: AssistantTokenUsage? = null,
+    /** 思考模型的思维链；不进入后续历史，只用于当轮展示。 */
+    val reasoning: String? = null,
 )
 
 sealed interface AssistantModelEvent {
     data class Delta(val text: String) : AssistantModelEvent
+    data class ReasoningDelta(val text: String) : AssistantModelEvent
     data class Completed(val reply: AssistantModelReply) : AssistantModelEvent
 }
 

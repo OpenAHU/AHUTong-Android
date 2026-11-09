@@ -443,6 +443,7 @@ private fun buildChatDisplay(items: List<AssistantChatItem>): List<ChatDisplay> 
     items.forEach { item ->
         when (item) {
             is AssistantChatItem.Assistant,
+            is AssistantChatItem.Reasoning,
             is AssistantChatItem.Tool,
             is AssistantChatItem.Usage -> turn += item
             is AssistantChatItem.User -> {
@@ -514,29 +515,37 @@ private fun UserBubble(text: String) {
 
 private data class ToolSegment(
     val assistant: AssistantChatItem.Assistant?,
+    val reasonings: List<AssistantChatItem.Reasoning>,
     val tools: List<AssistantChatItem.Tool>,
 ) {
-    val key: String get() = assistant?.id ?: tools.firstOrNull()?.id.orEmpty()
+    val key: String get() = assistant?.id ?: reasonings.lastOrNull()?.id ?: tools.firstOrNull()?.id.orEmpty()
 }
 
 /** 按“每段 AI 文本回复”切分工具调用；工具跟随它前面最近的那段文字。 */
 private fun toolSegments(items: List<AssistantChatItem>): List<ToolSegment> {
     val result = mutableListOf<ToolSegment>()
     var assistant: AssistantChatItem.Assistant? = null
+    val reasonings = mutableListOf<AssistantChatItem.Reasoning>()
     val tools = mutableListOf<AssistantChatItem.Tool>()
 
     fun flush() {
-        if (assistant != null || tools.isNotEmpty()) {
-            result += ToolSegment(assistant, tools.toList())
+        if (assistant != null || reasonings.isNotEmpty() || tools.isNotEmpty()) {
+            result += ToolSegment(assistant, reasonings.toList(), tools.toList())
             assistant = null
+            reasonings.clear()
             tools.clear()
         }
     }
 
     items.forEach { item ->
         when (item) {
+            is AssistantChatItem.Reasoning -> {
+                // 新的思考段意味着上一段（文字/工具）已经结束。
+                if (assistant != null || tools.isNotEmpty()) flush()
+                reasonings += item
+            }
             is AssistantChatItem.Assistant -> {
-                flush()
+                if (assistant != null) flush()
                 assistant = item
             }
             is AssistantChatItem.Tool -> tools += item
@@ -569,6 +578,9 @@ private fun AssistantTurnBubble(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         segments.forEach { segment ->
+            segment.reasonings.forEach { reasoning ->
+                ReasoningBlock(reasoning)
+            }
             segment.assistant?.text?.takeIf { it.isNotBlank() }?.let { text ->
                 AssistantMarkdown(
                     text = text,
@@ -604,6 +616,89 @@ private fun AssistantTurnBubble(
                 regenerateEnabled = regenerateEnabled,
                 onRegenerate = onRegenerate,
             )
+        }
+    }
+}
+
+@Composable
+private fun ReasoningBlock(item: AssistantChatItem.Reasoning) {
+    val colors = MaterialTheme.colorScheme
+    var expanded by remember(item.id) { mutableStateOf(item.streaming) }
+    var userToggled by remember(item.id) { mutableStateOf(false) }
+    LaunchedEffect(item.streaming) {
+        if (!item.streaming && !userToggled) expanded = false
+    }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "reasoning-chevron",
+    )
+    val reasoningScroll = rememberScrollState()
+    val consumeScrollChaining = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset = available
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                available
+        }
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable {
+                    userToggled = true
+                    expanded = !expanded
+                }
+                .padding(horizontal = 2.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Bolt,
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (item.streaming) "思考中…" else "思考过程",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Rounded.KeyboardArrowDown,
+                contentDescription = if (expanded) "收起思考过程" else "展开思考过程",
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(chevronRotation),
+            )
+        }
+        AnimatedVisibility(visible = expanded && item.text.isNotBlank()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                color = colors.surfaceContainerLow,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.45f)),
+            ) {
+                Text(
+                    text = item.text,
+                    modifier = Modifier
+                        .heightIn(max = 260.dp)
+                        .nestedScroll(consumeScrollChaining)
+                        .verticalScroll(reasoningScroll)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                    color = colors.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -1333,8 +1428,14 @@ private suspend fun runStream(
     AssistantChatState.updateRunning(true)
     AssistantChatState.updateStatus(null)
     var streamingId: String? = null
+    var reasoningId: String? = null
     val pending = StringBuilder()
     var flushJob: Job? = null
+
+    fun finishReasoningNow() {
+        reasoningId?.let { AssistantChatState.finishReasoning(it) }
+        reasoningId = null
+    }
 
     fun flushNow() {
         flushJob?.cancel()
@@ -1374,13 +1475,16 @@ private suspend fun runStream(
                 is AssistantServiceEvent.Status -> AssistantChatState.updateStatus(event.text)
                 AssistantServiceEvent.AssistantStart -> {
                     flushNow()
-                    if (streamingId == null) {
-                        streamingId = AssistantChatState.startAssistant()
-                    }
+                    // 不在这里创建空回答项：思考链可能先到，先建空 assistant 会排到思考链前面。
                     AssistantChatState.updateStatus(null)
                 }
                 is AssistantServiceEvent.AssistantDelta -> enqueue(event.text)
+                is AssistantServiceEvent.ReasoningDelta -> {
+                    val id = reasoningId ?: AssistantChatState.startReasoning().also { reasoningId = it }
+                    AssistantChatState.appendReasoning(id, event.text)
+                }
                 is AssistantServiceEvent.AssistantMessage -> {
+                    finishReasoningNow()
                     flushNow()
                     val id = streamingId
                     if (id != null) {
@@ -1392,6 +1496,7 @@ private suspend fun runStream(
                     AssistantChatState.updateStatus(null)
                 }
                 is AssistantServiceEvent.ToolResult -> {
+                    finishReasoningNow()
                     flushNow()
                     streamingId?.let {
                         AssistantChatState.finishAssistant(it, null)
@@ -1401,6 +1506,7 @@ private suspend fun runStream(
                     AssistantChatState.updateStatus(null)
                 }
                 is AssistantServiceEvent.ApprovalRequired -> {
+                    finishReasoningNow()
                     flushNow()
                     streamingId?.let {
                         AssistantChatState.finishAssistant(it, null)
@@ -1413,6 +1519,7 @@ private suspend fun runStream(
                     AssistantChatState.appendUsage(event.totalTokens)
                 }
                 is AssistantServiceEvent.Failed -> {
+                    finishReasoningNow()
                     flushNow()
                     streamingId?.let {
                         AssistantChatState.finishAssistant(it, null)
@@ -1422,6 +1529,7 @@ private suspend fun runStream(
                     AssistantChatState.updateStatus(null)
                 }
                 AssistantServiceEvent.Done -> {
+                    finishReasoningNow()
                     flushNow()
                     streamingId?.let {
                         AssistantChatState.finishAssistant(it, null)

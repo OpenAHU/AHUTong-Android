@@ -24,6 +24,12 @@ sealed interface AssistantChatItem {
         val streaming: Boolean = false,
     ) : AssistantChatItem
 
+    data class Reasoning(
+        override val id: String,
+        val text: String,
+        val streaming: Boolean = false,
+    ) : AssistantChatItem
+
     data class Tool(
         override val id: String,
         val event: AssistantServiceEvent.ToolResult,
@@ -278,6 +284,30 @@ object AssistantChatState {
         _items[index] = item.copy(text = item.text + delta)
     }
 
+    fun startReasoning(): String {
+        val id = newId()
+        _items += AssistantChatItem.Reasoning(id = id, text = "", streaming = true)
+        return id
+    }
+
+    fun appendReasoning(id: String, delta: String) {
+        val index = _items.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val item = _items[index] as? AssistantChatItem.Reasoning ?: return
+        _items[index] = item.copy(text = item.text + delta)
+    }
+
+    fun finishReasoning(id: String) {
+        val index = _items.indexOfFirst { it.id == id }
+        if (index < 0) return
+        val item = _items[index] as? AssistantChatItem.Reasoning ?: return
+        if (item.text.isBlank()) {
+            _items.removeAt(index)
+        } else {
+            _items[index] = item.copy(streaming = false)
+        }
+    }
+
     fun finishAssistant(id: String, text: String?) {
         val index = _items.indexOfFirst { it.id == id }
         if (index < 0) return
@@ -326,6 +356,10 @@ object AssistantChatState {
 
     /** 运行结束时兜底收尾，确保不会因为漏掉 Done 而一直按纯文本渲染。 */
     fun finishStreaming() {
+        val last = _items.lastOrNull()
+        if (last is AssistantChatItem.Reasoning && last.streaming) {
+            finishReasoning(last.id)
+        }
         val streaming = _items.lastOrNull() as? AssistantChatItem.Assistant
         if (streaming?.streaming == true) {
             if (streaming.text.isBlank()) {

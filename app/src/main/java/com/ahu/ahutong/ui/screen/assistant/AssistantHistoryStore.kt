@@ -158,6 +158,7 @@ internal class AssistantHistoryStore {
             is AssistantChatItem.Tool -> AssistantHistoryItem(TYPE_TOOL, item.id, tool = item.event)
             is AssistantChatItem.Error -> AssistantHistoryItem(TYPE_ERROR, item.id, text = item.text)
             is AssistantChatItem.Usage -> AssistantHistoryItem(TYPE_USAGE, item.id, tokens = item.totalTokens)
+            is AssistantChatItem.Reasoning -> null
             is AssistantChatItem.Approval -> null
         }
     }

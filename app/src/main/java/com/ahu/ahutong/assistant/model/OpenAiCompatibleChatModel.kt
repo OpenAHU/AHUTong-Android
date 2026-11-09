@@ -55,6 +55,8 @@ class OpenAiCompatibleChatModel(
                 content = message.stringOrNull("content"),
                 toolCalls = message.parseToolCalls(),
                 usage = root.parseUsage(),
+                reasoning = message.stringOrNull("reasoning_content")
+                    ?: message.stringOrNull("reasoning"),
             )
         }
     }
@@ -91,8 +93,9 @@ class OpenAiCompatibleChatModel(
                 if (!line.startsWith("data:")) continue
                 val data = line.removePrefix("data:").trim()
                 if (data == "[DONE]") break
-                assembler.accept(data)?.takeIf { it.isNotEmpty() }?.let {
-                    emit(AssistantModelEvent.Delta(it))
+                assembler.accept(data)?.let { delta ->
+                    delta.reasoning?.let { emit(AssistantModelEvent.ReasoningDelta(it)) }
+                    delta.content?.let { emit(AssistantModelEvent.Delta(it)) }
                 }
             }
             emit(AssistantModelEvent.Completed(assembler.reply()))
@@ -235,14 +238,20 @@ private fun JsonObject.parseToolCalls(): List<AssistantToolCall> {
 }
 
 /** 流式分片的累加器：内容与多个 tool_call 的 arguments 分片可能交错到达。 */
+internal data class AssembledDelta(
+    val content: String? = null,
+    val reasoning: String? = null,
+)
+
 internal class AssistantStreamAssembler {
 
     private val content = StringBuilder()
+    private val reasoning = StringBuilder()
     private val calls = sortedMapOf<Int, Accumulator>()
     private var usage: AssistantTokenUsage? = null
 
-    /** 返回本次新增的文本（没有则为 null）。 */
-    fun accept(data: String): String? {
+    /** 返回本次新增的正文/思维链（都没有则为 null）。 */
+    fun accept(data: String): AssembledDelta? {
         val root = runCatching { JsonParser.parseString(data).asJsonObject }.getOrNull() ?: return null
         root.parseUsage()?.let { usage = it }
         val delta = root.getAsJsonArray("choices")
@@ -251,11 +260,12 @@ internal class AssistantStreamAssembler {
             ?.getAsJsonObject("delta")
             ?: return null
 
-        var emitted: String? = null
-        delta.stringOrNull("content")?.takeIf { it.isNotEmpty() }?.let {
-            content.append(it)
-            emitted = it
-        }
+        val newReasoning = (delta.stringOrNull("reasoning_content") ?: delta.stringOrNull("reasoning"))
+            ?.takeIf { it.isNotEmpty() }
+            ?.also { reasoning.append(it) }
+        val newContent = delta.stringOrNull("content")
+            ?.takeIf { it.isNotEmpty() }
+            ?.also { content.append(it) }
 
         val toolCalls = runCatching { delta.getAsJsonArray("tool_calls") }.getOrNull()
         toolCalls?.forEachIndexed { position, element ->
@@ -267,11 +277,13 @@ internal class AssistantStreamAssembler {
             function?.stringOrNull("name")?.takeIf { it.isNotBlank() }?.let { acc.name = it }
             function?.stringOrNull("arguments")?.let { acc.arguments.append(it) }
         }
-        return emitted
+        if (newReasoning == null && newContent == null) return null
+        return AssembledDelta(content = newContent, reasoning = newReasoning)
     }
 
     fun reply(): AssistantModelReply = AssistantModelReply(
         content = content.toString().ifBlank { null },
+        reasoning = reasoning.toString().ifBlank { null },
         toolCalls = calls.values.mapNotNull { acc ->
             if (acc.name.isBlank()) return@mapNotNull null
             AssistantToolCall(

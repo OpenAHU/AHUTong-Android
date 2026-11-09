@@ -27,6 +27,7 @@ sealed interface AssistantRuntimeEvent {
     data class Status(val text: String) : AssistantRuntimeEvent
     data object AssistantStart : AssistantRuntimeEvent
     data class AssistantDelta(val text: String) : AssistantRuntimeEvent
+    data class ReasoningDelta(val text: String) : AssistantRuntimeEvent
     data class AssistantMessage(val text: String) : AssistantRuntimeEvent
     data class ToolResultEvent(
         val toolId: String,
@@ -90,6 +91,7 @@ class AssistantRuntime(
                     messages = messages,
                     onStart = { emit(AssistantRuntimeEvent.AssistantStart) },
                     onDelta = { delta -> emit(AssistantRuntimeEvent.AssistantDelta(delta)) },
+                    onReasoning = { delta -> emit(AssistantRuntimeEvent.ReasoningDelta(delta)) },
                 )
                 val reply = collected.reply
                 reply.usage?.let { usage += it }
@@ -273,12 +275,22 @@ class AssistantRuntime(
         messages: List<AssistantMessage>,
         onStart: suspend () -> Unit,
         onDelta: suspend (String) -> Unit,
+        onReasoning: suspend (String) -> Unit,
     ): Collected {
         var reply: AssistantModelReply? = null
         var started = false
         val text = StringBuilder()
+        val reasoning = StringBuilder()
         model.stream(messages, registry.toolSpecs()).collect { event ->
             when (event) {
+                is AssistantModelEvent.ReasoningDelta -> {
+                    if (!started) {
+                        started = true
+                        onStart()
+                    }
+                    reasoning.append(event.text)
+                    onReasoning(event.text)
+                }
                 is AssistantModelEvent.Delta -> {
                     if (!started) {
                         started = true
@@ -287,7 +299,19 @@ class AssistantRuntime(
                     text.append(event.text)
                     onDelta(event.text)
                 }
-                is AssistantModelEvent.Completed -> reply = event.reply
+                is AssistantModelEvent.Completed -> {
+                    reply = event.reply
+                    // 非流式实现只给整段回复：把思维链补发一次，避免 UI 丢思考过程。
+                    val fullReasoning = event.reply.reasoning.orEmpty()
+                    if (reasoning.isEmpty() && fullReasoning.isNotBlank()) {
+                        if (!started) {
+                            started = true
+                            onStart()
+                        }
+                        reasoning.append(fullReasoning)
+                        onReasoning(fullReasoning)
+                    }
+                }
             }
         }
         return Collected(

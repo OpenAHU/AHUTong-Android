@@ -25,6 +25,7 @@ sealed interface AssistantServiceEvent {
     data class Status(val text: String) : AssistantServiceEvent
     data object AssistantStart : AssistantServiceEvent
     data class AssistantDelta(val text: String) : AssistantServiceEvent
+    data class ReasoningDelta(val text: String) : AssistantServiceEvent
     data class AssistantMessage(val text: String) : AssistantServiceEvent
     data class ToolResult(
         val toolId: String,
@@ -98,6 +99,7 @@ class AssistantService(
                 is AssistantRuntimeEvent.Status -> emit(AssistantServiceEvent.Status(event.text))
                 AssistantRuntimeEvent.AssistantStart -> emit(AssistantServiceEvent.AssistantStart)
                 is AssistantRuntimeEvent.AssistantDelta -> emit(AssistantServiceEvent.AssistantDelta(event.text))
+                is AssistantRuntimeEvent.ReasoningDelta -> emit(AssistantServiceEvent.ReasoningDelta(event.text))
                 is AssistantRuntimeEvent.AssistantMessage -> emit(AssistantServiceEvent.AssistantMessage(event.text))
                 is AssistantRuntimeEvent.ToolResultEvent -> emit(
                     AssistantServiceEvent.ToolResult(

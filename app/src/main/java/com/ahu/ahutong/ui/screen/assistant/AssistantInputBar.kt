@@ -158,7 +158,6 @@ fun AssistantInputBar(
     val hintColor = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.42f)
     val disabledBg = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.06f)
     val disabledIcon = if (dark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.35f)
-    val subtle = if (dark) Color.White.copy(alpha = 0.72f) else Color.Black.copy(alpha = 0.55f)
     val glowAlpha = if (expanded) 1f else 0.55f
     val blurPx = with(density) { 6.dp.toPx() }
     val shape = RoundedCornerShape(28.dp)
@@ -251,25 +250,17 @@ fun AssistantInputBar(
                         innerTextField()
                     }
                 )
-                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(if (canSend) colors.primary else disabledBg)
-                            .clickable(enabled = canSend) {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onSend()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ArrowUpward,
-                            contentDescription = "发送",
-                            tint = if (canSend) colors.onPrimary else disabledIcon,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                if (!expanded) {
+                    AssistantSendButton(
+                        canSend = canSend,
+                        colors = colors,
+                        disabledBg = disabledBg,
+                        disabledIcon = disabledIcon,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSend()
+                        },
+                    )
                 }
             }
             AnimatedVisibility(
@@ -286,20 +277,20 @@ fun AssistantInputBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     PickerChip(
-                        text = active?.displayName?.takeIf { it.isNotBlank() } ?: "未配置模型",
+                        text = (active?.displayName?.takeIf { it.isNotBlank() } ?: "未配置模型") +
+                            " · " + level.label,
                         onClick = { pickerOpen = true },
-                    )
-                    PickerChip(
-                        text = "思考 · ${level.label}",
-                        onClick = { pickerOpen = true },
-                        dimmed = active?.supportsThinking == false,
                     )
                     Spacer(Modifier.weight(1f))
-                    Text(
-                        text = if (active == null) "先到 AI 设置添加模型" else "",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = subtle,
-                        maxLines = 1,
+                    AssistantSendButton(
+                        canSend = canSend,
+                        colors = colors,
+                        disabledBg = disabledBg,
+                        disabledIcon = disabledIcon,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSend()
+                        },
                     )
                 }
             }
@@ -326,6 +317,31 @@ fun AssistantInputBar(
                     keepExpanded = false
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun AssistantSendButton(
+    canSend: Boolean,
+    colors: androidx.compose.material3.ColorScheme,
+    disabledBg: Color,
+    disabledIcon: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(if (canSend) colors.primary else disabledBg)
+            .clickable(enabled = canSend, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.ArrowUpward,
+            contentDescription = "发送",
+            tint = if (canSend) colors.onPrimary else disabledIcon,
+            modifier = Modifier.size(22.dp),
         )
     }
 }
