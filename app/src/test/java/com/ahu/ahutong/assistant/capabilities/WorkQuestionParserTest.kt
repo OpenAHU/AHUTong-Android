@@ -19,6 +19,7 @@ class WorkQuestionParserTest {
         assertTrue(first.stem.contains("用小规模门电路实现函数"))
         assertTrue(first.stem.contains("[公式]"))
         assertTrue(first.hasImages)
+        assertEquals(listOf("/ananas/latex/p/3937309"), first.imageUrls)
 
         val choice = questions[1]
         assertEquals(2, choice.number)
@@ -34,6 +35,8 @@ class WorkQuestionParserTest {
         val viewStyle = questions[2]
         assertEquals("判断题", viewStyle.type)
         assertEquals("逻辑函数化简后唯一。", viewStyle.stem)
+        assertFalse(viewStyle.hasImages)
+        assertTrue(viewStyle.imageUrls.isEmpty())
     }
 
     @Test
@@ -85,6 +88,7 @@ class WorkQuestionParserTest {
                   <dt><i>正确答案</i></dt>
                   <dd class="rightAnswerContent">错误</dd>
                 </dl>
+                <img src="https://p.ananas.chaoxing.com/star3/origin/answer.png">
               </div>
               <div class="aiArea">官方解析</div>
             </div>

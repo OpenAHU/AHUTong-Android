@@ -1,5 +1,6 @@
 package com.ahu.ahutong.assistant
 
+import com.ahu.ahutong.assistant.model.AssistantImage
 import com.google.gson.JsonObject
 
 /**
@@ -47,6 +48,8 @@ data class AssistantAnswer(
     val refreshed: Boolean? = null,
     /** 数据本身的时间（缓存写入或刷新完成），不是展示时间。 */
     val fetchedAt: Long? = null,
+    /** 随工具结果一起发给视觉模型的图片；只在模型支持视觉时才会被使用。 */
+    val images: List<AssistantImage> = emptyList(),
 )
 
 enum class AssistantCardTone { NEUTRAL, ACCENT, SUCCESS, DANGER }

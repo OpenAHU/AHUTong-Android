@@ -11,12 +11,20 @@ data class AssistantToolCall(
     val arguments: JsonObject,
 )
 
+/** 随 user 消息发送的图片；url 为 data URL 或 https 地址。 */
+data class AssistantImage(
+    val url: String,
+    val label: String = "",
+)
+
 data class AssistantMessage(
     val role: String,
     val content: String? = null,
     val toolCalls: List<AssistantToolCall> = emptyList(),
     val toolCallId: String? = null,
     val name: String? = null,
+    /** 仅 user 消息使用；非空时 content 会序列化为 text + image_url 数组。 */
+    val images: List<AssistantImage> = emptyList(),
 )
 
 data class AssistantToolSpec(
@@ -56,6 +64,9 @@ sealed interface AssistantModelEvent {
 
 interface AssistantChatModel {
     val name: String
+
+    /** 是否能把图片作为 user 消息内容发送；由模型库的能力标记决定。 */
+    val supportsVision: Boolean get() = true
 
     suspend fun complete(
         messages: List<AssistantMessage>,

@@ -11,8 +11,11 @@ internal data class WorkQuestion(
     val score: String?,
     val stem: String,
     val options: List<String>,
-    val hasImages: Boolean,
-)
+    /** 题干与选项里的图片原始地址；答案区图片不会进来。 */
+    val imageUrls: List<String>,
+) {
+    val hasImages: Boolean get() = imageUrls.isNotEmpty()
+}
 
 /**
  * 只解析题目区：题干取 h3.mark_name，选项取答案区之外的 li。
@@ -49,19 +52,23 @@ internal object WorkQuestionParser {
 
         val stemClone = heading.clone()
         stemClone.select("span.colorShallow").remove()
-        val hasImages = stemClone.select("img").isNotEmpty()
+        val stemImages = stemClone.select("img").mapNotNull { it.imageSource() }
         val rawStem = normalize(extractText(stemClone))
         val numberMatch = LEADING_NUMBER.find(rawStem)
         val number = numberMatch?.groupValues?.get(1)?.toIntOrNull() ?: (index + 1)
         val stem = (numberMatch?.let { rawStem.substring(it.range.last + 1) } ?: rawStem).trim()
 
-        val options = question.select("li")
+        val optionItems = question.select("li")
             .filter { li -> li.parents().none { parent -> EXCLUDED_CLASSES.any(parent::hasClass) } }
+        val options = optionItems
             .map { li -> normalize(extractText(li)).takeIf { it.length <= MAX_OPTION_LENGTH } }
             .filterNot { it.isNullOrBlank() }
             .distinct()
             .take(MAX_OPTIONS)
             .map { it.orEmpty() }
+        val optionImages = optionItems.flatMap { li ->
+            li.select("img").mapNotNull { it.imageSource() }
+        }
 
         if (stem.isBlank() && options.isEmpty()) return null
         return WorkQuestion(
@@ -70,9 +77,12 @@ internal object WorkQuestionParser {
             score = score,
             stem = stem,
             options = options,
-            hasImages = hasImages,
+            imageUrls = (stemImages + optionImages).distinct().take(MAX_IMAGES_PER_QUESTION),
         )
     }
+
+    private fun Element.imageSource(): String? =
+        attr("src").ifBlank { attr("data-original") }.trim().takeIf { it.isNotEmpty() }
 
     private fun extractText(element: Element): String {
         val builder = StringBuilder()
@@ -123,4 +133,5 @@ internal object WorkQuestionParser {
 
     private const val MAX_OPTIONS = 8
     private const val MAX_OPTION_LENGTH = 300
+    private const val MAX_IMAGES_PER_QUESTION = 4
 }

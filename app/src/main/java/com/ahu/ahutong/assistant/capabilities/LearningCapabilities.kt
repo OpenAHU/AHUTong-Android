@@ -10,6 +10,7 @@ import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.assistant.AssistantTrust
+import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingApi
 import com.ahu.ahutong.data.xuexiaotong.CourseProgress
@@ -226,6 +227,10 @@ class GetWorkDetailCapability(
     private val fetchHtml: suspend (Work) -> String = {
         ChaoxingApi(AppEnvironmentHolder.context()).fetchWorkDetailHtml(it)
     },
+    // 只有当前模型声明了视觉能力才抓图，避免给纯文本模型白下载。
+    private val visionEnabled: () -> Boolean = {
+        AssistantModelConfigStore.load()?.supportsVision == true
+    },
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
@@ -331,6 +336,24 @@ class GetWorkDetailCapability(
         }
 
         val imageCount = questions.count { it.hasImages }
+        val vision = visionEnabled()
+        val images = if (vision) {
+            val refs = questions.flatMap { question ->
+                question.imageUrls.mapIndexed { index, url ->
+                    val label = buildString {
+                        append("第")
+                        append(question.number)
+                        append("题")
+                        append(if (url.contains("/latex/")) "公式" else "图片")
+                        if (question.imageUrls.size > 1) append(index + 1)
+                    }
+                    url to label
+                }
+            }
+            WorkImageLoader.load(refs)
+        } else {
+            emptyList()
+        }
         val summary = buildString {
             append("《")
             append(work.title)
@@ -351,6 +374,7 @@ class GetWorkDetailCapability(
                 trust = AssistantTrust.UNTRUSTED,
                 refreshed = true,
                 fetchedAt = System.currentTimeMillis(),
+                images = images,
                 card = AssistantCard(
                     kind = "work_questions",
                     headline = questions.size.toString(),
@@ -363,10 +387,11 @@ class GetWorkDetailCapability(
                             value = question.score,
                         )
                     },
-                    note = if (imageCount > 0) {
-                        "含 $imageCount 道带图片/公式的题目，AI 只能看到占位标记"
-                    } else {
-                        null
+                    note = when {
+                        images.isNotEmpty() -> "已随请求发送 ${images.size} 张题目图片"
+                        imageCount > 0 && vision -> "题目图片读取失败，本次只发送了题干文字"
+                        imageCount > 0 -> "题目含图片，但当前模型未开启视觉，只能看到占位标记"
+                        else -> null
                     },
                 ),
             )

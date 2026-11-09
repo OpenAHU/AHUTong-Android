@@ -1,6 +1,7 @@
 package com.ahu.ahutong.assistant
 
 import com.ahu.ahutong.assistant.model.AssistantChatModel
+import com.ahu.ahutong.assistant.model.AssistantImage
 import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelEvent
 import com.ahu.ahutong.assistant.model.AssistantModelReply
@@ -32,6 +33,28 @@ class AssistantRuntimeTest {
             messages: List<AssistantMessage>,
             tools: List<AssistantToolSpec>,
         ): Flow<AssistantModelEvent> = flow {
+            emit(AssistantModelEvent.Completed(queue.removeFirst()))
+        }
+    }
+
+    private class CapturingModel(
+        replies: List<AssistantModelReply>,
+        override val supportsVision: Boolean = true,
+    ) : AssistantChatModel {
+        private val queue = ArrayDeque(replies)
+        val calls = mutableListOf<List<AssistantMessage>>()
+        override val name: String = "capture"
+
+        override suspend fun complete(
+            messages: List<AssistantMessage>,
+            tools: List<AssistantToolSpec>,
+        ): AssistantModelReply = queue.removeFirst()
+
+        override fun stream(
+            messages: List<AssistantMessage>,
+            tools: List<AssistantToolSpec>,
+        ): Flow<AssistantModelEvent> = flow {
+            calls += messages.toList()
             emit(AssistantModelEvent.Completed(queue.removeFirst()))
         }
     }
@@ -86,6 +109,66 @@ class AssistantRuntimeTest {
         assertTrue(events.toString(), events.any { it is AssistantRuntimeEvent.ToolResultEvent && it.ok })
         assertTrue(events.toString(), events.any { it is AssistantRuntimeEvent.AssistantMessage && it.text.contains("1 节课") })
         assertTrue(events.toString(), events.last() is AssistantRuntimeEvent.Done)
+    }
+
+    @Test
+    fun `tool images are attached after all tool messages`() = runBlocking {
+        val capability = FakeCapability(
+            spec = spec(),
+            result = AssistantOutcome.Success(
+                AssistantAnswer(
+                    "共 1 题",
+                    images = listOf(AssistantImage("data:image/png;base64,AAAA", "第1题公式")),
+                )
+            ),
+        )
+        val model = CapturingModel(
+            listOf(
+                AssistantModelReply(toolCalls = listOf(call())),
+                AssistantModelReply(content = "答案是……"),
+            )
+        )
+        val runtime = AssistantRuntime(
+            model = model,
+            registry = AssistantCapabilityRegistry(listOf(capability)),
+        )
+        runtime.run(emptyList(), "帮我看看这道题", AssistantApprovalGate()).collect { }
+
+        val secondCall = model.calls[1]
+        val toolIndex = secondCall.indexOfFirst { it.role == "tool" }
+        val imageIndex = secondCall.indexOfFirst { it.role == "user" && it.images.isNotEmpty() }
+        assertTrue(toolIndex >= 0)
+        assertEquals(toolIndex + 1, imageIndex)
+        assertEquals(1, secondCall[imageIndex].images.size)
+        assertTrue(secondCall[imageIndex].content.orEmpty().contains("随附图片"))
+    }
+
+    @Test
+    fun `tool images are not attached when model has no vision`() = runBlocking {
+        val capability = FakeCapability(
+            spec = spec(),
+            result = AssistantOutcome.Success(
+                AssistantAnswer(
+                    "共 1 题",
+                    images = listOf(AssistantImage("data:image/png;base64,AAAA", "第1题公式")),
+                )
+            ),
+        )
+        val model = CapturingModel(
+            listOf(
+                AssistantModelReply(toolCalls = listOf(call())),
+                AssistantModelReply(content = "我看不到图片。"),
+            ),
+            supportsVision = false,
+        )
+        val runtime = AssistantRuntime(
+            model = model,
+            registry = AssistantCapabilityRegistry(listOf(capability)),
+        )
+        runtime.run(emptyList(), "帮我看看这道题", AssistantApprovalGate()).collect { }
+
+        val secondCall = model.calls[1]
+        assertTrue(secondCall.none { it.images.isNotEmpty() })
     }
 
     @Test

@@ -32,6 +32,7 @@ class OpenAiCompatibleChatModel(
 ) : AssistantChatModel {
 
     override val name: String get() = config.model
+    override val supportsVision: Boolean get() = config.supportsVision
 
     override suspend fun complete(
         messages: List<AssistantMessage>,
@@ -163,7 +164,31 @@ class OpenAiCompatibleChatModel(
 
 internal fun AssistantMessage.toJson(): JsonObject = JsonObject().apply {
     addProperty("role", role)
-    content?.let { addProperty("content", it) }
+    if (role == "user" && images.isNotEmpty()) {
+        add("content", JsonArray().apply {
+            content?.takeIf { it.isNotBlank() }?.let { text ->
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "text")
+                        addProperty("text", text)
+                    }
+                )
+            }
+            images.forEach { image ->
+                add(
+                    JsonObject().apply {
+                        addProperty("type", "image_url")
+                        add(
+                            "image_url",
+                            JsonObject().apply { addProperty("url", image.url) }
+                        )
+                    }
+                )
+            }
+        })
+    } else {
+        content?.let { addProperty("content", it) }
+    }
     if (toolCalls.isNotEmpty()) {
         add("tool_calls", JsonArray().apply {
             toolCalls.forEach { call ->
