@@ -553,49 +553,6 @@ private fun UserBubble(text: String) {
     }
 }
 
-private data class ToolSegment(
-    val assistant: AssistantChatItem.Assistant?,
-    val reasonings: List<AssistantChatItem.Reasoning>,
-    val tools: List<AssistantChatItem.Tool>,
-) {
-    val key: String get() = assistant?.id ?: reasonings.lastOrNull()?.id ?: tools.firstOrNull()?.id.orEmpty()
-}
-
-/** 按“每段 AI 文本回复”切分工具调用；工具跟随它前面最近的那段文字。 */
-private fun toolSegments(items: List<AssistantChatItem>): List<ToolSegment> {
-    val result = mutableListOf<ToolSegment>()
-    var assistant: AssistantChatItem.Assistant? = null
-    val reasonings = mutableListOf<AssistantChatItem.Reasoning>()
-    val tools = mutableListOf<AssistantChatItem.Tool>()
-
-    fun flush() {
-        if (assistant != null || reasonings.isNotEmpty() || tools.isNotEmpty()) {
-            result += ToolSegment(assistant, reasonings.toList(), tools.toList())
-            assistant = null
-            reasonings.clear()
-            tools.clear()
-        }
-    }
-
-    items.forEach { item ->
-        when (item) {
-            is AssistantChatItem.Reasoning -> {
-                // 新的思考段意味着上一段（文字/工具）已经结束。
-                if (assistant != null || tools.isNotEmpty()) flush()
-                reasonings += item
-            }
-            is AssistantChatItem.Assistant -> {
-                if (assistant != null) flush()
-                assistant = item
-            }
-            is AssistantChatItem.Tool -> tools += item
-            else -> Unit
-        }
-    }
-    flush()
-    return result
-}
-
 @Composable
 private fun AssistantTurnBubble(
     items: List<AssistantChatItem>,
