@@ -333,6 +333,26 @@ class ChaoxingApi(private val context: Context) {
             works
         }
 
+    /**
+     * 只读获取作业详情页 HTML。命中风控验证页或登录页时抛异常，交由调用方熔断提示。
+     * 已交作业会重定向到详情页，其中含答案区，调用方只解析题目区，不得读取答案。
+     */
+    suspend fun fetchWorkDetailHtml(work: Work): String = withContext(Dispatchers.IO) {
+        val referer = "https://mooc1.chaoxing.com/mooc2/work/list?courseId=${work.courseId}"
+        val res = get(work.detailUrl, referer)
+        val finalUrl = res.request.url.toString()
+        res.use { r ->
+            when {
+                r.code == 202 || finalUrl.contains("antispiderShowVerify") ->
+                    throw IOException("学习通风控验证已触发，请过几小时再试")
+                finalUrl.contains("passport2.chaoxing.com/login") ->
+                    throw IOException("学习通登录态已失效，请回学习通页重新登录")
+                r.code !in 200..299 -> throw IOException("HTTP ${r.code} ${work.detailUrl}")
+                else -> r.body?.string() ?: ""
+            }
+        }
+    }
+
     suspend fun fetchWorkDeadline(work: Work): Pair<Long, Long>? = withContext(Dispatchers.IO) {
         val url = work.detailUrl
         val referer = "https://mooc1.chaoxing.com/mooc2/work/list?courseId=${work.courseId}"

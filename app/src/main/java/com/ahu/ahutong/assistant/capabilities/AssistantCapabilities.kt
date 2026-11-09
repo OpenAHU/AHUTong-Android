@@ -33,6 +33,7 @@ object AssistantCapabilities {
         GetMailCapability(),
         GetPhoneBookCapability(),
         GetAssignmentsCapability(),
+        GetWorkDetailCapability(),
         GetCourseTasksCapability(),
         GetWeatherCapability(),
         WebSearchCapability(),
