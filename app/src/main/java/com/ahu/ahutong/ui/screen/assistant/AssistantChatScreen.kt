@@ -598,7 +598,10 @@ private fun AssistantTurnBubble(
             }
         }
         if (items.any { it is AssistantChatItem.Tool && it.event.ok && it.event.toolId == "get_work_detail" }) {
-            AcademicIntegrityNotice()
+            IntegrityNotice("学术诚信提醒：请善用工具，建议您独立思考完成作业。")
+        }
+        if (items.any { it is AssistantChatItem.Assistant && it.academicAnswer }) {
+            IntegrityNotice("答案由AI生成，仅供参考；安大通倡导学术诚信，不鼓励任何形式的抄袭行为。")
         }
         val routes = items
             .filterIsInstance<AssistantChatItem.Tool>()
@@ -622,9 +625,9 @@ private fun AssistantTurnBubble(
     }
 }
 
-/** 取作业那一轮的学术诚信提示；只在当轮出现，不做全局常驻。 */
+/** 学术诚信提示条；只在对应轮次出现，不做全局常驻。 */
 @Composable
-private fun AcademicIntegrityNotice() {
+private fun IntegrityNotice(text: String) {
     val colors = MaterialTheme.colorScheme
     val lightSurface = colors.surface.luminance() > 0.5f
     val accent = if (lightSurface) Color(0xFF9A5A00) else Color(0xFFF0B45A)
@@ -645,7 +648,7 @@ private fun AcademicIntegrityNotice() {
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text = "学术诚信提醒：请善用工具，建议您独立思考完成作业。",
+            text = text,
             style = MaterialTheme.typography.bodySmall,
             color = accent,
         )
@@ -1470,13 +1473,25 @@ private suspend fun runStream(
         reasoningId = null
     }
 
+    /** 本轮（最后一条用户消息之后）是否刚同意了「解题确认」。 */
+    fun academicAnswerPending(): Boolean {
+        val items = AssistantChatState.items
+        val lastUserIndex = items.indexOfLast { it is AssistantChatItem.User }
+        val approval = items.drop(lastUserIndex + 1)
+            .lastOrNull { it is AssistantChatItem.Approval } as? AssistantChatItem.Approval
+            ?: return false
+        return approval.request.toolId == "confirm_homework_help" &&
+            approval.decision == AssistantApprovalDecision.APPROVED
+    }
+
     fun flushNow() {
         flushJob?.cancel()
         flushJob = null
         if (pending.isEmpty()) return
         val chunk = pending.toString()
         pending.setLength(0)
-        val id = streamingId ?: AssistantChatState.startAssistant().also { streamingId = it }
+        val id = streamingId
+            ?: AssistantChatState.startAssistant(academicAnswerPending()).also { streamingId = it }
         AssistantChatState.appendDelta(id, chunk)
     }
 
@@ -1492,7 +1507,8 @@ private suspend fun runStream(
                     }
                     val chunk = pending.toString()
                     pending.setLength(0)
-                    val id = streamingId ?: AssistantChatState.startAssistant().also { streamingId = it }
+                    val id = streamingId
+                        ?: AssistantChatState.startAssistant(academicAnswerPending()).also { streamingId = it }
                     AssistantChatState.appendDelta(id, chunk)
                 }
             }
@@ -1524,7 +1540,7 @@ private suspend fun runStream(
                         AssistantChatState.finishAssistant(id, event.text)
                         streamingId = null
                     } else {
-                        AssistantChatState.appendMessage(event.text)
+                        AssistantChatState.appendMessage(event.text, academicAnswerPending())
                     }
                     AssistantChatState.updateStatus(null)
                 }

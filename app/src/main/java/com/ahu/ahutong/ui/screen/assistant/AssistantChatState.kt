@@ -22,6 +22,8 @@ sealed interface AssistantChatItem {
         override val id: String,
         val text: String,
         val streaming: Boolean = false,
+        /** 这一条是用户在确认卡同意后由 AI 给出的解答，需要挂 AI 答案提示。 */
+        val academicAnswer: Boolean = false,
     ) : AssistantChatItem
 
     data class Reasoning(
@@ -271,9 +273,14 @@ object AssistantChatState {
         status = text
     }
 
-    fun startAssistant(): String {
+    fun startAssistant(academicAnswer: Boolean = false): String {
         val id = newId()
-        _items += AssistantChatItem.Assistant(id = id, text = "", streaming = true)
+        _items += AssistantChatItem.Assistant(
+            id = id,
+            text = "",
+            streaming = true,
+            academicAnswer = academicAnswer,
+        )
         return id
     }
 
@@ -319,8 +326,13 @@ object AssistantChatState {
         }
     }
 
-    fun appendMessage(text: String) {
-        _items += AssistantChatItem.Assistant(newId(), text, streaming = false)
+    fun appendMessage(text: String, academicAnswer: Boolean = false) {
+        _items += AssistantChatItem.Assistant(
+            id = newId(),
+            text = text,
+            streaming = false,
+            academicAnswer = academicAnswer,
+        )
     }
 
     fun appendTool(event: AssistantServiceEvent.ToolResult) {

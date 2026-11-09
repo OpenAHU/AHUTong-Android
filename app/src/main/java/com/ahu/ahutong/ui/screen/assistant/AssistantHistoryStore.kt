@@ -153,7 +153,12 @@ internal class AssistantHistoryStore {
         when (item) {
             is AssistantChatItem.User -> AssistantHistoryItem(TYPE_USER, item.id, text = item.text)
             is AssistantChatItem.Assistant -> item.text.takeIf { it.isNotBlank() }?.let {
-                AssistantHistoryItem(TYPE_ASSISTANT, item.id, text = it)
+                AssistantHistoryItem(
+                    TYPE_ASSISTANT,
+                    item.id,
+                    text = it,
+                    academic = item.academicAnswer.takeIf { answer -> answer },
+                )
             }
             is AssistantChatItem.Tool -> AssistantHistoryItem(TYPE_TOOL, item.id, tool = item.event)
             is AssistantChatItem.Error -> AssistantHistoryItem(TYPE_ERROR, item.id, text = item.text)
@@ -167,7 +172,11 @@ internal class AssistantHistoryStore {
         val id = item.id.orEmpty().ifBlank { UUID.randomUUID().toString() }
         when (item.type) {
             TYPE_USER -> AssistantChatItem.User(id, item.text.orEmpty())
-            TYPE_ASSISTANT -> AssistantChatItem.Assistant(id, item.text.orEmpty())
+            TYPE_ASSISTANT -> AssistantChatItem.Assistant(
+                id = id,
+                text = item.text.orEmpty(),
+                academicAnswer = item.academic == true,
+            )
             TYPE_TOOL -> item.tool?.let { AssistantChatItem.Tool(id, it) }
             TYPE_ERROR -> AssistantChatItem.Error(id, item.text.orEmpty())
             TYPE_USAGE -> item.tokens?.takeIf { it > 0 }?.let { AssistantChatItem.Usage(id, it) }
@@ -206,4 +215,6 @@ internal data class AssistantHistoryItem(
     val text: String? = null,
     val tool: AssistantServiceEvent.ToolResult? = null,
     val tokens: Int? = null,
+    /** 该条助手回复是用户确认后 AI 给出的解答，用于历史回看时保留提示。 */
+    val academic: Boolean? = null,
 )
