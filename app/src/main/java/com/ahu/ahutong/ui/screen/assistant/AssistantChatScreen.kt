@@ -20,6 +20,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,18 +29,22 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -175,21 +180,15 @@ fun AssistantChatScreen(
     val activeUserId = displayItems.lastOrNull { it is ChatDisplay.User }?.key
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val density = LocalDensity.current
-    var composerHeightPx by remember { mutableIntStateOf(0) }
-    val composerHeight = with(density) { composerHeightPx.toDp() }
-    val imeLift = rememberEffectiveImePadding()
-    val imeVisible = WindowInsets.isImeVisible
-    // 键盘弹出那一刻列表是否在底部；在底部才把列表一起顶上去，否则只抬输入栏。
-    var listLiftedByIme by remember { mutableStateOf(false) }
-    LaunchedEffect(imeVisible) {
-        listLiftedByIme = imeVisible && !listState.canScrollForward
-    }
-    val liftListWithIme = imeVisible && listLiftedByIme
-    val listBottomPadding =
-        (if (composerHeightPx > 0) composerHeight + 32.dp else 104.dp) +
-            if (liftListWithIme) imeLift else 0.dp
+    // 底栏（输入框 + IME/系统栏占位）整体高度；列表尾部用同高占位。
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+    val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
+    val currentTurnKey = displayItems.lastOrNull { it is ChatDisplay.Turn }?.key
+    var previousBarHeight by remember { mutableStateOf(0.dp) }
+    var previousTurnKey by remember { mutableStateOf<String?>(null) }
+    var initialBarMeasured by remember { mutableStateOf(false) }
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
@@ -198,26 +197,44 @@ fun AssistantChatScreen(
             }
     }
 
-    LaunchedEffect(displayItems.size, status, lastStreaming) {
-        if (!stickToBottom) return@LaunchedEffect
-        val target = displayItems.lastIndex + if (status != null) 1 else 0
-        if (target < 0) return@LaunchedEffect
-        listState.jumpToBottom(target)
+    // 新消息 / 新卡片：用户原本在底部时贴底。
+    LaunchedEffect(activeUserId) {
+        if (activeUserId != null) listState.scrollToItem(Int.MAX_VALUE, 0)
+    }
+    LaunchedEffect(displayItems.size) {
+        if (stickToBottom) listState.scrollToItem(Int.MAX_VALUE, 0)
+    }
+    // 首次测到底栏高度后补一次贴底；之后的键盘/展开变化交给 DS 的三闸门。
+    LaunchedEffect(bottomBarHeight) {
+        if (!initialBarMeasured && bottomBarHeight > 0.dp) {
+            initialBarMeasured = true
+            if (stickToBottom) listState.scrollToItem(Int.MAX_VALUE, 0)
+        }
     }
 
-    LaunchedEffect(streamingLength) {
-        if (streamingLength == 0 || !stickToBottom) return@LaunchedEffect
-        withFrameNanos { }
-        listState.dispatchRawDelta(BOTTOM_JUMP_PX)
+    // DS 的贴底三闸门：底栏高度变大、流式中、用户没在滚动、当前消息没切换。
+    LaunchedEffect(bottomBarHeight, currentTurnKey) {
+        val grew = bottomBarHeight > previousBarHeight
+        val sameTurn = currentTurnKey == previousTurnKey
+        if (grew && lastStreaming && !listState.isScrollInProgress && sameTurn) {
+            listState.scrollToItem(Int.MAX_VALUE, 0)
+        }
+        previousBarHeight = bottomBarHeight
+        previousTurnKey = currentTurnKey
     }
 
-    // 输入栏变高或键盘顶起列表后，若原本就在底部，保持最后一条可见。
-    LaunchedEffect(composerHeightPx, imeVisible, liftListWithIme, listBottomPadding) {
-        if (composerHeightPx == 0) return@LaunchedEffect
-        val atBottom = if (imeVisible) liftListWithIme else !listState.canScrollForward
-        if (!atBottom) return@LaunchedEffect
-        val target = displayItems.lastIndex + if (status != null) 1 else 0
-        if (target >= 0) listState.jumpToBottom(target)
+    // 流式跟随：只跟一屏之内、用户仍在底部的回答；超过一屏就停止抢阅读位置。
+    LaunchedEffect(streamingLength, currentTurnKey) {
+        if (streamingLength == 0 || currentTurnKey == null || !stickToBottom) return@LaunchedEffect
+        if (listState.isScrollInProgress) return@LaunchedEffect
+        val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == currentTurnKey }
+            ?: return@LaunchedEffect
+        val viewportHeight = listState.layoutInfo.viewportEndOffset -
+            listState.layoutInfo.viewportStartOffset - bottomBarHeightPx
+        if (viewportHeight <= 0 || info.size > viewportHeight) return@LaunchedEffect
+        val usableBottom = listState.layoutInfo.viewportEndOffset - bottomBarHeightPx
+        val distance = info.offset + info.size - usableBottom
+        if (distance > 0) listState.scrollBy(distance.toFloat())
     }
 
     LaunchedEffect(AssistantChatState.pendingQuestion) {
@@ -271,8 +288,8 @@ fun AssistantChatScreen(
                         end = 14.dp,
                         // 标题栏是渐变遮罩，列表从它下面穿过。
                         top = statusBarTop + 68.dp,
-                        // 输入栏浮在列表上方；底部留出它的实际高度，最后一条不会被遮住。
-                        bottom = listBottomPadding,
+                        // 输入栏浮在列表上方；底部留白由尾部占位条目负责。
+                        bottom = 0.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -326,6 +343,10 @@ fun AssistantChatScreen(
                             StatusShimmer(text = status)
                         }
                     }
+                    // 稳定 key 的尾部占位：键盘弹出时只改它的高度，列表容器不重排。
+                    item(key = "bottom_spacer") {
+                        Spacer(Modifier.height(bottomBarHeight + 32.dp))
+                    }
                 }
                 }
 
@@ -377,12 +398,16 @@ fun AssistantChatScreen(
                     }
                 }
 
-                Box(
+                // DS 式底栏：输入框 + 自身 IME/系统栏占位；列表用同高尾部占位，窗口不 resize。
+                val bottomBarInsets = WindowInsets.ime
+                    .union(WindowInsets.systemBarsIgnoringVisibility)
+                    .only(WindowInsetsSides.Bottom)
+                    .union(WindowInsets(bottom = 10.dp))
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 10.dp + imeLift)
+                        .onSizeChanged { bottomBarHeightPx = it.height }
                 ) {
                     AssistantInputBar(
                         value = input,
@@ -393,7 +418,12 @@ fun AssistantChatScreen(
                             if (question.isNotBlank()) AssistantChatState.send(question)
                         },
                         enabled = !running,
-                        modifier = Modifier.onSizeChanged { composerHeightPx = it.height },
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    Spacer(
+                        Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(bottomBarInsets)
                     )
                 }
 
@@ -1592,22 +1622,3 @@ private fun formatTokenCount(tokens: Int): String {
 private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"
 private const val DELTA_FLUSH_INTERVAL_MS = 33L
-private suspend fun androidx.compose.foundation.lazy.LazyListState.jumpToBottom(targetIndex: Int) {
-    withFrameNanos { }
-    scrollToItem(targetIndex)
-    var stableFrames = 0
-    repeat(BOTTOM_SETTLE_MAX_FRAMES) {
-        if (stableFrames >= BOTTOM_SETTLE_STABLE_FRAMES) return
-        withFrameNanos { }
-        if (!isScrollInProgress && canScrollForward) {
-            dispatchRawDelta(BOTTOM_JUMP_PX)
-            stableFrames = 0
-        } else {
-            stableFrames++
-        }
-    }
-}
-
-private const val BOTTOM_JUMP_PX = 100_000f
-private const val BOTTOM_SETTLE_MAX_FRAMES = 60
-private const val BOTTOM_SETTLE_STABLE_FRAMES = 5
