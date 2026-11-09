@@ -1329,7 +1329,7 @@ private fun ApprovalCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurface,
             )
-            request.untrustedWarning?.takeIf { it.isNotBlank() }?.let {
+            request.warning?.takeIf { it.isNotBlank() }?.let {
                 Text(it, style = MaterialTheme.typography.labelSmall, color = colors.error)
             }
             request.arguments.entrySet().forEach { (key, value) ->

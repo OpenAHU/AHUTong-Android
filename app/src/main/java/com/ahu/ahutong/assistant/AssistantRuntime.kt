@@ -173,12 +173,13 @@ class AssistantRuntime(
                                     arguments = call.arguments,
                                     requiresPaymentPassword = capability.spec.requiresPaymentPassword,
                                     confirmationAction = capability.spec.confirmationAction,
-                                    untrustedWarning = untrustedSources
-                                        .takeIf { it.isNotEmpty() }
-                                        ?.let { sources ->
-                                            "本轮已读取外部内容（${sources.joinToString("、")}），" +
-                                                "请确认这是你本人要求的操作。"
-                                        },
+                                    warning = capability.spec.confirmationWarning
+                                        ?: untrustedSources
+                                            .takeIf { it.isNotEmpty() }
+                                            ?.let { sources ->
+                                                "本轮已读取外部内容（${sources.joinToString("、")}），" +
+                                                    "请确认这是你本人要求的操作。"
+                                            },
                                 )
                             )
                         )

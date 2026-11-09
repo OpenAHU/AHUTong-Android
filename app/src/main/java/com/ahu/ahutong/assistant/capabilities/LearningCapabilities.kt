@@ -440,14 +440,10 @@ class ConfirmHomeworkHelpCapability : AssistantCapability {
         source = "本机",
         confirmationAction = "继续解答",
         confirmationNote = "确认后 AI 才会给出解答，请自行判断是否符合课程要求",
+        confirmationWarning = "学术诚信提醒：AI 解答仅供核对参考，请勿直接誊抄或提交。",
         silent = true,
     )
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome =
         AssistantOutcome.Success(AssistantAnswer("用户已确认继续解答"))
-
-    override suspend fun describe(arguments: JsonObject): String {
-        val question = arguments.stringArg("question")
-        return if (question != null) "解答范围：$question" else "你要求的是直接解答，不是答案核对"
-    }
 }

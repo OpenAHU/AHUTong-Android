@@ -39,6 +39,8 @@ data class AssistantCapabilitySpec(
     val confirmationAction: String = "确认执行",
     /** 确认卡里的补充说明；为空时按敏感级别生成。 */
     val confirmationNote: String? = null,
+    /** 确认卡里的红字警示；设置后替代通用的「外部内容」提示。 */
+    val confirmationWarning: String? = null,
     /** 确认类空动作不进入工具调用时间线。 */
     val silent: Boolean = false,
 )

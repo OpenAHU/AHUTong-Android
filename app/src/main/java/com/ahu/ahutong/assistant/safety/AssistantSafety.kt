@@ -50,8 +50,8 @@ data class AssistantApprovalRequest(
     val risk: String,
     val arguments: JsonObject = JsonObject(),
     val requiresPaymentPassword: Boolean = false,
-    /** 本轮读过外部内容时，提示用户不要被网页/邮件/通知里的文字带着走。 */
-    val untrustedWarning: String? = null,
+    /** 确认卡的红字警示：默认提示外部内容风险，能力可换成自己的口径。 */
+    val warning: String? = null,
     /** 确认按钮文案；解题确认用「继续解答」。 */
     val confirmationAction: String = "确认执行",
 )
