@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -51,7 +52,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Assignment
-import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -112,6 +112,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
@@ -173,6 +174,16 @@ fun AssistantChatScreen(
     // 用户刚发问、还没收到首词时，也要把上一轮的底栏保留下来。
     val activeUserId = displayItems.lastOrNull { it is ChatDisplay.User }?.key
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val density = LocalDensity.current
+    var composerHeightPx by remember { mutableIntStateOf(0) }
+    val composerHeight = with(density) { composerHeightPx.toDp() }
+    val imeLift = rememberEffectiveImePadding()
+    val imeVisible = WindowInsets.isImeVisible
+    // 键盘弹出时，列表仍在底部才把列表一起顶上去；否则只抬输入栏。
+    val liftListWithIme = imeVisible && stickToBottom
+    val listBottomPadding =
+        (if (composerHeightPx > 0) composerHeight + 16.dp else 104.dp) +
+            if (liftListWithIme) imeLift else 0.dp
     val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
 
@@ -206,6 +217,14 @@ fun AssistantChatScreen(
         if (streamingLength == 0 || !stickToBottom) return@LaunchedEffect
         withFrameNanos { }
         listState.dispatchRawDelta(BOTTOM_JUMP_PX)
+    }
+
+    // 输入栏变高或键盘顶起列表后，若原本就在底部，保持最后一条可见。
+    LaunchedEffect(composerHeightPx, imeVisible, liftListWithIme, listBottomPadding) {
+        if (!stickToBottom || composerHeightPx == 0) return@LaunchedEffect
+        withFrameNanos { }
+        val target = displayItems.lastIndex + if (status != null) 1 else 0
+        if (target >= 0) listState.scrollToItem(target)
     }
 
     LaunchedEffect(AssistantChatState.pendingQuestion) {
@@ -259,8 +278,8 @@ fun AssistantChatScreen(
                         end = 14.dp,
                         // 标题栏是渐变遮罩，列表从它下面穿过。
                         top = statusBarTop + 68.dp,
-                        // 输入栏浮在列表上方；底部留出它的高度，最后一条不会被遮住。
-                        bottom = 104.dp,
+                        // 输入栏浮在列表上方；底部留出它的实际高度，最后一条不会被遮住。
+                        bottom = listBottomPadding,
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -370,7 +389,7 @@ fun AssistantChatScreen(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 10.dp + rememberEffectiveImePadding())
+                        .padding(start = 16.dp, end = 16.dp, bottom = 10.dp + imeLift)
                 ) {
                     AssistantInputBar(
                         value = input,
@@ -381,6 +400,7 @@ fun AssistantChatScreen(
                             if (question.isNotBlank()) AssistantChatState.send(question)
                         },
                         enabled = !running,
+                        modifier = Modifier.onSizeChanged { composerHeightPx = it.height },
                     )
                 }
 
@@ -658,14 +678,14 @@ private fun ReasoningBlock(item: AssistantChatItem.Reasoning) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Bolt,
+                painter = painterResource(R.drawable.ic_assistant_brain),
                 contentDescription = null,
                 tint = colors.primary,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = if (item.streaming) "思考中…" else "思考过程",
+                text = if (item.streaming) "思考中…" else "深度思考",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant,
             )
