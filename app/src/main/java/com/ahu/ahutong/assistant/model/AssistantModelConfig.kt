@@ -1,16 +1,17 @@
 package com.ahu.ahutong.assistant.model
 
-import com.ahu.ahutong.data.security.SecureBoxStore
-import com.google.gson.Gson
-
 /**
  * 模型配置：OpenAI 兼容接口（Base URL + 模型名 + API Key）。
- * Key 与现有支付码缓存共用 [SecureBoxStore]（Android Keystore），不落明文、不进日志。
+ * Key 由 [AssistantModelLibrary] 按条存进 Android Keystore，不落明文、不进日志。
  */
 data class AssistantModelConfig(
     val baseUrl: String = "",
     val model: String = "",
     val apiKey: String = "",
+    /** 能力标记由模型库维护，请求层据此决定是否发送思考/图片参数。 */
+    val supportsVision: Boolean = false,
+    val supportsThinking: Boolean = true,
+    val providerLabel: String = "",
 ) {
     val isConfigured: Boolean
         get() = baseUrl.isNotBlank() && model.isNotBlank() && apiKey.isNotBlank()
@@ -34,20 +35,13 @@ data class AssistantModelConfig(
 
 object AssistantModelConfigStore {
 
-    private const val BOX = "assistant"
-    private const val KEY = "model_config_v1"
-    private val gson = Gson()
-
-    fun load(): AssistantModelConfig? =
-        SecureBoxStore.get(BOX, KEY)
-            ?.let { raw -> runCatching { gson.fromJson(raw, AssistantModelConfig::class.java) }.getOrNull() }
-            ?.takeIf { it.isConfigured }
+    fun load(): AssistantModelConfig? = AssistantModelLibrary.activeConfig()
 
     fun save(config: AssistantModelConfig) {
-        SecureBoxStore.put(BOX, KEY, gson.toJson(config))
+        AssistantModelLibrary.saveActive(config)
     }
 
     fun clear() {
-        SecureBoxStore.remove(BOX, KEY)
+        AssistantModelLibrary.clear()
     }
 }

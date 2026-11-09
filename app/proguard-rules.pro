@@ -70,6 +70,9 @@
 # 模型配置（Base URL/模型名/API Key）以字段名作 JSON 键存进 SecureBoxStore；
 # 字段一旦被改名，升级后旧配置就读不回来，AI 会静默变成"未配置"。
 -keep class com.ahu.ahutong.assistant.model.AssistantModelConfig { *; }
+# 模型库列表本身也是本机 JSON，字段名即键名。
+-keep class com.ahu.ahutong.assistant.model.AssistantModelProfile { *; }
+-keep class com.ahu.ahutong.assistant.model.AssistantModelLibrarySnapshot { *; }
 
 # The automatic electricity query/prompt dates must survive R8 and app upgrades as stable JSON.
 -keep class com.ahu.ahutong.electricity.ElectricityAlertMarker { *; }

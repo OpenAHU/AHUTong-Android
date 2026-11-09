@@ -22,6 +22,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
  */
 class OpenAiCompatibleChatModel(
     private val config: AssistantModelConfig,
+    private val thinkingLevel: AssistantThinkingLevel = AssistantThinkingPreferences.level(),
+    private val maxTokens: Int? = null,
     private val client: OkHttpClient = AhuHttp.plain(
         connectTimeoutSeconds = 15,
         readTimeoutSeconds = 90,
@@ -126,7 +128,22 @@ class OpenAiCompatibleChatModel(
                 })
                 addProperty("tool_choice", "auto")
             }
-            addProperty("temperature", 0.2)
+            // 统一档位按模型所属厂商映射；无能力标记或未知厂商时不发思考参数。
+            val thinking = if (config.supportsThinking) {
+                thinkingPayload(
+                    detectThinkingProvider(config.baseUrl, config.model),
+                    thinkingLevel,
+                    config.model,
+                )
+            } else {
+                JsonObject()
+            }
+            thinking.entrySet().forEach { (key, value) -> add(key, value) }
+            // 思考模式下不少厂商会拒绝非 1 的 temperature（DeepSeek 则忽略），只在非思考时发送。
+            if (thinking.size() == 0 || thinkingLevel == AssistantThinkingLevel.OFF) {
+                addProperty("temperature", 0.2)
+            }
+            maxTokens?.let { addProperty("max_tokens", it) }
             addProperty("stream", stream)
             if (stream && includeUsage) {
                 add("stream_options", JsonObject().apply { addProperty("include_usage", true) })

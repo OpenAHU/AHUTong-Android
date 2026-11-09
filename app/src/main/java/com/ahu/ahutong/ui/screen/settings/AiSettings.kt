@@ -1,26 +1,48 @@
 package com.ahu.ahutong.ui.screen.settings
 
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.R
 import com.ahu.ahutong.assistant.AssistantAccessState
@@ -28,9 +50,13 @@ import com.ahu.ahutong.assistant.AssistantPersonality
 import com.ahu.ahutong.assistant.AssistantPreferences
 import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelConfig
-import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
+import com.ahu.ahutong.assistant.model.AssistantModelLibrary
+import com.ahu.ahutong.assistant.model.AssistantModelProfile
+import com.ahu.ahutong.assistant.model.AssistantThinkingLevel
 import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
-import com.ahu.ahutong.ui.glow.AssistantGlowState
+import com.ahu.ahutong.assistant.model.guessSupportsThinking
+import com.ahu.ahutong.assistant.model.guessSupportsVision
+import com.ahu.ahutong.assistant.model.providerLabelFor
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppDialog
@@ -45,13 +71,14 @@ import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.SettingsSelectRow
 import com.ahu.ahutong.ui.components.SettingsToggleRow
+import com.ahu.ahutong.ui.glow.AssistantGlowState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 模型自配置入口：OpenAI 兼容接口（Base URL + 模型名 + API Key）。
- * Key 与支付码缓存共用 Android Keystore，不落明文、不进日志。
+ * AI 设置：模型库（多套 OpenAI 兼容配置）+ 服务开关 + 性格 + 联网搜索。
+ * 首条添加的模型默认使用；在输入框里切换是全局的。
  */
 @Composable
 fun AiSettings(
@@ -60,90 +87,49 @@ fun AiSettings(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var stored by remember {
-        mutableStateOf(runCatching { AssistantModelConfigStore.load() }.getOrNull())
-    }
-    var baseUrl by remember {
-        mutableStateOf(stored?.baseUrl?.takeIf { it.isNotBlank() } ?: AssistantPreferences.DEFAULT_BASE_URL)
-    }
-    var modelName by remember {
-        mutableStateOf(stored?.model?.takeIf { it.isNotBlank() } ?: AssistantPreferences.DEFAULT_MODEL)
-    }
-    var personality by remember { mutableStateOf(AssistantPreferences.personality()) }
-    var searchEnabled by remember { mutableStateOf(AssistantPreferences.searchEnabled()) }
-    var serviceEnabled by remember { mutableStateOf(AssistantPreferences.serviceEnabled()) }
-    val secureEndpoint = AssistantModelConfig(
-        baseUrl = baseUrl.trim(),
-        model = "placeholder",
-        apiKey = "placeholder",
-    ).isSecureEndpoint
-    val supportsSearch = secureEndpoint && baseUrl.contains("deepseek.com", ignoreCase = true)
-    var apiKey by remember { mutableStateOf("") }
-    var testing by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf<String?>(null) }
+    val snapshot by AssistantModelLibrary.state.collectAsState()
+    val active = snapshot.active
+    var editor by remember { mutableStateOf<AssistantModelProfile?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<AssistantModelProfile?>(null) }
+    var testingId by remember { mutableStateOf<String?>(null) }
     var showClear by remember { mutableStateOf(false) }
     var showPrivacySummary by remember { mutableStateOf(false) }
 
-    fun keyForSave(): String? = apiKey.trim().takeIf { it.isNotBlank() } ?: stored?.apiKey
+    var personality by remember { mutableStateOf(AssistantPreferences.personality()) }
+    var searchEnabled by remember { mutableStateOf(AssistantPreferences.searchEnabled()) }
+    var serviceEnabled by remember { mutableStateOf(AssistantPreferences.serviceEnabled()) }
 
-    fun save() {
-        val key = keyForSave()
-        if (!secureEndpoint) {
-            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (baseUrl.isBlank() || modelName.isBlank() || key.isNullOrBlank()) {
-            Toast.makeText(context, "请填写 Base URL、模型名和 API Key", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val saved = runCatching {
-            AssistantModelConfigStore.save(
-                AssistantModelConfig(
-                    baseUrl = baseUrl.trim(),
-                    model = modelName.trim(),
-                    apiKey = key,
-                )
-            )
-        }
-        if (saved.isFailure) {
-            Toast.makeText(context, "保存失败，无法访问本机安全存储", Toast.LENGTH_SHORT).show()
-            return
-        }
-        stored = runCatching { AssistantModelConfigStore.load() }.getOrNull()
+    val supportsSearch = active?.baseUrl?.contains("deepseek.com", ignoreCase = true) == true
+    LaunchedEffect(active?.id, supportsSearch) {
         if (!supportsSearch) {
             searchEnabled = false
             AssistantPreferences.setSearchEnabled(false)
         }
-        apiKey = ""
-        status = "已保存，AI 入口将使用该模型"
-        Toast.makeText(context, "AI 设置已保存", Toast.LENGTH_SHORT).show()
-        if (!AssistantPreferences.aiPrivacySummarySeen()) {
-            showPrivacySummary = true
-        }
     }
 
-    fun testConnection() {
-        val key = keyForSave()
-        if (!secureEndpoint) {
-            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
+    fun testProfile(profile: AssistantModelProfile) {
+        if (testingId != null) return
+        val key = AssistantModelLibrary.apiKey(profile.id)
+        if (key.isNullOrBlank()) {
+            Toast.makeText(context, "该模型缺少 API Key", Toast.LENGTH_SHORT).show()
             return
         }
-        if (baseUrl.isBlank() || modelName.isBlank() || key.isNullOrBlank()) {
-            Toast.makeText(context, "请先填写完整配置", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (testing) return
-        testing = true
-        status = "正在连接…"
+        testingId = profile.id
         scope.launch {
-            val outcome = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 runCatching {
                     val chat = OpenAiCompatibleChatModel(
-                        AssistantModelConfig(
-                            baseUrl = baseUrl.trim(),
-                            model = modelName.trim(),
+                        config = AssistantModelConfig(
+                            baseUrl = profile.baseUrl,
+                            model = profile.model,
                             apiKey = key,
-                        )
+                        ).copy(
+                            supportsThinking = profile.supportsThinking,
+                            supportsVision = profile.supportsVision,
+                        ),
+                        thinkingLevel = AssistantThinkingLevel.OFF,
+                        maxTokens = 16,
                     )
                     val reply = chat.complete(
                         messages = listOf(
@@ -152,19 +138,20 @@ fun AiSettings(
                         ),
                         tools = emptyList(),
                     )
-                    reply.content?.takeIf { it.isNotBlank() }
-                        ?: "连接成功（模型未返回文本）"
+                    reply.content?.takeIf { it.isNotBlank() } ?: "连接成功"
                 }
             }
-            if (!supportsSearch) {
-                searchEnabled = false
-                AssistantPreferences.setSearchEnabled(false)
-            }
-            testing = false
-            status = outcome.getOrElse { error ->
-                "连接失败：" + (error.message ?: error.javaClass.simpleName)
-            }.take(160)
+            testingId = null
+            Toast.makeText(
+                context,
+                result.getOrElse { "连接失败：${it.message ?: it.javaClass.simpleName}" }.take(120),
+                Toast.LENGTH_SHORT,
+            ).show()
         }
+    }
+
+    fun markSaved() {
+        if (!AssistantPreferences.aiPrivacySummarySeen()) showPrivacySummary = true
     }
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
@@ -198,92 +185,41 @@ fun AiSettings(
             }
 
             SettingsSection(
-                title = "模型服务",
+                title = "模型",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop,
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
+                if (snapshot.profiles.isEmpty()) {
                     Text(
-                        text = "OpenAI 兼容接口。留空 API Key 表示沿用已保存的 Key。",
+                        text = "还没有配置模型。添加一套 OpenAI 兼容接口后即可使用。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     )
-                    AppTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = "Base URL",
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    AppTextField(
-                        value = modelName,
-                        onValueChange = { modelName = it },
-                        label = "模型名",
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    AppTextField(
-                        value = apiKey,
-                        onValueChange = { apiKey = it },
-                        label = if (stored?.apiKey.isNullOrBlank()) {
-                            "API Key"
-                        } else {
-                            "API Key（已保存，留空不修改）"
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        visualTransformation = PasswordVisualTransformation(),
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AppButton(onClick = ::save, modifier = Modifier.weight(1f)) {
-                            Text("保存")
-                        }
-                        AppButton(
-                            onClick = ::testConnection,
-                            modifier = Modifier.weight(1f),
-                            enabled = !testing,
-                            variant = AppButtonVariant.Secondary,
-                        ) {
-                            Text(if (testing) "连接中…" else "测试连接")
-                        }
-                    }
-                    status?.let { text ->
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (text.startsWith("连接失败") || text.startsWith("连接中")) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
+                } else {
+                    snapshot.profiles.forEachIndexed { index, profile ->
+                        val isActive = profile.id == active?.id
+                        ModelLibraryRow(
+                            profile = profile,
+                            isActive = isActive,
+                            testing = testingId == profile.id,
+                            showDivider = index < snapshot.profiles.lastIndex,
+                            onActivate = {
+                                if (!isActive) AssistantModelLibrary.setActive(profile.id)
                             },
+                            onEdit = { editor = profile },
+                            onTest = { testProfile(profile) },
+                            onDelete = { deleting = profile },
                         )
                     }
                 }
-            }
-
-            SettingsSection(
-                title = "助手性格",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop,
-            ) {
-                SettingsSelectRow(
-                    title = "性格",
-                    selected = personality,
-                    choices = AssistantPersonality.entries.map {
-                        SettingsChoice(it, it.label)
-                    },
+                SettingsActionRow(
+                    title = "添加模型",
+                    subtitle = "支持任意 OpenAI 兼容接口；首个添加的模型默认使用",
+                    leadingIcon = Icons.Outlined.Add,
+                    showChevron = false,
                     showDivider = false,
-                    onSelected = {
-                        personality = it
-                        AssistantPreferences.setPersonality(it)
-                        status = "已切换为${it.label}"
-                    },
+                    onClick = { adding = true },
                 )
             }
 
@@ -307,15 +243,34 @@ fun AiSettings(
                 }
             }
 
-            if (stored != null) {
+            SettingsSection(
+                title = "助手性格",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop,
+            ) {
+                SettingsSelectRow(
+                    title = "性格",
+                    selected = personality,
+                    choices = AssistantPersonality.entries.map {
+                        SettingsChoice(it, it.label)
+                    },
+                    showDivider = false,
+                    onSelected = {
+                        personality = it
+                        AssistantPreferences.setPersonality(it)
+                    },
+                )
+            }
+
+            if (snapshot.profiles.isNotEmpty()) {
                 SettingsSection(
                     title = "维护",
                     modifier = Modifier.padding(horizontal = 16.dp),
                     backdrop = backdrop,
                 ) {
                     SettingsActionRow(
-                        title = "清除模型配置",
-                        subtitle = "删除本机保存的 Base URL、模型名与 API Key",
+                        title = "清除全部模型",
+                        subtitle = "删除本机保存的所有 Base URL、模型名与 API Key",
                         destructive = true,
                         showChevron = false,
                         showDivider = false,
@@ -326,21 +281,55 @@ fun AiSettings(
         }
     }
 
+    if (adding) {
+        ModelEditorDialog(
+            initial = null,
+            existingKey = null,
+            onDismiss = { adding = false },
+            onSaved = {
+                adding = false
+                markSaved()
+            },
+        )
+    }
+
+    editor?.let { profile ->
+        ModelEditorDialog(
+            initial = profile,
+            existingKey = AssistantModelLibrary.apiKey(profile.id),
+            onDismiss = { editor = null },
+            onSaved = {
+                editor = null
+                markSaved()
+            },
+        )
+    }
+
+    deleting?.let { profile ->
+        SettingsConfirmationDialog(
+            title = "删除模型？",
+            message = "将删除「${profile.displayName}」及其本机保存的 API Key。" +
+                if (profile.id == active?.id) "它是当前使用的模型，删除后将回退到列表中的第一条。" else "",
+            confirmLabel = "删除",
+            destructive = true,
+            onConfirm = {
+                AssistantModelLibrary.delete(profile.id)
+                deleting = null
+            },
+            onDismiss = { deleting = null },
+        )
+    }
+
     if (showClear) {
         SettingsConfirmationDialog(
-            title = "清除模型配置？",
-            message = "清除后需要重新填写模型配置才能再次使用 AI 功能。",
+            title = "清除全部模型？",
+            message = "清除后需要重新添加模型才能再次使用 AI 功能；对话历史不会删除。",
             confirmLabel = "清除",
             destructive = true,
             onConfirm = {
-                runCatching { AssistantModelConfigStore.clear() }
-                stored = null
-                baseUrl = ""
-                modelName = ""
-                apiKey = ""
-                status = null
+                AssistantModelLibrary.clear()
                 showClear = false
-                Toast.makeText(context, "已清除模型配置", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "已清除全部模型", Toast.LENGTH_SHORT).show()
             },
             onDismiss = { showClear = false },
         )
@@ -376,10 +365,361 @@ fun AiSettings(
                 AiSummaryLine("对话内容、最近 24 条历史与本轮必要的工具结果，会发送到你配置的模型服务。")
                 AiSummaryLine("课表、成绩、余额、账单、邮件等工具在学校系统执行；结果摘要可能随请求发送给模型。")
                 AiSummaryLine("写操作会先弹确认卡；校园卡支付密码只在本机使用，不保存、不发送给模型。")
-                AiSummaryLine("对话历史保存在本机，可在历史页逐段删除；清除模型配置不会删除历史。")
+                AiSummaryLine("对话历史保存在本机，可在历史页逐段删除；清除模型不会删除历史。")
                 AiSummaryLine("AI 回答可能不准确，请以学校系统和业务页面为准。")
             }
         }
+    }
+}
+
+@Composable
+private fun ModelLibraryRow(
+    profile: AssistantModelProfile,
+    isActive: Boolean,
+    testing: Boolean,
+    showDivider: Boolean,
+    onActivate: () -> Unit,
+    onEdit: () -> Unit,
+    onTest: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onActivate)
+                .padding(start = 16.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = profile.displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (isActive) {
+                        Spacer(Modifier.width(6.dp))
+                        CapabilityTag("使用中", colors.primary)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        profile.providerLabel.ifBlank { "自定义" },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (profile.supportsVision) {
+                        CapabilityTag("视觉", colors.primary)
+                    }
+                    if (profile.supportsThinking) {
+                        CapabilityTag("思考", colors.primary)
+                    }
+                    if (!profile.supportsVision && !profile.supportsThinking) {
+                        CapabilityTag("文本", colors.onSurfaceVariant)
+                    }
+                }
+            }
+            IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "编辑",
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            IconButton(
+                onClick = onTest,
+                modifier = Modifier.size(36.dp),
+                enabled = !testing,
+            ) {
+                Icon(
+                    Icons.Outlined.Link,
+                    contentDescription = "测试联通",
+                    tint = if (testing) colors.primary else colors.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Outlined.DeleteOutline,
+                    contentDescription = "删除",
+                    tint = colors.error,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 44.dp, end = 16.dp),
+                color = colors.outlineVariant.copy(alpha = 0.35f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CapabilityTag(text: String, color: androidx.compose.ui.graphics.Color) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+private fun ModelEditorDialog(
+    initial: AssistantModelProfile?,
+    existingKey: String?,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var displayName by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var baseUrl by remember {
+        mutableStateOf(initial?.baseUrl?.takeIf { it.isNotBlank() } ?: AssistantPreferences.DEFAULT_BASE_URL)
+    }
+    var modelName by remember {
+        mutableStateOf(initial?.model?.takeIf { it.isNotBlank() } ?: AssistantPreferences.DEFAULT_MODEL)
+    }
+    var providerLabel by remember { mutableStateOf(initial?.providerLabel.orEmpty()) }
+    var supportsVision by remember { mutableStateOf(initial?.supportsVision ?: false) }
+    var supportsThinking by remember { mutableStateOf(initial?.supportsThinking ?: true) }
+    var apiKey by remember { mutableStateOf("") }
+    var capabilitiesTouched by remember { mutableStateOf(initial != null) }
+    var labelTouched by remember { mutableStateOf(initial?.providerLabel?.isNotBlank() == true) }
+    var testing by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(baseUrl, modelName) {
+        if (!capabilitiesTouched) {
+            supportsVision = guessSupportsVision(baseUrl, modelName)
+            supportsThinking = guessSupportsThinking(baseUrl, modelName)
+        }
+        if (!labelTouched) providerLabel = providerLabelFor(baseUrl, modelName)
+    }
+
+    val secureEndpoint = AssistantModelConfig(
+        baseUrl = baseUrl.trim(),
+        model = "placeholder",
+        apiKey = "placeholder",
+    ).isSecureEndpoint
+    val effectiveKey = apiKey.trim().takeIf { it.isNotBlank() } ?: existingKey.orEmpty()
+
+    fun save() {
+        if (!secureEndpoint) {
+            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (baseUrl.isBlank() || modelName.isBlank() || effectiveKey.isBlank()) {
+            Toast.makeText(context, "请填写 Base URL、模型名和 API Key", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val profile = (initial ?: AssistantModelProfile()).copy(
+            name = displayName.trim().ifBlank { modelName.trim() },
+            baseUrl = baseUrl.trim(),
+            model = modelName.trim(),
+            providerLabel = providerLabel.trim().ifBlank { providerLabelFor(baseUrl, modelName) },
+            supportsVision = supportsVision,
+            supportsThinking = supportsThinking,
+        )
+        val ok = if (initial == null) {
+            AssistantModelLibrary.add(profile, effectiveKey) != null
+        } else {
+            AssistantModelLibrary.update(profile, apiKey.trim().takeIf { it.isNotBlank() })
+        }
+        if (!ok) {
+            Toast.makeText(context, "保存失败，无法访问本机安全存储", Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(context, "模型已保存", Toast.LENGTH_SHORT).show()
+        onSaved()
+    }
+
+    fun test() {
+        if (testing) return
+        if (!secureEndpoint) {
+            Toast.makeText(context, "Base URL 必须使用 HTTPS（本机开发地址除外）", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (baseUrl.isBlank() || modelName.isBlank() || effectiveKey.isBlank()) {
+            Toast.makeText(context, "请先填写完整配置", Toast.LENGTH_SHORT).show()
+            return
+        }
+        testing = true
+        status = "正在连接…"
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val chat = OpenAiCompatibleChatModel(
+                        config = AssistantModelConfig(
+                            baseUrl = baseUrl.trim(),
+                            model = modelName.trim(),
+                            apiKey = effectiveKey,
+                        ).copy(supportsThinking = supportsThinking, supportsVision = supportsVision),
+                        thinkingLevel = AssistantThinkingLevel.OFF,
+                        maxTokens = 16,
+                    )
+                    val reply = chat.complete(
+                        messages = listOf(
+                            AssistantMessage(role = "system", content = "只回复：连接成功"),
+                            AssistantMessage(role = "user", content = "ping"),
+                        ),
+                        tools = emptyList(),
+                    )
+                    reply.content?.takeIf { it.isNotBlank() } ?: "连接成功（模型未返回文本）"
+                }
+            }
+            testing = false
+            status = result.getOrElse { error ->
+                "连接失败：" + (error.message ?: error.javaClass.simpleName)
+            }.take(160)
+        }
+    }
+
+    AppDialog(
+        title = if (initial == null) "添加模型" else "编辑模型",
+        subtitle = "OpenAI 兼容接口；Key 只保存在本机 Keystore",
+        onDismiss = onDismiss,
+        contentScrollable = true,
+        actions = listOf(
+            AppDialogAction(label = "取消", onClick = onDismiss),
+            AppDialogAction(label = "保存", onClick = ::save, style = AppDialogActionStyle.Primary),
+        ),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AppTextField(
+                value = displayName,
+                onValueChange = { displayName = it },
+                label = "显示名称（可选）",
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            AppTextField(
+                value = baseUrl,
+                onValueChange = { baseUrl = it },
+                label = "Base URL",
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            AppTextField(
+                value = modelName,
+                onValueChange = { modelName = it },
+                label = "模型名",
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            AppTextField(
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                label = if (existingKey.isNullOrBlank()) "API Key" else "API Key（已保存，留空不修改）",
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = PasswordVisualTransformation(),
+            )
+            AppTextField(
+                value = providerLabel,
+                onValueChange = {
+                    providerLabel = it
+                    labelTouched = true
+                },
+                label = "来源标签",
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            CapabilitySwitch(
+                title = "支持图片输入",
+                subtitle = "用于后续“看题”等视觉能力",
+                checked = supportsVision,
+                onCheckedChange = {
+                    supportsVision = it
+                    capabilitiesTouched = true
+                },
+            )
+            CapabilitySwitch(
+                title = "支持思考强度",
+                subtitle = "关闭后请求不会携带 thinking / reasoning_effort",
+                checked = supportsThinking,
+                onCheckedChange = {
+                    supportsThinking = it
+                    capabilitiesTouched = true
+                },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppButton(
+                    onClick = ::test,
+                    modifier = Modifier.weight(1f),
+                    enabled = !testing,
+                    variant = AppButtonVariant.Secondary,
+                ) {
+                    Text(if (testing) "连接中…" else "测试联通")
+                }
+            }
+            status?.let { text ->
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (text.startsWith("连接失败") || text.startsWith("正在连接")) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
+            Text(
+                text = "测试会发送一条最小真实请求（最多 16 token），不计入对话额度。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CapabilitySwitch(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(Modifier.size(4.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
