@@ -139,7 +139,7 @@ private fun check(url: String) {
 
 - 位置：`app/.../assistant/capabilities/LearningCapabilities.kt` + `WorkQuestionParser.kt`。
 - 触发：模型先调 `get_assignments` 拿到 `workId`，再对单份作业调 `get_work_detail`；不预取、不批量。
-- 抓取：`ChaoxingApi.fetchWorkDetailHtml()` 复用现有学习通会话直接 GET `work.detailUrl`，不重登；命中 `antispiderShowVerify`/202 或登录页即返回失败，不自动重试。
+- 抓取：`ChaoxingApi.fetchWorkDetailHtml()` 复用现有学习通会话直接 GET `work.detailUrl`，不重登；登录页直接失败。命中 HTTP 202 / `antispiderShowVerify` 时，改用隐藏 WebView（真实 Chromium 指纹 + 同一份 Cookie）加载同一 URL，`evaluateJavascript` 只取 `.questionLi`（先删答案区/编辑器/知识点），再交给同一解析器；WebView 10 秒加载 + 8 秒轮询，失败时错误信息带最终页。
 - 解析：只取 `h3.mark_name` 题干与答案区之外的 `li` 选项；`.mark_answer`、`.aiArea`、知识点区一律跳过，避免把已交作业的答案喂给模型。
 - 图片：当前模型声明支持视觉时，题干与选项里的图片（最多 8 张、单张 2MB、总计 6MB）会抓成 data URL，在该轮全部 tool 消息之后补一条 user 消息发送；纯文本模型只保留 `[图片]`/`[公式]` 占位。图片只认 Referer、不带学习通会话。
 - 限制：单题题干上限 1500 字，总输出上限 12k 字；图片抓取失败时只发文字，并在工具卡提示。
