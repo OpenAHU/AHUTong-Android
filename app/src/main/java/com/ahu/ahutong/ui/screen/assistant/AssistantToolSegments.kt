@@ -1,5 +1,40 @@
 package com.ahu.ahutong.ui.screen.assistant
 
+internal data class RoundNotices(
+    val usedWorkDetail: Boolean = false,
+    val academicAnswer: Boolean = false,
+)
+
+/** 按用户轮统计提示条条件；审批卡会把一轮拆成多个 Turn，所以不能只看单个 Turn。 */
+internal fun buildRoundNotices(items: List<AssistantChatItem>): Map<String, RoundNotices> {
+    val result = mutableMapOf<String, RoundNotices>()
+    var currentUser: String? = null
+    var usedWorkDetail = false
+    var academicAnswer = false
+
+    fun flush() {
+        currentUser?.let { result[it] = RoundNotices(usedWorkDetail, academicAnswer) }
+    }
+
+    items.forEach { item ->
+        when (item) {
+            is AssistantChatItem.User -> {
+                flush()
+                currentUser = item.id
+                usedWorkDetail = false
+                academicAnswer = false
+            }
+            is AssistantChatItem.Tool -> {
+                if (item.event.ok && item.event.toolId == "get_work_detail") usedWorkDetail = true
+            }
+            is AssistantChatItem.Assistant -> if (item.academicAnswer) academicAnswer = true
+            else -> Unit
+        }
+    }
+    flush()
+    return result
+}
+
 internal data class ToolSegment(
     val assistant: AssistantChatItem.Assistant?,
     val reasonings: List<AssistantChatItem.Reasoning>,

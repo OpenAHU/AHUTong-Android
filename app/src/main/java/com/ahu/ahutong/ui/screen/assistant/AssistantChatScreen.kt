@@ -172,6 +172,7 @@ fun AssistantChatScreen(
     val running = AssistantChatState.running
     val displayItems = buildChatDisplay(items)
     val roundEnds = roundEndTurnKeys(displayItems)
+    val roundNotices = buildRoundNotices(items)
     // 用户刚发问、还没收到首词时，也要把上一轮的底栏保留下来。
     val activeUserId = displayItems.lastOrNull { it is ChatDisplay.User }?.key
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -297,6 +298,17 @@ fun AssistantChatScreen(
                                 val streaming =
                                     (display.items.lastOrNull() as? AssistantChatItem.Assistant)
                                         ?.streaming == true
+                                // 和操作栏使用同一个完成条件：整轮流式输出结束后才出现。
+                                val roundDone = display.userItem?.id != activeUserId ||
+                                    (!running && !streaming)
+                                val showActions = display.key in roundEnds && roundDone
+                                val notices = display.userItem?.id?.let(roundNotices::get)
+                                val notice = when {
+                                    !showActions -> null
+                                    notices?.academicAnswer == true -> AI_ANSWER_NOTICE
+                                    notices?.usedWorkDetail == true -> ACADEMIC_INTEGRITY_NOTICE
+                                    else -> null
+                                }
                                 AssistantTurnBubble(
                                     items = display.items,
                                     expandedGroups = expandedGroups,
@@ -316,10 +328,9 @@ fun AssistantChatScreen(
                                         }
                                     },
                                     onOpenRoute = onOpenRoute,
-                                    showRouteLinks = display.userItem?.id != activeUserId ||
-                                        (!running && !streaming),
-                                    showActions = display.key in roundEnds &&
-                                        (display.userItem?.id != activeUserId || (!running && !streaming)),
+                                    showRouteLinks = roundDone,
+                                    showActions = showActions,
+                                    notice = notice,
                                     actionsText = actionsTextOf(display.items),
                                     regenerateEnabled = !running,
                                     onRegenerate = {
@@ -565,6 +576,7 @@ private fun AssistantTurnBubble(
     onOpenRoute: (String) -> Unit,
     showRouteLinks: Boolean,
     showActions: Boolean,
+    notice: String?,
     actionsText: String,
     regenerateEnabled: Boolean,
     onRegenerate: () -> Unit,
@@ -597,12 +609,7 @@ private fun AssistantTurnBubble(
                 )
             }
         }
-        if (items.any { it is AssistantChatItem.Tool && it.event.ok && it.event.toolId == "get_work_detail" }) {
-            IntegrityNotice("学术诚信提醒：请善用工具，建议您独立思考完成作业。")
-        }
-        if (items.any { it is AssistantChatItem.Assistant && it.academicAnswer }) {
-            IntegrityNotice("答案由AI生成，仅供参考；安大通倡导学术诚信，不鼓励任何形式的抄袭行为。")
-        }
+        notice?.let { IntegrityNotice(it) }
         val routes = items
             .filterIsInstance<AssistantChatItem.Tool>()
             .mapNotNull { it.event.route }
@@ -1624,6 +1631,11 @@ private fun formatTokenCount(tokens: Int): String {
     }
     return "$value$suffix Toks"
 }
+
+private const val ACADEMIC_INTEGRITY_NOTICE =
+    "学术诚信提醒：请善用工具，建议您独立思考完成作业。"
+private const val AI_ANSWER_NOTICE =
+    "答案由AI生成，仅供参考；安大通倡导学术诚信，不鼓励任何形式的抄袭行为。"
 
 private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"
