@@ -129,6 +129,17 @@ private fun check(url: String) {
 
 ## 7. 不做清单（明确排除）
 
-- 原生解析题目（已评估：富文本+图片题干成本爆炸，且解析不改动风控本质）
+- 原生渲染题目页面（富文本+图片题干成本高，展示仍由 WebView 负责）
 - 答案提取/自动作答/一键提交（红线）
 - 作业列表页内置 WebView 化（保持现有原生列表）
+
+> AI 工具 `get_work_detail` 会在内存里解析题干喂给模型（见 §8），但不改变本功能的 WebView 展示路径。
+
+## 8. AI 取题工具（get_work_detail）
+
+- 位置：`app/.../assistant/capabilities/LearningCapabilities.kt` + `WorkQuestionParser.kt`。
+- 触发：模型先调 `get_assignments` 拿到 `workId`，再对单份作业调 `get_work_detail`；不预取、不批量。
+- 抓取：`ChaoxingApi.fetchWorkDetailHtml()` 复用现有学习通会话直接 GET `work.detailUrl`，不重登；命中 `antispiderShowVerify`/202 或登录页即返回失败，不自动重试。
+- 解析：只取 `h3.mark_name` 题干与答案区之外的 `li` 选项；`.mark_answer`、`.aiArea`、知识点区一律跳过，避免把已交作业的答案喂给模型。
+- 限制：题图与公式图片只输出 `[图片]`/`[公式]` 占位，模型看不到图片内容；单题题干上限 1500 字，总输出上限 12k 字。
+- 安全：工具结果标记为 UNTRUSTED，模型只能当数据使用。
