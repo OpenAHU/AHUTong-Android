@@ -183,7 +183,6 @@ fun AssistantChatScreen(
     // 底栏（输入框 + IME/系统栏占位）整体高度；列表尾部用同高占位。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
     val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
-    val lastStreaming = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
     val streamingLength = (items.lastOrNull() as? AssistantChatItem.Assistant)?.text?.length ?: 0
     val currentTurnKey = displayItems.lastOrNull { it is ChatDisplay.Turn }?.key
     var previousBarHeight by remember { mutableStateOf(0.dp) }
@@ -216,7 +215,7 @@ fun AssistantChatScreen(
     LaunchedEffect(bottomBarHeight, currentTurnKey) {
         val grew = bottomBarHeight > previousBarHeight
         val sameTurn = currentTurnKey == previousTurnKey
-        if (grew && lastStreaming && !listState.isScrollInProgress && sameTurn) {
+        if (grew && stickToBottom && !listState.isScrollInProgress && sameTurn) {
             listState.scrollToItem(Int.MAX_VALUE, 0)
         }
         previousBarHeight = bottomBarHeight
