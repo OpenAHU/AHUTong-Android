@@ -10,6 +10,8 @@ class AssistantCapabilitiesTest {
     private val expectedReadIds = setOf(
         "get_schedule",
         "get_assignments",
+        "get_work_detail",
+        "confirm_homework_help",
         "get_grades",
         "get_gpa_rank",
         "get_exams",
@@ -62,6 +64,16 @@ class AssistantCapabilitiesTest {
                 assertEquals(AssistantCapabilityKind.NAVIGATE, capability.spec.kind)
                 assertTrue(capability.spec.openRoute != null)
             }
+    }
+
+    @Test
+    fun academicConfirmationIsReadOnlyButRequiresApproval() {
+        val capability = AssistantCapabilities.all(config = { null }, cachedSchedule = { null })
+            .first { it.spec.id == "confirm_homework_help" }
+        assertEquals(AssistantCapabilityKind.READ, capability.spec.kind)
+        assertTrue(capability.spec.requiresConfirmation)
+        assertTrue(capability.spec.silent)
+        assertEquals("继续解答", capability.spec.confirmationAction)
     }
 
     @Test
