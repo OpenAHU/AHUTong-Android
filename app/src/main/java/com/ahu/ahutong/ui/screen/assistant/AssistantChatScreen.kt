@@ -29,22 +29,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -398,11 +394,13 @@ fun AssistantChatScreen(
                     }
                 }
 
-                // DS 式底栏：输入框 + 自身 IME/系统栏占位；列表用同高尾部占位，窗口不 resize。
-                val bottomBarInsets = WindowInsets.ime
-                    .union(WindowInsets.systemBarsIgnoringVisibility)
-                    .only(WindowInsetsSides.Bottom)
-                    .union(WindowInsets(bottom = 10.dp))
+                // DS 式底栏：输入框 + 自身 IME/系统栏占位；列表用同高尾部占位。
+                // 若系统在部分机型上仍然 resize 了窗口，有效 IME 高度会归零，避免双重上移。
+                val effectiveIme = rememberEffectiveImePadding()
+                val navBottomPx = WindowInsets.systemBarsIgnoringVisibility.getBottom(density)
+                val barBottomInset = with(density) {
+                    maxOf(effectiveIme.roundToPx(), navBottomPx).toDp()
+                } + 10.dp
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -423,7 +421,7 @@ fun AssistantChatScreen(
                     Spacer(
                         Modifier
                             .fillMaxWidth()
-                            .windowInsetsPadding(bottomBarInsets)
+                            .height(barBottomInset)
                     )
                 }
 
