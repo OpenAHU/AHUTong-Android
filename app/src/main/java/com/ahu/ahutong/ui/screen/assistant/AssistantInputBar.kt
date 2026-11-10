@@ -8,7 +8,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -541,7 +540,8 @@ private fun ThinkingLevelSlider(
     val currentLevel = rememberUpdatedState(level)
     val animatedFraction by animateFloatAsState(
         targetValue = level.ordinal / 3f,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
+        // 只做无回弹的平滑过渡，落档时不要 overshoot。
+        animationSpec = tween(durationMillis = 180),
         label = "thinking-knob",
     )
     val fraction = animatedFraction
@@ -622,6 +622,10 @@ private fun ThinkingLevelSlider(
                 size = Size(trackRight - trackLeft, trackHeight),
                 cornerRadius = CornerRadius(trackRadius, trackRadius),
             )
+            // 圆角矩形的右端圆心要落在球心上：宽度额外加一个 trackRadius，
+            // 这样彩色条的圆角圆心和球心重合，球能把圆角完全盖住。
+            val fillWidth = (knobX - trackLeft + trackRadius)
+                .coerceIn(0f, trackRight - trackLeft)
             drawRoundRect(
                 brush = Brush.horizontalGradient(
                     colors = trackColors,
@@ -629,7 +633,7 @@ private fun ThinkingLevelSlider(
                     endX = trackRight,
                 ),
                 topLeft = Offset(trackLeft, centerY - trackHeight / 2),
-                size = Size((knobX - trackLeft).coerceAtLeast(0f), trackHeight),
+                size = Size(fillWidth, trackHeight),
                 cornerRadius = CornerRadius(trackRadius, trackRadius),
             )
             repeat(4) { index ->
