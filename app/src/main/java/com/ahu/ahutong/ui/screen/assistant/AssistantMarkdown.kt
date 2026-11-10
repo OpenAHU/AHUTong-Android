@@ -2,7 +2,7 @@ package com.ahu.ahutong.ui.screen.assistant
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.graphics.Color
+import android.os.SystemClock
 import android.util.Base64
 import android.view.View
 import android.webkit.JavascriptInterface
@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -111,7 +112,10 @@ fun AssistantMarkdown(
         Text(
             text = text,
             modifier = modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Light,
+            ),
             color = MaterialTheme.colorScheme.onSurface,
         )
         return
@@ -155,15 +159,36 @@ private fun MarkdownMarkdown(text: String, modifier: Modifier) {
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 20.sp,
             ),
-            text = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
+            text = MaterialTheme.typography.bodyMedium.copy(
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Light,
+            ),
             code = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
             inlineCode = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            quote = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
-            paragraph = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
-            ordered = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
-            bullet = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
-            list = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.sp),
-            table = MaterialTheme.typography.bodySmall.copy(lineHeight = 17.sp),
+            quote = MaterialTheme.typography.bodySmall.copy(
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.Light,
+            ),
+            paragraph = MaterialTheme.typography.bodyMedium.copy(
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Light,
+            ),
+            ordered = MaterialTheme.typography.bodyMedium.copy(
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Light,
+            ),
+            bullet = MaterialTheme.typography.bodyMedium.copy(
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Light,
+            ),
+            list = MaterialTheme.typography.bodyMedium.copy(
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Light,
+            ),
+            table = MaterialTheme.typography.bodySmall.copy(
+                lineHeight = 17.sp,
+                fontWeight = FontWeight.Light,
+            ),
             textLink = TextLinkStyles(
                 style = SpanStyle(
                     color = colors.primary,
@@ -186,6 +211,7 @@ private fun MarkdownMarkdown(text: String, modifier: Modifier) {
 }
 
 private const val MATH_HEIGHT_TIMEOUT_MS = 6_000L
+private const val MATH_HEIGHT_SETTLE_MS = 2_500L
 private const val MAX_MATH_HEIGHT_DP = 20_000
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -195,13 +221,18 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val dark = colors.background.luminance() < 0.5f
     val fontScale = LocalDensity.current.fontScale
-    var height by remember(text) { mutableStateOf(0) }
-    var failed by remember(text) { mutableStateOf(false) }
+    var height by remember(text, fontScale) { mutableStateOf(0) }
+    var failed by remember(text, fontScale) { mutableStateOf(false) }
+    var settleUntil by remember(text, fontScale) {
+        mutableStateOf(SystemClock.elapsedRealtime() + MATH_HEIGHT_SETTLE_MS)
+    }
+    var lastWidth by remember(text, fontScale) { mutableStateOf(0) }
     // 只以实际参与 HTML 的字段为 key，避免主题对象实例变化带来无谓的 HTML 重建。
     val html = remember(
         text,
         dark,
         fontScale,
+        colors.background,
         colors.onSurface,
         colors.onSurfaceVariant,
         colors.surfaceContainerHigh,
@@ -212,11 +243,17 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
         buildMathHtml(context, text, dark, colors, fontScale)
     }
 
-    // 高度回写只接受显著变化，避免 1~2px 的布局抖动形成「改高度 → 重排 → 再上报」。
+    // 首次高度总是接受；之后只在稳定窗口内接受 >=4px 的变化。
+    // 窗口结束后冻结高度，彻底切断「改高度 → 重排 → 再上报」的回环。
     fun applyHeight(measured: Int) {
         if (measured <= 0) return
         val next = measured.coerceIn(1, MAX_MATH_HEIGHT_DP)
-        if (height == 0 || abs(next - height) >= 4) height = next
+        if (height == 0) {
+            height = next
+            return
+        }
+        if (SystemClock.elapsedRealtime() > settleUntil) return
+        if (abs(next - height) >= 4) height = next
     }
 
     LaunchedEffect(text) {
@@ -232,7 +269,8 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                setBackgroundColor(Color.TRANSPARENT)
+                // 不透明底色，避免透明 WebView 与背后动画层合成时闪。
+                setBackgroundColor(colors.background.toArgb())
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = false
                 settings.allowFileAccess = true
@@ -312,6 +350,7 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
             }
         },
         update = { web ->
+            web.setBackgroundColor(colors.background.toArgb())
             if (web.tag != html) {
                 web.tag = html
                 web.loadDataWithBaseURL(
@@ -325,6 +364,12 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
         },
         modifier = modifier
             .fillMaxWidth()
+            .onSizeChanged { size ->
+                if (size.width != lastWidth) {
+                    lastWidth = size.width
+                    settleUntil = SystemClock.elapsedRealtime() + MATH_HEIGHT_SETTLE_MS
+                }
+            }
             .height(if (height > 0) height.dp else 160.dp),
         onRelease = { it.destroy() },
     )
@@ -356,6 +401,7 @@ private fun buildMathHtml(
     return template
         .replace("__SOURCE_B64__", base64)
         .replace("__BASE_FONT__", baseFont)
+        .replace("__PAGE_BG__", colors.background.hex())
         .replace("__TEXT__", text.hex())
         .replace("__MUTED__", muted.hex())
         .replace("__CODE_BG__", codeBg.hex())
