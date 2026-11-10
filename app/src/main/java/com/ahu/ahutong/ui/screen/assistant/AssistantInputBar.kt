@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -537,14 +538,13 @@ private fun ThinkingLevelSlider(
     val density = LocalDensity.current
     val knobRadiusPx = with(density) { 14.dp.toPx() }
     var widthPx by remember { mutableStateOf(0) }
-    var dragFraction by remember { mutableStateOf<Float?>(null) }
     val currentLevel = rememberUpdatedState(level)
     val animatedFraction by animateFloatAsState(
         targetValue = level.ordinal / 3f,
-        animationSpec = tween(160),
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 520f),
         label = "thinking-knob",
     )
-    val fraction = dragFraction ?: animatedFraction
+    val fraction = animatedFraction
     // 三段高饱和渐变，比原来的两条相近紫色更跳。
     val trackColors = listOf(
         Color(0xFFD05CFF),
@@ -558,13 +558,9 @@ private fun ThinkingLevelSlider(
         return ((x - knobRadiusPx) / (widthPx - knobRadiusPx * 2f)).coerceIn(0f, 1f)
     }
 
-    fun pick(value: Float) {
-        val index = (value * 3f).roundToInt().coerceIn(0, 3)
-        val next = AssistantThinkingLevel.entries[index]
-        if (next != currentLevel.value) {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onChange(next)
-        }
+    fun nearestLevel(x: Float): AssistantThinkingLevel {
+        val index = (fractionAt(x) * 3f).roundToInt().coerceIn(0, 3)
+        return AssistantThinkingLevel.entries[index]
     }
 
     Box(
@@ -577,22 +573,34 @@ private fun ThinkingLevelSlider(
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    val start = fractionAt(down.position.x)
-                    dragFraction = start
-                    pick(start)
-                    try {
-                        var pressed = true
-                        while (pressed) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                            val value = fractionAt(change.position.x)
-                            dragFraction = value
-                            pick(value)
-                            change.consume()
-                            pressed = change.pressed
+                    var local = currentLevel.value
+                    // 点击：直接落到离点击位置最近的档位，不做连续跟手。
+                    val tapped = nearestLevel(down.position.x)
+                    if (tapped != local) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onChange(tapped)
+                        local = tapped
+                    }
+                    var pressed = true
+                    while (pressed) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        val raw = fractionAt(change.position.x) * 3f
+                        // 阻尼/滞回：越过当前档位 0.58 个档距才跳一档，不会停在两档之间。
+                        val target = when {
+                            raw >= local.ordinal + 0.58f ->
+                                AssistantThinkingLevel.entries[(local.ordinal + 1).coerceAtMost(3)]
+                            raw <= local.ordinal - 0.58f ->
+                                AssistantThinkingLevel.entries[(local.ordinal - 1).coerceAtLeast(0)]
+                            else -> local
                         }
-                    } finally {
-                        dragFraction = null
+                        if (target != local) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onChange(target)
+                            local = target
+                        }
+                        change.consume()
+                        pressed = change.pressed
                     }
                 }
             }
