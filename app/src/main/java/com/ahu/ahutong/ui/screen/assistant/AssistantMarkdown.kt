@@ -270,8 +270,6 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
         factory = { ctx ->
             WebView(ctx).apply {
                 setBackgroundColor(Color.TRANSPARENT)
-                // 软件图层：不单独占硬件 surface，避免与 Compose 动画背景合成时闪烁。
-                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = false
                 settings.allowFileAccess = true
