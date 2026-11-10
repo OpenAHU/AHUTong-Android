@@ -16,6 +16,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
@@ -82,6 +85,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.R
 import com.ahu.ahutong.assistant.model.AssistantModelLibrary
@@ -662,22 +666,29 @@ private fun ThinkingLevelSlider(
                     center = Offset(x, centerY),
                 )
             }
-            // 球在槽里的投影：先画一层偏移阴影，再画白色球体。
-            drawCircle(
-                color = Color.Black.copy(alpha = 0.12f),
-                radius = knobRadiusPx + 1.5.dp.toPx(),
-                center = Offset(knobX, centerY + 2.dp.toPx()),
-            )
-            drawCircle(
-                color = Color.White,
-                radius = knobRadiusPx,
-                center = Offset(knobX, centerY),
-            )
-            drawCircle(
-                color = Color.Black.copy(alpha = 0.08f),
-                radius = knobRadiusPx,
-                center = Offset(knobX, centerY + 1.dp.toPx()),
-                style = Stroke(width = 1.dp.toPx()),
+        }
+        if (widthPx > 0) {
+            val centerY = with(density) { 22.dp.toPx() }
+            val knobCenterX = knobRadiusPx + (widthPx - knobRadiusPx * 2f) * fraction
+            val knobSize = with(density) { (knobRadiusPx * 2f).toDp() }
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (knobCenterX - knobRadiusPx).roundToInt(),
+                            (centerY - knobRadiusPx).roundToInt(),
+                        )
+                    }
+                    .size(knobSize)
+                    .shadow(
+                        elevation = 4.dp,
+                        shape = CircleShape,
+                        clip = false,
+                        ambientColor = Color.Black.copy(alpha = 0.12f),
+                        spotColor = Color.Black.copy(alpha = 0.18f),
+                    )
+                    .background(Color.White, CircleShape)
+                    .border(0.5.dp, Color.Black.copy(alpha = 0.05f), CircleShape),
             )
         }
     }
