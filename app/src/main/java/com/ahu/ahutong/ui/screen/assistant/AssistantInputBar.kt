@@ -280,8 +280,8 @@ fun AssistantInputBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     PickerChip(
-                        text = (active?.displayName?.takeIf { it.isNotBlank() } ?: "未配置模型") +
-                            " · " + level.label,
+                        text = active?.displayName?.takeIf { it.isNotBlank() } ?: "未配置模型",
+                        suffix = level.enLabel,
                         onClick = { pickerOpen = true },
                     )
                     Spacer(Modifier.weight(1f))
@@ -349,9 +349,18 @@ private fun AssistantSendButton(
     }
 }
 
+private val AssistantThinkingLevel.enLabel: String
+    get() = when (this) {
+        AssistantThinkingLevel.OFF -> "Off"
+        AssistantThinkingLevel.LOW -> "Low"
+        AssistantThinkingLevel.MID -> "Mid"
+        AssistantThinkingLevel.HIGH -> "High"
+    }
+
 @Composable
 private fun PickerChip(
     text: String,
+    suffix: String? = null,
     onClick: () -> Unit,
     dimmed: Boolean = false,
 ) {
@@ -379,6 +388,15 @@ private fun PickerChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        suffix?.let {
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = it,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant.copy(alpha = 0.62f),
+                maxLines = 1,
+            )
+        }
         Spacer(Modifier.width(2.dp))
         Icon(
             imageVector = Icons.Rounded.KeyboardArrowDown,
@@ -432,7 +450,7 @@ private fun AssistantModelPickerSheet(
                 Text("思考强度", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = level.label,
+                    text = level.enLabel,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
