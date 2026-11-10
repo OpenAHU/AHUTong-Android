@@ -97,11 +97,11 @@ private val markdownParser: Parser = Parser.builder()
 private val inlineMathPattern = Regex(
     """(?<!\\)\$(?!\$)([^$\n]+?)(?<!\\)\$|\\\((.+?)\\\)"""
 )
-private val protectedMathToken = Regex("\u0002([A-Za-z0-9+/=]+)\u0003")
+private val protectedMathToken = Regex("""@@AHTM([A-Za-z0-9+/=]+)@@""")
 
 /**
  * CommonMark 会把 `\(`、`\[` 当反斜杠转义吃掉，导致公式在解析前就变成
- * `(x)` / `[x]`。这里先把行内公式换成控制字符包裹的 token，再交给 parser；
+ * `(x)` / `[x]`。这里先把行内公式换成纯 ASCII token，再交给 parser；
  * 围栏代码块和 code span 保持原样。
  */
 private fun protectInlineMath(markdown: String): String {
@@ -134,7 +134,7 @@ private fun protectText(text: String): String =
     }
 
 private fun mathToken(tex: String): String =
-    "\u0002" + Base64.encodeToString(tex.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) + "\u0003"
+    "@@AHTM" + Base64.encodeToString(tex.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) + "@@"
 
 private fun decodeMathToken(raw: String): String? = runCatching {
     String(Base64.decode(raw, Base64.NO_WRAP), Charsets.UTF_8)
