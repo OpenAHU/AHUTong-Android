@@ -344,13 +344,42 @@ private fun InlineText(
     val inline = remember(nodes, style, color, colors, density) {
         buildInline(nodes, style.fontSize, color, colors, density)
     }
+    // 含公式的段落不锁死 19sp 行高，让 Compose 按这一行里最高的 inline content
+    // 自然撑行；没有公式的段落仍用原行高，不做整段统一加高。
+    val effectiveStyle = if (hasInlineMath(nodes)) {
+        style.copy(lineHeight = TextUnit.Unspecified)
+    } else {
+        style
+    }
     Text(
         text = inline.text,
         inlineContent = inline.placeholders,
-        style = style,
+        style = effectiveStyle,
         color = color,
         modifier = modifier,
     )
+}
+
+private fun hasInlineMath(nodes: List<Node>): Boolean {
+    var found = false
+    fun visit(node: Node) {
+        if (found) return
+        if (node is MdText) {
+            if (protectedMathToken.containsMatchIn(node.literal) ||
+                inlineMathPattern.containsMatchIn(node.literal)
+            ) {
+                found = true
+            }
+        } else {
+            var child = node.firstChild
+            while (child != null) {
+                visit(child)
+                child = child.next
+            }
+        }
+    }
+    nodes.forEach(::visit)
+    return found
 }
 
 private fun collectChildren(node: Node): List<Node> {
