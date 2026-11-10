@@ -221,7 +221,13 @@ fun AssistantInputBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = rowBottomPadding),
+                    // 展开时发送键在第二行，右侧不再需要为它预留 6dp，改成与左侧对称的 18dp。
+                    .padding(
+                        start = 18.dp,
+                        end = if (expanded) 18.dp else 6.dp,
+                        top = 6.dp,
+                        bottom = rowBottomPadding,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
