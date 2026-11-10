@@ -2,6 +2,7 @@ package com.ahu.ahutong.ui.screen.assistant
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Color
 import android.os.SystemClock
 import android.util.Base64
 import android.view.View
@@ -232,7 +233,6 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
         text,
         dark,
         fontScale,
-        colors.background,
         colors.onSurface,
         colors.onSurfaceVariant,
         colors.surfaceContainerHigh,
@@ -269,8 +269,9 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                // 不透明底色，避免透明 WebView 与背后动画层合成时闪。
-                setBackgroundColor(colors.background.toArgb())
+                setBackgroundColor(Color.TRANSPARENT)
+                // 软件图层：不单独占硬件 surface，避免与 Compose 动画背景合成时闪烁。
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = false
                 settings.allowFileAccess = true
@@ -350,7 +351,6 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
             }
         },
         update = { web ->
-            web.setBackgroundColor(colors.background.toArgb())
             if (web.tag != html) {
                 web.tag = html
                 web.loadDataWithBaseURL(
@@ -401,7 +401,6 @@ private fun buildMathHtml(
     return template
         .replace("__SOURCE_B64__", base64)
         .replace("__BASE_FONT__", baseFont)
-        .replace("__PAGE_BG__", colors.background.hex())
         .replace("__TEXT__", text.hex())
         .replace("__MUTED__", muted.hex())
         .replace("__CODE_BG__", codeBg.hex())
