@@ -6,24 +6,25 @@
   <link rel="stylesheet" href="katex.min.css">
   <link rel="stylesheet" href="texmath.css">
   <style>
+    /* 字号基准由 Kotlin 按 Compose 的 14sp 排版换算，保证与普通消息一致。 */
+    html { font-size: __BASE_FONT__px; }
     html, body { margin: 0; padding: 0; background: transparent; }
     body {
       color: __TEXT__;
-      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-      font-size: 16px;
-      line-height: 1.55;
+      font-family: sans-serif;
+      font-size: 1rem;
+      line-height: 1.357;
       word-break: break-word;
     }
     p { margin: 0 0 0.65em; }
-    h1, h2, h3, h4, h5, h6 { margin: 0.7em 0 0.35em; font-weight: 600; line-height: 1.35; }
-    h1 { font-size: 1.35em; }
-    h2 { font-size: 1.2em; }
-    h3 { font-size: 1.08em; }
+    h1, h2, h3, h4, h5, h6 { margin: 0.7em 0 0.35em; font-weight: 600; line-height: 1.43; }
+    h1 { font-size: 1.143rem; line-height: 1.25; }
+    h2, h3, h4, h5, h6 { font-size: 1rem; }
     ul, ol { margin: 0 0 0.65em; padding-left: 1.35em; }
     li { margin: 0.18em 0; }
     code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.9em;
+      font-family: monospace;
+      font-size: 1rem;
       background: __CODE_BG__;
       border-radius: 6px;
       padding: 0.12em 0.3em;
@@ -35,16 +36,25 @@
       overflow-x: auto;
       margin: 0 0 0.75em;
     }
-    pre code { background: transparent; padding: 0; font-size: 0.86em; }
+    pre code { background: transparent; padding: 0; font-size: 0.857rem; line-height: 1.35; }
     blockquote {
       margin: 0 0 0.75em;
       padding: 0.1em 0 0.1em 0.9em;
       border-left: 3px solid __ACCENT__;
       color: __MUTED__;
+      font-size: 0.857rem;
+      line-height: 1.33;
+      font-style: italic;
     }
     a { color: __ACCENT__; text-decoration: none; }
     table { border-collapse: collapse; width: 100%; margin: 0 0 0.75em; }
-    th, td { border: 1px solid __BORDER__; padding: 6px 8px; text-align: left; font-size: 0.92em; }
+    th, td {
+      border: 1px solid __BORDER__;
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 0.857rem;
+      line-height: 1.42;
+    }
     th { background: __SURFACE__; }
     hr { border: 0; border-top: 1px solid __BORDER__; margin: 1em 0; }
     img { max-width: 100%; height: auto; border-radius: 12px; }
@@ -78,15 +88,37 @@
   const content = document.getElementById('content');
   content.innerHTML = md.render(SOURCE);
 
-  function reportHeight() {
-    if (window.AndroidHeight) {
-      AndroidHeight.post(Math.ceil(document.documentElement.scrollHeight));
+  // 高度回写做 80ms 去抖 + 4px 量化 + 显著变化阈值，避免
+  // 「Compose 改高度 → WebView relayout → ResizeObserver 再上报」形成回环。
+  var lastHeight = -1;
+  var reportTimer = 0;
+
+  function measureHeight() {
+    reportTimer = 0;
+    var h = Math.ceil(Math.max(
+      document.documentElement ? document.documentElement.scrollHeight : 0,
+      document.body ? document.body.scrollHeight : 0
+    ));
+    if (h <= 0 || h > 20000) return;
+    h = Math.ceil(h / 4) * 4;
+    if (lastHeight < 0 || Math.abs(h - lastHeight) >= 4) {
+      lastHeight = h;
+      if (window.AndroidHeight) AndroidHeight.post(h);
     }
   }
-  reportHeight();
-  window.addEventListener('load', reportHeight);
+
+  function scheduleReport() {
+    if (reportTimer) return;
+    reportTimer = setTimeout(measureHeight, 80);
+  }
+
+  scheduleReport();
+  window.addEventListener('load', scheduleReport);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(scheduleReport);
+  }
   if (window.ResizeObserver) {
-    new ResizeObserver(reportHeight).observe(document.body);
+    new ResizeObserver(scheduleReport).observe(document.body);
   }
 </script>
 </body>

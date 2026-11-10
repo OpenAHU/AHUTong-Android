@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.SpanStyle
@@ -38,7 +39,9 @@ import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import androidx.compose.ui.viewinterop.AndroidView
+import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 private val inlineMath = Regex("""(?<!\$)\$(?!\$)[^$\n]+\$(?!\$)""")
 
@@ -183,6 +186,7 @@ private fun MarkdownMarkdown(text: String, modifier: Modifier) {
 }
 
 private const val MATH_HEIGHT_TIMEOUT_MS = 6_000L
+private const val MAX_MATH_HEIGHT_DP = 20_000
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -190,9 +194,30 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val dark = colors.background.luminance() < 0.5f
+    val fontScale = LocalDensity.current.fontScale
     var height by remember(text) { mutableStateOf(0) }
     var failed by remember(text) { mutableStateOf(false) }
-    val html = remember(text, dark, colors) { buildMathHtml(context, text, dark, colors) }
+    // 只以实际参与 HTML 的字段为 key，避免主题对象实例变化带来无谓的 HTML 重建。
+    val html = remember(
+        text,
+        dark,
+        fontScale,
+        colors.onSurface,
+        colors.onSurfaceVariant,
+        colors.surfaceContainerHigh,
+        colors.surfaceContainerLow,
+        colors.outlineVariant,
+        colors.primary,
+    ) {
+        buildMathHtml(context, text, dark, colors, fontScale)
+    }
+
+    // 高度回写只接受显著变化，避免 1~2px 的布局抖动形成「改高度 → 重排 → 再上报」。
+    fun applyHeight(measured: Int) {
+        if (measured <= 0) return
+        val next = measured.coerceIn(1, MAX_MATH_HEIGHT_DP)
+        if (height == 0 || abs(next - height) >= 4) height = next
+    }
 
     LaunchedEffect(text) {
         delay(MATH_HEIGHT_TIMEOUT_MS)
@@ -217,6 +242,7 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
                 settings.blockNetworkLoads = true
                 settings.builtInZoomControls = false
                 settings.displayZoomControls = false
+                settings.textZoom = 100 // 字号由 CSS 基准统一控制，避免系统缩放叠加两次
                 isVerticalScrollBarEnabled = false
                 overScrollMode = View.OVER_SCROLL_NEVER
                 isNestedScrollingEnabled = false
@@ -224,7 +250,7 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
                     object {
                         @JavascriptInterface
                         fun post(h: Int) {
-                            post { height = h }
+                            post { applyHeight(h) }
                         }
                     },
                     "AndroidHeight",
@@ -235,7 +261,7 @@ private fun KatexMarkdown(text: String, modifier: Modifier) {
                             "return Math.max(d?d.scrollHeight:0,b?b.scrollHeight:0);})()"
                     ) { value ->
                         val measured = value?.trim('"')?.toFloatOrNull()?.toInt() ?: 0
-                        if (measured > 0) height = measured
+                        if (measured > 0) applyHeight(measured)
                     }
                 }
 
@@ -309,6 +335,7 @@ private fun buildMathHtml(
     markdown: String,
     dark: Boolean,
     colors: androidx.compose.material3.ColorScheme,
+    fontScale: Float,
 ): String {
     val safeMarkdown = AssistantMarkdownSafety.sanitize(markdown)
     val base64 = Base64.encodeToString(
@@ -324,8 +351,11 @@ private fun buildMathHtml(
     val surface = if (dark) ComposeColor(0xFF1C1B18) else colors.surfaceContainerLow
     val border = colors.outlineVariant
     val accent = colors.primary
+    // Compose 正文是 14sp；CSS 基准按系统字号缩放换算，两边字号/行高保持一致。
+    val baseFont = String.format(Locale.US, "%.2f", 14f * fontScale)
     return template
         .replace("__SOURCE_B64__", base64)
+        .replace("__BASE_FONT__", baseFont)
         .replace("__TEXT__", text.hex())
         .replace("__MUTED__", muted.hex())
         .replace("__CODE_BG__", codeBg.hex())
