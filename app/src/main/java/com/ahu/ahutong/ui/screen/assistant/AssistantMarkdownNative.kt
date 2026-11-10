@@ -80,7 +80,6 @@ import org.commonmark.node.Text as MdText
 import org.commonmark.node.ThematicBreak
 import org.commonmark.parser.Parser
 import ru.noties.jlatexmath.JLatexMathDrawable
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 private val BODY_SIZE = 14.sp
@@ -345,69 +344,13 @@ private fun InlineText(
     val inline = remember(nodes, style, color, colors, density) {
         buildInline(nodes, style.fontSize, color, colors, density)
     }
-    // 行内公式高于正文时，按本段最高公式抬高行高，避免和上下行叠在一起。
-    val mathHeight = remember(nodes, style.fontSize, color, density) {
-        maxInlineMathHeight(nodes, style.fontSize, color, density)
-    }
-    val effectiveStyle = if (mathHeight > 0f) {
-        val base = if (style.lineHeight.isSp) style.lineHeight.value else BODY_LINE.value
-        val needed = (mathHeight + 2f).coerceAtMost(40f)
-        style.copy(lineHeight = max(base, needed).sp)
-    } else {
-        style
-    }
     Text(
         text = inline.text,
         inlineContent = inline.placeholders,
-        style = effectiveStyle,
+        style = style,
         color = color,
         modifier = modifier,
     )
-}
-
-private fun maxInlineMathHeight(
-    nodes: List<Node>,
-    fontSize: TextUnit,
-    color: Color,
-    density: Density,
-): Float {
-    val textSizePx = with(density) {
-        if (fontSize.isSp) fontSize.toPx() else BODY_SIZE.toPx()
-    }
-    val colorArgb = color.toArgb()
-    var maxHeight = 0f
-
-    fun visit(node: Node) {
-        if (node is MdText) {
-            for (match in protectedMathToken.findAll(node.literal)) {
-                val tex = decodeMathToken(match.groupValues[1]) ?: continue
-                val drawable = LatexDrawables.get(tex, textSizePx, colorArgb, false)
-                if (drawable != null) {
-                    val heightSp = drawable.intrinsicHeight / (density.density * density.fontScale)
-                    maxHeight = max(maxHeight, heightSp)
-                }
-            }
-            for (match in inlineMathPattern.findAll(node.literal)) {
-                val tex = (match.groupValues[1].takeIf { it.isNotEmpty() }
-                    ?: match.groupValues[2]).trim()
-                if (tex.isEmpty()) continue
-                val drawable = LatexDrawables.get(tex, textSizePx, colorArgb, false)
-                if (drawable != null) {
-                    val heightSp = drawable.intrinsicHeight / (density.density * density.fontScale)
-                    maxHeight = max(maxHeight, heightSp)
-                }
-            }
-        } else {
-            var child = node.firstChild
-            while (child != null) {
-                visit(child)
-                child = child.next
-            }
-        }
-    }
-
-    nodes.forEach(::visit)
-    return maxHeight
 }
 
 private fun collectChildren(node: Node): List<Node> {
@@ -449,7 +392,7 @@ private fun buildInline(
             Placeholder(
                 width = widthSp,
                 height = heightSp,
-                placeholderVerticalAlign = PlaceholderVerticalAlign.TextBottom,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
             )
         ) {
             Canvas(Modifier.fillMaxSize()) {
