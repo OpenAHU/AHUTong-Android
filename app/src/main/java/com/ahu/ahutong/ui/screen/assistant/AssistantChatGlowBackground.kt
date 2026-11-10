@@ -1,14 +1,8 @@
 package com.ahu.ahutong.ui.screen.assistant
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -19,26 +13,20 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * 对话页的极低透明度彩色晕动：和输入栏、边缘光共用六色，但只作为背景，
+ * 对话页的极低透明度彩色底：和输入栏、边缘光共用六色，但只作为背景，
  * 不参与交互，也不影响正文可读性。
+ *
+ * 固定相位而非逐帧动画——WebView 硬件渲染面与持续动画的背景合成时会闪烁，
+ * 这里保留配色层次，但不再产生每秒 60 次的窗口无效化。
  */
 @Composable
 internal fun AssistantChatGlowBackground(modifier: Modifier = Modifier) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val phase by rememberInfiniteTransition(label = "chat-glow")
-        .animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 28_000, easing = LinearEasing)
-            ),
-            label = "chat-glow-phase"
-        )
     val colors = ASSISTANT_GLOW_COLORS
     val alpha = if (dark) 0.16f else 0.30f
 
     Canvas(modifier = modifier) {
-        val t = phase * 2f * PI.toFloat()
+        val t = 0.15f * 2f * PI.toFloat()
         drawRect(
             Brush.linearGradient(
                 colors = listOf(
