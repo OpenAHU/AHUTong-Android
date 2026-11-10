@@ -246,8 +246,10 @@ dependencies {
     implementation(libs.kyant0.capsule)
     implementation(libs.markwon.core)
     implementation(libs.markdown.renderer.m3)
+    implementation(libs.commonmark)
     implementation(libs.commonmark.tables)
     implementation(libs.commonmark.strikethrough)
+    implementation(libs.jlatexmath.android)
 
     implementation(platform(libs.kotlin.bom))
     implementation(libs.kotlin.stdlib)

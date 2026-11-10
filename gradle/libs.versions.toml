@@ -32,6 +32,7 @@ kyant0Capsule = "2.1.1"
 markwon = "4.6.2"
 markdownRenderer = "0.38.1"
 commonmark = "0.13.0"
+jlatexmath = "0.2.0"
 room = "2.8.4"
 serialization = "1.8.1"
 work = "2.11.2"
@@ -86,8 +87,10 @@ kyant0-backdrop = { module = "io.github.kyant0:backdrop", version.ref = "kyant0B
 kyant0-capsule = { module = "io.github.kyant0:capsule", version.ref = "kyant0Capsule" }
 markwon-core = { module = "io.noties.markwon:core", version.ref = "markwon" }
 markdown-renderer-m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
+commonmark = { module = "com.atlassian.commonmark:commonmark", version.ref = "commonmark" }
 commonmark-tables = { module = "com.atlassian.commonmark:commonmark-ext-gfm-tables", version.ref = "commonmark" }
 commonmark-strikethrough = { module = "com.atlassian.commonmark:commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
+jlatexmath-android = { module = "ru.noties:jlatexmath-android", version.ref = "jlatexmath" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }

@@ -442,3 +442,7 @@
 # 插件 ServiceLoader 发现：保留实现类的无参构造与服务索引
 -keep class * implements com.ahu.ahutong.core.plugin.AhuPlugin { public <init>(); }
 -keepclassmembers class * implements com.ahu.ahutong.core.plugin.AhuPlugin { public <init>(); }
+
+# JLaTeXMath：TeX 命令与字体映射由 XML 资源反射解析，混淆后会丢类/丢方法。
+-keep class org.scilab.forge.jlatexmath.** { *; }
+-keep class ru.noties.jlatexmath.** { *; }
