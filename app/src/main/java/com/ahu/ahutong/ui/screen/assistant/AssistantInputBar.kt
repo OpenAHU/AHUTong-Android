@@ -535,7 +535,7 @@ private fun ThinkingLevelSlider(
 ) {
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
-    val knobRadiusPx = with(density) { 12.dp.toPx() }
+    val knobRadiusPx = with(density) { 14.dp.toPx() }
     var widthPx by remember { mutableStateOf(0) }
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val currentLevel = rememberUpdatedState(level)
@@ -545,8 +545,12 @@ private fun ThinkingLevelSlider(
         label = "thinking-knob",
     )
     val fraction = dragFraction ?: animatedFraction
-    val trackStart = Color(0xFF7C6CFF)
-    val trackEnd = Color(0xFF5B7CFF)
+    // 三段高饱和渐变，比原来的两条相近紫色更跳。
+    val trackColors = listOf(
+        Color(0xFFD05CFF),
+        Color(0xFF8B6BFF),
+        Color(0xFF4F8CFF),
+    )
     val inactive = MaterialTheme.colorScheme.surfaceContainerHighest
 
     fun fractionAt(x: Float): Float {
@@ -594,36 +598,46 @@ private fun ThinkingLevelSlider(
             }
     ) {
         Canvas(Modifier.fillMaxWidth().height(44.dp)) {
-            val trackHeight = 26.dp.toPx()
-            val left = knobRadiusPx
-            val right = size.width - knobRadiusPx
+            val trackHeight = 24.dp.toPx()
+            val trackRadius = trackHeight / 2f
+            // 球比槽高；球心只走到槽两端圆角的圆心，球体外缘刚好贴住容器。
+            val trackLeft = knobRadiusPx - trackRadius
+            val trackRight = size.width - knobRadiusPx + trackRadius
+            val leftCenter = trackLeft + trackRadius
+            val rightCenter = trackRight - trackRadius
             val centerY = size.height / 2f
-            val knobX = left + (right - left) * fraction
+            val knobX = leftCenter + (rightCenter - leftCenter) * fraction
 
             drawRoundRect(
                 color = inactive,
-                topLeft = Offset(left, centerY - trackHeight / 2),
-                size = Size(right - left, trackHeight),
-                cornerRadius = CornerRadius(trackHeight / 2, trackHeight / 2),
+                topLeft = Offset(trackLeft, centerY - trackHeight / 2),
+                size = Size(trackRight - trackLeft, trackHeight),
+                cornerRadius = CornerRadius(trackRadius, trackRadius),
             )
             drawRoundRect(
                 brush = Brush.horizontalGradient(
-                    colors = listOf(trackStart, trackEnd),
-                    startX = left,
-                    endX = right,
+                    colors = trackColors,
+                    startX = trackLeft,
+                    endX = trackRight,
                 ),
-                topLeft = Offset(left, centerY - trackHeight / 2),
-                size = Size((knobX - left).coerceAtLeast(0f), trackHeight),
-                cornerRadius = CornerRadius(trackHeight / 2, trackHeight / 2),
+                topLeft = Offset(trackLeft, centerY - trackHeight / 2),
+                size = Size((knobX - trackLeft).coerceAtLeast(0f), trackHeight),
+                cornerRadius = CornerRadius(trackRadius, trackRadius),
             )
             repeat(4) { index ->
-                val x = left + (right - left) * (index / 3f)
+                val x = leftCenter + (rightCenter - leftCenter) * (index / 3f)
                 drawCircle(
                     color = Color.White.copy(alpha = 0.75f),
                     radius = 1.4.dp.toPx(),
                     center = Offset(x, centerY),
                 )
             }
+            // 球在槽里的投影：先画一层偏移阴影，再画白色球体。
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.12f),
+                radius = knobRadiusPx + 1.5.dp.toPx(),
+                center = Offset(knobX, centerY + 2.dp.toPx()),
+            )
             drawCircle(
                 color = Color.White,
                 radius = knobRadiusPx,
