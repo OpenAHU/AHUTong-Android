@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.assistant
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -13,6 +14,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -51,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -386,6 +389,27 @@ private fun PickerChip(
     }
 }
 
+private data class ModelLogo(@DrawableRes val res: Int, val monochrome: Boolean)
+
+private fun modelLogo(profile: AssistantModelProfile): ModelLogo? {
+    val key = "${profile.providerLabel} ${profile.model} ${profile.baseUrl}".lowercase()
+    return when {
+        "deepseek" in key -> ModelLogo(R.drawable.logo_deepseek, false)
+        "openai" in key || "gpt" in key || Regex("""\bo[1-9]""").containsMatchIn(key) ->
+            ModelLogo(R.drawable.logo_openai, true)
+        "kimi" in key || "moonshot" in key -> ModelLogo(R.drawable.logo_moonshot, true)
+        "qwen" in key || "通义" in key || "dashscope" in key ->
+            ModelLogo(R.drawable.logo_qwen, false)
+        "claude" in key || "anthropic" in key -> ModelLogo(R.drawable.logo_anthropic, true)
+        "minimax" in key -> ModelLogo(R.drawable.logo_minimax, false)
+        "doubao" in key || "豆包" in key || "bytedance" in key ||
+            "volces" in key || "ark" in key -> ModelLogo(R.drawable.logo_bytedance, false)
+        "glm" in key || "智谱" in key || "z.ai" in key || "zai" in key || "bigmodel" in key ->
+            ModelLogo(R.drawable.logo_zai, true)
+        else -> null
+    }
+}
+
 @Composable
 private fun AssistantModelPickerSheet(
     snapshot: AssistantModelLibrarySnapshot,
@@ -418,24 +442,6 @@ private fun AssistantModelPickerSheet(
                 enabled = active?.supportsThinking == true,
                 onChange = onLevelChange,
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                AssistantThinkingLevel.entries.forEach { item ->
-                    Text(
-                        text = item.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (item == level) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-            }
             if (active != null && !active.supportsThinking) {
                 Text(
                     text = "当前模型标记为不支持思考，强度设置不会发给服务端。",
@@ -463,12 +469,28 @@ private fun AssistantModelPickerSheet(
                             .padding(horizontal = 10.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp),
-                        )
+                        val logo = modelLogo(profile)
+                        if (logo == null) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        } else if (logo.monochrome) {
+                            Icon(
+                                painter = painterResource(logo.res),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(logo.res),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -504,7 +526,7 @@ private fun AssistantModelPickerSheet(
     }
 }
 
-/** 四档离散渐变滑块：点击或拖动都会落到最近的档位。 */
+/** 四档离散渐变滑块：圆钮跟手连续移动，松手落到最近的档位。 */
 @Composable
 private fun ThinkingLevelSlider(
     level: AssistantThinkingLevel,
@@ -512,21 +534,30 @@ private fun ThinkingLevelSlider(
     onChange: (AssistantThinkingLevel) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val knobRadiusPx = with(density) { 12.dp.toPx() }
     var widthPx by remember { mutableStateOf(0) }
-    val fraction by animateFloatAsState(
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val currentLevel = rememberUpdatedState(level)
+    val animatedFraction by animateFloatAsState(
         targetValue = level.ordinal / 3f,
         animationSpec = tween(160),
         label = "thinking-knob",
     )
+    val fraction = dragFraction ?: animatedFraction
     val trackStart = Color(0xFF7C6CFF)
     val trackEnd = Color(0xFF5B7CFF)
     val inactive = MaterialTheme.colorScheme.surfaceContainerHighest
 
-    fun pick(x: Float) {
-        if (!enabled || widthPx <= 0) return
-        val index = ((x / widthPx) * 3f).roundToInt().coerceIn(0, 3)
+    fun fractionAt(x: Float): Float {
+        if (widthPx <= knobRadiusPx * 2f) return 0f
+        return ((x - knobRadiusPx) / (widthPx - knobRadiusPx * 2f)).coerceIn(0f, 1f)
+    }
+
+    fun pick(value: Float) {
+        val index = (value * 3f).roundToInt().coerceIn(0, 3)
         val next = AssistantThinkingLevel.entries[index]
-        if (next != level) {
+        if (next != currentLevel.value) {
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             onChange(next)
         }
@@ -538,27 +569,34 @@ private fun ThinkingLevelSlider(
             .height(44.dp)
             .alpha(if (enabled) 1f else 0.45f)
             .onSizeChanged { widthPx = it.width }
-            .pointerInput(enabled, widthPx, level) {
+            .pointerInput(enabled, widthPx) {
                 if (!enabled) return@pointerInput
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    pick(down.position.x)
-                    var pressed = true
-                    while (pressed) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        pick(change.position.x)
-                        change.consume()
-                        pressed = change.pressed
+                    val start = fractionAt(down.position.x)
+                    dragFraction = start
+                    pick(start)
+                    try {
+                        var pressed = true
+                        while (pressed) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            val value = fractionAt(change.position.x)
+                            dragFraction = value
+                            pick(value)
+                            change.consume()
+                            pressed = change.pressed
+                        }
+                    } finally {
+                        dragFraction = null
                     }
                 }
             }
     ) {
         Canvas(Modifier.fillMaxWidth().height(44.dp)) {
-            val knobRadius = 12.dp.toPx()
             val trackHeight = 26.dp.toPx()
-            val left = knobRadius
-            val right = size.width - knobRadius
+            val left = knobRadiusPx
+            val right = size.width - knobRadiusPx
             val centerY = size.height / 2f
             val knobX = left + (right - left) * fraction
 
@@ -572,38 +610,31 @@ private fun ThinkingLevelSlider(
                 brush = Brush.horizontalGradient(
                     colors = listOf(trackStart, trackEnd),
                     startX = left,
-                    endX = knobX.coerceAtLeast(left + 1f),
+                    endX = right,
                 ),
                 topLeft = Offset(left, centerY - trackHeight / 2),
                 size = Size((knobX - left).coerceAtLeast(0f), trackHeight),
                 cornerRadius = CornerRadius(trackHeight / 2, trackHeight / 2),
             )
-            drawCircle(
-                color = Color.White,
-                radius = knobRadius,
-                center = Offset(knobX, centerY),
-            )
-            drawCircle(
-                color = Color.Black.copy(alpha = 0.08f),
-                radius = knobRadius,
-                center = Offset(knobX, centerY + 1.dp.toPx()),
-                style = Stroke(width = 1.dp.toPx()),
-            )
-        }
-        // 常驻在滑块上的四个档位刻度点，视觉上更接近参考图。
-        Canvas(Modifier.fillMaxWidth().height(44.dp)) {
-            val knobRadius = 12.dp.toPx()
-            val left = knobRadius
-            val right = size.width - knobRadius
-            val centerY = size.height / 2f
             repeat(4) { index ->
                 val x = left + (right - left) * (index / 3f)
                 drawCircle(
                     color = Color.White.copy(alpha = 0.75f),
-                    radius = 1.2.dp.toPx(),
-                    center = Offset(x, centerY - 6.dp.toPx()),
+                    radius = 1.4.dp.toPx(),
+                    center = Offset(x, centerY),
                 )
             }
+            drawCircle(
+                color = Color.White,
+                radius = knobRadiusPx,
+                center = Offset(knobX, centerY),
+            )
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.08f),
+                radius = knobRadiusPx,
+                center = Offset(knobX, centerY + 1.dp.toPx()),
+                style = Stroke(width = 1.dp.toPx()),
+            )
         }
     }
 }
