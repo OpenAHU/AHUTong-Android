@@ -26,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Density
@@ -340,9 +342,11 @@ private fun InlineText(
     colors: androidx.compose.material3.ColorScheme,
     density: Density,
     modifier: Modifier = Modifier,
+    textAlign: TextAlign = TextAlign.Start,
+    maxMathWidthPx: Float = Float.MAX_VALUE,
 ) {
-    val inline = remember(nodes, style, color, colors, density) {
-        buildInline(nodes, style.fontSize, color, colors, density)
+    val inline = remember(nodes, style, color, colors, density, maxMathWidthPx) {
+        buildInline(nodes, style.fontSize, color, colors, density, maxMathWidthPx)
     }
     // 含公式的段落不锁死 19sp 行高，让 Compose 按这一行里最高的 inline content
     // 自然撑行；没有公式的段落仍用原行高，不做整段统一加高。
@@ -357,6 +361,7 @@ private fun InlineText(
         style = effectiveStyle,
         color = color,
         modifier = modifier,
+        textAlign = textAlign,
     )
 }
 
@@ -398,6 +403,7 @@ private fun buildInline(
     color: Color,
     colors: androidx.compose.material3.ColorScheme,
     density: Density,
+    maxMathWidthPx: Float = Float.MAX_VALUE,
 ): InlineResult {
     val builder = AnnotatedString.Builder()
     val placeholders = mutableMapOf<String, InlineTextContent>()
@@ -414,8 +420,13 @@ private fun buildInline(
             return
         }
         val id = "math-${mathIndex++}"
-        val widthSp = (drawable.intrinsicWidth / (density.density * density.fontScale)).sp
-        val heightSp = (drawable.intrinsicHeight / (density.density * density.fontScale)).sp
+        val scale = if (maxMathWidthPx > 0f && drawable.intrinsicWidth > maxMathWidthPx) {
+            maxMathWidthPx / drawable.intrinsicWidth
+        } else {
+            1f
+        }
+        val widthSp = (drawable.intrinsicWidth * scale / (density.density * density.fontScale)).sp
+        val heightSp = (drawable.intrinsicHeight * scale / (density.density * density.fontScale)).sp
         builder.appendInlineContent(id, tex)
         placeholders[id] = InlineTextContent(
             Placeholder(
@@ -667,6 +678,14 @@ private fun MarkdownTable(
     density: Density,
 ) {
     val rows = remember(node) { collectTableRows(node) }
+    val columns = remember(rows) { rows.maxOfOrNull { it.cells.size } ?: 0 }
+    if (columns == 0) return
+    val weights = remember(rows, columns, density) {
+        List(columns) { index ->
+            rows.maxOfOrNull { row -> cellWidthUnits(row.cells.getOrNull(index).orEmpty(), density) }
+                ?: 1f
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -674,33 +693,86 @@ private fun MarkdownTable(
             .border(1.dp, colors.outlineVariant),
     ) {
         rows.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                row.cells.forEach { cell ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(columns) { index ->
+                    val cell = row.cells.getOrNull(index).orEmpty()
                     Box(
                         modifier = Modifier
-                            .weight(1f)
+                            .weight(weights[index])
                             .background(
                                 if (row.header) colors.surfaceContainer else Color.Transparent
                             )
                             .border(0.5.dp, colors.outlineVariant)
                             .padding(horizontal = 8.dp, vertical = 6.dp),
                     ) {
-                        InlineText(
-                            nodes = cell,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = TABLE_SIZE,
-                                lineHeight = TABLE_LINE,
-                                fontWeight = FontWeight.Light,
-                            ),
-                            color = colors.onSurface,
-                            colors = colors,
-                            density = density,
-                        )
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            InlineText(
+                                nodes = cell,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = TABLE_SIZE,
+                                    lineHeight = TABLE_LINE,
+                                    fontWeight = FontWeight.Light,
+                                ),
+                                color = colors.onSurface,
+                                colors = colors,
+                                density = density,
+                                textAlign = TextAlign.Center,
+                                maxMathWidthPx = constraints.maxWidth.toFloat(),
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+/** 按内容粗估列宽（单位约为一个汉字宽），公式按实际 drawable 宽度折算。 */
+private fun cellWidthUnits(cell: List<Node>, density: Density): Float {
+    val textSizePx = with(density) { TABLE_SIZE.toPx() }
+    var units = 0f
+
+    fun visit(node: Node) {
+        if (node is MdText) {
+            var literal = node.literal
+            for (match in protectedMathToken.findAll(literal)) {
+                val tex = decodeMathToken(match.groupValues[1])
+                if (tex != null) {
+                    val drawable = LatexDrawables.get(tex, textSizePx, 0xFF000000.toInt(), false)
+                    if (drawable != null) {
+                        units += drawable.intrinsicWidth / textSizePx + 0.3f
+                    }
+                }
+            }
+            literal = literal.replace(protectedMathToken, "")
+            for (match in inlineMathPattern.findAll(literal)) {
+                val tex = (match.groupValues[1].takeIf { it.isNotEmpty() }
+                    ?: match.groupValues[2]).trim()
+                if (tex.isNotEmpty()) {
+                    val drawable = LatexDrawables.get(tex, textSizePx, 0xFF000000.toInt(), false)
+                    if (drawable != null) {
+                        units += drawable.intrinsicWidth / textSizePx + 0.3f
+                    }
+                }
+            }
+            literal = literal.replace(inlineMathPattern, "")
+            for (char in literal) {
+                units += if (char.code >= 0x2E80) 1f else 0.55f
+            }
+        } else {
+            var child = node.firstChild
+            while (child != null) {
+                visit(child)
+                child = child.next
+            }
+        }
+    }
+
+    cell.forEach(::visit)
+    return units.coerceAtLeast(3f)
 }
 
 private data class TableRowData(val header: Boolean, val cells: List<List<Node>>)
