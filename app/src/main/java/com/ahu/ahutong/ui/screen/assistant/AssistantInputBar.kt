@@ -1,12 +1,8 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -142,16 +138,8 @@ fun AssistantInputBar(
     val focusRequester = remember { FocusRequester() }
     val expanded = focused || pickerOpen || keepExpanded
 
-    // 只在绘制阶段读取相位，避免整条输入栏每帧重组。
-    val phase = rememberInfiniteTransition(label = "input-glow")
-        .animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 9_000, easing = LinearEasing)
-            ),
-            label = "input-glow-phase"
-        )
+    // 固定相位：停止逐帧动画，避免 AI 页窗口持续重绘与 WebView 渲染面合成闪烁。
+    val phase = 0.12f
 
     val container = if (dark) Color(0xFF1C1C1E) else Color.White
     val textColor = if (dark) Color.White else Color(0xFF111111)
@@ -183,7 +171,7 @@ fun AssistantInputBar(
             val radius = (with(density) { 28.dp.toPx() } - inset).coerceAtLeast(0f)
             drawRoundRect(
                 brush = Brush.sweepGradient(
-                    colorStops = inputGlowStops(phase.value).toTypedArray(),
+                    colorStops = inputGlowStops(phase).toTypedArray(),
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
                 topLeft = Offset(inset, inset),
@@ -200,7 +188,7 @@ fun AssistantInputBar(
             val radius = (with(density) { 28.dp.toPx() } - inset).coerceAtLeast(0f)
             drawRoundRect(
                 brush = Brush.sweepGradient(
-                    colorStops = inputGlowStops(phase.value).toTypedArray(),
+                    colorStops = inputGlowStops(phase).toTypedArray(),
                     center = Offset(size.width / 2f, size.height / 2f)
                 ),
                 topLeft = Offset(inset, inset),
