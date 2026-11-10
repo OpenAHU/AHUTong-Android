@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.assistant
 
+import android.util.Base64
 import android.util.LruCache
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -96,6 +97,48 @@ private val markdownParser: Parser = Parser.builder()
 private val inlineMathPattern = Regex(
     """(?<!\\)\$(?!\$)([^$\n]+?)(?<!\\)\$|\\\((.+?)\\\)"""
 )
+private val protectedMathToken = Regex("\u0002([A-Za-z0-9+/=]+)\u0003")
+
+/**
+ * CommonMark 会把 `\(`、`\[` 当反斜杠转义吃掉，导致公式在解析前就变成
+ * `(x)` / `[x]`。这里先把行内公式换成控制字符包裹的 token，再交给 parser；
+ * 围栏代码块和 code span 保持原样。
+ */
+private fun protectInlineMath(markdown: String): String {
+    var inFence = false
+    return markdown.lines().joinToString("\n") { line ->
+        val trimmed = line.trimStart()
+        when {
+            trimmed.startsWith("```") || trimmed.startsWith("~~~") -> {
+                inFence = !inFence
+                line
+            }
+            inFence -> line
+            else -> protectLine(line)
+        }
+    }
+}
+
+private fun protectLine(line: String): String {
+    val parts = line.split('`')
+    return parts.mapIndexed { index, part ->
+        if (index % 2 == 1) part else protectText(part)
+    }.joinToString("`")
+}
+
+private fun protectText(text: String): String =
+    inlineMathPattern.replace(text) { match ->
+        val tex = (match.groupValues[1].takeIf { it.isNotEmpty() }
+            ?: match.groupValues[2]).trim()
+        if (tex.isEmpty()) match.value else mathToken(tex)
+    }
+
+private fun mathToken(tex: String): String =
+    "\u0002" + Base64.encodeToString(tex.toByteArray(Charsets.UTF_8), Base64.NO_WRAP) + "\u0003"
+
+private fun decodeMathToken(raw: String): String? = runCatching {
+    String(Base64.decode(raw, Base64.NO_WRAP), Charsets.UTF_8)
+}.getOrNull()
 
 /**
  * 把 $$...$$ / \[...\] 统一成带 info 的 fenced code block，交给 Compose 块级公式渲染。
@@ -199,7 +242,7 @@ internal fun NativeMathMarkdown(text: String, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val document = remember(text) {
         val safe = AssistantMarkdownSafety.sanitize(text)
-        markdownParser.parse(normalizeBlockMath(safe))
+        markdownParser.parse(protectInlineMath(normalizeBlockMath(safe)))
     }
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -361,22 +404,32 @@ private fun buildInline(
         }
     }
 
+    fun appendPlain(text: String) {
+        if (text.isNotEmpty()) builder.append(text.replace("\\$", "$"))
+    }
+
     fun appendTextWithMath(raw: String) {
         var cursor = 0
-        for (match in inlineMathPattern.findAll(raw)) {
+        for (match in protectedMathToken.findAll(raw)) {
             if (match.range.first > cursor) {
-                builder.append(raw.substring(cursor, match.range.first).replace("\\$", "$"))
+                appendPlain(raw.substring(cursor, match.range.first))
+            }
+            val tex = decodeMathToken(match.groupValues[1])
+            if (tex.isNullOrBlank()) builder.append(match.value) else appendFormula(tex)
+            cursor = match.range.last + 1
+        }
+        val tail = raw.substring(cursor)
+        var tailCursor = 0
+        for (match in inlineMathPattern.findAll(tail)) {
+            if (match.range.first > tailCursor) {
+                appendPlain(tail.substring(tailCursor, match.range.first))
             }
             val tex = (match.groupValues[1].takeIf { it.isNotEmpty() }
                 ?: match.groupValues[2]).trim()
-            if (tex.isNotEmpty()) {
-                appendFormula(tex)
-            }
-            cursor = match.range.last + 1
+            if (tex.isNotEmpty()) appendFormula(tex)
+            tailCursor = match.range.last + 1
         }
-        if (cursor < raw.length) {
-            builder.append(raw.substring(cursor).replace("\\$", "$"))
-        }
+        if (tailCursor < tail.length) appendPlain(tail.substring(tailCursor))
     }
 
     fun walk(node: Node) {
