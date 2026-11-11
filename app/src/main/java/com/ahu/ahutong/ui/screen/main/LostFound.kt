@@ -195,48 +195,16 @@ fun LostFound(
             lostFoundViewModel.selectedType == null ||
                     item.typeid == lostFoundViewModel.selectedType
 
-        val searchMatch =
-            searchQuery.isBlank() ||
-
-                    (item.title?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.linkman?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.phone?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.campusName?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.lostType?.typeName?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.pubuser?.userName?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.num1?.contains(
-                        searchQuery,
-                        true
-                    ) == true) ||
-
-                    (item.createtime?.contains(
-                        searchQuery,
-                        true
-                    ) == true)
+        val searchMatch = searchQuery.isBlank() || listOf(
+            item.title,
+            item.linkman,
+            item.phone,
+            item.campusName,
+            item.lostType?.typeName,
+            item.pubuser?.userName,
+            item.num1,
+            item.createtime
+        ).any { it?.contains(searchQuery, ignoreCase = true) == true }
 
         campusMatch && typeMatch && searchMatch
     }

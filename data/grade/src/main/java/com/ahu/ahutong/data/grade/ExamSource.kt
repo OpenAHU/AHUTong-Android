@@ -3,6 +3,7 @@ package com.ahu.ahutong.data.grade
 import com.ahu.ahutong.core.common.MockDataSignals
 
 import com.ahu.ahutong.core.common.AhuResult
+import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.data.model.Exam
 
 /**
@@ -15,6 +16,8 @@ interface ExamSource : MockDataSignals {
 
     /** 缓存里的考试；没有则为空列表。 */
     fun cachedExams(): List<Exam>
+
+    fun cachedProfiles(): List<GradeStudentProfile> = emptyList()
 
     /** 缓存取到的时间（epoch millis）；0 表示从没取过。 */
     fun cachedAt(): Long

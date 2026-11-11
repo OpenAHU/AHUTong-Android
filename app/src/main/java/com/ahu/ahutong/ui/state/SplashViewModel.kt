@@ -66,30 +66,6 @@ class SplashViewModel @Inject constructor(
         }
     }
 
-    fun chooseModelQualityTelemetry(enabled: Boolean) {
-        val current = _telemetryOnboardingState.value as? TelemetryOnboardingState.Ready ?: return
-        if (current.choice != null) return
-        _telemetryOnboardingState.value = TelemetryOnboardingState.Loading
-        viewModelScope.launch {
-            preferencesManager.setModelQualityTelemetryOnboardingChoice(enabled)
-            runCatching { behaviorRuntime.setTelemetryConsent(enabled) }
-            _telemetryOnboardingState.value = TelemetryOnboardingState.Ready(enabled)
-        }
-    }
-
-
-    fun chooseBootstrapTraining(enabled: Boolean, includeHistorical: Boolean) {
-        val current = _bootstrapTrainingOnboardingState.value as?
-            BootstrapTrainingOnboardingState.Ready ?: return
-        if (current.choice != null) return
-        _bootstrapTrainingOnboardingState.value = BootstrapTrainingOnboardingState.Loading
-        viewModelScope.launch {
-            preferencesManager.setBootstrapTrainingOnboardingChoice(enabled, includeHistorical)
-            runCatching { behaviorRuntime.setBootstrapTrainingConsent(enabled, includeHistorical) }
-            _bootstrapTrainingOnboardingState.value = BootstrapTrainingOnboardingState.Ready(enabled)
-        }
-    }
-
     fun acceptUnifiedPrivacyPolicy() {
         val previousTelemetry = _telemetryOnboardingState.value as? TelemetryOnboardingState.Ready
             ?: return

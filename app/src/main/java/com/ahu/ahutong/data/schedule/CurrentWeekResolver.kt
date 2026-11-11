@@ -47,8 +47,8 @@ object CurrentWeekResolver {
                 schoolTerm = parts[2]
             )
 
-            parts.size == 1 && AHUCache.getSchoolYear() != null -> {
-                val schoolYear = AHUCache.getSchoolYear().orEmpty()
+            // 只有学期号时，用缓存学年补全；缓存学年缺失则无法确定学期。
+            parts.size == 1 -> AHUCache.getSchoolYear()?.let { schoolYear ->
                 SemesterKey(
                     raw = buildSemesterKey(schoolYear, normalized),
                     schoolYear = schoolYear,
@@ -206,12 +206,13 @@ object CurrentWeekResolver {
 
     private suspend fun getOfficialStartDate(semesterKey: SemesterKey): LocalDate? {
         val semester = fetchCurrentSemester(JwxtApi.API)
-        val officialKey = sequenceOf(semester.name, semester.code, semester.nameZh)
+        val matchesRequestedSemester = sequenceOf(semester.name, semester.code, semester.nameZh)
             .mapNotNull(::parseSemesterKey)
-            .firstOrNull {
+            .any {
                 it.schoolYear == semesterKey.schoolYear &&
                     it.schoolTerm == semesterKey.schoolTerm
-            } ?: return null
+            }
+        if (!matchesRequestedSemester) return null
         return LocalDate.of(
             semester.startDate.year,
             semester.startDate.monthOfYear,

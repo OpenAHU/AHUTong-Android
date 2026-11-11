@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 
@@ -151,6 +152,8 @@ object AppStateCard {
     @Composable
     fun Inline(
         modifier: Modifier = Modifier,
+        // 懒列表项需自带 16dp 边距；放在 AppPageScaffold content（壳已提供水平边距）中时传 0.dp
+        horizontalInset: Dp = 16.dp,
         loading: Boolean = false,
         title: String? = null,
         message: String? = null,
@@ -161,7 +164,7 @@ object AppStateCard {
         AppCard(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = horizontalInset),
             contentPadding = PaddingValues(20.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -204,6 +207,8 @@ object AppStateCard {
     fun InlineError(
         message: String,
         modifier: Modifier = Modifier,
+        // 同 [Inline]：content 页面传 0.dp，避免与壳的水平边距叠加
+        horizontalInset: Dp = 16.dp,
         title: String? = "加载失败",
         retryLabel: String = "重试",
         onRetry: (() -> Unit)? = null
@@ -235,7 +240,7 @@ object AppStateCard {
                 overlayColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.24f),
                 modifier = modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = horizontalInset)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -245,7 +250,7 @@ object AppStateCard {
         } else {
             Column(
                 modifier = modifier
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = horizontalInset)
                     .fillMaxWidth()
                     .appLiquidGlassSurface(
                         shape = AppComponentTokens.CardShape,

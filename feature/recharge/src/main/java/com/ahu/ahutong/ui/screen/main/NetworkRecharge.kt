@@ -90,11 +90,12 @@ fun NetworkRecharge(
     val pageContent: @Composable ColumnScope.() -> Unit = {
         when (val state = pageState) {
             NetworkRechargePageState.Loading -> {
-                AppStateCard.Inline(loading = true)
+                AppStateCard.Inline(loading = true, horizontalInset = 0.dp)
             }
 
             is NetworkRechargePageState.Error -> {
                 AppStateCard.Inline(
+                    horizontalInset = 0.dp,
                     message = state.message,
                     actionLabel = "重试",
                     onAction = { viewModel.load() }
@@ -155,6 +156,7 @@ fun NetworkRecharge(
         title = "网费充值",
         onBack = onBack,
         modifier = Modifier.fillMaxSize(),
+        bottomPadding = 48.dp,
         content = pageContent
     )
 
@@ -205,7 +207,7 @@ private fun NetworkAccountCard(
 @Composable
 private fun NetworkAccountContent(data: NetworkRechargeUiData) {
     Column(
-        modifier = Modifier.padding(20.dp),
+        modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
@@ -346,11 +348,11 @@ private fun RechargeActionRow(
             PayState.Idle -> Unit
             PayState.InProgress -> Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AppCircularProgressIndicator(size = 22.dp, strokeWidth = 3.dp)
-                Text("  正在充值", style = MaterialTheme.typography.bodyLarge)
+                Text("正在充值", style = MaterialTheme.typography.bodyLarge)
             }
             is PayState.Failed -> StatusMessage(
                 icon = Icons.Default.Close,

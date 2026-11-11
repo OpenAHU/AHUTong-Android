@@ -88,7 +88,7 @@ class JourneyOnDeviceTrainer @Inject constructor(
         val started = System.nanoTime()
         val deadline = started + budgetMillis.coerceIn(1, MAX_SLICE_MS) * 1_000_000L
         var batches = 0
-        if (recoverPrepared(profileKey) == true) batches++
+        if (recoverPrepared(profileKey)) batches++
         while (batches < MAX_BATCHES && System.nanoTime() < deadline &&
             (cancelledGenerations[profileKey] ?: 0L) == generation
         ) {
@@ -136,8 +136,8 @@ class JourneyOnDeviceTrainer @Inject constructor(
         )
     }
 
-    private suspend fun recoverPrepared(profileKey: String): Boolean? {
-        val journal = dao.preparedTaskTrainingJournal(profileKey, ModelTask.JOURNEY_GOAL.name) ?: return null
+    private suspend fun recoverPrepared(profileKey: String): Boolean {
+        val journal = dao.preparedTaskTrainingJournal(profileKey, ModelTask.JOURNEY_GOAL.name) ?: return false
         val rowIds = journal.selectedRowIds.split(',').mapNotNull(String::toLongOrNull)
         val state = store.state(profileKey)
         if (state.lastAppliedBatchId == journal.batchId) {

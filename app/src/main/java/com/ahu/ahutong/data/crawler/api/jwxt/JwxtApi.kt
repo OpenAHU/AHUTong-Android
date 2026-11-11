@@ -57,8 +57,8 @@ interface JwxtApi {
     @GET("/student/home/get-current-teach-week")
     suspend fun getCurrentTeachWeek(): CurrentTeachWeek
 
-    @GET("/student/for-std/exam-arrange/info/96223")
-    suspend fun getExamInfo(): Response<ResponseBody>
+    @GET("/student/for-std/exam-arrange/info/{id}")
+    suspend fun getExamInfo(@Path("id") id: String): Response<ResponseBody>
 
     @GET("/student/for-std/exam-arrange")
     suspend fun fetchExamArrangePage(): Response<ResponseBody>

@@ -81,13 +81,14 @@ fun Splash(
                 }
                 result
             }
-            if (restored is CurrentUserRestoreResult.Unavailable) {
-                restoreFailure = restored
-            } else {
-                val user = (restored as CurrentUserRestoreResult.Ready).user
-                if (user != null) (activity as? MainActivity)?.onSessionStorageReady()
-                navController.navigate(if (user != null) "home" else "login") {
-                    popUpTo("splash") { inclusive = true }
+            when (restored) {
+                is CurrentUserRestoreResult.Unavailable -> restoreFailure = restored
+                is CurrentUserRestoreResult.Ready -> {
+                    val user = restored.user
+                    if (user != null) (activity as? MainActivity)?.onSessionStorageReady()
+                    navController.navigate(if (user != null) "home" else "login") {
+                        popUpTo("splash") { inclusive = true }
+                    }
                 }
             }
         }
@@ -127,7 +128,7 @@ fun Splash(
                 )
             }
         }
-    } else if (requiresAcceptance) {
+    } else {
         val policyMarkdown by produceState<String?>(null) {
             value = withContext(Dispatchers.IO) {
                 context.resources.openRawResource(R.raw.privacy_policy)

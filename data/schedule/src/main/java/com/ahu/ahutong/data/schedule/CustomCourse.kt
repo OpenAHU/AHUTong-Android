@@ -55,7 +55,7 @@ data class CustomCourseSlot(
     val hasCustomTime: Boolean
         get() = customStartMinutes != null && customEndMinutes != null
 
-    fun resolvedSpan(): SectionSpan? {
+    fun resolvedSpan(): SectionSpan {
         val start = customStartMinutes
         val end = customEndMinutes
         if (start != null && end != null && start in 0..MAX_MINUTES && end in 0..MAX_MINUTES && end > start) {
@@ -179,7 +179,7 @@ fun Course.customCourseId(): String? = courseId
 object CustomCourseMapper {
 
     fun toCourses(custom: CustomCourse): List<Course> = custom.slots.mapNotNull { slot ->
-        val span = slot.resolvedSpan() ?: return@mapNotNull null
+        val span = slot.resolvedSpan()
         val weeks = slot.weekIndexes.distinct().sorted()
         if (weeks.isEmpty()) return@mapNotNull null
         Course().apply {

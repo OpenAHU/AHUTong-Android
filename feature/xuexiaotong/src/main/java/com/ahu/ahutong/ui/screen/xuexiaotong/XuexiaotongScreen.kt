@@ -183,21 +183,22 @@ fun XuexiaotongScreen() {
                 }
                 // 标题栏模糊采样层：只包标签页内容（标题栏自身在层外，避免自采样）
                 val headerBlurLayer = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
-                // 固定标题栏（遮罩层）。实际高度动态测量：子页内容避让量随
-                // statusBar/机型/显示比例自适应，替代各子页硬编码 102dp；+35dp 视觉余量。
+                // 固定标题栏（遮罩层）。实际高度（含状态栏）动态测量：子页内容避让量随
+                // statusBar/机型/显示比例自适应，替代各子页硬编码 102dp；+4dp 固定间距。
+                // onSizeChanged 须在 statusBarsPadding 之前，否则量不到状态栏，高状态栏机型会被遮挡。
                 // 关玻璃开→纯色渐变（降级），液态可用→均匀模糊+渐变 scrim（方案 a）
                 var headerHeightPx by remember { mutableIntStateOf(0) }
                 val density = LocalDensity.current
-                val headerTopPadding = with(density) { headerHeightPx.toDp() } + 35.dp
+                val headerTopPadding = with(density) { headerHeightPx.toDp() } + 4.dp
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .headerScrim(headerBg, headerBlurLayer)
-                        .statusBarsPadding()
                         .zIndex(20f)
                         .onSizeChanged { size ->
                             headerHeightPx = size.height
                         }
+                        .headerScrim(headerBg, headerBlurLayer)
+                        .statusBarsPadding()
                 ) {
                     Row(
                         modifier = Modifier

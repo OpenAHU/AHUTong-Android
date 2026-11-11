@@ -366,43 +366,9 @@ class SdkDataSource : BaseDataSource {
         return crawlerFallback.getBathRooms()
     }
 
-    override suspend fun getExamInfo(studentID: String, studentName: String): AhuResult<List<Exam>> {
-        // The Android crawler understands the current server-rendered exam page. The bundled
-        // service can still expose the legacy payload shape and currently spends several seconds
-        // before reporting that it cannot parse it, so use it only as a recovery path.
-        val crawlerResult = crawlerFallback.getExamInfo(studentID, studentName)
-        if (crawlerResult.isSuccess) {
-            return crawlerResult
-        }
-
-        Log.w(
-            "LocalServiceClient",
-            "[getExamInfo] Android crawler failed, trying local service: " +
-                crawlerResult.errorOrNull()?.toUserMessage().orEmpty()
-        )
-        try {
-            val httpClient = getHttpClient()
-            val result = if (httpClient != null) {
-                Log.d("LocalServiceClient", "[getExamInfo] Using HTTP client")
-                httpClient.getExamInfo()
-            } else {
-                Log.d("LocalServiceClient", "[getExamInfo] Fallback to JNI")
-                RustSDK.getExamInfoSafe()
-            }
-            val recovered = result.getOrNull()
-            if (result.isSuccess && recovered != null) {
-                return AhuResult.Success(recovered)
-            }
-            Log.w(
-                "LocalServiceClient",
-                "[getExamInfo] Local service recovery failed: ${result.exceptionOrNull()?.message}"
-            )
-            return crawlerResult
-        } catch (e: Exception) {
-            Log.w("LocalServiceClient", "[getExamInfo] Local service recovery threw", e)
-            return crawlerResult
-        }
-    }
+    // Legacy native recovery may silently return only the primary profile or an empty list.
+    override suspend fun getExamInfo(studentID: String, studentName: String): AhuResult<List<Exam>> =
+        crawlerFallback.getExamInfo(studentID, studentName)
 
     override suspend fun getBathroomTelInfo(
         bathroom: String,

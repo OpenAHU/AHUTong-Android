@@ -20,13 +20,9 @@ enum class AssistantPolicyDecision {
  */
 object AssistantToolPolicy {
 
-    fun decide(spec: AssistantCapabilitySpec): AssistantPolicyDecision = when {
-        spec.kind == AssistantCapabilityKind.READ || spec.kind == AssistantCapabilityKind.NAVIGATE ->
-            AssistantPolicyDecision.ALLOW
-
-        spec.sensitivity == AssistantSensitivity.FINANCIAL ->
-            AssistantPolicyDecision.REQUIRE_APPROVAL
-
+    // 只读与导航直接放行；其余写操作（含 FINANCIAL 敏感度）一律需要用户确认。
+    fun decide(spec: AssistantCapabilitySpec): AssistantPolicyDecision = when (spec.kind) {
+        AssistantCapabilityKind.READ, AssistantCapabilityKind.NAVIGATE -> AssistantPolicyDecision.ALLOW
         else -> AssistantPolicyDecision.REQUIRE_APPROVAL
     }
 

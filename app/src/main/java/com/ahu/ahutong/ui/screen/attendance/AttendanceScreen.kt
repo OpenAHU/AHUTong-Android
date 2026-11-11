@@ -181,6 +181,7 @@ private fun AttendanceCard(record: AttendanceRecord, modifier: Modifier = Modifi
     AppSectionCard(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(

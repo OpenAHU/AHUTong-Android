@@ -19,6 +19,13 @@ object Store : ChaoxingReminderStore {
         sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     }
 
+    /** 读取 JSON 缓存；缺失或无法解析（如结构变更后的旧数据）时返回 [default]。 */
+    private inline fun <reified T> readJson(key: String, default: () -> T): T {
+        val raw = getString(key)
+        if (raw.isEmpty()) return default()
+        return try { json.decodeFromString<T>(raw) } catch (e: Exception) { default() }
+    }
+
     private fun getString(key: String, def: String = ""): String =
         sp.getString(key, def) ?: def
 
@@ -87,20 +94,12 @@ object Store : ChaoxingReminderStore {
     fun saveCourses(list: List<Course>) {
         putString("cx_courses", json.encodeToString(list))
     }
-    fun getCourses(): List<Course> {
-        val raw = getString("cx_courses")
-        if (raw.isEmpty()) return emptyList()
-        return try { json.decodeFromString<List<Course>>(raw) } catch (e: Exception) { emptyList() }
-    }
+    fun getCourses(): List<Course> = readJson("cx_courses") { emptyList() }
 
     fun saveWorks(list: List<Work>) {
         putString("cx_works", json.encodeToString(list))
     }
-    override fun getWorks(): List<Work> {
-        val raw = getString("cx_works")
-        if (raw.isEmpty()) return emptyList()
-        return try { json.decodeFromString<List<Work>>(raw) } catch (e: Exception) { emptyList() }
-    }
+    override fun getWorks(): List<Work> = readJson("cx_works") { emptyList() }
 
     fun saveLastSync(ts: Long) = putLong("cx_last_sync", ts)
     fun getLastSync(): Long = getLong("cx_last_sync", 0)
@@ -126,29 +125,17 @@ object Store : ChaoxingReminderStore {
     fun saveRemindSetting(s: RemindSetting) {
         putString("cx_remind_setting", json.encodeToString(s))
     }
-    override fun getRemindSetting(): RemindSetting {
-        val raw = getString("cx_remind_setting")
-        if (raw.isEmpty()) return RemindSetting()
-        return try { json.decodeFromString<RemindSetting>(raw) } catch (e: Exception) { RemindSetting() }
-    }
+    override fun getRemindSetting(): RemindSetting = readJson("cx_remind_setting") { RemindSetting() }
 
     override fun saveRemindedMap(map: Map<String, Int>) {
         putString("cx_reminded", json.encodeToString(map))
     }
-    override fun getRemindedMap(): Map<String, Int> {
-        val raw = getString("cx_reminded")
-        if (raw.isEmpty()) return emptyMap()
-        return try { json.decodeFromString<Map<String, Int>>(raw) } catch (e: Exception) { emptyMap() }
-    }
+    override fun getRemindedMap(): Map<String, Int> = readJson("cx_reminded") { emptyMap() }
 
     fun saveCustomEvents(list: List<CustomEvent>) {
         putString("cx_custom_events", json.encodeToString(list))
     }
-    override fun getCustomEvents(): List<CustomEvent> {
-        val raw = getString("cx_custom_events")
-        if (raw.isEmpty()) return emptyList()
-        return try { json.decodeFromString<List<CustomEvent>>(raw) } catch (e: Exception) { emptyList() }
-    }
+    override fun getCustomEvents(): List<CustomEvent> = readJson("cx_custom_events") { emptyList() }
 
     fun getShowEmptyCourses(): Boolean = sp.getBoolean("cx_show_empty_courses", false)
     fun saveShowEmptyCourses(v: Boolean) = putBool("cx_show_empty_courses", v)
@@ -162,11 +149,7 @@ object Store : ChaoxingReminderStore {
     fun saveCourseProgress(list: List<CourseProgress>) {
         putString("cx_course_progress", json.encodeToString(list))
     }
-    fun getCourseProgress(): List<CourseProgress> {
-        val raw = getString("cx_course_progress")
-        if (raw.isEmpty()) return emptyList()
-        return try { json.decodeFromString<List<CourseProgress>>(raw) } catch (e: Exception) { emptyList() }
-    }
+    fun getCourseProgress(): List<CourseProgress> = readJson("cx_course_progress") { emptyList() }
 
     fun clearLoginData() {
         remove("cx_cookie")

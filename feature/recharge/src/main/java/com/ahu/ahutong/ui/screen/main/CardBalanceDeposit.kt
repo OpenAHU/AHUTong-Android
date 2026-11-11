@@ -167,9 +167,10 @@ fun CardBalanceDeposit(
         val accountContent: @Composable ColumnScope.() -> Unit = {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp),
             ) {
                 Text(
                     text = "校园卡账户",
@@ -203,9 +204,10 @@ fun CardBalanceDeposit(
             }
             Row(
                 modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(text = "账户余额", style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -283,7 +285,8 @@ fun CardBalanceDeposit(
             when (val state = paymentState) {
                 PaymentState.Idle -> Unit
                 PaymentState.Loading -> Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AppCircularProgressIndicator(size = 24.dp, strokeWidth = 3.dp)

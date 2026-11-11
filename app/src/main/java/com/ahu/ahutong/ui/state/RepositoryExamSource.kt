@@ -21,6 +21,8 @@ class RepositoryExamSource @Inject constructor() : ExamSource {
 
     override fun cachedExams(): List<Exam> = AHUCache.getExamInfo().orEmpty()
 
+    override fun cachedProfiles() = if (usesMockData()) emptyList() else AHUCache.getExamStudentProfiles()
+
     override fun cachedAt(): Long = AHUCache.getExamInfoUpdatedAt()
 
     override suspend fun fetchExams(

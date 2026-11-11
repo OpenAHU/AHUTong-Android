@@ -10,6 +10,7 @@ import android.os.Build
 import android.util.Log
 import com.ahu.ahutong.background.scheduleReadModel
 import com.ahu.ahutong.background.courseReminderSettings
+import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.notification.model.CourseReminderPayload
 import java.time.LocalDate
@@ -66,12 +67,12 @@ object CourseReminderScheduler {
         cancelScheduledReminder(context)
         CourseLiveUpdateHelper.cancelScheduledUpdate(context)
         val readModel = scheduleReadModel()
-        if (!readModel.canUseUndergraduateAcademics() || !isReminderEnabled()) {
-            CourseReminderNotifier.cancelActiveReminder(context)
-            CourseReminderNotifier.cancelStandardReminders(context)
-            return
+        // 无本科教务权限、提醒关闭或没有可用账号时，清掉所有已显示/待发的提醒。
+        val accountKey = if (readModel.canUseUndergraduateAcademics() && isReminderEnabled()) {
+            readModel.reminderAccountKey()
+        } else {
+            null
         }
-        val accountKey = readModel.reminderAccountKey()
         if (accountKey == null) {
             CourseReminderNotifier.cancelActiveReminder(context)
             CourseReminderNotifier.cancelStandardReminders(context)
@@ -132,15 +133,7 @@ object CourseReminderScheduler {
             allowLiveCountdown = false,
             isDebug = true
         )
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            DEBUG_REQUEST_CODE_BASE + delayMinutes,
-            Intent(context, CourseReminderReceiver::class.java).apply {
-                action = CourseReminderReceiver.ACTION_REMIND
-                payload.writeToIntent(this)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = buildPendingIntent(context, payload, DEBUG_REQUEST_CODE_BASE + delayMinutes)
         scheduleAlarm(context, triggerAtMillis, pendingIntent)
     }
 
@@ -156,15 +149,7 @@ object CourseReminderScheduler {
             allowLiveCountdown = true,
             isDebug = true
         )
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            DEBUG_REQUEST_CODE_BASE + 100 + delayMinutes,
-            Intent(context, CourseReminderReceiver::class.java).apply {
-                action = CourseReminderReceiver.ACTION_REMIND
-                payload.writeToIntent(this)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = buildPendingIntent(context, payload, DEBUG_REQUEST_CODE_BASE + 100 + delayMinutes)
         scheduleAlarm(context, triggerAtMillis, pendingIntent)
     }
 
@@ -173,28 +158,16 @@ object CourseReminderScheduler {
 
         val nextReminder = findReminders().firstOrNull() ?: return null
         val course = nextReminder.course
-        val startRange = ScheduleSectionTimes.getCourseTimeRangeInMinutes(course)
-        val startMinutes = startRange.first
-        val startTimeText = "%02d:%02d".format(startMinutes / 60, startMinutes % 60)
-        val sections = "${course.startTime}-${course.startTime + course.length - 1}节"
         val payload = CourseReminderPayload(
             courseName = course.name,
             location = course.location,
-            timeText = "$sections $startTimeText",
+            timeText = course.reminderTimeText(),
             courseStartAtMillis = System.currentTimeMillis() + DEBUG_LIVE_COUNTDOWN_MINUTES * 60_000L,
             notificationId = DEBUG_REQUEST_CODE_BASE + 300,
             allowLiveCountdown = true,
             isDebug = true
         )
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            DEBUG_REQUEST_CODE_BASE + 300,
-            Intent(context, CourseReminderReceiver::class.java).apply {
-                action = CourseReminderReceiver.ACTION_REMIND
-                payload.writeToIntent(this)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = buildPendingIntent(context, payload, DEBUG_REQUEST_CODE_BASE + 300)
         scheduleAlarm(context, System.currentTimeMillis() + 1_000L, pendingIntent)
         return course.name
     }
@@ -237,15 +210,10 @@ object CourseReminderScheduler {
         courseReminderSettings().courseReminderEnabled.first()
 
     private fun buildPayload(reminder: CourseReminderPlan.Occurrence): CourseReminderPayload {
-        val startRange = ScheduleSectionTimes.getCourseTimeRangeInMinutes(reminder.course)
-        val startMinutes = startRange.first
-        val startTimeText = "%02d:%02d".format(startMinutes / 60, startMinutes % 60)
-        val sections = "${reminder.course.startTime}-${reminder.course.startTime + reminder.course.length - 1}节"
-        val timeText = "$sections $startTimeText"
         return CourseReminderPayload(
             courseName = reminder.course.name,
             location = reminder.course.location,
-            timeText = timeText,
+            timeText = reminder.course.reminderTimeText(),
             courseStartAtMillis = reminder.courseStart.toEpochMillis(),
             notificationId = reminder.key.hashCode(),
             allowLiveCountdown = true,
@@ -253,22 +221,33 @@ object CourseReminderScheduler {
         )
     }
 
-    private fun buildPendingIntent(context: Context, payload: CourseReminderPayload): PendingIntent {
+    private fun buildPendingIntent(
+        context: Context,
+        payload: CourseReminderPayload,
+        requestCode: Int = REQUEST_CODE
+    ): PendingIntent {
         val intent = Intent(context, CourseReminderReceiver::class.java).apply {
             action = CourseReminderReceiver.ACTION_REMIND
             payload.writeToIntent(this)
         }
         return PendingIntent.getBroadcast(
             context,
-            REQUEST_CODE,
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 
+    /** 例如 "3-4节 10:00"：节次范围 + 首节开始时刻。 */
+    private fun Course.reminderTimeText(): String {
+        val startMinutes = ScheduleSectionTimes.getCourseTimeRangeInMinutes(this).first
+        val startTimeText = "%02d:%02d".format(startMinutes / 60, startMinutes % 60)
+        return "${startTime}-${startTime + length - 1}节 $startTimeText"
+    }
+
+    // 已送达过滤在调用方完成：retainCurrentOccurrence 需要未过滤的完整 key 集合。
     private fun findReminders(
-        now: LocalDateTime = LocalDateTime.now(),
-        deliveredKeys: Set<String> = emptySet()
+        now: LocalDateTime = LocalDateTime.now()
     ): List<CourseReminderPlan.Occurrence> {
         val readModel = scheduleReadModel()
         val accountKey = readModel.reminderAccountKey() ?: return emptyList()
@@ -281,8 +260,7 @@ object CourseReminderScheduler {
         return CourseReminderPlan.build(
             accountKey, semesterKey.raw, termStartDate,
             readModel.cachedSchedule(semesterKey.raw).orEmpty(), now,
-            todayInSemester = readModel.cachedConfig().isInSemester,
-            deliveredKeys = deliveredKeys
+            todayInSemester = readModel.cachedConfig().isInSemester
         )
     }
 

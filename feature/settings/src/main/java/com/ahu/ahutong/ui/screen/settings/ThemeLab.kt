@@ -66,7 +66,8 @@ fun ThemeLab(
     com.ahu.ahutong.ui.components.SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
     SettingsPageLayout(
         title = "详细设定",
-        onBack = onBack
+        onBack = onBack,
+        backdrop = backdrop
     ) {
         SettingsSection(
             title = "实时预览（当前混搭效果）",
@@ -74,7 +75,8 @@ fun ThemeLab(
             backdrop = backdrop
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                // 与下方设置行（20dp 水平内边距）的文字左缘对齐
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(

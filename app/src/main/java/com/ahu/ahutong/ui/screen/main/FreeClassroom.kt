@@ -331,7 +331,7 @@ fun FreeClassroom(
 
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -474,7 +474,7 @@ private fun SupportingText(text: String) {
 private fun FreeRoomCard(room: FreeRoom) {
     AppSectionCard(
         modifier = Modifier.padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(14.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(room.nameZh, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

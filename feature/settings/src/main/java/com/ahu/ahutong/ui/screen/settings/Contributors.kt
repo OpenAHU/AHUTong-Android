@@ -116,6 +116,8 @@ fun Contributors(
                         if (index != list.lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 20.dp),
+                                // 与 SettingsDivider 一致的 0.5dp 细分隔线
+                                thickness = 0.5.dp,
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
                             )
                         }

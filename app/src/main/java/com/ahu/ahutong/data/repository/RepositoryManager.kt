@@ -282,15 +282,18 @@ object RepositoryManager {
                 fallbackRootItems?.let { return@withContext it }
             }
 
-            runCatching {
+            val warmedUp = try {
                 warmUpAllContentCaches(
                     forceRefresh = forceRefresh || getCachedContents(path) == null
                 )
-            }.onSuccess {
-                getCachedContents(path)?.items?.let { return@withContext it }
-            }.onFailure {
-                fallbackRootItems?.let { return@withContext it }
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                false
             }
+            // 预热失败时优先展示本地已知的根目录，其余情况先读刚刷新的缓存。
+            if (!warmedUp) fallbackRootItems?.let { return@withContext it }
 
             getCachedContents(path)?.items?.let { return@withContext it }
             fallbackRootItems?.let { return@withContext it }
