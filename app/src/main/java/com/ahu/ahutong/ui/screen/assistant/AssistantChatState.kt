@@ -343,6 +343,19 @@ object AssistantChatState {
         _items += AssistantChatItem.Error(newId(), text)
     }
 
+    /** 内容被拦截时，已上屏的流式文本必须整条丢弃，不能留在状态或历史里。 */
+    fun discardStreaming(id: String) {
+        val index = _items.indexOfFirst { it.id == id }
+        if (index >= 0) _items.removeAt(index)
+    }
+
+    fun discardReasoningOfCurrentRound() {
+        val lastUserIndex = _items.indexOfLast { it is AssistantChatItem.User }
+        for (index in _items.lastIndex downTo lastUserIndex + 1) {
+            if (_items[index] is AssistantChatItem.Reasoning) _items.removeAt(index)
+        }
+    }
+
     fun appendUsage(totalTokens: Int) {
         if (totalTokens > 0) {
             _items += AssistantChatItem.Usage(newId(), totalTokens)

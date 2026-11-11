@@ -1502,6 +1502,13 @@ private suspend fun runStream(
         AssistantChatState.appendDelta(id, chunk)
     }
 
+    /** 命中内容安全时，未上屏的缓冲也要一起丢弃。 */
+    fun discardPending() {
+        flushJob?.cancel()
+        flushJob = null
+        pending.setLength(0)
+    }
+
     fun enqueue(delta: String) {
         pending.append(delta)
         if (flushJob == null) {
@@ -1549,6 +1556,17 @@ private suspend fun runStream(
                     } else {
                         AssistantChatState.appendMessage(event.text, academicAnswerPending())
                     }
+                    AssistantChatState.updateStatus(null)
+                }
+                is AssistantServiceEvent.ContentBlocked -> {
+                    finishReasoningNow()
+                    discardPending()
+                    streamingId?.let {
+                        AssistantChatState.discardStreaming(it)
+                        streamingId = null
+                    }
+                    AssistantChatState.discardReasoningOfCurrentRound()
+                    AssistantChatState.appendMessage(event.text)
                     AssistantChatState.updateStatus(null)
                 }
                 is AssistantServiceEvent.ToolResult -> {

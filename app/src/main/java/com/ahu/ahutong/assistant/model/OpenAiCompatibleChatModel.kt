@@ -42,6 +42,7 @@ class OpenAiCompatibleChatModel(
         client.newCall(buildRequest(messages, tools, stream = false)).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                if (isContentRejection(body)) throw ModelContentRejectedException(body.take(300))
                 throw IOException("模型接口返回 ${response.code}：${body.take(300)}")
             }
             val root = runCatching { JsonParser.parseString(body).asJsonObject }.getOrElse {
@@ -72,6 +73,7 @@ class OpenAiCompatibleChatModel(
             val code = response.code
             val body = response.body?.string().orEmpty()
             response.close()
+            if (isContentRejection(body)) throw ModelContentRejectedException(body.take(300))
             // 少数 OpenAI 兼容实现不认 stream_options；只在这种情况下退回不带 usage 的请求。
             val rejectedUsageOption = body.contains("stream_options", ignoreCase = true) ||
                 body.contains("include_usage", ignoreCase = true) ||
@@ -214,6 +216,14 @@ internal fun AssistantMessage.toJson(): JsonObject = JsonObject().apply {
 
 private fun JsonObject.stringOrNull(key: String): String? =
     get(key)?.takeIf { !it.isJsonNull }?.asString
+
+private val CONTENT_REJECTION_HINTS = listOf(
+    "content_filter", "content_policy", "content_policy_violation", "safety", "moderation",
+    "审核", "违规", "敏感", "不合规", "内容安全",
+)
+
+internal fun isContentRejection(body: String): Boolean =
+    CONTENT_REJECTION_HINTS.any { body.contains(it, ignoreCase = true) }
 
 /**
  * 兼容 OpenAI / DeepSeek / Kimi / Qwen 等 OpenAI 协议的 usage：

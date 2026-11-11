@@ -9,6 +9,8 @@ import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
 import com.ahu.ahutong.assistant.safety.AssistantWriteJournal
 import com.ahu.ahutong.assistant.safety.InMemoryAssistantWriteJournal
 import com.ahu.ahutong.assistant.safety.PersistentAssistantWriteJournal
+import com.ahu.ahutong.assistant.safety.content.AssistantContentGate
+import com.ahu.ahutong.assistant.safety.content.ContentVerdict
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.collect
@@ -27,6 +29,7 @@ sealed interface AssistantServiceEvent {
     data class AssistantDelta(val text: String) : AssistantServiceEvent
     data class ReasoningDelta(val text: String) : AssistantServiceEvent
     data class AssistantMessage(val text: String) : AssistantServiceEvent
+    data class ContentBlocked(val text: String, val category: String) : AssistantServiceEvent
     data class ToolResult(
         val toolId: String,
         val title: String,
@@ -63,13 +66,19 @@ class AssistantService(
         history: List<AssistantMessage> = emptyList(),
         gate: AssistantApprovalGate = AssistantApprovalGate(),
     ): Flow<AssistantServiceEvent> = flow {
+        val input = AssistantContentGate.inspectInput(question)
+        if (input is ContentVerdict.Block) {
+            emit(AssistantServiceEvent.ContentBlocked(input.message, input.category.id))
+            emit(AssistantServiceEvent.Done)
+            return@flow
+        }
         val model = runCatching { modelFactory() }.getOrNull()
         if (model == null) {
             emit(AssistantServiceEvent.AssistantMessage("请先在 AI 设置中配置模型并测试连通性。"))
             emit(AssistantServiceEvent.Done)
             return@flow
         }
-        emitModel(question, history, model, gate)
+        emitModel(question, history, model, gate, input)
     }
 
     private suspend fun FlowCollector<AssistantServiceEvent>.emitModel(
@@ -77,6 +86,7 @@ class AssistantService(
         history: List<AssistantMessage>,
         model: AssistantChatModel,
         gate: AssistantApprovalGate,
+        inputVerdict: ContentVerdict,
     ) {
         val soul = AssistantPreferences.soulFor(AssistantPreferences.personality())
         val prompt = buildString {
@@ -94,13 +104,16 @@ class AssistantService(
             writeJournal = writeJournal,
         )
         var done = false
-        runtime.run(history, question, gate).collect { event ->
+        runtime.run(history, question, gate, inputVerdict).collect { event ->
             when (event) {
                 is AssistantRuntimeEvent.Status -> emit(AssistantServiceEvent.Status(event.text))
                 AssistantRuntimeEvent.AssistantStart -> emit(AssistantServiceEvent.AssistantStart)
                 is AssistantRuntimeEvent.AssistantDelta -> emit(AssistantServiceEvent.AssistantDelta(event.text))
                 is AssistantRuntimeEvent.ReasoningDelta -> emit(AssistantServiceEvent.ReasoningDelta(event.text))
                 is AssistantRuntimeEvent.AssistantMessage -> emit(AssistantServiceEvent.AssistantMessage(event.text))
+                is AssistantRuntimeEvent.ContentBlocked -> emit(
+                    AssistantServiceEvent.ContentBlocked(event.text, event.category)
+                )
                 is AssistantRuntimeEvent.ToolResultEvent -> emit(
                     AssistantServiceEvent.ToolResult(
                         toolId = event.toolId,
