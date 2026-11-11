@@ -7,6 +7,7 @@ import com.ahu.ahutong.data.model.LoginOutcome
 import android.util.Log
 import com.ahu.ahutong.data.base.BaseDataSource
 import com.ahu.ahutong.data.crawler.CrawlerDataSource
+import com.ahu.ahutong.data.crawler.GradeMapper
 import com.ahu.ahutong.data.crawler.SdkDataSource
 import com.ahu.ahutong.data.crawler.api.adwmh.AdwmhApi
 import com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi
@@ -240,17 +241,17 @@ object AHURepository {
             val perProfile = AHUCache.getPerProfileGrades()
             val profileGrades = perProfile.values.filterNotNull()
             if (profileGrades.isNotEmpty()) {
-                val allTerms = profileGrades.flatMap { it.termGradeList ?: emptyList<Grade.TermGradeListBean>() }
-                val merged = Grade()
-                merged.termGradeList = allTerms
-                merged.totalGradePointAverage = allTerms.firstOrNull()?.termGradePointAverage ?: "0.0"
-                return@withContext AhuResult.Success(merged)
+                // 与网络路径一致地按学分加权汇总；不能直接取第一个学期的绩点充当总绩点。
+                val allTerms = profileGrades.flatMap { it.termGradeList.orEmpty() }
+                return@withContext AhuResult.Success(GradeMapper.aggregate(allTerms))
             }
             // per-profile 缓存为空 → 走网络获取（同时会自动填充 per-profile 缓存）
         }
         try {
             if (!AHUCache.getMockData()) syncCookies()
             dataSource.getGrade()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             AhuResult.Failure(e.toAhuError())
@@ -512,10 +513,7 @@ object AHURepository {
         try {
             val loginPage = JwxtApi.LOGIN_API.fetchUrl(casLoginUrl)
             val pageFinalUrl = loginPage.raw().request.url.toString()
-            if (loginPage.code() == WEB_VERIFICATION_REQUIRED_CODE) {
-                loginPage.errorBody()?.close()
-                return@withContext false
-            }
+            // 非 2xx（含 412 网页验证）都视为刷新失败。
             if (!loginPage.isSuccessful) {
                 loginPage.errorBody()?.close()
                 return@withContext false
@@ -690,23 +688,23 @@ object AHURepository {
         }
     }
 
-    private fun syncCookies() {
+    // 调用方都已在 IO 协程内，直接挂起等待；不要用 runBlocking 占住 IO 线程并吞掉取消。
+    private suspend fun syncCookies() {
         try {
             // 优先使用 HTTP 客户端
             val httpClient = getHttpClient()
             val json = if (httpClient != null) {
                 Log.d("LocalServiceClient", "[syncCookies] Using HTTP client")
-                // 使用协程同步获取
-                kotlinx.coroutines.runBlocking {
-                    httpClient.getCookiesList().getOrDefault("[]")
-                }
+                httpClient.getCookiesList().getOrDefault("[]")
             } else {
                 Log.d("LocalServiceClient", "[syncCookies] Fallback to JNI")
                 RustSDK.getCookiesListSafe()
             }
-            
+
             syncCookiesFromJson(json)
-        } catch(e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             e.printStackTrace()
         }
     }

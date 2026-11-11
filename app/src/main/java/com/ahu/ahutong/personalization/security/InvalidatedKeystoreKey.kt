@@ -25,24 +25,14 @@ internal object InvalidatedKeystoreKey {
         null // Old ciphertext cannot be recovered without its original key.
     }
 
-    private fun Throwable.hasInvalidatedKeyCause(): Boolean {
-        var current: Throwable? = this
-        while (current != null) {
-            if (current is KeyPermanentlyInvalidatedException) return true
-            current = current.cause
-        }
-        return false
-    }
+    private fun Throwable.causeChain(): Sequence<Throwable> = generateSequence(this) { it.cause }
 
-    private fun Throwable.hasUnreadableKeyCause(): Boolean {
-        var current: Throwable? = this
-        while (current != null) {
-            if (current is KeyPermanentlyInvalidatedException ||
-                current is UnrecoverableKeyException ||
-                current is BadPaddingException
-            ) return true
-            current = current.cause
-        }
-        return false
+    private fun Throwable.hasInvalidatedKeyCause(): Boolean =
+        causeChain().any { it is KeyPermanentlyInvalidatedException }
+
+    private fun Throwable.hasUnreadableKeyCause(): Boolean = causeChain().any {
+        it is KeyPermanentlyInvalidatedException ||
+            it is UnrecoverableKeyException ||
+            it is BadPaddingException
     }
 }

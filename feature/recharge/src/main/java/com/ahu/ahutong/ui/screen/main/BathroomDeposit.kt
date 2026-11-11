@@ -240,7 +240,7 @@ fun BathroomDeposit(
                 }
             }
             AppSectionCard(
-                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 content = accountContent
             )
@@ -279,11 +279,11 @@ fun BathroomDeposit(
                 PayState.Idle -> Unit
                 PayState.InProgress -> Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AppCircularProgressIndicator(size = 24.dp, strokeWidth = 3.dp)
-                    Text("  正在提交缴费", style = MaterialTheme.typography.bodyLarge)
+                    Text("正在提交缴费", style = MaterialTheme.typography.bodyLarge)
                 }
                 is PayState.Failed -> Text(
                     text = "缴费失败：${state.message}",

@@ -96,6 +96,7 @@ fun Exam(
         examViewModel.loadExam()
     }
     val exam = examViewModel.data.observeAsState().value?.valueOrNull()
+    val profiles by examViewModel.studentProfiles.collectAsState()
     val isLoading by examViewModel.isLoading.collectAsState()
     val errorMessage by examViewModel.errorMessage.collectAsState()
     val context = LocalContext.current
@@ -142,67 +143,28 @@ fun Exam(
 
     val pageContent: @Composable ColumnScope.() -> Unit = {
         if (isLoading != true) {
-            if (!filteredExams.isNullOrEmpty()) {
-                val sortedExams = filteredExams.sortedWith(
-                    compareBy(
-                        { calcTime(it.time) },
-                        { parseStartTime(it.time) ?: LocalDateTime.MAX }
-                    )
-                )
-                // Split into active and finished
-                val activeExams = sortedExams.filter { calcTime(it.time) != 2 }
-                val finishedExams = sortedExams.filter { calcTime(it.time) == 2 }
-                var showFinished by rememberSaveable { mutableStateOf(false) }
-
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Active exams — always visible
-                    activeExams.forEach { examItem ->
-                        ExamCard(examItem = examItem, status = calcTime(examItem.time))
-                    }
-
-                    // Finished exams — collapsible
-                    if (finishedExams.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .appLiquidGlassSurface(
-                                    shape = SmoothRoundedCornerShape(12.dp),
-                                    fallbackColor = 100.n1 withNight 20.n1,
-                                    level = LiquidGlassSurfaceLevel.Control
-                                )
-                                .clickable { showFinished = !showFinished }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "已结束 (${finishedExams.size})",
-                                color = 30.n1 withNight 90.n1,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Icon(
-                                imageVector = if (showFinished) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = if (showFinished) "收起" else "展开",
-                                tint = 50.n1 withNight 70.n1
-                            )
-                        }
-
-                        AnimatedVisibility(
-                            visible = showFinished,
-                            enter = expandVertically(),
-                            exit = shrinkVertically()
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                finishedExams.forEach { examItem ->
-                                    ExamCard(examItem = examItem, status = 2)
-                                }
+            if (filteredExams.isNotEmpty() || (profiles.size > 1 && searchQuery.isBlank())) {
+                if (profiles.size > 1) {
+                    profiles.filter { profile ->
+                        searchQuery.isBlank() || filteredExams.any { it.studentProfile?.id == profile.id }
+                    }.forEach { profile ->
+                        val profileExams = filteredExams.filter { it.studentProfile?.id == profile.id }
+                        Text(
+                            text = profile.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        androidx.compose.runtime.key(profile.id) {
+                            if (profileExams.isEmpty()) {
+                                Text("目前没有任何考试", modifier = Modifier.padding(vertical = 12.dp))
+                            } else {
+                                ExamList(profileExams)
                             }
                         }
                     }
+                } else {
+                    ExamList(filteredExams)
                 }
             } else {
                 Box(
@@ -260,8 +222,73 @@ fun Exam(
             )
         },
         bottomPadding = 48.dp,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         content = pageContent
     )
+}
+
+@Composable
+private fun ExamList(exams: List<com.ahu.ahutong.data.model.Exam>) {
+    val sortedExams = exams.sortedWith(
+        compareBy(
+            { calcTime(it.time) },
+            { parseStartTime(it.time) ?: LocalDateTime.MAX }
+        )
+    )
+    // Split into active and finished
+    val activeExams = sortedExams.filter { calcTime(it.time) != 2 }
+    val finishedExams = sortedExams.filter { calcTime(it.time) == 2 }
+    var showFinished by rememberSaveable { mutableStateOf(false) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Active exams — always visible
+        activeExams.forEach { examItem ->
+            ExamCard(examItem = examItem, status = calcTime(examItem.time))
+        }
+
+        // Finished exams — collapsible
+        if (finishedExams.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .appLiquidGlassSurface(
+                        shape = SmoothRoundedCornerShape(12.dp),
+                        fallbackColor = 100.n1 withNight 20.n1,
+                        level = LiquidGlassSurfaceLevel.Control
+                    )
+                    .clickable { showFinished = !showFinished }
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "已结束 (${finishedExams.size})",
+                    color = 30.n1 withNight 90.n1,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Icon(
+                    imageVector = if (showFinished) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (showFinished) "收起" else "展开",
+                    tint = 50.n1 withNight 70.n1
+                )
+            }
+
+            AnimatedVisibility(
+                visible = showFinished,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    finishedExams.forEach { examItem ->
+                        ExamCard(examItem = examItem, status = 2)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** "磬苑校区-博学楼-博学楼A101" → "磬苑校区 博学楼A101" */

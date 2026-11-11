@@ -101,7 +101,7 @@ class CustomCoursesViewModel @Inject constructor(
     fun openEdit(id: String) {
         val course = _state.value.courses.firstOrNull { it.id == id } ?: return
         val slots = course.slots.map { slot ->
-            val span = slot.resolvedSpan() ?: SectionSpan(1, 1)
+            val span = slot.resolvedSpan()
             CustomCourseSlotDraft(
                 weekday = slot.weekday,
                 weeks = slot.weekIndexes.toSet(),

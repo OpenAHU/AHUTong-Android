@@ -77,13 +77,14 @@ fun HomeClassCard(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(90.a1 withNight 40.a1)
-                    .padding(horizontal = 8.dp, vertical = 0.dp),
+                    .padding(horizontal = 8.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = status,
                     color = 10.n1 withNight 95.n1,
                     fontSize = 10.sp,
+                    lineHeight = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }

@@ -95,7 +95,7 @@ object AssistantPreferences {
     }
 
     fun soulFor(personality: AssistantPersonality): String {
-        val lines = runCatching { soulMarkdown }.getOrDefault("").lines()
+        val lines = soulMarkdown.lines()
         val start = lines.indexOfFirst { it.trim() == "## ${personality.label}" }
         if (start < 0) return ""
         return lines.drop(start + 1)

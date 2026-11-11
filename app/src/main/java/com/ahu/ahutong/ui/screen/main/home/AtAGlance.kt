@@ -113,7 +113,7 @@ private fun RadiantAtAGlance(
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
             maxLines = 1,
-            overflow = TextOverflow.Clip,
+            overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyMedium
         )
     }

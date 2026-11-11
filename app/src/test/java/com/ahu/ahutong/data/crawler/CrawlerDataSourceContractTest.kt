@@ -29,6 +29,8 @@ import kotlin.test.assertTrue
  */
 class CrawlerDataSourceContractTest {
 
+    private var examProfiles = emptyList<com.ahu.ahutong.data.model.GradeStudentProfile>()
+
     private lateinit var server: MockWebServer
 
     @BeforeTest
@@ -48,7 +50,8 @@ class CrawlerDataSourceContractTest {
         val baseUrl = server.url("/").toString()
         return CrawlerDataSource(
             jwxt = createJwxtApi(client, baseUrl),
-            adwmh = createAdwmhApi(client, baseUrl)
+            adwmh = createAdwmhApi(client, baseUrl),
+            saveExamProfiles = { examProfiles = it }
         )
     }
 
@@ -107,6 +110,55 @@ class CrawlerDataSourceContractTest {
         val result = gateway().getExamInfo("2021", "张三")
 
         assertEquals(AhuError.Server(-1, "请求失败"), result.errorOrNull())
+    }
+
+    private val profileSelection = """
+        <html><body>
+        <div class="student-panel-block"><dd>主修</dd><dd>学院甲</dd><dd>专业甲</dd>
+        <button onclick="myFunction(this)" value="101">查看考试</button></div>
+        <div class="student-panel-block"><dd>微专业</dd><dd>学院乙</dd><dd>专业乙</dd>
+        <button onclick="myFunction(this)" value="202">查看考试</button></div>
+        </body></html>
+    """.trimIndent()
+
+    @Test
+    fun `all profiles are fetched and identical exams remain in separate groups`() = runBlocking {
+        enqueueHtml(profileSelection)
+        enqueueHtml(EXAM_TABLE_HTML)
+        enqueueHtml(EXAM_TABLE_HTML)
+        val exams = assertNotNull(gateway().getExamInfo("2021", "张三").valueOrNull())
+        assertEquals(listOf("101", "202"), exams.map { it.studentProfile.id })
+        assertEquals(listOf("专业甲 (主修)", "专业乙 (微专业)"), examProfiles.map { it.displayName })
+        assertEquals("/student/for-std/exam-arrange", server.takeRequest().path)
+        assertEquals("/student/for-std/exam-arrange/info/101", server.takeRequest().path)
+        assertEquals("/student/for-std/exam-arrange/info/202", server.takeRequest().path)
+    }
+
+    @Test
+    fun `empty profiles are retained alongside populated profiles`() = runBlocking {
+        enqueueHtml(profileSelection)
+        enqueueHtml("<table id='exams'><tbody></tbody></table>")
+        enqueueHtml(EXAM_TABLE_HTML)
+        val exams = assertNotNull(gateway().getExamInfo("2021", "张三").valueOrNull())
+        assertEquals("202", exams.single().studentProfile.id)
+        assertEquals(2, examProfiles.size)
+    }
+
+    @Test
+    fun `profile failure does not publish an incomplete snapshot`() = runBlocking {
+        enqueueHtml(profileSelection)
+        enqueueHtml(EXAM_TABLE_HTML)
+        server.enqueue(MockResponse().setResponseCode(500))
+        assertTrue(gateway().getExamInfo("2021", "张三").isFailure)
+        assertTrue(examProfiles.isEmpty())
+    }
+
+    @Test
+    fun `expired detail session is not treated as empty exams`() = runBlocking {
+        enqueueHtml(profileSelection)
+        enqueueHtml("<form><input type='password'></form>")
+        assertTrue(gateway().getExamInfo("2021", "张三").isFailure)
+        assertTrue(examProfiles.isEmpty())
     }
 
     /** 安大智慧的列表接口是 JSON 直出，字段与分页结构与页面一一对应，改版即断。 */

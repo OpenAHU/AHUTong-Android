@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.main
 
+import androidx.compose.foundation.layout.wrapContentHeight
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -263,7 +264,11 @@ fun Grade(
                 item(key = "search-term-$termIndex") {
                     Text(
                         text = "${term.schoolYear} 第${term.term}学期",
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = if (termIndex > 0) 12.dp else 0.dp
+                        ),
                         color = 0.n1 withNight 100.n1,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -414,7 +419,8 @@ private fun GradeCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
-                    .clickable(onClick = onNavigateToEvaluation),
+                    .clickable(onClick = onNavigateToEvaluation)
+                    .wrapContentHeight(Alignment.CenterVertically),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge
             )

@@ -317,6 +317,7 @@ object AHUCache {
     fun saveExamInfo(exams: List<Exam>) {
         val data = Gson().toJson(exams)
         userPutString("exams", data)
+        userPutString("exams_schema", "2")
         userPutString("exams_updated_at", System.currentTimeMillis().toString())
     }
 
@@ -329,7 +330,18 @@ object AHUCache {
         return data.fromJson(object : TypeToken<List<Exam>>() {}.type)
     }
 
+    fun setExamStudentProfiles(profiles: List<GradeStudentProfile>) {
+        userPutString("exam_student_profiles", Gson().toJson(profiles))
+    }
+
+    fun getExamStudentProfiles(): List<GradeStudentProfile> =
+        userGetString("exam_student_profiles")?.fromJson<List<GradeStudentProfile>>(
+            object : TypeToken<List<GradeStudentProfile>>() {}.type
+        ) ?: emptyList()
+
     fun getExamInfoUpdatedAt(): Long {
+        // Old snapshots may be an empty result parsed from a multi-profile selection page.
+        if (userGetString("exams_schema") != "2") return 0L
         return userGetString("exams_updated_at")?.toLongOrNull() ?: 0L
     }
 

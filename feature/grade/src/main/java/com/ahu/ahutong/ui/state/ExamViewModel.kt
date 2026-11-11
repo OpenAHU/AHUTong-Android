@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.grade.ExamSource
+import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.data.model.Exam
 import com.ahu.ahutong.ext.launchSafe
 import kotlinx.coroutines.Job
@@ -50,7 +51,8 @@ internal fun List<Exam>.hasSameExamContents(other: List<Exam>): Boolean {
             left.location == right.location &&
             left.time == right.time &&
             left.seatNum == right.seatNum &&
-            left.finished == right.finished
+            left.finished == right.finished &&
+            left.studentProfile == right.studentProfile
     }
 }
 
@@ -61,6 +63,7 @@ class ExamViewModel @Inject constructor(
     private val behavior: BehaviorRecorder,
     @GradeDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
+    val studentProfiles = MutableStateFlow<List<GradeStudentProfile>>(emptyList())
     val data = MutableLiveData<AhuResult<List<Exam>>>()
 
     /** mock 场景被刷新过几次（0 = 从未）：界面据此重新拉一次。 */
@@ -84,12 +87,13 @@ class ExamViewModel @Inject constructor(
     private var refreshJob: Job? = null
 
     fun loadExam(isRefresh: Boolean = false) {
+        // 正在刷新中则忽略新请求。必须先于取消判断：否则会取消在途刷新后直接返回，
+        // 留下 LOADING 状态且再无任务负责复位。
+        if (_refreshState.value == RefreshState.LOADING) return
         if (refreshJob?.isActive == true) {
             if (!isRefresh) return
             refreshJob?.cancel()
         }
-        // 正在刷新中则忽略新请求
-        if (_refreshState.value == RefreshState.LOADING) return
         // 首次自动后台加载也跳过重复
         if (!isRefresh && isLoading.value == true) return
 
@@ -108,6 +112,9 @@ class ExamViewModel @Inject constructor(
                 exams.cachedExams() to exams.cachedAt()
             }
             if (!ownerIsCurrent()) return@launchSafe
+            val cachedProfiles = withContext(ioDispatcher) { exams.cachedProfiles() }
+            if (!ownerIsCurrent()) return@launchSafe
+            studentProfiles.value = cachedProfiles
             val hasCachedSnapshot = cachedAt > 0L
             if (!isRefresh && (cached.isNotEmpty() || hasCachedSnapshot)) {
                 data.value = AhuResult.Success(cached)
@@ -142,11 +149,18 @@ class ExamViewModel @Inject constructor(
             }
 
             if (result.isSuccess) {
-                    val newExams = result.valueOrNull().orEmpty()
+                val newExams = result.valueOrNull().orEmpty()
+                val updatedProfiles = withContext(ioDispatcher) { exams.cachedProfiles() }
+                if (!ownerIsCurrent()) {
+                    isLoading.value = false
+                    _refreshState.value = RefreshState.IDLE
+                    return@launchSafe
+                }
+                studentProfiles.value = updatedProfiles
 
                 // 与缓存比对，有差异才更新 UI
                 if (!hasCachedSnapshot || !cached.hasSameExamContents(newExams)) {
-                            data.value = AhuResult.Success(newExams)
+                    data.value = AhuResult.Success(newExams)
                 }
 
                 // Keep acknowledgement visible without holding up data delivery or navigation.
@@ -164,10 +178,8 @@ class ExamViewModel @Inject constructor(
                 if (isRefresh) {
                     _refreshState.value = RefreshState.IDLE
                 }
-                if (cached.isEmpty()) {
-                    data.value = result
+                if (cached.isEmpty()) data.value = result
                 errorMessage.value = result.errorOrNull()?.toUserMessage() ?: "获取考试信息失败"
-                }
             }
 
             isLoading.value = false

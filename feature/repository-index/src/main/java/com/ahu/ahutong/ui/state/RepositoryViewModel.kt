@@ -182,13 +182,6 @@ class RepositoryViewModel @Inject constructor(
         }
     }
 
-    fun getInitialDirectoryState(path: String): RepositoryUiState {
-        return _directoryStates.value[path] ?: RepositoryUiState(
-            currentPath = path,
-            isLoading = true
-        )
-    }
-
     fun getDirectoryState(path: String): RepositoryUiState {
         return _directoryStates.value[path] ?: RepositoryUiState(
             currentPath = path,

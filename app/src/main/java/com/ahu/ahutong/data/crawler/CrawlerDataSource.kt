@@ -165,7 +165,8 @@ class CrawlerDataSource(
     /** 安大智慧协议客户端；同上。 */
     private val adwmh: AdwmhApi = AdwmhApi.API,
     /** 测试可注入原始教务响应；生产只从共享协议接口提取学期元数据。 */
-    private val semesterResponseProvider: (suspend () -> List<GradeResponse>)? = null
+    private val semesterResponseProvider: (suspend () -> List<GradeResponse>)? = null,
+    private val saveExamProfiles: (List<GradeStudentProfile>) -> Unit = { AHUCache.setExamStudentProfiles(it) }
 ) : BaseDataSource {
 
     val TAG = this::class.java.simpleName
@@ -281,6 +282,8 @@ class CrawlerDataSource(
         val perProfileGrades = profiles.map { profile ->
             try {
                 buildGradeForId(profile.id)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "getGrade failed for id=${profile.id}", e)
                 null
@@ -491,60 +494,89 @@ class CrawlerDataSource(
         studentName: String
     ): AhuResult<List<Exam>> {
         return try {
-            val res = jwxt.fetchExamArrangePage()
-            if (!res.isSuccessful || res.body() == null) {
-                AhuResult.Failure(AhuError.Server(-1, "请求失败"))
+            val response = jwxt.fetchExamArrangePage()
+            val html = response.body()?.string()
+            if (!response.isSuccessful || html == null) {
+                return AhuResult.Failure(AhuError.Server(-1, "请求失败"))
+            }
+            requireExamPage(html)
+            val profiles = parseGradeStudentProfiles(html).distinctBy { it.id }
+            val allExams = if (profiles.isEmpty()) {
+                parseExamPage(html)
             } else {
-                val html = res.body()!!.string()
-
-                // Try new HTML table format first (post-redesign: server-rendered <tr> elements)
-                val tableExams = parseExamTableHtml(html)
-                if (tableExams.isNotEmpty()) {
-                    AhuResult.Success(tableExams)
-                } else {
-                    // Fallback: old format with studentExamInfoVms JS variable
-                    val regex = Regex("(?s)studentExamInfoVms\\s*=\\s*(\\[.*?]);")
-                    val match = regex.find(html)
-                    if (match == null) {
-                        AhuResult.Success(emptyList())
-                    } else {
-                        val jsonStr = match.groupValues[1]
-                        val fixedJson = jsonStr.replace("'", "\"")
-                        val jsonArray = JsonParser.parseString(fixedJson).asJsonArray
-                        val list = mutableListOf<Exam>()
-                        jsonArray.forEach { elem ->
-                            val obj = elem.asJsonObject
-                            val courseObj = obj.getAsJsonObject("course")
-                            val examTypeObj = obj.getAsJsonObject("examType")
-                            val courseName = courseObj?.get("nameZh")?.asString ?: ""
-                            val examTypeName = examTypeObj?.get("nameZh")?.asString ?: ""
-                            val courseDisplay = if (examTypeName.isNotEmpty()) "$courseName($examTypeName)" else courseName
-                            val time = obj.get("examTime")?.asString ?: ""
-                            val seatVal = obj.get("seatNo")
-                            val seatNum = when {
-                                seatVal == null || seatVal.isJsonNull -> ""
-                                seatVal.isJsonPrimitive && seatVal.asJsonPrimitive.isNumber -> seatVal.asNumber.toString()
-                                else -> seatVal.asString
-                            }
-                            val campus = obj.getAsJsonObject("requiredCampus")?.get("nameZh")?.asString ?: ""
-                            val room = obj.get("room")?.asString ?: ""
-                            val location = if (campus.isNotEmpty() && room.isNotEmpty()) "$campus-$room" else campus + room
-                            val finished = obj.get("finished")?.asBoolean ?: false
-                            val exam = Exam().apply {
-                                setCourse(courseDisplay)
-                                setTime(time)
-                                setSeatNum(seatNum)
-                                setLocation(location)
-                                setFinished(finished)
-                            }
-                            list.add(exam)
-                        }
-                        AhuResult.Success(list)
+                profiles.flatMap { profile ->
+                    val detail = jwxt.getExamInfo(profile.id)
+                    val detailHtml = detail.body()?.string()
+                    if (!detail.isSuccessful || detailHtml == null) {
+                        return AhuResult.Failure(AhuError.Server(-1, "${profile.displayName}考试查询失败"))
                     }
+                    requireExamPage(detailHtml)
+                    check(Jsoup.parse(detailHtml).select(".student-panel-block").isEmpty()) {
+                        "考试详情返回了专业选择页"
+                    }
+                    parseExamPage(detailHtml).onEach { it.studentProfile = profile }
                 }
             }
+            // Only publish metadata after every profile succeeds, retaining empty profiles too.
+            saveExamProfiles(profiles)
+            AhuResult.Success(allExams)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            AhuResult.Failure(AhuError.ProtocolChanged("解析失败: ${e.message}"))
+            AhuResult.Failure(AhuError.ProtocolChanged("考试页面解析失败"))
+        }
+    }
+
+    private fun requireExamPage(html: String) {
+        check(!html.contains("cas/login", ignoreCase = true) &&
+            Jsoup.parse(html).select("input[type=password]").isEmpty()) { "教务登录已失效" }
+    }
+
+    private fun parseExamPage(html: String): List<Exam> {
+        // Try new HTML table format first (post-redesign: server-rendered <tr> elements)
+        val tableExams = parseExamTableHtml(html)
+        return if (tableExams.isNotEmpty()) {
+            tableExams
+        } else {
+            // Fallback: old format with studentExamInfoVms JS variable
+            val regex = Regex("(?s)studentExamInfoVms\\s*=\\s*(\\[.*?]);")
+            val match = regex.find(html)
+            if (match == null) {
+                emptyList()
+            } else {
+                val jsonStr = match.groupValues[1]
+                val fixedJson = jsonStr.replace("'", "\"")
+                val jsonArray = JsonParser.parseString(fixedJson).asJsonArray
+                val list = mutableListOf<Exam>()
+                jsonArray.forEach { elem ->
+                    val obj = elem.asJsonObject
+                    val courseObj = obj.getAsJsonObject("course")
+                    val examTypeObj = obj.getAsJsonObject("examType")
+                    val courseName = courseObj?.get("nameZh")?.asString ?: ""
+                    val examTypeName = examTypeObj?.get("nameZh")?.asString ?: ""
+                    val courseDisplay = if (examTypeName.isNotEmpty()) "$courseName($examTypeName)" else courseName
+                    val time = obj.get("examTime")?.asString ?: ""
+                    val seatVal = obj.get("seatNo")
+                    val seatNum = when {
+                        seatVal == null || seatVal.isJsonNull -> ""
+                        seatVal.isJsonPrimitive && seatVal.asJsonPrimitive.isNumber -> seatVal.asNumber.toString()
+                        else -> seatVal.asString
+                    }
+                    val campus = obj.getAsJsonObject("requiredCampus")?.get("nameZh")?.asString ?: ""
+                    val room = obj.get("room")?.asString ?: ""
+                    val location = if (campus.isNotEmpty() && room.isNotEmpty()) "$campus-$room" else campus + room
+                    val finished = obj.get("finished")?.asBoolean ?: false
+                    val exam = Exam().apply {
+                        setCourse(courseDisplay)
+                        setTime(time)
+                        setSeatNum(seatNum)
+                        setLocation(location)
+                        setFinished(finished)
+                    }
+                    list.add(exam)
+                }
+                list
+            }
         }
     }
 

@@ -5,6 +5,7 @@ import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
@@ -141,21 +142,15 @@ class ChaoxingApi(private val context: Context) {
     }
 
     private suspend fun postText(url: String, body: String, referer: String? = null): String =
-        withContext(Dispatchers.IO) {
-            val req = Request.Builder().url(url)
-                .post(body.toRequestBody("application/x-www-form-urlencoded".toMediaType()))
-                .apply {
-                    baseHeaders(referer).forEach { (k, v) -> header(k, v) }
-                }.build()
-            client.newCall(req).execute().use { r ->
-                if (r.code in 200..299) r.body?.string() ?: "" else throw IOException("HTTP ${r.code} $url")
-            }
-        }
+        post(url, body.toRequestBody("application/x-www-form-urlencoded".toMediaType()), referer)
 
     private suspend fun postForm(url: String, form: FormBody, referer: String? = null): String =
+        post(url, form, referer)
+
+    private suspend fun post(url: String, body: RequestBody, referer: String?): String =
         withContext(Dispatchers.IO) {
             val req = Request.Builder().url(url)
-                .post(form)
+                .post(body)
                 .apply {
                     baseHeaders(referer).forEach { (k, v) -> header(k, v) }
                 }.build()
@@ -392,7 +387,13 @@ class ChaoxingApi(private val context: Context) {
         withContext(Dispatchers.IO) {
             listener?.onProgress(0, 0, "正在获取课程列表...")
             // 每次同步都刷新课程列表，新加入的课程无需退出登录即可看到
-            var courses = try { fetchCourses() } catch (e: Exception) { Store.getCourses() }
+            val courses = try {
+                fetchCourses()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Store.getCourses()
+            }
             if (courses.isEmpty()) throw IOException("课程列表获取为空，请稍后重试")
 
             val existing = Store.getWorks()
@@ -433,12 +434,17 @@ class ChaoxingApi(private val context: Context) {
                                     endTs = dl.second
                                 }
                                 delay(800)
+                            } catch (e: CancellationException) {
+                                throw e
                             } catch (_: Exception) { }
                         }
 
                         allWorks.add(work.copy(startTs = startTs, endTs = endTs,
                             rawStart = previous?.rawStart ?: "", rawEnd = previous?.rawEnd ?: ""))
                     }
+                } catch (e: CancellationException) {
+                    // 退出登录会取消同步；不能当作单门课程失败继续跑，否则会把旧账号数据写回磁盘
+                    throw e
                 } catch (e: Exception) {
                     // 单门课程失败时保留旧数据，避免该课程作业从日历消失
                     val oldCourseWorks = existingByCourse[course.courseId]?.values ?: emptyList()
@@ -462,7 +468,13 @@ class ChaoxingApi(private val context: Context) {
         withContext(Dispatchers.IO) {
             listener?.onProgress(0, 0, "正在获取课程进度...")
             // 每次同步都刷新课程列表
-            var courses = try { fetchCourses() } catch (e: Exception) { Store.getCourses() }
+            val courses = try {
+                fetchCourses()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Store.getCourses()
+            }
             if (courses.isEmpty()) throw IOException("课程列表获取为空，请稍后重试")
 
             val existingProgress = Store.getCourseProgress().associateBy { it.courseId }
@@ -486,6 +498,8 @@ class ChaoxingApi(private val context: Context) {
                             course.name, finish, jobcount, percent, System.currentTimeMillis()))
                     }
                     delay(800)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     // 单门课程失败时保留旧数据
                     val old = existingProgress[course.courseId]

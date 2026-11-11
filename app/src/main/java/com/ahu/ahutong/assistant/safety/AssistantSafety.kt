@@ -27,9 +27,6 @@ object AssistantToolPolicy {
         spec.kind == AssistantCapabilityKind.READ || spec.kind == AssistantCapabilityKind.NAVIGATE ->
             AssistantPolicyDecision.ALLOW
 
-        spec.sensitivity == AssistantSensitivity.FINANCIAL ->
-            AssistantPolicyDecision.REQUIRE_APPROVAL
-
         else -> AssistantPolicyDecision.REQUIRE_APPROVAL
     }
 

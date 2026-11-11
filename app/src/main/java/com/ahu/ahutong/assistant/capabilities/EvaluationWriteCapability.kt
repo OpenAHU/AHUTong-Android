@@ -125,14 +125,13 @@ class SubmitEvaluationCapability(
         } else {
             AssistantOutcome.Success(
                 AssistantAnswer(
-                    summary = "已提交 $submitted 项评教" + if (failures.isEmpty()) "" else "，${failures.size} 项失败",
+                    summary = "已提交 $submitted 项评教",
                     route = spec.openRoute,
                     card = AssistantCard(
                         kind = "evaluation_submitted",
                         headline = submitted.toString(),
                         headlineSuffix = "项",
                         subtitle = semesterLabel,
-                        note = failures.take(3).joinToString("；").takeIf { it.isNotBlank() },
                     ),
                 )
             )

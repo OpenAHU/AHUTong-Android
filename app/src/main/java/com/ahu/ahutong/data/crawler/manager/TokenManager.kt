@@ -147,10 +147,8 @@ object TokenManager {
         ) ?: return null
         return synchronized(tokenLock) {
             // A blocking exchange can finish after clear(), sign-out, or an account change.
-            if (tokenVersion != observedTokenVersion ||
-                SessionRefreshCoordinator.currentIdentityGeneration() != observedIdentity ||
-                SessionRefreshCoordinator.isExplicitlySignedOut()
-            ) {
+            // tokenLock is re-entrant, so the check and the write stay atomic.
+            if (!isCurrentRequest()) {
                 null
             } else {
                 token = CachedToken(refreshedToken, observedIdentity)

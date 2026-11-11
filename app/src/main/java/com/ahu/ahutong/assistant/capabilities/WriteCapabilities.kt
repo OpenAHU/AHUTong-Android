@@ -95,7 +95,7 @@ class RechargeCardCapability(
                 ?: return AssistantOutcome.Failure("order_failed", "没有开通充值订单，请稍后再试")
         }
         return when (val result = source.pay(orderId, bank)) {
-            is AhuResult.Failure -> paymentUncertain("校园卡充值", result.error)
+            is AhuResult.Failure -> paymentUncertain("校园卡充值")
             is AhuResult.Success -> success(
                 amount = amount,
                 target = bankLabel(bank),
@@ -175,7 +175,7 @@ class RechargeElectricityCapability(
         return when (val result = source.pay(
             ElectricityPayment(controller, formatAmount(amount), password, room.details)
         )) {
-            is AhuResult.Failure -> paymentUncertain("电费充值", result.error)
+            is AhuResult.Failure -> paymentUncertain("电费充值")
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已提交电费充值 ¥${formatAmount(amount)}",
@@ -252,7 +252,7 @@ class RechargeBathroomCapability(
         return when (val result = source.pay(
             BathroomPayment(bathroom, formatAmount(amount), password, account)
         )) {
-            is AhuResult.Failure -> paymentUncertain("浴室缴费", result.error)
+            is AhuResult.Failure -> paymentUncertain("浴室缴费")
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已提交浴室缴费 ¥${formatAmount(amount)}",
@@ -304,7 +304,7 @@ class RechargeNetworkCapability(
             is AhuResult.Success -> result.value
         }
         return when (val result = source.pay(snapshot, formatAmount(amount), password)) {
-            is AhuResult.Failure -> paymentUncertain("网费充值", result.error)
+            is AhuResult.Failure -> paymentUncertain("网费充值")
             is AhuResult.Success -> AssistantOutcome.Success(
                 AssistantAnswer(
                     summary = "已提交网费充值 ¥${formatAmount(amount)}",
@@ -582,7 +582,7 @@ class SwitchElectricityConditionCapability(
     ).joinToString("|") { it ?: "" }
 }
 
-private fun paymentUncertain(action: String, error: AhuError): AssistantOutcome.Failure =
+private fun paymentUncertain(action: String): AssistantOutcome.Failure =
     AssistantOutcome.Failure(
         "uncertain",
         "$action 结果未知，请先核对余额/账单，确认没有到账前不要重复操作",

@@ -214,7 +214,7 @@ private fun smoothPath(points: List<Offset>): Path {
     val path = Path()
     if (points.isEmpty()) return path
     path.moveTo(points.first().x, points.first().y)
-    if (points.size == 2) {
+    if (points.size <= 2) {
         path.lineTo(points.last().x, points.last().y)
         return path
     }

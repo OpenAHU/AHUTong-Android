@@ -69,6 +69,8 @@ import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.data.model.AppUiTheme
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.backdrop.Backdrop
+import top.yukonga.miuix.kmp.icon.icons.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 import top.yukonga.miuix.kmp.basic.CardDefaults as MiuixCardDefaults
 import top.yukonga.miuix.kmp.basic.Icon as MiuixIcon
@@ -315,7 +317,7 @@ fun SettingsHeroCard(
                 }
             )
             .clickable(onClick = onClickWithFeedback)
-            .padding(horizontal = 22.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content
@@ -337,7 +339,12 @@ fun SettingsSection(
             if (wallpaperEnabled) colors.copy(color = Color.Transparent) else colors
         }
         Column(modifier = modifier.fillMaxWidth()) {
-            MiuixSmallTitle(text = title)
+            // Miuix SmallTitle 默认 28dp 水平内边距是按 12dp 页边距设计的；这里页面已有 16dp 卡片外边距，
+            // 用 20dp 与行内容左缘（及其他主题的分区标题）对齐
+            MiuixSmallTitle(
+                text = title,
+                insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+            )
             MiuixCard(
                 modifier = Modifier.fillMaxWidth().then(
                     if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
@@ -452,11 +459,13 @@ fun SettingsActionRow(
                     modifier = Modifier.weight(1f))
                 value?.let { SettingsRowLabel(it, secondary = true) }
                 if (showChevron) {
+                    // 与 Miuix 选择行的 ArrowUpDownIntegrated（10×16，onSurfaceVariantActions）同尺寸同色，
+                    // 两类行混排时右侧箭头对齐到同一边线
                     MiuixIcon(
-                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        imageVector = MiuixIcons.Basic.ArrowRight,
                         contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        modifier = Modifier.size(10.dp, 16.dp),
+                        tint = MiuixTheme.colorScheme.onSurfaceVariantActions
                     )
                 }
             }
@@ -612,7 +621,8 @@ fun SettingsToggleRow(
                     role = Role.Switch,
                     onValueChange = onCheckedWithFeedback
                 )
-                .heightIn(min = 72.dp)
+                // 与操作行 / 选择行同高（68dp），混排时节奏一致
+                .heightIn(min = 68.dp)
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -737,7 +747,8 @@ fun <T> SettingsSelectRow(
                                 indication = null,
                                 role = Role.Button
                             ) { expanded = !expanded }
-                            .padding(horizontal = 10.dp),
+                            // 只留左侧内边距：右侧与行内 chevron / 开关对齐到同一右边线
+                            .padding(start = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -800,7 +811,8 @@ fun <T> SettingsSelectRow(
                                 Modifier
                             }
                         )
-                        .padding(horizontal = 10.dp),
+                        // 只留左侧内边距：右侧与行内 chevron / 开关对齐到同一右边线
+                        .padding(start = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

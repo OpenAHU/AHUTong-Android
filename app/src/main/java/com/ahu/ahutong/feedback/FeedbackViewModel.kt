@@ -36,12 +36,8 @@ class FeedbackViewModel : ViewModel() {
     private var attached = false
     private var encryptedPickerExport: EncryptedFeedbackExport? = null
     var pendingExport: EncryptedFeedbackExport?
-        get() {
-            if (encryptedPickerExport?.let { !isExportCurrent(it) } == true) {
-                encryptedPickerExport = null
-            }
-            return encryptedPickerExport
-        }
+        // 读取时顺便丢弃已过期的导出，与 setter 的校验规则保持一致。
+        get() = encryptedPickerExport?.takeIf(::isExportCurrent).also { encryptedPickerExport = it }
         set(value) {
             encryptedPickerExport = value?.takeIf(::isExportCurrent)
         }

@@ -59,6 +59,7 @@ fun ProgramCompletion(
     AppPageScaffold(
         title = "培养方案",
         onBack = onBack,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         actions = listOf(
             TrailingAction(Icons.Rounded.Refresh, "刷新") { viewModel.refresh() }
         ),
@@ -66,12 +67,14 @@ fun ProgramCompletion(
             val data = state.data
             when {
                 state.loading -> AppStateCard.Inline(
+                    horizontalInset = 0.dp,
                     loading = true,
                     title = "正在获取",
                     message = "首次加载需要读取教务培养方案完成情况，稍候…"
                 )
 
                 data == null -> AppStateCard.InlineError(
+                    horizontalInset = 0.dp,
                     message = state.error ?: "未能获取培养方案完成情况",
                     onRetry = { viewModel.refresh() }
                 )
@@ -99,6 +102,7 @@ fun ProgramCompletion(
                     }
                     if (visibleModules.isEmpty()) {
                         AppStateCard.Inline(
+                            horizontalInset = 0.dp,
                             title = "没有未完成的课程",
                             message = "当前筛选下所有模块均已完成，继续保持。"
                         )
@@ -207,43 +211,46 @@ private fun ModuleOverviewCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onToggle
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                module.nameZh,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            if (module.result != null && module.result != "PASSED") {
+        // AppCard 本身不提供子项间距：标题行 / 进度条 / 学分统计需要自己留白
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    "未通过",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor("UNREPAIRED")
+                    module.nameZh,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (module.result != null && module.result != "PASSED") {
+                    Text(
+                        "未通过",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor("UNREPAIRED")
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = if (expanded) "收起" else "展开",
+                    tint = 50.n1 withNight 70.n1
                 )
             }
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                contentDescription = if (expanded) "收起" else "展开",
-                tint = 50.n1 withNight 70.n1
+            val progress = if (module.requiredCredits > 0) {
+                (module.passedCredits / module.requiredCredits).toFloat().coerceIn(0f, 1f)
+            } else 0f
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                "要求 ${module.requiredCredits.trimZero()} 学分 · 已通过 ${module.passedCredits.trimZero()} · " +
+                    "在读 ${module.takingCredits.trimZero()} · 未通过 ${module.failedCredits.trimZero()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = 50.n1 withNight 70.n1
             )
         }
-        val progress = if (module.requiredCredits > 0) {
-            (module.passedCredits / module.requiredCredits).toFloat().coerceIn(0f, 1f)
-        } else 0f
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            "要求 ${module.requiredCredits.trimZero()} 学分 · 已通过 ${module.passedCredits.trimZero()} · " +
-                "在读 ${module.takingCredits.trimZero()} · 未通过 ${module.failedCredits.trimZero()}",
-            style = MaterialTheme.typography.bodySmall,
-            color = 50.n1 withNight 70.n1
-        )
     }
 }
 
@@ -296,7 +303,7 @@ private fun CourseRow(course: CompletionCourse, depth: Int) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = if (depth > 0) 12.dp else 0.dp, top = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
