@@ -52,16 +52,15 @@ class FreeClassroomCapability(
     )
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
-        val date = arguments.get("date")?.asString
+        // 参数来自模型输出，类型不符时回落到默认值，而不是在 try 之外抛异常。
+        val date = arguments.stringArg("date")
             ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             ?: today()
-        val campusId = arguments.get("campusId")?.asInt?.takeIf { it == 1 || it == 2 } ?: 1
+        val campusId = arguments.intArg("campusId")?.takeIf { it == 1 || it == 2 } ?: 1
         val building = arguments.stringArg("building")
-        val units = arguments.get("units")?.asJsonArray
-            ?.mapNotNull { runCatching { it.asString }.getOrNull() }
-            ?.filter { it.toIntOrNull() in 1..13 }
-            ?.ifEmpty { null }
-            ?: (1..13).map(Int::toString)
+        val units = arguments.stringListArg("units")
+            .filter { it.toIntOrNull() in 1..13 }
+            .ifEmpty { (1..13).map(Int::toString) }
 
         val request = GetFreeRoomsRequest(
             buildingId = "",

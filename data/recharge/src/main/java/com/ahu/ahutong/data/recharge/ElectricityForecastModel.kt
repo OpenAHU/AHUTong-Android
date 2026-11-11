@@ -145,8 +145,8 @@ internal data class ElectricityForecastModel(
                     simple += ElectricityForecastModel("tsb", alpha, beta)
                 }
             }
-            val simpleBest = simple.minBy { it.score(values) }
-            val simpleScore = simpleBest.score(values)
+            // score() 会对每个预测起点重新拟合，开销较大；每个候选只算一次。
+            val (simpleBest, simpleScore) = simple.map { it to it.score(values) }.minBy { it.second }
             if (simpleScore < bestScore * 0.95) {
                 best = simpleBest
                 bestScore = simpleScore
@@ -157,9 +157,9 @@ internal data class ElectricityForecastModel(
                         ElectricityForecastModel("damped_holt", alpha, beta, phi)
                     }
                 }
-            }.minBy { it.score(values) }
+            }.map { it to it.score(values) }.minBy { it.second }
             // A trend requires a clearer improvement than a level/occurrence model.
-            if (trend.score(values) < bestScore * 0.9) best = trend
+            if (trend.second < bestScore * 0.9) best = trend.first
             return best
         }
     }

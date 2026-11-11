@@ -87,12 +87,13 @@ class ExamViewModel @Inject constructor(
     private var refreshJob: Job? = null
 
     fun loadExam(isRefresh: Boolean = false) {
+        // 正在刷新中则忽略新请求。必须先于取消判断：否则会取消在途刷新后直接返回，
+        // 留下 LOADING 状态且再无任务负责复位。
+        if (_refreshState.value == RefreshState.LOADING) return
         if (refreshJob?.isActive == true) {
             if (!isRefresh) return
             refreshJob?.cancel()
         }
-        // 正在刷新中则忽略新请求
-        if (_refreshState.value == RefreshState.LOADING) return
         // 首次自动后台加载也跳过重复
         if (!isRefresh && isLoading.value == true) return
 
@@ -150,7 +151,11 @@ class ExamViewModel @Inject constructor(
             if (result.isSuccess) {
                 val newExams = result.valueOrNull().orEmpty()
                 val updatedProfiles = withContext(ioDispatcher) { exams.cachedProfiles() }
-                if (!ownerIsCurrent()) return@launchSafe
+                if (!ownerIsCurrent()) {
+                    isLoading.value = false
+                    _refreshState.value = RefreshState.IDLE
+                    return@launchSafe
+                }
                 studentProfiles.value = updatedProfiles
 
                 // 与缓存比对，有差异才更新 UI

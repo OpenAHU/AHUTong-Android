@@ -35,12 +35,11 @@ class InMemoryAssistantWriteJournal : AssistantWriteJournal {
     private val states = mutableMapOf<String, AssistantWriteOutcome>()
 
     override suspend fun check(toolId: String, arguments: JsonObject): String? = mutex.withLock {
-        when (states[fingerprint(toolId, arguments)]) {
-            AssistantWriteOutcome.UNKNOWN ->
-                "上一次相同操作的结果未知，为避免重复扣款，本次已拦下；请先在原页面确认结果。"
-            null -> null
-            // SUCCESS / KNOWN_FAILURE 都已收尾，允许再次发起。
-            else -> null
+        // 只有结果未知时拦截；SUCCESS / KNOWN_FAILURE 都已收尾，允许再次发起。
+        if (states[fingerprint(toolId, arguments)] == AssistantWriteOutcome.UNKNOWN) {
+            "上一次相同操作的结果未知，为避免重复扣款，本次已拦下；请先在原页面确认结果。"
+        } else {
+            null
         }
     }
 

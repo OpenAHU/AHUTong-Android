@@ -158,16 +158,12 @@ class GradeViewModel @Inject constructor(
         try {
             val result = grades.fetchGrade(isRefresh)
             if (result.isSuccess) {
-            grade = result.valueOrNull()
+                grade = result.valueOrNull()
                 // 加载由 CrawlerDataSource 写入的 per-profile 缓存
                 perProfileGrades = withContext(ioDispatcher) { grades.cachedPerProfileGrades() }
                 val profiles = resolveRankProfiles()
-                // 如果 per-profile 缓存为空（单学号学生首次加载），直接使用合并后的 grade
-                if (perProfileGrades.isNotEmpty()) {
-                    switchToSelectedProfile()
-                } else {
-                    // 无 per-profile 数据：单学号学生直接使用合并成绩。
-                }
+                // per-profile 缓存为空（单学号学生首次加载）时直接使用合并后的 grade
+                if (perProfileGrades.isNotEmpty()) switchToSelectedProfile()
                 selectTermAfterLoad(previousTerm, preserveSelectedTerm)
                 refreshTermAndYearGPA()
                 errorMessage = null

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.QueryStats
@@ -124,11 +125,12 @@ fun Billing(
                         itemsIndexed(records, key = { index, record -> "record-${record.orderId}-$index" }) { index, record ->
                             AppCard(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                                shape = RoundedCornerShape(
-                                    topStart = if (index == 0) 16.dp else 0.dp,
-                                    topEnd = if (index == 0) 16.dp else 0.dp,
-                                    bottomStart = if (index == records.lastIndex) 16.dp else 0.dp,
-                                    bottomEnd = if (index == records.lastIndex) 16.dp else 0.dp
+                                // 整组列表的圆角与上方汇总卡（AppCard 默认 24dp 平滑圆角）一致
+                                shape = SmoothRoundedCornerShape(
+                                    topStart = if (index == 0) 24.dp else 0.dp,
+                                    topEnd = if (index == 0) 24.dp else 0.dp,
+                                    bottomStart = if (index == records.lastIndex) 24.dp else 0.dp,
+                                    bottomEnd = if (index == records.lastIndex) 24.dp else 0.dp
                                 ),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                             ) {
@@ -206,8 +208,8 @@ private fun BillingFilterSheet(
                     viewModel.applyFilters(
                         allTimeSel,
                         typeSel,
-                        minText.toDoubleOrNull()?.let { (it * 100).toLong() },
-                        maxText.toDoubleOrNull()?.let { (it * 100).toLong() }
+                        yuanTextToFen(minText),
+                        yuanTextToFen(maxText)
                     )
                     onDismiss()
                 }
@@ -268,6 +270,13 @@ private fun BillingFilterSheet(
         }
     )
 }
+
+/**
+ * 元文本 → 分。用 BigDecimal 精确移位，避免 `0.29 * 100` 这类浮点误差把金额截成 28 分；
+ * 超过两位的小数仍按截断处理。
+ */
+private fun yuanTextToFen(text: String): Long? =
+    text.trim().toBigDecimalOrNull()?.movePointRight(2)?.toLong()
 
 /** 分 → 元文本（整数元不带小数点）。 */
 private fun fenToYuanText(fen: Long): String {
@@ -335,8 +344,10 @@ private fun BillingRecordItem(record: TurnoverRecord, onClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.width(10.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            // 商户名过长被省略时，与右侧金额之间仍保留间距
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(

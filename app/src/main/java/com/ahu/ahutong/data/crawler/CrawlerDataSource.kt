@@ -282,6 +282,8 @@ class CrawlerDataSource(
         val perProfileGrades = profiles.map { profile ->
             try {
                 buildGradeForId(profile.id)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "getGrade failed for id=${profile.id}", e)
                 null

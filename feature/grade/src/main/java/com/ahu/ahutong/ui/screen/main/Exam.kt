@@ -153,11 +153,11 @@ fun Exam(
                             text = profile.displayName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+                            modifier = Modifier.padding(top = 8.dp)
                         )
                         androidx.compose.runtime.key(profile.id) {
                             if (profileExams.isEmpty()) {
-                                Text("目前没有任何考试", modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                                Text("目前没有任何考试", modifier = Modifier.padding(vertical = 12.dp))
                             } else {
                                 ExamList(profileExams)
                             }
@@ -222,6 +222,7 @@ fun Exam(
             )
         },
         bottomPadding = 48.dp,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         content = pageContent
     )
 }
@@ -240,7 +241,6 @@ private fun ExamList(exams: List<com.ahu.ahutong.data.model.Exam>) {
     var showFinished by rememberSaveable { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Active exams — always visible

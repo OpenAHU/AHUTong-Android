@@ -316,7 +316,6 @@ private fun Tel(
         Text(
             text = it,
             modifier = Modifier
-                .padding(4.dp)
                 .clip(SmoothRoundedCornerShape(8.dp))
                 .background(90.a1 withNight 30.n1)
                 .padding(8.dp, 2.dp),

@@ -43,6 +43,7 @@ import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCard
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -130,6 +131,9 @@ private fun CircleFeedPage(api: CircleApi, onOpen: (CircleTopic) -> Unit, onOpen
             val base = if (reset) emptyList() else topics
             topics = base + fetched.filter { t -> base.none { it.id == t.id } }
             error = null
+        } catch (e: CancellationException) {
+            // 刷新会取消旧的 LaunchedEffect；被取消的旧任务不能再写 error / loading 状态
+            throw e
         } catch (e: Exception) {
             if (reset || topics.isEmpty()) error = e.message ?: "加载失败"
         }
@@ -294,6 +298,8 @@ private fun CircleHotPage(api: CircleApi, onOpen: (CircleTopic) -> Unit, onBack:
             val list = api.fetchHotTopics()
             hot = list
             hotCache = System.currentTimeMillis() to list
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             error = e.message ?: "加载失败"
         } finally {

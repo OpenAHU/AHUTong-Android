@@ -281,7 +281,7 @@ class LostFoundViewModel @Inject constructor(
     fun refreshList() {
         listRequestJob?.cancel()
         val requestedState = currentState
-        viewModelScope.launch {
+        listRequestJob = viewModelScope.launch {
             isRefreshing = true
 
             try {
@@ -311,7 +311,6 @@ class LostFoundViewModel @Inject constructor(
                         pageData.list
 
                     withContext(Dispatchers.IO) {
-                        AHUCache.clearLostFoundList(requestedState)
                         AHUCache.saveLostFoundList(requestedState, pageData.list)
                     }
 
@@ -473,7 +472,6 @@ class LostFoundViewModel @Inject constructor(
                 pageSize = MY_POST_PAGE_SIZE,
                 state = state
             )
-            check(response.isSuccess) { response.errorOrNull()?.toUserMessage() ?: "加载帖子失败" }
             val payload = response.valueOrNull()
                 ?: error(response.errorOrNull()?.toUserMessage() ?: "加载帖子失败")
             posts += payload.data.list

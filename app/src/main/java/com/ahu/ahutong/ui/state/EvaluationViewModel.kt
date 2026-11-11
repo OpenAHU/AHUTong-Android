@@ -491,25 +491,21 @@ class EvaluationViewModel : ViewModel() {
         questions: List<EvalQuestion>,
         preset: EvalPreset
     ): PresetAnswers {
-        val radioAnswers = mutableMapOf<String, String>()
-        val textAnswers = presetTextAnswersFor(questions, preset).toMutableMap()
         val radioOptionIndexes = presetRadioOptionIndexesFor(questions, preset)
-
-        questions.forEach { question ->
-            val questionId = question.attribute.id.toString()
-            when (question.attribute.typeId) {
-                1 -> {
-                    val option = question.options.getOrNull(
-                        radioOptionIndexes[questionId]
-                            ?.coerceIn(0, question.options.size - 1)
-                            ?: 0
-                    ) ?: question.options.firstOrNull()
-                    option?.let { radioAnswers[questionId] = it.optionId.toString() }
-                }
+        // 仅单选题（typeId == 1）需要预选；索引越界时夹到合法范围，无选项的题目直接跳过。
+        val radioAnswers = questions
+            .filter { it.attribute.typeId == 1 }
+            .mapNotNull { question ->
+                val questionId = question.attribute.id.toString()
+                val optionIndex = radioOptionIndexes[questionId]
+                    ?.coerceIn(0, question.options.lastIndex)
+                    ?: 0
+                question.options.getOrNull(optionIndex)
+                    ?.let { questionId to it.optionId.toString() }
             }
-        }
+            .toMap()
 
-        return PresetAnswers(radioAnswers, textAnswers)
+        return PresetAnswers(radioAnswers, presetTextAnswersFor(questions, preset))
     }
 
     private fun normalizeRadioOptionIndexes(

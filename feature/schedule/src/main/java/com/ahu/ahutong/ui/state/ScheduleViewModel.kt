@@ -60,7 +60,6 @@ class ScheduleViewModel @Inject constructor(
     @ScheduleDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
-    val TAG = "ScheduleViewModel"
     val schedule = MutableLiveData<AhuResult<List<Course>>>()
     /** 自定义课程列表：课表配色需要它拿到用户选的颜色。 */
     val customCourses = MutableLiveData<List<CustomCourse>>(emptyList())
@@ -153,13 +152,6 @@ class ScheduleViewModel @Inject constructor(
             // 所有界面共享缓存；后台刷新取得不同的安排后由数据源统一更新。
             holidaySource.load(scheduleHolidayYears(listOf(dates.toList())), refresh)
         }
-    }
-
-    // 更新周
-    fun changeWeek(week: Int) {
-        val configBean = scheduleConfig.value!!
-        configBean.week = week
-        scheduleConfig.value = configBean
     }
 
     /**

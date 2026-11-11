@@ -157,40 +157,23 @@ private fun DetailedHomeWeatherCard(
 
 @Composable
 private fun DetailedHomeWeatherContent(weather: WeatherResponse, config: WeatherHomeConfig) {
-    val rainKeywords = listOf("雨", "雪", "雹")
-    val containsRain = { s: String? -> s != null && rainKeywords.any { s.contains(it) } }
-    val rainPossible = containsRain(weather.weather) ||
-        weather.forecast?.firstOrNull()
-            ?.let { containsRain(it.weatherDay) || containsRain(it.weatherNight) } == true ||
-        weather.hourlyForecast?.take(6)?.any { containsRain(it.weather) } == true
+    val rainPossible = weather.rainLikelySoon()
 
     val isSunny = weather.weather?.let { it.contains("晴") && !it.contains("多云") } == true
     val highUv = (weather.uv ?: 0.0) >= 5.0
 
-    val windArrow = when (weather.windDirection) {
-        "北风" -> "\u2193"
-        "南风" -> "\u2191"
-        "东风" -> "\u2190"
-        "西风" -> "\u2192"
-        "东北风" -> "\u2199"
-        "西北风" -> "\u2198"
-        "东南风" -> "\u2196"
-        "西南风" -> "\u2197"
-        else -> when {
-            (weather.windDirection ?: "").contains("北") &&
-                (weather.windDirection ?: "").contains("东") -> "\u2199"
-            (weather.windDirection ?: "").contains("北") &&
-                (weather.windDirection ?: "").contains("西") -> "\u2198"
-            (weather.windDirection ?: "").contains("南") &&
-                (weather.windDirection ?: "").contains("东") -> "\u2196"
-            (weather.windDirection ?: "").contains("南") &&
-                (weather.windDirection ?: "").contains("西") -> "\u2197"
-            (weather.windDirection ?: "").contains("北") -> "\u2193"
-            (weather.windDirection ?: "").contains("南") -> "\u2191"
-            (weather.windDirection ?: "").contains("东") -> "\u2190"
-            (weather.windDirection ?: "").contains("西") -> "\u2192"
-            else -> "\u2198"
-        }
+    // 箭头指向风的去向：先判断复合方向（东北/西北/东南/西南），再判断单一方向。
+    val windDirection = weather.windDirection.orEmpty()
+    val windArrow = when {
+        "北" in windDirection && "东" in windDirection -> "\u2199"
+        "北" in windDirection && "西" in windDirection -> "\u2198"
+        "南" in windDirection && "东" in windDirection -> "\u2196"
+        "南" in windDirection && "西" in windDirection -> "\u2197"
+        "北" in windDirection -> "\u2193"
+        "南" in windDirection -> "\u2191"
+        "东" in windDirection -> "\u2190"
+        "西" in windDirection -> "\u2192"
+        else -> "\u2198"
     }
 
     Row(
@@ -433,16 +416,23 @@ private data class HomeWeatherSymbol(
     val description: String
 )
 
+private val PrecipitationKeywords = listOf("雨", "雪", "雹")
+
+private fun String?.mentionsPrecipitation(): Boolean =
+    this != null && PrecipitationKeywords.any { it in this }
+
+/** 当前天气、今日白天/夜间预报或未来 6 小时逐时预报中任一出现降水描述。 */
+private fun WeatherResponse.rainLikelySoon(): Boolean =
+    weather.mentionsPrecipitation() ||
+        forecast?.firstOrNull()?.let {
+            it.weatherDay.mentionsPrecipitation() || it.weatherNight.mentionsPrecipitation()
+        } == true ||
+        hourlyForecast.orEmpty().take(6).any { it.weather.mentionsPrecipitation() }
+
 private fun WeatherResponse.compactMetricLines(): List<String> {
     val nextSixHours = hourlyForecast.orEmpty().take(6)
     val maxPop = nextSixHours.mapNotNull { it.pop }.maxOrNull()
-    val rainKeywords = listOf("雨", "雪", "雹")
-    val containsRain = { text: String? -> text != null && rainKeywords.any { text.contains(it) } }
-    val hasRainHint = containsRain(weather) ||
-        forecast?.firstOrNull()?.let {
-            containsRain(it.weatherDay) || containsRain(it.weatherNight)
-        } == true ||
-        nextSixHours.any { containsRain(it.weather) }
+    val hasRainHint = rainLikelySoon()
 
     val rainLine = when {
         maxPop != null -> "雨 ${maxPop}%"

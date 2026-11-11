@@ -354,7 +354,7 @@ private fun EvaluationCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -367,7 +367,7 @@ private fun EvaluationCard(
                 val (statusText, statusColor) = when {
                     reviewed -> "已评" to (50.n1 withNight 70.n1)
                     !task.timeStatus -> "未开始" to Color(0xFF2E7D32)
-                    else -> "待评" to (90.a1 withNight 90.a1)
+                    else -> "待评" to (40.a1 withNight 80.a1)
                 }
                 Text(
                     text = statusText,
@@ -703,7 +703,7 @@ private fun PresetQuestionEditor(
                     ) {
                         RadioButton(
                             selected = selected,
-                            onClick = { onOptionIndexChange(optionIndex) }
+                            onClick = null // 整行 selectable 已是点击区域，避免叠加 48dp 触控尺寸
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
@@ -822,7 +822,7 @@ private fun QuestionCard(
                             ) {
                                 RadioButton(
                                     selected = selected,
-                                    onClick = { onSelect(optionId) }
+                                    onClick = null // 整行 selectable 已是点击区域
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(

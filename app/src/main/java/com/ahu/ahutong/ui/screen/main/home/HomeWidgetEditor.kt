@@ -404,7 +404,8 @@ private fun RadiantHomeWidgetSlotLayout(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            // 与首页日期行、Hero 同一左右边线（20dp）
+            .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         CampusCard(
@@ -422,7 +423,8 @@ private fun RadiantHomeWidgetSlotLayout(
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            // 编辑态每格有描边和左上角移除钮（向上偏移 8dp），行距需容纳它们
+            verticalArrangement = Arrangement.spacedBy(if (isEditing) 12.dp else 4.dp)
         ) {
             // 流动排列：非编辑态只排已放置的槽，「更多」紧跟其后；
             // 编辑态 7 槽全显示（网格几何固定，拖拽吸附不受影响）

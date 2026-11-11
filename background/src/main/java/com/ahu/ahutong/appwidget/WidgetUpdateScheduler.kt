@@ -111,42 +111,15 @@ class WidgetUpdateScheduler : BroadcastReceiver() {
         }
 
         fun calculateNextTrigger(now: LocalDateTime): LocalDateTime {
-            // Strategy:
-            // 1. 01:00
-            // 2. 07:30 to 22:00 every 30 minutes
-            
+            // 每天的刷新时刻：01:00，以及 07:30–22:00 每 30 分钟一次。
+            // 今天的时刻都已过去时，下一次一定是明天 01:00（它早于明天其余时刻）。
             val today = now.toLocalDate()
-            val tomorrow = today.plusDays(1)
-
-            val candidates = mutableListOf<LocalDateTime>()
-
-            // Add 01:00 today
-            candidates.add(today.atTime(1, 0))
-
-            // Add 07:30 to 22:00 today
-            var t = today.atTime(7, 30)
-            val endTime = today.atTime(22, 0)
-            while (!t.isAfter(endTime)) {
-                candidates.add(t)
-                t = t.plusMinutes(30)
-            }
-
-            // Add 01:00 tomorrow (as a fallback if all today's passed)
-            candidates.add(tomorrow.atTime(1, 0))
-            
-            // Also add tomorrow's start sequence just in case (e.g. now is 23:00)
-             var tNext = tomorrow.atTime(7, 30)
-             val endTimeNext = tomorrow.atTime(22, 0)
-             while (!tNext.isAfter(endTimeNext)) {
-                 candidates.add(tNext)
-                 tNext = tNext.plusMinutes(30)
-             }
-
-            // Find first candidate strictly after now
-            return candidates.firstOrNull { it.isAfter(now) } ?: tomorrow.atTime(1, 0)
-
+            val todaySlots = listOf(today.atTime(1, 0)) +
+                generateSequence(today.atTime(7, 30)) { it.plusMinutes(30) }
+                    .takeWhile { !it.isAfter(today.atTime(22, 0)) }
+            return todaySlots.firstOrNull { it.isAfter(now) } ?: today.plusDays(1).atTime(1, 0)
         }
-        
+
         fun cancel(context: Context) {
              val intent = Intent(context, WidgetUpdateScheduler::class.java).apply {
                 action = ACTION_UPDATE_WIDGETS

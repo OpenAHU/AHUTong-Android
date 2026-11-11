@@ -495,8 +495,10 @@ fun Schedule(
             modifier = if (radiant) {
                 Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 12.dp)
             } else {
-                Modifier.padding(end = 8.dp)
+                Modifier.padding(top = 4.dp, end = 8.dp, bottom = 4.dp)
             },
+            // 40dp 周次胶囊与 52dp 操作胶囊居中对齐
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             // week selector
             LazyRow(
@@ -671,7 +673,7 @@ fun Schedule(
     fun ScheduleGrid() {
         val cellWidth = (
                 LocalConfiguration.current.screenWidthDp.dp -
-                        (if (radiant) 12.dp else 0.dp) -
+                        12.dp -
                         CourseCardSpec.mainColumnWidth -
                         CourseCardSpec.cellSpacing * (dayCount + 2)
                 ) / dayCount
@@ -706,7 +708,8 @@ fun Schedule(
                     Modifier
                         .fillMaxWidth()
                         .then(
-                            if (radiant) Modifier.padding(horizontal = 6.dp) else Modifier
+                            // 全主题统一左右各 6dp：32dp 圆角卡片不再贴屏幕边缘被裁
+                            Modifier.padding(horizontal = 6.dp)
                         )
                         .height(mainRowHeight + (cellHeight + cellSpacing) * sectionCount + 24.dp)
                         .then(gridSurface)
@@ -1056,17 +1059,22 @@ fun Schedule(
     @Composable
     fun GraduateScheduleStatus() {
         if (isGraduate) {
-            if (graduateState?.loading == true) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (graduateGrid != null && graduateState?.error != null) {
-                Text(
-                    "刷新失败，正在显示本地课表：${graduateState.error}",
-                    color = MaterialTheme.colorScheme.error,
-                    maxLines = 2
-                )
-            }
-            if (graduateGrid?.unplaced?.isNotEmpty() == true) {
-                TextButton(onClick = { showUnplacedCourses = true }) {
-                    Text("未排定课程（${graduateGrid.unplaced.size}）")
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (graduateState?.loading == true) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (graduateGrid != null && graduateState?.error != null) {
+                    Text(
+                        "刷新失败，正在显示本地课表：${graduateState.error}",
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2
+                    )
+                }
+                if (graduateGrid?.unplaced?.isNotEmpty() == true) {
+                    TextButton(onClick = { showUnplacedCourses = true }) {
+                        Text("未排定课程（${graduateGrid.unplaced.size}）")
+                    }
                 }
             }
         }
@@ -1106,15 +1114,18 @@ fun Schedule(
                     val density = LocalDensity.current
                     // 固定标题栏（遮罩层）：与内容区为兄弟叠加关系，zIndex 盖在可穿透内容之上；
                     // 关玻璃开→纯色渐变（降级），液态可用→均匀模糊+渐变 scrim（方案 a）
+                    // onSizeChanged 必须在 statusBarsPadding 之前：测得的是含状态栏的完整高度。
+                    // 放在之后只量到标题行，内容避让就隐含"状态栏 ≤ 余量"的假设，
+                    // 状态栏较高的机型（如 Pixel 约 68dp）上表头的"休/调"角标会被操作胶囊盖住。
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .headerScrim(headerBg, headerBlurLayer)
-                            .statusBarsPadding()
                             .zIndex(20f)
                             .onSizeChanged { size ->
                                 headerHeightPx = size.height
                             }
+                            .headerScrim(headerBg, headerBlurLayer)
+                            .statusBarsPadding()
                     ) {
                         ScheduleHeaderRow()
                     }
@@ -1129,11 +1140,11 @@ fun Schedule(
                             .navigationBarsPadding()
                             .padding(bottom = 96.dp)
                     ) {
-                        // 首屏停靠在标题栏下缘（+51dp 视觉余量，含渐变过渡段）；
+                        // 首屏停靠在标题栏（含状态栏）下缘 + 固定间距，与机型状态栏高度无关；
                         // 滚动后内容仍从渐变遮罩下穿过，保留穿透视觉效果
                         Spacer(
                             modifier = Modifier.height(
-                                with(density) { headerHeightPx.toDp() } + 35.dp
+                                with(density) { headerHeightPx.toDp() } + ScheduleHeaderGap
                             )
                         )
                         GraduateScheduleStatus()
@@ -1146,6 +1157,9 @@ fun Schedule(
         }
     }
 }
+
+/** 固定标题栏下缘与课表网格卡之间的间距。 */
+private val ScheduleHeaderGap = 4.dp
 
 @Composable
 private fun BoxScope.ScheduleGridLabels(
@@ -1248,11 +1262,20 @@ private fun BoxScope.ScheduleGridLabels(
                 center = Offset(centerX, mainRowHeightPx * 0.70f)
             )
             holidays.getOrNull(index)?.let { holiday ->
+                // 角标贴在星期文字右上角，而不是单元格右上角：后者在最右一列会压到
+                // 课表卡片的大圆角描边上。水平方向仍限制在单元格内。
                 val badgeSize = 14.dp.toPx()
-                val badgeLeft = left + cellWidthPx - badgeSize
+                val badgeInset = 2.dp.toPx()
+                val dayNameWidth = textMeasurer.measure(
+                    text = dayNames.getOrElse(index) { "" },
+                    style = dayStyle
+                ).size.width
+                val badgeLeft = (centerX + dayNameWidth / 2f)
+                    .coerceAtMost(left + cellWidthPx - badgeSize - badgeInset)
+                val badgeTop = badgeInset
                 drawRoundRect(
                     color = if (holiday.isOffDay) holidayBadgeBackground else adjustedBadgeBackground,
-                    topLeft = Offset(badgeLeft, 0f),
+                    topLeft = Offset(badgeLeft, badgeTop),
                     size = Size(badgeSize, badgeSize),
                     cornerRadius = CornerRadius(3.dp.toPx())
                 )
@@ -1260,7 +1283,7 @@ private fun BoxScope.ScheduleGridLabels(
                     text = if (holiday.isOffDay) "休" else "调",
                     style = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Bold,
                         color = if (holiday.isOffDay) holidayBadgeContent else adjustedBadgeContent),
-                    center = Offset(badgeLeft + badgeSize / 2f, badgeSize / 2f)
+                    center = Offset(badgeLeft + badgeSize / 2f, badgeTop + badgeSize / 2f)
                 )
             }
         }
@@ -1345,7 +1368,6 @@ private fun ScheduleSettingsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {

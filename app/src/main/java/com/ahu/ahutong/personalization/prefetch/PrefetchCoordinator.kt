@@ -63,7 +63,8 @@ class PrefetchCoordinator @Inject constructor(
     private val networkSlots = Semaphore(1)
     private val localSlots = Semaphore(2)
     private var paymentQrStartsThisSession = 0
-    private var lastPaymentQrStartElapsedMs = Long.MIN_VALUE
+    /** 本会话最近一次付款码预取的启动时刻；null 表示尚未启动过（不能用 Long.MIN_VALUE 哨兵，相减会溢出）。 */
+    private var lastPaymentQrStartElapsedMs: Long? = null
     private var estimatedNetworkBytesThisSession = 0L
     private var failuresThisSession = 0
     private val freshUntilElapsedMs = ConcurrentHashMap<String, Long>()
@@ -73,7 +74,7 @@ class PrefetchCoordinator @Inject constructor(
 
     suspend fun beginSession() = mutex.withLock {
         paymentQrStartsThisSession = 0
-        lastPaymentQrStartElapsedMs = Long.MIN_VALUE
+        lastPaymentQrStartElapsedMs = null
         estimatedNetworkBytesThisSession = 0L
         failuresThisSession = 0
         freshUntilElapsedMs.clear()
@@ -139,8 +140,9 @@ class PrefetchCoordinator @Inject constructor(
                     estimatedNetworkBytesThisSession + estimatedBytes > MAX_ESTIMATED_BYTES_PER_SESSION
                 ) return
                 if (action == AppActionId.OPEN_PAYMENT_QR) {
+                    val lastStart = lastPaymentQrStartElapsedMs
                     if (paymentQrStartsThisSession >= MAX_PAYMENT_QR_STARTS_PER_SESSION ||
-                        now - lastPaymentQrStartElapsedMs < PAYMENT_QR_MIN_INTERVAL_MS
+                        (lastStart != null && now - lastStart < PAYMENT_QR_MIN_INTERVAL_MS)
                     ) return
                     paymentQrStartsThisSession++
                     lastPaymentQrStartElapsedMs = now

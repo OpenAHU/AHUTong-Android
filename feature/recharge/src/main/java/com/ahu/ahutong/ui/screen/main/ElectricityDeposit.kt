@@ -136,6 +136,7 @@ fun ElectricityDeposit(
     val pageContent: @Composable ColumnScope.() -> Unit = {
         if (errorMessage != null) {
             AppStateCard.InlineError(
+                horizontalInset = 0.dp,
                 title = "电控信息加载失败",
                 message = errorMessage.orEmpty(),
                 retryLabel = "重新加载",
@@ -210,11 +211,11 @@ fun ElectricityDeposit(
                 PayState.Idle -> Unit
                 PayState.InProgress -> Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AppCircularProgressIndicator(size = 24.dp, strokeWidth = 3.dp)
-                    Text("  正在提交缴费", style = MaterialTheme.typography.bodyLarge)
+                    Text("正在提交缴费", style = MaterialTheme.typography.bodyLarge)
                 }
                 is PayState.Succeeded -> Text(
                     text = "缴费成功，订单号：${state.message}",
@@ -439,6 +440,7 @@ fun ElectricityAlertSettings(
 
             if (errorMessage != null) {
                 AppStateCard.InlineError(
+                    horizontalInset = 0.dp,
                     title = "电控信息加载失败",
                     message = errorMessage.orEmpty(),
                     retryLabel = "重新加载",
@@ -599,7 +601,8 @@ private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
         )
     }
     AppSectionCard(
-        contentPadding = PaddingValues(vertical = 4.dp, horizontal = 12.dp),
+        // 分组选择行自带 16dp 水平内边距，与相邻卡片文字左缘对齐，这里只留竖向留白
+        contentPadding = PaddingValues(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp),
         content = selectorContent
     )

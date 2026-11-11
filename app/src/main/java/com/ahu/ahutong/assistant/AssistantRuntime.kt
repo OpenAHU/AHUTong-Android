@@ -175,11 +175,7 @@ class AssistantRuntime(
                                 )
                             )
                         )
-                        val decision = try {
-                            decisionDeferred.await()
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        }
+                        val decision = decisionDeferred.await()
                         if (!decision.approved) {
                             val payload = failurePayload("user_rejected", "用户取消了这次操作")
                             emit(AssistantRuntimeEvent.ToolResultEvent(call.name, capability.spec.title, false, "已取消", source = capability.spec.source))

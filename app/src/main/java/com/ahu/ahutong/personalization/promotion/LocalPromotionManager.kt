@@ -606,7 +606,7 @@ class LocalPromotionManager @Inject constructor(
     private fun resourceQualified(values: List<ShadowEvaluationEntity>): Boolean =
         percentile95(values.map(ShadowEvaluationEntity::tinyInferenceNanos)) < 5_000_000L &&
             percentile95(values.map(ShadowEvaluationEntity::trainingNanos)) < 50_000_000L &&
-            values.maxOfOrNull(ShadowEvaluationEntity::modelSizeBytes)?.let { it <= 512 * 1024 } != false
+            values.all { it.modelSizeBytes <= 512 * 1024 }
 
     private fun shouldDowngrade(state: TinyPromotionStateEntity, ece: Double): Boolean =
         state.stage != PromotionStage.SHADOW.name && (state.consecutiveFailingWindows >= 2 || ece > 0.15)

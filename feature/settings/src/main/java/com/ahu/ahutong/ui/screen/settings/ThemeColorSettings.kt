@@ -115,7 +115,8 @@ fun ThemeColorSettings(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                        .padding(16.dp),
+                        // 与下方「自定义颜色」卡片（20dp）及设置行文字左缘对齐
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     if (appUiTheme == AppUiTheme.MIUIX) {

@@ -33,10 +33,11 @@ internal class ElectricityAlertChecker(
         for (room in configuration.rooms) {
             if (!profileIsCurrent(profile)) return@withLock emptyList()
             val saved = marker.rooms[room.key]
+            // 无记录、算法或阈值变化、下次检查日缺失/无法解析/已到期，都需要重新检查。
+            val nextCheckDay = saved?.nextCheckDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             val due = saved == null || saved.algorithmVersion != ElectricityUsagePredictor.ALGORITHM_VERSION ||
                 saved.thresholdDays != room.thresholdDays ||
-                saved.nextCheckDay?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                    ?.let { !today.isBefore(it) } != false
+                nextCheckDay == null || !today.isBefore(nextCheckDay)
             if (!due || saved?.lastAttemptDay == today.toString()) continue
 
             // Persist before sending either request. Killing the app or a network error cannot

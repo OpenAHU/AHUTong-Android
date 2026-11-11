@@ -595,7 +595,7 @@ internal fun Home(
             ) {
                 // Spacer 必须一起进动画，否则卡片滑进来了、间距却是瞬间跳的
                 Column {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     // 课程条（滚轮三区）替代原纵向列表——全主题生效
                     CourseStrip(
                         todayCourses = homeCourses.strip,
@@ -604,9 +604,11 @@ internal fun Home(
                         isTomorrow = homeCourses.isTomorrow,
                         holiday = holidays[if (homeCourses.isTomorrow) today.plusDays(1) else today]
                     )
+                    // 课程条与下方校园卡之间的间距随课程条一起出现
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             HomeWidgetSlotLayout(
                 balance = discoveryViewModel.balance,
                 transitionBalance = discoveryViewModel.transitionBalance,
