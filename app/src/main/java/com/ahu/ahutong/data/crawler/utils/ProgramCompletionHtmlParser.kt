@@ -13,7 +13,7 @@ import com.google.gson.JsonSyntaxException
  * 解析链（调研报告 §1.3，实测可行）：
  * 1. 多正则变体定位 `var model =`（教务前端改版时容忍空格/声明差异，竞品 AHU Plus 同思路）；
  * 2. 从其后第一个 `{` 起做括号配对扫描（跳过字符串与转义），比正则耐字段变化；
- * 3. JS 字面量 → JSON 规整（单引号串转双引号、串内 `"` 转义、`\'` 还原、裸 `undefined` → null）；
+ * 3. JS 字面量 → JSON 规整（引号与转义序列、裸 `undefined` → null）；
  * 4. Gson 反序列化后映射为领域模型 [ProgramCompletion]。
  *
  * 纯函数，不碰网络与登录态。任何解析失败抛 [ParseException]（带 detail），
@@ -86,8 +86,8 @@ object ProgramCompletionHtmlParser {
 
     /**
      * JS 单引号对象字面量 → JSON。
-     * - 单引号串 → 双引号串：串内未转义的 `"` 补 `\`，`\'` 还原为 `'`，其余转义原样保留；
-     * - 双引号串原样通过；
+     * - 单引号串 → 双引号串：转义串内的双引号，还原转义的单引号；
+     * - 字符串内的 JS 十六进制转义 `\xHH` 转为 JSON 的 `\u00HH`；
      * - 串外裸标识符 `undefined` → `null`。
      */
     internal fun jsLiteralToJson(src: String): String {
@@ -95,37 +95,25 @@ object ProgramCompletionHtmlParser {
         var i = 0
         while (i < src.length) {
             when (val c = src[i]) {
-                '"' -> {
-                    // 双引号串原样复制（含其转义序列）
-                    out.append(c)
-                    i++
-                    while (i < src.length) {
-                        val d = src[i]
-                        out.append(d)
-                        i++
-                        if (d == '\\' && i < src.length) {
-                            out.append(src[i])
-                            i++
-                        } else if (d == '"') break
-                    }
-                }
-                '\'' -> {
+                '"', '\'' -> {
                     out.append('"')
                     i++
                     while (i < src.length) {
-                        val d = src[i]
-                        i++
+                        val d = src[i++]
                         when {
+                            d == c -> break
                             d == '\\' && i < src.length -> {
-                                val e = src[i]
-                                i++
-                                // \' 在 JSON 串里不合法，还原为裸 '；\" 已是 JSON 合法转义；其余原样
-                                if (e == '\'') out.append('\'') else {
-                                    out.append('\\')
-                                    out.append(e)
+                                val escaped = src[i++]
+                                when {
+                                    escaped == 'x' && i + 1 < src.length &&
+                                        src[i] in HEX_DIGITS && src[i + 1] in HEX_DIGITS -> {
+                                        out.append("\\u00").append(src, i, i + 2)
+                                        i += 2
+                                    }
+                                    c == '\'' && escaped == '\'' -> out.append('\'')
+                                    else -> out.append('\\').append(escaped)
                                 }
                             }
-                            d == '\'' -> break
                             d == '"' -> out.append("\\\"")
                             else -> out.append(d)
                         }
@@ -149,4 +137,6 @@ object ProgramCompletionHtmlParser {
         }
         return out.toString()
     }
+
+    private const val HEX_DIGITS = "0123456789abcdefABCDEF"
 }
