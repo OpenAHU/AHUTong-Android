@@ -654,7 +654,7 @@ private fun BlockMath(tex: String) {
     }
     val width = with(density) { drawable.intrinsicWidth.toDp() }
     val height = with(density) { drawable.intrinsicHeight.toDp() }
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    Box(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
