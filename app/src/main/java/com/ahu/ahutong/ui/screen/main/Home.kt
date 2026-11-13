@@ -510,7 +510,7 @@ internal fun Home(
                     } else {
                         Toast.makeText(
                             context,
-                            "已为您跳转AI设置，您可以在此配置模型或者关闭该功能",
+                            "尚未配置模型，已为您跳转AI设置，您可以在此配置模型或者关闭该功能",
                             Toast.LENGTH_LONG,
                         ).show()
                         AssistantGlowState.visible = false
