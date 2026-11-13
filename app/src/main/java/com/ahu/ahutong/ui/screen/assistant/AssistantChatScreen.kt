@@ -651,8 +651,18 @@ private fun AssistantTurnBubble(
 private fun IntegrityNotice(text: String, scopeLimit: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val lightSurface = colors.surface.luminance() > 0.5f
-    val accent = if (lightSurface) Color(0xFF9A5A00) else Color(0xFFF0B45A)
-    val container = if (lightSurface) Color(0x1AC2410C) else Color(0x26F59E0B)
+    val accent = when {
+        scopeLimit && lightSurface -> Color(0xFF2E7D32)
+        scopeLimit -> Color(0xFF81C784)
+        lightSurface -> Color(0xFF9A5A00)
+        else -> Color(0xFFF0B45A)
+    }
+    val container = when {
+        scopeLimit && lightSurface -> Color(0x1A2E7D32)
+        scopeLimit -> Color(0x2681C784)
+        lightSurface -> Color(0x1AC2410C)
+        else -> Color(0x26F59E0B)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
