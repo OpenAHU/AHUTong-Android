@@ -18,7 +18,10 @@ object AssistantPreferences {
     private const val KEY_AI_PRIVACY_SUMMARY_SEEN = "ai_privacy_summary_seen"
 
     private val prefs by lazy {
-        AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { values ->
+            // 旧版本的人格偏好已不再使用。
+            values.edit().remove("personality").apply()
+        }
     }
 
     fun searchEnabled(): Boolean = runCatching {
