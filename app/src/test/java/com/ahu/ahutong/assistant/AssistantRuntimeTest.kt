@@ -209,6 +209,14 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    fun standardPromptCarriesToneGuards() {
+        val prompt = AssistantRuntime.DEFAULT_SYSTEM_PROMPT
+        assertTrue(prompt.contains("不卖萌、不冷淡"))
+        assertTrue(prompt.contains("不使用 emoji"))
+        assertTrue(prompt.contains("不敢乱发挥"))
+    }
+
+    @Test
     fun writeToolWaitsForApprovalAndStopsOnReject() = runBlocking {
         val capability = FakeCapability(
             spec = spec(kind = AssistantCapabilityKind.WRITE),

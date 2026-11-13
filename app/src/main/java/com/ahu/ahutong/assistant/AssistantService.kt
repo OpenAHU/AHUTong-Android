@@ -92,19 +92,9 @@ class AssistantService(
         gate: AssistantApprovalGate,
         inputVerdict: ContentVerdict,
     ) {
-        val soul = AssistantPreferences.soulFor(AssistantPreferences.personality())
-        val prompt = buildString {
-            append(AssistantRuntime.DEFAULT_SYSTEM_PROMPT.trimEnd())
-            if (soul.isNotBlank()) {
-                appendLine()
-                appendLine()
-                append(soul)
-            }
-        }
         val runtime = AssistantRuntime(
             model = model,
             registry = registry,
-            systemPrompt = prompt,
             writeJournal = writeJournal,
         )
         var done = false

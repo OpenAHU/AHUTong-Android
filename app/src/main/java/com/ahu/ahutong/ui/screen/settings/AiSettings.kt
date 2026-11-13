@@ -46,7 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.R
 import com.ahu.ahutong.assistant.AssistantAccessState
-import com.ahu.ahutong.assistant.AssistantPersonality
 import com.ahu.ahutong.assistant.AssistantPreferences
 import com.ahu.ahutong.assistant.model.AssistantMessage
 import com.ahu.ahutong.assistant.model.AssistantModelConfig
@@ -65,11 +64,9 @@ import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsBackdropContainer
-import com.ahu.ahutong.ui.components.SettingsChoice
 import com.ahu.ahutong.ui.components.SettingsConfirmationDialog
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
-import com.ahu.ahutong.ui.components.SettingsSelectRow
 import com.ahu.ahutong.ui.components.SettingsToggleRow
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import kotlinx.coroutines.Dispatchers
@@ -77,7 +74,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * AI 设置：模型库（多套 OpenAI 兼容配置）+ 服务开关 + 性格 + 联网搜索。
+ * AI 设置：模型库（多套 OpenAI 兼容配置）+ 服务开关 + 联网搜索。
  * 首条添加的模型默认使用；在输入框里切换是全局的。
  */
 @Composable
@@ -96,7 +93,6 @@ fun AiSettings(
     var showClear by remember { mutableStateOf(false) }
     var showPrivacySummary by remember { mutableStateOf(false) }
 
-    var personality by remember { mutableStateOf(AssistantPreferences.personality()) }
     var searchEnabled by remember { mutableStateOf(AssistantPreferences.searchEnabled()) }
     var serviceEnabled by remember { mutableStateOf(AssistantPreferences.serviceEnabled()) }
 
@@ -241,25 +237,6 @@ fun AiSettings(
                         },
                     )
                 }
-            }
-
-            SettingsSection(
-                title = "助手性格",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop,
-            ) {
-                SettingsSelectRow(
-                    title = "性格",
-                    selected = personality,
-                    choices = AssistantPersonality.entries.map {
-                        SettingsChoice(it, it.label)
-                    },
-                    showDivider = false,
-                    onSelected = {
-                        personality = it
-                        AssistantPreferences.setPersonality(it)
-                    },
-                )
             }
 
             if (snapshot.profiles.isNotEmpty()) {
