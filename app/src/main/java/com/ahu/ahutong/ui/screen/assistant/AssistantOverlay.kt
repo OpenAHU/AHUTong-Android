@@ -15,10 +15,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,12 +37,10 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.assistant.AssistantPreferences
@@ -117,38 +117,32 @@ fun AssistantOverlay(
                         }
                     }
                 }
-                val bobPx = with(LocalDensity.current) { (8.dp * breath).toPx() }
+                val bob = (-8).dp * breath
                 val handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
                 val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                // 预留顶部起伏空间，避免位移被父层裁掉。
+                Spacer(Modifier.height(8.dp))
                 if (showSwipeHint) {
                     Text(
                         text = "向上轻扫进入对话页",
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
-                            .padding(bottom = 6.dp)
-                            .graphicsLayer {
-                                translationY = -bobPx
-                                alpha = 0.7f + 0.3f * breath
-                            },
+                            .offset(y = bob)
+                            .padding(bottom = 6.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = hintColor,
+                        color = hintColor.copy(alpha = 0.7f + 0.3f * breath),
                     )
                 }
                 // 上滑提示条：从 AI 层上滑即可进入全屏对话页。
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
+                        .offset(y = bob)
                         .padding(bottom = 12.dp)
                         .width(96.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(2.5.dp))
                         .background(handleColor)
-                        .graphicsLayer {
-                            translationY = -bobPx
-                            scaleY = 1f + 0.9f * breath
-                            scaleX = 1f + 0.05f * breath
-                            alpha = 0.75f + 0.25f * breath
-                        }
                 )
                 AssistantInputBar(
                     value = input,
