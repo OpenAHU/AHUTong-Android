@@ -24,22 +24,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      run: ${{ steps.select.outputs.run }}
+      run: ${{ github.event_name != 'push' && 'true' || steps.select.outputs.run }}
     steps:
-      - name: Prefer the PR merge commit when a branch has an open PR
+      - name: Checkout CI selector
+        if: github.event_name == 'push'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci_select_run.py
+          sparse-checkout-cone-mode: false
+
+      - name: Select automatic build
+        if: github.event_name == 'push'
         id: select
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          run=true
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            open=$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
-              -f state=open -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" \
-              -f per_page=100 \
-              --jq 'length')
-            if [[ "$open" -gt 0 ]]; then run=false; fi
-          fi
-          echo "run=$run" >> "$GITHUB_OUTPUT"
+        run: python3 scripts/ci_select_run.py
 
   build:
     name: Build debug and unsigned release APKs
