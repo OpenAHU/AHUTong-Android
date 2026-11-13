@@ -118,38 +118,15 @@ private fun cyclicGlowColor(value: Float): Color {
     return lerp(palette[index], palette[(index + 1) % palette.size], fraction)
 }
 
-/**
- * AI 输入栏：未聚焦时是胶囊；聚焦后展开为圆角矩形，底部出现模型与思考强度。
- * 两者共用一个上拉面板，强度滑块的档位是 off/low/mid/hi。
- */
 @Composable
-fun AssistantInputBar(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onSend: () -> Unit,
+internal fun AssistantInputShell(
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    placeholder: String = "问点什么…"
+    glowAlpha: Float = 0.55f,
+    content: @Composable () -> Unit,
 ) {
-    val haptics = LocalHapticFeedback.current
-    val colors = MaterialTheme.colorScheme
     val density = LocalDensity.current
-    val canSend = enabled && value.isNotBlank()
-    val dark = colors.background.luminance() < 0.5f
-    val scope = rememberCoroutineScope()
-
-    val library by AssistantModelLibrary.state.collectAsState()
-    val active = library.active
-    var level by remember { mutableStateOf(AssistantThinkingPreferences.level()) }
-    var pickerOpen by remember { mutableStateOf(false) }
-    var keepExpanded by remember { mutableStateOf(false) }
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val focused by interactionSource.collectIsFocusedAsState()
-    val focusRequester = remember { FocusRequester() }
-    val expanded = focused || pickerOpen || keepExpanded
-
-    // 只在绘制阶段读取相位，避免整条输入栏每帧重组。
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val container = if (dark) Color(0xFF1C1C1E) else Color.White
     val phase = rememberInfiniteTransition(label = "input-glow")
         .animateFloat(
             initialValue = 0f,
@@ -159,17 +136,8 @@ fun AssistantInputBar(
             ),
             label = "input-glow-phase"
         )
-
-    val container = if (dark) Color(0xFF1C1C1E) else Color.White
-    val textColor = if (dark) Color.White else Color(0xFF111111)
-    val hintColor = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.42f)
-    val disabledBg = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.06f)
-    val disabledIcon = if (dark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.35f)
-    val glowAlpha = if (expanded) 1f else 0.55f
     val blurPx = with(density) { 6.dp.toPx() }
     val shape = RoundedCornerShape(28.dp)
-    val rowBottomPadding by animateDpAsState(if (expanded) 0.dp else 6.dp, label = "input-row-bottom")
-    val barAlpha by animateFloatAsState(if (expanded) 1f else 0f, label = "input-bar-alpha")
 
     Box(
         modifier = modifier
@@ -177,7 +145,6 @@ fun AssistantInputBar(
             .clip(shape)
             .background(container)
     ) {
-        // 外层柔光：同一渐变描边 + 模糊，和屏幕边缘光同源。
         Canvas(
             modifier = Modifier
                 .matchParentSize()
@@ -200,7 +167,6 @@ fun AssistantInputBar(
                 alpha = 0.32f * glowAlpha
             )
         }
-        // 内层细描边。
         Canvas(Modifier.matchParentSize()) {
             val stroke = with(density) { 2.dp.toPx() }
             val inset = stroke / 2f
@@ -217,6 +183,49 @@ fun AssistantInputBar(
                 alpha = 0.75f * glowAlpha
             )
         }
+        content()
+    }
+}
+
+/**
+ * AI 输入栏：未聚焦时是胶囊；聚焦后展开为圆角矩形，底部出现模型与思考强度。
+ * 两者共用一个上拉面板，强度滑块的档位是 off/low/mid/hi。
+ */
+@Composable
+fun AssistantInputBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSend: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    placeholder: String = "问点什么…"
+) {
+    val haptics = LocalHapticFeedback.current
+    val colors = MaterialTheme.colorScheme
+    val canSend = enabled && value.isNotBlank()
+    val dark = colors.background.luminance() < 0.5f
+    val scope = rememberCoroutineScope()
+
+    val library by AssistantModelLibrary.state.collectAsState()
+    val active = library.active
+    var level by remember { mutableStateOf(AssistantThinkingPreferences.level()) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    var keepExpanded by remember { mutableStateOf(false) }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val focusRequester = remember { FocusRequester() }
+    val expanded = focused || pickerOpen || keepExpanded
+
+    val textColor = if (dark) Color.White else Color(0xFF111111)
+    val hintColor = if (dark) Color.White.copy(alpha = 0.55f) else Color.Black.copy(alpha = 0.42f)
+    val disabledBg = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.06f)
+    val disabledIcon = if (dark) Color.White.copy(alpha = 0.45f) else Color.Black.copy(alpha = 0.35f)
+    val glowAlpha = if (expanded) 1f else 0.55f
+    val rowBottomPadding by animateDpAsState(if (expanded) 0.dp else 6.dp, label = "input-row-bottom")
+    val barAlpha by animateFloatAsState(if (expanded) 1f else 0f, label = "input-bar-alpha")
+
+    AssistantInputShell(modifier = modifier, glowAlpha = glowAlpha) {
         Column(Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
