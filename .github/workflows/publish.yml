@@ -224,7 +224,9 @@ jobs:
         run: |
           cli="$GITHUB_WORKSPACE/build/release-payload/sentry-cli"
           uuid=$(python3 -c 'import json; print(json.load(open("build/release-payload/sentry.json"))["uuid"])')
-          "$cli" releases new "$SENTRY_RELEASE"
+          if ! "$cli" releases info "$SENTRY_RELEASE" >/dev/null 2>&1; then
+            "$cli" releases new "$SENTRY_RELEASE"
+          fi
           "$cli" releases set-commits "$SENTRY_RELEASE" --local --ignore-missing
           "$cli" upload-proguard --uuid "$uuid" --require-one build/release-payload/mapping.txt
           python3 scripts/ci_sentry.py verify-mapping --manifest build/release-payload/sentry.json

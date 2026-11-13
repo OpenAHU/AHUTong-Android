@@ -241,6 +241,17 @@ class ReadbackTest(unittest.TestCase):
                 self.assertNotIn("fixture-token", sent.full_url)
                 self.assertEqual("Bearer fixture-token", sent.get_header("Authorization"))
 
+    def test_mapping_readback_accepts_uuid_field(self):
+        with tempfile.TemporaryDirectory() as root:
+            fixture = SentryFixture(root)
+            with fixture.patches():
+                fixture.prepared()
+                with patch.object(ci_sentry, "get_json", return_value=[
+                    {"symbolType": "proguard", "uuid": UUID}
+                ]) as request:
+                    ci_sentry.verify_mapping(argparse.Namespace(manifest=str(fixture.bundle / "sentry.json")))
+                self.assertEqual(1, request.call_count)
+
     def test_mapping_rejects_timeout_wrong_uuid_and_native_symbols(self):
         for rows in ([], [{"symbolType": "proguard", "uuid": OTHER_UUID}], [{"symbolType": "elf", "debugId": UUID}]):
             with self.subTest(rows=rows), tempfile.TemporaryDirectory() as root:

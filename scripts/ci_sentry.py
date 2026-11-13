@@ -24,7 +24,8 @@ PLUGIN_VERSION = "6.21.0"
 CLI_VERSION = "3.7.0"
 PLUGIN_SHA256 = "5f71085972987e8300531d2df92f399cc482dc1c96a9fef064672a835ab79e96"
 UUID_KEY = "io.sentry.ProguardUuids"
-MAPPING_ATTEMPTS = 5
+MAPPING_ATTEMPTS = 15
+MAPPING_RETRY_CAP_SECONDS = 10
 
 
 class ValidationError(Exception):
@@ -193,20 +194,25 @@ def verify_mapping(args):
     token, org, project = sentry_context()
     url = (f"https://sentry.io/api/0/projects/{quote(org, safe='')}/{quote(project, safe='')}/files/dsyms/?"
            + urlencode({"debug_id": mapping_uuid}))
+    last_files: list = []
     for attempt in range(MAPPING_ATTEMPTS):
         try:
             files = get_json(url, token)
             if not isinstance(files, list):
                 raise ValidationError("Unexpected Sentry debug files response")
+            last_files = files
             for item in files:
                 if not isinstance(item, dict) or item.get("symbolType") != "proguard":
                     continue
-                try:
-                    identifier = str(uuid.UUID(item.get("debugId") or item.get("uuid", "")))
-                except (ValueError, TypeError, AttributeError):
-                    continue
-                if identifier == mapping_uuid:
-                    return
+                for key in ("debugId", "uuid"):
+                    value = item.get(key)
+                    if not value:
+                        continue
+                    try:
+                        if str(uuid.UUID(str(value))) == mapping_uuid:
+                            return
+                    except (ValueError, TypeError, AttributeError):
+                        continue
         except HTTPError as error:
             if error.code not in {429, 500, 502, 503, 504}:
                 raise ValidationError(f"Sentry mapping lookup failed: HTTP {error.code}") from error
@@ -215,8 +221,15 @@ def verify_mapping(args):
         except ValueError as error:
             raise ValidationError("Invalid Sentry debug files JSON") from error
         if attempt + 1 < MAPPING_ATTEMPTS:
-            time.sleep(1)
-    raise ValidationError("Matching ProGuard mapping was not available within the retry limit")
+            time.sleep(min(2 ** attempt, MAPPING_RETRY_CAP_SECONDS))
+    proguard_count = sum(
+        1 for item in last_files
+        if isinstance(item, dict) and item.get("symbolType") == "proguard"
+    )
+    raise ValidationError(
+        "Matching ProGuard mapping was not available within the retry limit"
+        f" (last response: {len(last_files)} files, {proguard_count} proguard)"
+    )
 
 
 def record(args):
