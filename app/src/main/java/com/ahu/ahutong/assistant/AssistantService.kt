@@ -29,7 +29,11 @@ sealed interface AssistantServiceEvent {
     data class AssistantDelta(val text: String) : AssistantServiceEvent
     data class ReasoningDelta(val text: String) : AssistantServiceEvent
     data class AssistantMessage(val text: String) : AssistantServiceEvent
-    data class ContentBlocked(val text: String, val category: String) : AssistantServiceEvent
+    data class ContentBlocked(
+        val text: String,
+        val category: String,
+        val terminate: Boolean = false,
+    ) : AssistantServiceEvent
     data class ToolResult(
         val toolId: String,
         val title: String,
@@ -68,7 +72,7 @@ class AssistantService(
     ): Flow<AssistantServiceEvent> = flow {
         val input = AssistantContentGate.inspectInput(question)
         if (input is ContentVerdict.Block) {
-            emit(AssistantServiceEvent.ContentBlocked(input.message, input.category.id))
+            emit(AssistantServiceEvent.ContentBlocked(input.message, input.category.id, input.terminate))
             emit(AssistantServiceEvent.Done)
             return@flow
         }
@@ -112,7 +116,7 @@ class AssistantService(
                 is AssistantRuntimeEvent.ReasoningDelta -> emit(AssistantServiceEvent.ReasoningDelta(event.text))
                 is AssistantRuntimeEvent.AssistantMessage -> emit(AssistantServiceEvent.AssistantMessage(event.text))
                 is AssistantRuntimeEvent.ContentBlocked -> emit(
-                    AssistantServiceEvent.ContentBlocked(event.text, event.category)
+                    AssistantServiceEvent.ContentBlocked(event.text, event.category, event.terminate)
                 )
                 is AssistantRuntimeEvent.ToolResultEvent -> emit(
                     AssistantServiceEvent.ToolResult(

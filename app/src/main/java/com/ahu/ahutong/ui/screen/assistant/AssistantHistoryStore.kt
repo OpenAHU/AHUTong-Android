@@ -24,6 +24,7 @@ internal class AssistantHistoryStore {
         val currentId: String?,
         val items: List<AssistantChatItem>,
         val summaries: List<AssistantSessionSummary>,
+        val terminated: Boolean = false,
     )
 
     private val lock = Any()
@@ -43,6 +44,7 @@ internal class AssistantHistoryStore {
             currentId = current?.id,
             items = current?.items.orEmpty().toChatItems(),
             summaries = sessions.summaries(),
+            terminated = current?.terminated == true,
         )
     }
 
@@ -50,7 +52,7 @@ internal class AssistantHistoryStore {
         read().sessions.orEmpty().summaries()
     }
 
-    fun save(id: String, items: List<AssistantChatItem>) = synchronized(lock) {
+    fun save(id: String, items: List<AssistantChatItem>, terminated: Boolean = false) = synchronized(lock) {
         if (id.isBlank()) return@synchronized
         val data = read()
         val existing = data.sessions.orEmpty().firstOrNull { it.id == id }
@@ -61,6 +63,7 @@ internal class AssistantHistoryStore {
             title = titleOf(stored).ifBlank { existing?.title ?: DEFAULT_TITLE },
             updatedAt = System.currentTimeMillis(),
             items = stored,
+            terminated = terminated.takeIf { it },
         )
         val sessions = if (existing == null) {
             data.sessions.orEmpty() + session
@@ -77,6 +80,10 @@ internal class AssistantHistoryStore {
         session.items.orEmpty().toChatItems()
     }
 
+    fun isTerminated(id: String): Boolean = synchronized(lock) {
+        read().sessions.orEmpty().firstOrNull { it.id == id }?.terminated == true
+    }
+
     fun delete(id: String): Snapshot = synchronized(lock) {
         val data = read()
         val remaining = data.sessions.orEmpty().filterNot { it.id == id }
@@ -91,6 +98,7 @@ internal class AssistantHistoryStore {
             currentId = current?.id,
             items = current?.items.orEmpty().toChatItems(),
             summaries = remaining.summaries(),
+            terminated = current?.terminated == true,
         )
     }
 
@@ -207,6 +215,8 @@ internal data class AssistantHistorySession(
     val title: String? = null,
     val updatedAt: Long = 0L,
     val items: List<AssistantHistoryItem>? = emptyList(),
+    /** 因范围外内容被终止的会话：回看时只读。 */
+    val terminated: Boolean? = null,
 )
 
 internal data class AssistantHistoryItem(

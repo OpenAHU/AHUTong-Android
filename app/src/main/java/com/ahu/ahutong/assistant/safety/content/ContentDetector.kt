@@ -14,11 +14,33 @@ internal class ContentDetector(
         blockForPolitical(text, ContentStage.INPUT)?.let { return it }
 
         val reasons = mutableSetOf<ContentCategory>()
-        if (pack.jailbreak.any { it.containsMatchIn(text) }) reasons += ContentCategory.JAILBREAK
+        if (pack.jailbreak.any { it.containsMatchIn(text) }) {
+            return ContentVerdict.Block(
+                ContentCategory.JAILBREAK,
+                ContentStage.INPUT,
+                ContentCopy.TERMINATED,
+                terminate = true,
+            )
+        }
+        if (pack.promptExtractionHard.any { it.containsMatchIn(text) }) {
+            return ContentVerdict.Block(
+                ContentCategory.JAILBREAK,
+                ContentStage.INPUT,
+                ContentCopy.TERMINATED,
+                terminate = true,
+            )
+        }
         if (pack.encoding.any { it.containsMatchIn(text) }) reasons += ContentCategory.JAILBREAK
         if (reasons.isNotEmpty()) return ContentVerdict.Harden(reasons)
         if (pack.promptExtraction.any { it.containsMatchIn(text) }) return ContentVerdict.MuteReasoning
         return ContentVerdict.Pass
+    }
+
+    /** 模型自己拒绝时的文本兜底；只认短回答，避免误伤正常的“无法提供实时数据”。 */
+    fun looksLikeRefusal(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty() || trimmed.length > REFUSAL_MAX_CHARS) return false
+        return REFUSAL_PATTERNS.any { it.containsMatchIn(trimmed) }
     }
 
     fun inspectOutput(raw: String): ContentVerdict {
@@ -54,8 +76,12 @@ internal class ContentDetector(
         for (sentence in sentences(text)) {
             for (rule in pack.illegal) {
                 if (containsComposition(sentence, rule, exemptTargets = true)) {
-                    val message = if (stage == ContentStage.INPUT) ContentCopy.ILLEGAL_INPUT else ContentCopy.ILLEGAL_OUTPUT
-                    return ContentVerdict.Block(ContentCategory.ILLEGAL, stage, message)
+                    return ContentVerdict.Block(
+                        ContentCategory.ILLEGAL,
+                        stage,
+                        ContentCopy.TERMINATED,
+                        terminate = true,
+                    )
                 }
             }
         }
@@ -71,8 +97,12 @@ internal class ContentDetector(
             }
             val phrased = pack.politicalPhrases.any { it.containsMatchIn(sentence) }
             if (composed || phrased) {
-                val message = if (stage == ContentStage.INPUT) ContentCopy.POLITICAL_INPUT else ContentCopy.POLITICAL_OUTPUT
-                return ContentVerdict.Block(ContentCategory.POLITICAL, stage, message)
+                return ContentVerdict.Block(
+                    ContentCategory.POLITICAL,
+                    stage,
+                    ContentCopy.TERMINATED,
+                    terminate = true,
+                )
             }
         }
         return null
@@ -125,7 +155,15 @@ internal class ContentDetector(
         text.split(SENTENCE_SEPARATOR).map(String::trim).filter(String::isNotEmpty)
 
     private companion object {
+        const val REFUSAL_MAX_CHARS = 300
         val SENTENCE_SEPARATOR = Regex("[。！？!?；;\\n]+")
         val CARE_CONTEXT = listOf("干预", "预防", "识别", "帮助", "救助", "保护", "热线", "求助")
+        val REFUSAL_PATTERNS = listOf(
+            Regex("这类(内容|话题|问题).{0,12}(无法提供|不能提供|不(会|做|展开|讨论)|不表态)"),
+            Regex("(无法|不能)提供(这类|该|相关)(内容|话题|问题)"),
+            Regex("不在(我|本助手)?(能|可以)?(回答|服务|处理)?的?范围"),
+            Regex("我(不|不会)(对|就)?(这类|该|相关)?话题?(做|展开)?(讨论|表态)"),
+            Regex("我没有站哪一方"),
+        )
     }
 }

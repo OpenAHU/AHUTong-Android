@@ -135,6 +135,7 @@ import com.ahu.ahutong.assistant.AssistantService
 import com.ahu.ahutong.assistant.AssistantServiceEvent
 import com.ahu.ahutong.assistant.AssistantTrust
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
+import com.ahu.ahutong.assistant.safety.content.ContentCopy
 import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.glow.AssistantGlowState
@@ -332,7 +333,7 @@ fun AssistantChatScreen(
                                     showActions = showActions,
                                     notice = notice,
                                     actionsText = actionsTextOf(display.items),
-                                    regenerateEnabled = !running,
+                                    regenerateEnabled = !running && !AssistantChatState.terminated,
                                     onRegenerate = {
                                         display.userItem?.let { AssistantChatState.regenerate(it.id) }
                                     },
@@ -344,6 +345,11 @@ fun AssistantChatScreen(
                                 onReject = AssistantChatState::reject,
                             )
                             is ChatDisplay.Error -> ErrorCard(display.item.text)
+                        }
+                    }
+                    if (AssistantChatState.terminated) {
+                        item(key = "termination_notice") {
+                            IntegrityNotice(ContentCopy.RULE_VIOLATION_NOTICE)
                         }
                     }
                     if (status != null) {
@@ -419,17 +425,24 @@ fun AssistantChatScreen(
                         .fillMaxWidth()
                         .onSizeChanged { bottomBarHeightPx = it.height }
                 ) {
-                    AssistantInputBar(
-                        value = input,
-                        onValueChange = { input = it },
-                        onSend = {
-                            val question = input
-                            input = ""
-                            if (question.isNotBlank()) AssistantChatState.send(question)
-                        },
-                        enabled = !running,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
+                    if (AssistantChatState.terminated) {
+                        TerminatedComposer(
+                            onNewChat = { AssistantChatState.startNewSession() },
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    } else {
+                        AssistantInputBar(
+                            value = input,
+                            onValueChange = { input = it },
+                            onSend = {
+                                val question = input
+                                input = ""
+                                if (question.isNotBlank()) AssistantChatState.send(question)
+                            },
+                            enabled = !running,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                     Spacer(
                         Modifier
                             .fillMaxWidth()
@@ -659,6 +672,34 @@ private fun IntegrityNotice(text: String) {
             style = MaterialTheme.typography.bodySmall,
             color = accent,
         )
+    }
+}
+
+@Composable
+private fun TerminatedComposer(
+    onNewChat: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = colors.primary,
+        contentColor = colors.onPrimary,
+        onClick = onNewChat,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "新开对话",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
@@ -1567,6 +1608,7 @@ private suspend fun runStream(
                     }
                     AssistantChatState.discardReasoningOfCurrentRound()
                     AssistantChatState.appendMessage(event.text)
+                    if (event.terminate) AssistantChatState.terminateConversation()
                     AssistantChatState.updateStatus(null)
                 }
                 is AssistantServiceEvent.ToolResult -> {

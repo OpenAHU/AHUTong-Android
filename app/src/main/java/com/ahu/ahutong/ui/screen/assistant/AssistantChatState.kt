@@ -66,6 +66,10 @@ object AssistantChatState {
     var running by mutableStateOf(false)
         private set
 
+    /** 本次会话已被终止：输入禁用，后续只能新开对话。 */
+    var terminated by mutableStateOf(false)
+        private set
+
     var historyVisible by mutableStateOf(false)
         private set
 
@@ -107,10 +111,11 @@ object AssistantChatState {
     private fun beginNewSession() {
         currentSessionId = UUID.randomUUID().toString()
         _items.clear()
+        terminated = false
     }
 
     fun send(question: String) {
-        if (running) return
+        if (running || terminated) return
         ensureHistoryLoaded()
         pendingHistory = buildHistory()
         _items += AssistantChatItem.User(newId(), question)
@@ -150,6 +155,7 @@ object AssistantChatState {
         currentSessionId = sessionId
         _items.clear()
         _items += items
+        terminated = runCatching { historyStore.isTerminated(sessionId) }.getOrDefault(false)
         historyVisible = false
         visible = true
         refreshSessions()
@@ -163,6 +169,7 @@ object AssistantChatState {
             currentSessionId = snapshot?.currentId ?: UUID.randomUUID().toString()
             _items.clear()
             if (snapshot != null) _items += snapshot.items
+            terminated = snapshot?.terminated == true
         } else {
             runCatching { historyStore.delete(sessionId) }
         }
@@ -171,8 +178,13 @@ object AssistantChatState {
 
     fun persist() {
         val id = currentSessionId ?: return
-        runCatching { historyStore.save(id, _items.toList()) }
+        runCatching { historyStore.save(id, _items.toList(), terminated) }
         refreshSessions()
+    }
+
+    fun terminateConversation() {
+        terminated = true
+        persist()
     }
 
     private fun ensureHistoryLoaded() {
@@ -181,6 +193,7 @@ object AssistantChatState {
         val snapshot = runCatching { historyStore.load() }.getOrNull()
         currentSessionId = snapshot?.currentId ?: UUID.randomUUID().toString()
         sessions = snapshot?.summaries.orEmpty()
+        terminated = snapshot?.terminated == true
         _items.clear()
         if (snapshot != null) _items += snapshot.items
     }
@@ -191,7 +204,7 @@ object AssistantChatState {
 
     /** 重新回答某一轮：丢弃该用户消息之后的全部内容，再按同一问题重跑。 */
     fun regenerate(userItemId: String) {
-        if (running || pendingQuestion != null) return
+        if (running || pendingQuestion != null || terminated) return
         ensureHistoryLoaded()
         val index = _items.indexOfFirst { it.id == userItemId }
         if (index < 0) return

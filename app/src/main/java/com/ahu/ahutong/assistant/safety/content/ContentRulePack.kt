@@ -20,6 +20,7 @@ internal data class ContentRulePack(
     val jailbreak: List<Regex>,
     val encoding: List<Regex>,
     val promptExtraction: List<Regex>,
+    val promptExtractionHard: List<Regex>,
     val selfHarm: List<Regex>,
     val selfHarmOutput: List<Regex>,
     val exemptions: Set<String>,
@@ -121,6 +122,12 @@ internal data class ContentRulePack(
                 Regex("\\bprompt\\b", RegexOption.IGNORE_CASE),
                 Regex("(系统|内部|开发者|你的|隐藏)\\s*(设定|指令|规则)"),
                 Regex("(输出|复述|展示|泄露|告诉我|发给我).{0,8}(提示词|规则|指令|设定|系统消息)"),
+            ),
+            promptExtractionHard = listOf(
+                Regex("(系统|预|预设|前置|初始|隐藏|开发者|内部)\\s*(提示词|提示|设定|指令|规则)"),
+                Regex("(输出|复述|展示|泄露|告诉我|发给我).{0,8}(提示词|规则|指令|设定|系统消息)"),
+                Regex("(提示词|系统提示|系统消息|规则|指令|设定).{0,8}(发给我|发我|给我|输出|复述|展示|泄露)"),
+                Regex("(你的|隐藏的|内部的).{0,4}(规则|设定|指令)"),
             ),
             selfHarm = listOf(
                 Regex("(我|自己).{0,8}(想|要|打算|准备).{0,6}(死|自杀|轻生|结束生命|自残)"),

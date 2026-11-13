@@ -8,4 +8,6 @@ internal object AssistantContentGate {
     fun inspectInput(text: String): ContentVerdict = detector.inspectInput(text)
 
     fun inspectOutput(text: String): ContentVerdict = detector.inspectOutput(text)
+
+    fun looksLikeRefusal(text: String): Boolean = detector.looksLikeRefusal(text)
 }

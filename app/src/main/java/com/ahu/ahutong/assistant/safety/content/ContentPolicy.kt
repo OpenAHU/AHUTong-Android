@@ -6,6 +6,7 @@ enum class ContentCategory(val id: String) {
     SELF_HARM("self_harm"),
     JAILBREAK("jailbreak"),
     VENDOR("vendor"),
+    SCOPE("scope"),
 }
 
 enum class ContentStage {
@@ -21,6 +22,7 @@ sealed interface ContentVerdict {
         val category: ContentCategory,
         val stage: ContentStage,
         val message: String,
+        val terminate: Boolean = false,
     ) : ContentVerdict
 
     /** 不拦截，只提高本轮门槛；P0 先记录，流式策略在 P1 使用。 */
@@ -32,20 +34,12 @@ sealed interface ContentVerdict {
 
 internal object ContentCopy {
 
-    const val REDIRECT: String = "你好，我们换个话题聊聊吧。"
+    const val TERMINATED: String = "这类内容我无法提供。请尝试新开对话继续聊天吧。"
 
-    const val ILLEGAL_INPUT: String = REDIRECT
-
-    const val ILLEGAL_OUTPUT: String = REDIRECT
-
-    const val POLITICAL_INPUT: String = REDIRECT
-
-    const val POLITICAL_OUTPUT: String = REDIRECT
+    const val RULE_VIOLATION_NOTICE: String = "该对话内容违反了我们的使用规则，请尝试新建对话继续。"
 
     const val SELF_HARM_INPUT: String =
         "听起来你现在可能很难受。可以先联系学校心理中心，或拨打全国心理援助热线 12356；如果有立即危险，请拨打 120。"
 
     const val SELF_HARM_OUTPUT: String = SELF_HARM_INPUT
-
-    const val MODEL_REJECTED: String = REDIRECT
 }
