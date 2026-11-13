@@ -10,6 +10,8 @@
 
 同仓库分支已有 PR 时，自动流程优先检查 PR merge commit，避免 push/PR 重复运行。新提交取消该分支旧的自动检查/构建；发布流程跨两个渠道串行，不取消正在发布的版本。工具链和缓存配置集中在 `.github/actions/setup-android/action.yml`，第三方 Actions 固定提交 SHA。PR 不读取发布 Secrets。外部 fork PR 缓存只读；同仓库 PR 可保存其隔离的缓存，便于后续提交复用编译结果。Gradle 启用 build cache；单测与 Release lint 按顺序执行，先取得测试结论，再进行 Release 分析。
 
+`develop` 的 push 由 `scripts/ci_select_run.py` 与 `master` 当前提交比较。SHA 相同时，`develop` 的两个 workflow 只执行选择步骤，实际检查和 APK 构建由 `master` 的流程负责。若 SHA 不同或无法读取 `master`，按原有 PR 规则决定是否执行 `develop` 的 push CI。PR、手动运行和发布复用仍执行各自的检查。
+
 自动构建的两个产物分别是 `AHUTong-ci-debug-apk` 和 `AHUTong-ci-unsigned-release-with-mapping`。后者未签名，用于验证，不能作为正式更新安装。自动流程不会上传 Sentry mapping。
 
 ## 发布输入和版本规则
