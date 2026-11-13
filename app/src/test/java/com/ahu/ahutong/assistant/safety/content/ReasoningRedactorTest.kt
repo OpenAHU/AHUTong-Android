@@ -48,7 +48,7 @@ class ReasoningRedactorTest {
         val redactor = ReasoningRedactor(actualFilter) { out.append(it) }
         redactor.accept("用户的问题是校园生活。\n")
         redactor.accept("尤其不得输出任何暗示分裂、否定主权、污名化民族或宗教的表述。\n")
-        redactor.accept("拿不准是否越界时，按越界处理，选择不输出；不要试探性地说一半。\n")
+        redactor.accept("拿不准是否属于核心问题时，按第 20(b) 条处理，不要自行发挥。\n")
         redactor.accept("我需要回到课表话题。\n")
         redactor.finish()
         assertEquals("用户的问题是校园生活。\n（⋯）我需要回到课表话题。\n", out.toString())
