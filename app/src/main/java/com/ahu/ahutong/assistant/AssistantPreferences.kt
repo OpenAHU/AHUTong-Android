@@ -16,6 +16,7 @@ object AssistantPreferences {
     private const val KEY_SEARCH = "search_enabled"
     private const val KEY_SERVICE_ENABLED = "service_enabled"
     private const val KEY_AI_PRIVACY_SUMMARY_SEEN = "ai_privacy_summary_seen"
+    private const val KEY_SWIPE_HINT_SEEN = "assistant_swipe_hint_seen"
 
     private val prefs by lazy {
         AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { values ->
@@ -42,6 +43,14 @@ object AssistantPreferences {
 
     fun markAiPrivacySummarySeen() {
         runCatching { prefs.edit().putBoolean(KEY_AI_PRIVACY_SUMMARY_SEEN, true).apply() }
+    }
+
+    fun swipeHintSeen(): Boolean = runCatching {
+        prefs.getBoolean(KEY_SWIPE_HINT_SEEN, false)
+    }.getOrDefault(false)
+
+    fun markSwipeHintSeen() {
+        runCatching { prefs.edit().putBoolean(KEY_SWIPE_HINT_SEEN, true).apply() }
     }
 
     fun setSearchEnabled(enabled: Boolean) {

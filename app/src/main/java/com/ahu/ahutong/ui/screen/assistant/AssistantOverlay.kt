@@ -23,7 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.assistant.AssistantPreferences
 import com.ahu.ahutong.ui.glow.AssistantGlowState
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 
@@ -52,10 +55,20 @@ fun AssistantOverlay(
     onOpenRoute: (String) -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
+    var showSwipeHint by remember { mutableStateOf(false) }
     // 等彩色光带扩散到底部，再把输入栏送上来。
     val visible = AssistantGlowState.visible &&
         AssistantGlowState.revealed &&
         !AssistantChatState.visible
+
+    LaunchedEffect(visible) {
+        if (visible && !AssistantPreferences.swipeHintSeen()) {
+            showSwipeHint = true
+            AssistantPreferences.markSwipeHintSeen()
+        } else if (!visible) {
+            showSwipeHint = false
+        }
+    }
 
     // AI 层本身也消费返回键：先退出光带层，而不是把整个 App 退掉。
     BackHandler(enabled = AssistantGlowState.visible && !AssistantChatState.visible) {
@@ -93,6 +106,17 @@ fun AssistantOverlay(
                         indication = null
                     ) {},
             ) {
+                val handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
+                if (showSwipeHint) {
+                    Text(
+                        text = "向上轻扫进入对话页",
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(bottom = 6.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = handleColor,
+                    )
+                }
                 // 上滑提示条：从 AI 层上滑即可进入全屏对话页。
                 Box(
                     modifier = Modifier
@@ -101,7 +125,7 @@ fun AssistantOverlay(
                         .width(72.dp)
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f))
+                        .background(handleColor)
                 )
                 AssistantInputBar(
                     value = input,
