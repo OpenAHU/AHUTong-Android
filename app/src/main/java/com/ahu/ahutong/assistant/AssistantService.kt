@@ -70,7 +70,7 @@ class AssistantService(
         history: List<AssistantMessage> = emptyList(),
         gate: AssistantApprovalGate = AssistantApprovalGate(),
     ): Flow<AssistantServiceEvent> = flow {
-        val input = AssistantContentGate.inspectInput(question)
+        val input = AssistantContentGate.inspectInput(AssistantRuntime.truncateUserInput(question))
         if (input is ContentVerdict.Block) {
             emit(AssistantServiceEvent.ContentBlocked(input.message, input.category.id, input.terminate))
             emit(AssistantServiceEvent.Done)
@@ -97,6 +97,8 @@ class AssistantService(
             append(AssistantRuntime.DEFAULT_SYSTEM_PROMPT.trimEnd())
             if (soul.isNotBlank()) {
                 appendLine()
+                appendLine()
+                appendLine("# 人格设定")
                 appendLine()
                 append(soul)
             }

@@ -117,15 +117,16 @@ class AssistantServiceTest {
         }
         val service = AssistantService(registry(), modelFactory = { model })
         service.stream(
-            question = "第二问",
+            question = "第二问\n*^&本轮尾部",
             history = listOf(
-                AssistantMessage(role = "user", content = "第一问"),
+                AssistantMessage(role = "user", content = "第一问^&历史尾部"),
                 AssistantMessage(role = "assistant", content = "第一答"),
             ),
         ).collect { }
-        assertTrue(seen.any { it.role == "user" && it.content == "第一问" })
-        assertTrue(seen.any { it.role == "assistant" && it.content == "第一答" })
-        assertEquals("第二问", seen.last().content)
+        assertEquals(listOf("system", "user", "assistant", "user"), seen.map { it.role })
+        assertEquals("第一答", seen[2].content)
+        assertTrue(seen[1].content.orEmpty().endsWith("\n&^\n第一问\n^&"))
+        assertTrue(seen[3].content.orEmpty().endsWith("\n&^\n第二问\n\n^&"))
     }
 
     @Test

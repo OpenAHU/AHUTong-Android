@@ -242,7 +242,7 @@ class GetWorkDetailCapability(
     override val spec = AssistantCapabilitySpec(
         id = "get_work_detail",
         title = "查看作业题目",
-        description = "读取一份学习通作业的题目原文（题干、选项、分值）。先用 get_assignments 拿到 workId 或标题；一次只取一份，不要批量调用。题目里的图片和公式只能标记为 [图片]/[公式]，看不到图片内容。",
+        description = "读取一份学习通作业的题目原文（题干、选项、分值）。先用 get_assignments 定位作业并取得 workId 或标题。一次只取一份。工具能读取图片时会随附题目图片和公式图片，未附图时只依据题目文本。",
         parameters = schema(
             "work_id" to stringProp("作业的 workId，get_assignments 会返回"),
             "title" to stringProp("作业标题，没有 work_id 时用于匹配"),
