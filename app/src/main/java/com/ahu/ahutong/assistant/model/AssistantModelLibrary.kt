@@ -76,12 +76,13 @@ object AssistantModelLibrary {
 
     fun add(profile: AssistantModelProfile, apiKey: String): String? {
         if (profile.baseUrl.isBlank() || profile.model.isBlank() || apiKey.isBlank()) return null
+        // 先确定 id 再写 Key：首次新增时 profile.id 为空，否则 Key 会落到空 id 上。
+        val id = profile.id.ifBlank { UUID.randomUUID().toString() }
         val persistedKey = runCatching {
-            SecureBoxStore.put(BOX, KEY_PREFIX + profile.id, apiKey)
+            SecureBoxStore.put(BOX, KEY_PREFIX + id, apiKey)
         }
         if (persistedKey.isFailure) return null
         val now = System.currentTimeMillis()
-        val id = profile.id.ifBlank { UUID.randomUUID().toString() }
         val entry = profile.copy(
             id = id,
             name = profile.name.ifBlank { profile.model },
