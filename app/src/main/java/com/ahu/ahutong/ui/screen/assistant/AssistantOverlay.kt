@@ -125,7 +125,10 @@ fun AssistantOverlay(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
                             .padding(bottom = 6.dp)
-                            .graphicsLayer { alpha = 0.78f + 0.22f * breath },
+                            .graphicsLayer {
+                                translationY = -1.dp.toPx() * breath
+                                alpha = 0.78f + 0.22f * breath
+                            },
                         style = MaterialTheme.typography.labelSmall,
                         color = hintColor,
                     )
@@ -140,7 +143,9 @@ fun AssistantOverlay(
                         .clip(RoundedCornerShape(2.dp))
                         .background(handleColor)
                         .graphicsLayer {
-                            scaleX = 1f + 0.03f * breath
+                            translationY = -3.dp.toPx() * breath
+                            scaleY = 1f + 0.35f * breath
+                            scaleX = 1f + 0.02f * breath
                             alpha = 0.85f + 0.15f * breath
                         }
                 )
