@@ -1,6 +1,11 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -106,15 +112,27 @@ fun AssistantOverlay(
                         indication = null
                     ) {},
             ) {
+                val breath by rememberInfiniteTransition(label = "assistant-handle-breath")
+                    .animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 1900, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "assistant-handle-breath-value",
+                    )
                 val handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
+                val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 if (showSwipeHint) {
                     Text(
                         text = "向上轻扫进入对话页",
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
-                            .padding(bottom = 6.dp),
+                            .padding(bottom = 6.dp)
+                            .graphicsLayer { alpha = 0.78f + 0.22f * breath },
                         style = MaterialTheme.typography.labelSmall,
-                        color = handleColor,
+                        color = hintColor,
                     )
                 }
                 // 上滑提示条：从 AI 层上滑即可进入全屏对话页。
@@ -122,10 +140,14 @@ fun AssistantOverlay(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
                         .padding(bottom = 12.dp)
-                        .width(72.dp)
+                        .width(96.dp)
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(handleColor)
+                        .graphicsLayer {
+                            scaleX = 1f + 0.03f * breath
+                            alpha = 0.85f + 0.15f * breath
+                        }
                 )
                 AssistantInputBar(
                     value = input,
