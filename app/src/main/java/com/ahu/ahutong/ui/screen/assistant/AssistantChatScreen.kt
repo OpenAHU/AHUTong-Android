@@ -350,7 +350,7 @@ fun AssistantChatScreen(
                     }
                     if (AssistantChatState.terminated) {
                         item(key = "termination_notice") {
-                            IntegrityNotice(ContentCopy.RULE_VIOLATION_NOTICE)
+                            IntegrityNotice(ContentCopy.RULE_VIOLATION_NOTICE, scopeLimit = true)
                         }
                     }
                     if (status != null) {
@@ -646,9 +646,9 @@ private fun AssistantTurnBubble(
     }
 }
 
-/** 学术诚信提示条；只在对应轮次出现，不做全局常驻。 */
+/** 提示条；学术诚信使用警示图标，范围外终止使用能力范围图标。 */
 @Composable
-private fun IntegrityNotice(text: String) {
+private fun IntegrityNotice(text: String, scopeLimit: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val lightSurface = colors.surface.luminance() > 0.5f
     val accent = if (lightSurface) Color(0xFF9A5A00) else Color(0xFFF0B45A)
@@ -661,12 +661,21 @@ private fun IntegrityNotice(text: String) {
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Icons.Outlined.WarningAmber,
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(15.dp),
-        )
+        if (scopeLimit) {
+            Icon(
+                painter = painterResource(R.drawable.ic_assistant_scope_limit),
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(15.dp),
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Outlined.WarningAmber,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(15.dp),
+            )
+        }
         Spacer(Modifier.width(8.dp))
         Text(
             text = text,
