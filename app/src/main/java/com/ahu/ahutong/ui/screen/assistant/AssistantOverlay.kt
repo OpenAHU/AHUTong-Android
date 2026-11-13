@@ -112,7 +112,7 @@ fun AssistantOverlay(
                         initialValue = 0f,
                         targetValue = 1f,
                         animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 1900, easing = FastOutSlowInEasing),
+                            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
                             repeatMode = RepeatMode.Reverse,
                         ),
                         label = "assistant-handle-breath-value",
@@ -126,8 +126,8 @@ fun AssistantOverlay(
                             .align(Alignment.CenterHorizontally)
                             .padding(bottom = 6.dp)
                             .graphicsLayer {
-                                translationY = -1.dp.toPx() * breath
-                                alpha = 0.78f + 0.22f * breath
+                                translationY = -8.dp.toPx() * breath
+                                alpha = 0.7f + 0.3f * breath
                             },
                         style = MaterialTheme.typography.labelSmall,
                         color = hintColor,
@@ -143,10 +143,10 @@ fun AssistantOverlay(
                         .clip(RoundedCornerShape(2.dp))
                         .background(handleColor)
                         .graphicsLayer {
-                            translationY = -3.dp.toPx() * breath
-                            scaleY = 1f + 0.35f * breath
-                            scaleX = 1f + 0.02f * breath
-                            alpha = 0.85f + 0.15f * breath
+                            translationY = -8.dp.toPx() * breath
+                            scaleY = 1f + 0.9f * breath
+                            scaleX = 1f + 0.05f * breath
+                            alpha = 0.75f + 0.25f * breath
                         }
                 )
                 AssistantInputBar(
