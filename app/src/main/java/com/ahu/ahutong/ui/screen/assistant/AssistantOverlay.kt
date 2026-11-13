@@ -30,7 +30,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,20 +60,12 @@ fun AssistantOverlay(
     onOpenRoute: (String) -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
-    var showSwipeHint by remember { mutableStateOf(false) }
+    var swipeHintSeen by remember { mutableStateOf(AssistantPreferences.swipeHintSeen()) }
     // 等彩色光带扩散到底部，再把输入栏送上来。
     val visible = AssistantGlowState.visible &&
         AssistantGlowState.revealed &&
         !AssistantChatState.visible
-
-    LaunchedEffect(visible) {
-        if (visible && !AssistantPreferences.swipeHintSeen()) {
-            showSwipeHint = true
-            AssistantPreferences.markSwipeHintSeen()
-        } else if (!visible) {
-            showSwipeHint = false
-        }
-    }
+    val showSwipeHint = visible && !swipeHintSeen
 
     // AI 层本身也消费返回键：先退出光带层，而不是把整个 App 退掉。
     BackHandler(enabled = AssistantGlowState.visible && !AssistantChatState.visible) {
@@ -89,7 +80,11 @@ fun AssistantOverlay(
         Box(
             Modifier
                 .fillMaxSize()
-                .swipeUpToOpen { AssistantChatState.openBlank() }
+                .swipeUpToOpen {
+                    swipeHintSeen = true
+                    AssistantPreferences.markSwipeHintSeen()
+                    AssistantChatState.openBlank()
+                }
         ) {
             // 脆弱层：点输入栏以外的任何地方就退出 AI 界面（不加遮罩）。
             Box(
