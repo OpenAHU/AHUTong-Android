@@ -117,32 +117,38 @@ fun AssistantOverlay(
                         }
                     }
                 }
-                val bob = (-8).dp * breath
+                val barBob = (-3).dp * breath
+                val textBob = (-1).dp * breath
+                val barHeight = (4 + 1.4f * breath).dp
                 val handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
                 val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 // 预留顶部起伏空间，避免位移被父层裁掉。
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 if (showSwipeHint) {
                     Text(
                         text = "向上轻扫进入对话页",
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
-                            .offset(y = bob)
+                            .offset(y = textBob)
                             .padding(bottom = 6.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = hintColor.copy(alpha = 0.7f + 0.3f * breath),
+                        color = hintColor.copy(alpha = hintColor.alpha * (0.78f + 0.22f * breath)),
                     )
                 }
                 // 上滑提示条：从 AI 层上滑即可进入全屏对话页。
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
-                        .offset(y = bob)
+                        .offset(y = barBob)
                         .padding(bottom = 12.dp)
                         .width(96.dp)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(2.5.dp))
-                        .background(handleColor)
+                        .height(barHeight)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            handleColor.copy(
+                                alpha = handleColor.alpha * (0.85f + 0.15f * breath)
+                            )
+                        )
                 )
                 AssistantInputBar(
                     value = input,
