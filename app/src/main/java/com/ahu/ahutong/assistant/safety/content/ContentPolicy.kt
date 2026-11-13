@@ -36,7 +36,7 @@ internal object ContentCopy {
 
     const val TERMINATED: String = "这类内容我无法提供。请尝试新开对话继续聊天吧。"
 
-    const val RULE_VIOLATION_NOTICE: String = "该对话内容违反了我们的使用规则，请尝试新建对话继续。"
+    const val RULE_VIOLATION_NOTICE: String = "这不在安大通的能力范围内，新建对话以继续使用"
 
     const val SELF_HARM_INPUT: String =
         "听起来你现在可能很难受。可以先联系学校心理中心，或拨打全国心理援助热线 12356；如果有立即危险，请拨打 120。"
