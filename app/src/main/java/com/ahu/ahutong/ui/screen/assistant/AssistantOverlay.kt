@@ -1,11 +1,6 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,10 +25,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +40,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.assistant.AssistantPreferences
@@ -107,16 +106,18 @@ fun AssistantOverlay(
                         indication = null
                     ) {},
             ) {
-                val breath by rememberInfiniteTransition(label = "assistant-handle-breath")
-                    .animateFloat(
-                        initialValue = 0f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse,
-                        ),
-                        label = "assistant-handle-breath-value",
-                    )
+                var breath by remember { mutableFloatStateOf(0f) }
+                LaunchedEffect(Unit) {
+                    val start = withFrameNanos { it }
+                    while (true) {
+                        withFrameNanos { now ->
+                            val phase = ((now - start) / 1_000_000_000f % 2.8f) / 1.4f
+                            val raw = if (phase <= 1f) phase else 2f - phase
+                            breath = raw * raw * (3f - 2f * raw)
+                        }
+                    }
+                }
+                val bobPx = with(LocalDensity.current) { (8.dp * breath).toPx() }
                 val handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
                 val hintColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 if (showSwipeHint) {
@@ -126,7 +127,7 @@ fun AssistantOverlay(
                             .align(Alignment.CenterHorizontally)
                             .padding(bottom = 6.dp)
                             .graphicsLayer {
-                                translationY = -8.dp.toPx() * breath
+                                translationY = -bobPx
                                 alpha = 0.7f + 0.3f * breath
                             },
                         style = MaterialTheme.typography.labelSmall,
@@ -143,7 +144,7 @@ fun AssistantOverlay(
                         .clip(RoundedCornerShape(2.dp))
                         .background(handleColor)
                         .graphicsLayer {
-                            translationY = -8.dp.toPx() * breath
+                            translationY = -bobPx
                             scaleY = 1f + 0.9f * breath
                             scaleX = 1f + 0.05f * breath
                             alpha = 0.75f + 0.25f * breath
