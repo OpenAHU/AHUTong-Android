@@ -7,13 +7,12 @@ import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.core.common.CourseReminderControl
 import com.ahu.ahutong.data.debug.DebugClock
-import com.ahu.ahutong.core.common.onFailure
-import com.ahu.ahutong.core.common.onSuccess
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.model.ScheduleConfigBean
 import com.ahu.ahutong.data.schedule.ConfigSource
 import com.ahu.ahutong.data.schedule.CustomCourse
 import com.ahu.ahutong.data.schedule.CustomCourseStore
+import com.ahu.ahutong.data.schedule.ScheduleCalendarSync
 import com.ahu.ahutong.data.schedule.ScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.schedule.ScheduleHoliday
@@ -37,6 +36,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -57,10 +57,12 @@ class ScheduleViewModel @Inject constructor(
     private val reminders: CourseReminderControl,
     private val holidaySource: ScheduleHolidaySource,
     private val customCourseStore: CustomCourseStore,
-    @ScheduleDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    @ScheduleDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val calendarSync: ScheduleCalendarSync? = null
 ) : ViewModel() {
 
     val schedule = MutableLiveData<AhuResult<List<Course>>>()
+    val calendarSyncFailures = calendarSync?.failures ?: emptyFlow()
     /** 自定义课程列表：课表配色需要它拿到用户选的颜色。 */
     val customCourses = MutableLiveData<List<CustomCourse>>(emptyList())
     val nextSchedule = MutableLiveData<AhuResult<List<Course>>>()
@@ -122,6 +124,11 @@ class ScheduleViewModel @Inject constructor(
     private var scheduleRequestRevision = 0L
     private var configRequestRevision = 0L
     private var configLoadJob: Job? = null
+    private var scheduleConfigSource: ConfigSource? = null
+    private var scheduleConfigSemester: String? = null
+    val confirmedSemesterStart: LocalDate?
+        get() = scheduleConfig.value?.startTime?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+            ?.takeIf { scheduleConfigSource != null && scheduleConfigSource != ConfigSource.DEFAULT }
     private var cacheLoadJob: Job? = null
     private var cacheLoadIdentity: Triple<Boolean, String?, Boolean>? = null
     val scheduleHolidays = MutableLiveData<Map<LocalDate, ScheduleHoliday>>(emptyMap())
@@ -196,6 +203,15 @@ class ScheduleViewModel @Inject constructor(
         refreshLatestSchedule()
     }
 
+    fun cleanPreviousCalendarWeek() {
+        val sync = calendarSync?.takeIf { it.isEnabled() } ?: return
+        val owner = previewIdentity()
+        if (!owner.first || owner.second == null || owner.third) return
+        viewModelScope.launchSafe {
+            sync.cleanPreviousWeek { owner == previewIdentity() }
+        }
+    }
+
     fun onHomeEntered() {
         if (!session.isLoggedIn() && !scheduleSource.usesMockData()) return
         showCachedSchedule()
@@ -242,7 +258,8 @@ class ScheduleViewModel @Inject constructor(
                 if (revision != backgroundRefreshRevision || scheduleRevision != scheduleRequestRevision ||
                     identity != previewIdentity()
                 ) return@launchSafe
-                refresh.onSuccess { result ->
+                val result = refresh.valueOrNull()
+                if (result != null) {
                     scheduleFetchedAt.value = result.fetchedAt
                     val displayedSchedule = schedule.value?.valueOrNull()
                     if (displayedSchedule == null ||
@@ -253,9 +270,32 @@ class ScheduleViewModel @Inject constructor(
                     if (result.changed || displayedSchedule == null) {
                         reminders.reschedule()
                     }
-                }.onFailure { error ->
+                    val sync = calendarSync?.takeIf {
+                        it.isEnabled() && identity.first && identity.second != null && !identity.third
+                    }
+                    if (sync != null) {
+                        configLoadJob?.join()
+                        if (identity != previewIdentity() || scheduleRevision != scheduleRequestRevision) return@launchSafe
+                        if (scheduleConfigSource == null || scheduleConfigSource == ConfigSource.DEFAULT ||
+                            scheduleConfigSemester != weekConfig.cachedSemesterKey()?.raw
+                        ) {
+                            loadConfig()
+                            configLoadJob?.join()
+                        }
+                        val start = confirmedSemesterStart
+                        if (start != null &&
+                            scheduleConfigSemester == weekConfig.cachedSemesterKey()?.raw &&
+                            scheduleRevision == scheduleRequestRevision
+                        ) {
+                            sync.syncCourses(result.schedule, start) {
+                                identity == previewIdentity() && scheduleRevision == scheduleRequestRevision
+                            }
+                        }
+                    }
+                } else {
+                    val error = refresh.errorOrNull()
                     scheduleRefreshError.value = error
-                    if (schedule.value?.valueOrNull() == null) {
+                    if (error != null && schedule.value?.valueOrNull() == null) {
                         schedule.value = AhuResult.Failure(error)
                     }
                 }
@@ -345,6 +385,8 @@ class ScheduleViewModel @Inject constructor(
         configLoadJob = viewModelScope.launchSafe {
             val initialConfig = weekConfig.resolveLocalFirst()
             if (revision != configRequestRevision || identity != previewIdentity()) return@launchSafe
+            scheduleConfigSource = initialConfig.source
+            scheduleConfigSemester = weekConfig.cachedSemesterKey()?.raw
             scheduleConfig.value = initialConfig.config
             reminders.reschedule()
 
@@ -352,6 +394,8 @@ class ScheduleViewModel @Inject constructor(
                 val remoteConfig = runCatching { weekConfig.syncRemote() }.getOrNull()
                 if (revision != configRequestRevision || identity != previewIdentity()) return@launchSafe
                 remoteConfig?.config?.let {
+                    scheduleConfigSource = remoteConfig.source
+                    scheduleConfigSemester = weekConfig.cachedSemesterKey()?.raw
                     scheduleConfig.value = it
                     reminders.reschedule()
                 }
@@ -381,6 +425,8 @@ class ScheduleViewModel @Inject constructor(
             weekDay = weekConfig.currentWeekDay()
         }
         scheduleConfig.value = configBean
+        scheduleConfigSource = ConfigSource.LOCAL
+        scheduleConfigSemester = semesterKey
 
         val startTime = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(instance.time)
         val observedOn = DebugClock.nowLocalDate().toString()
@@ -423,6 +469,8 @@ class ScheduleViewModel @Inject constructor(
         schedule.value = AhuResult.Success(emptyList())
         customCourses.value = emptyList()
         scheduleConfig.value = null
+        scheduleConfigSource = null
+        scheduleConfigSemester = null
         scheduleFetchedAt.value = null
         scheduleRefreshError.value = null
         isScheduleRefreshing.value = false

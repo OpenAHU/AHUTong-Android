@@ -1,5 +1,7 @@
 package com.ahu.ahutong.di
 
+import android.content.Context
+import com.ahu.ahutong.data.schedule.ScheduleCalendarSync
 import com.ahu.ahutong.data.schedule.ScheduleSource
 import com.ahu.ahutong.data.schedule.ScheduleReadModel
 import com.ahu.ahutong.data.schedule.ScheduleHolidaySource
@@ -17,6 +19,7 @@ import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -63,6 +66,11 @@ abstract class ScheduleWiringModule {
     abstract fun bindWidgetScheduleReadModel(implementation: AppWidgetScheduleReadModel): WidgetScheduleReadModel
 
     companion object {
+        @Provides
+        @Singleton
+        fun provideScheduleCalendarSync(@ApplicationContext context: Context): ScheduleCalendarSync =
+            ScheduleCalendarSync(context)
+
         @Provides
         @ScheduleDispatcher
         fun provideScheduleDispatcher(): CoroutineDispatcher = Dispatchers.IO

@@ -81,7 +81,7 @@ import com.kyant.monet.withNight
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import com.ahu.ahutong.data.model.ExamTimeRange
 import com.ahu.ahutong.personalization.context.ExamDistanceBucket
 import top.yukonga.miuix.kmp.icon.icons.useful.Refresh
 import com.ahu.ahutong.core.designsystem.R as DesignSystemR
@@ -379,32 +379,14 @@ private fun ExamCard(
 }
 
 
-fun calcTime(time: String): Int {
+fun calcTime(time: String?): Int {
     val now = LocalDateTime.now()
-    val parts = time.split(" ")
-    if (parts.size != 2 || !parts[1].contains("~")) return 3
-    val datePart = parts[0]
-    val timeParts = parts[1].split("~")
-    if (timeParts.size != 2) return 3
-    val startDateTimeStr = "$datePart ${timeParts[0]}"
-    val endDateTimeStr = "$datePart ${timeParts[1]}"
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-    val startTime = LocalDateTime.parse(startDateTimeStr, formatter)
-    val endTime = LocalDateTime.parse(endDateTimeStr, formatter)
+    val range = ExamTimeRange.parse(time) ?: return 3
     return when {
-        now.isBefore(startTime) -> 1
-        now.isAfter(endTime) -> 2
+        now.isBefore(range.start) -> 1
+        now.isAfter(range.end) -> 2
         else -> 0
     }
 }
 
-private fun parseStartTime(time: String): LocalDateTime? {
-    val parts = time.split(" ")
-    if (parts.size != 2 || !parts[1].contains("~")) return null
-    val datePart = parts[0]
-    val timeParts = parts[1].split("~")
-    if (timeParts.size != 2) return null
-    val startDateTimeStr = "$datePart ${timeParts[0]}"
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-    return runCatching { LocalDateTime.parse(startDateTimeStr, formatter) }.getOrNull()
-}
+private fun parseStartTime(time: String?): LocalDateTime? = ExamTimeRange.parse(time)?.start

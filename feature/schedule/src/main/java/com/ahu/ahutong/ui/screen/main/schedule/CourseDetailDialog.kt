@@ -28,6 +28,8 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.schedule.isCustomCourse
 import com.ahu.ahutong.ui.components.AppDialogSurface
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
 
 @Composable
 fun CourseDetailDialog(
@@ -35,6 +37,17 @@ fun CourseDetailDialog(
     onDismiss: () -> Unit,
     onEditCustom: (() -> Unit)? = null
 ) {
+    if (course.isExam()) {
+        AppDialog(
+            title = course.name,
+            onDismiss = onDismiss,
+            actions = listOf(AppDialogAction("关闭", onClick = onDismiss))
+        ) {
+            listOfNotNull(course.extra, course.clockRange, course.location)
+                .filter { it.isNotBlank() }.forEach { Text(it) }
+        }
+        return
+    }
     val isCustom = course.isCustomCourse()
     val firstSection = course.startTime
     val lastSection = firstSection + course.length - 1

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.data.grade.ExamSource
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.data.model.Exam
+import com.ahu.ahutong.data.schedule.ScheduleCalendarSync
 import com.ahu.ahutong.ext.launchSafe
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,7 +62,8 @@ class ExamViewModel @Inject constructor(
     private val exams: ExamSource,
     private val session: SessionIdentity,
     private val behavior: BehaviorRecorder,
-    @GradeDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    @GradeDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val calendarSync: ScheduleCalendarSync? = null
 ) : ViewModel() {
     val studentProfiles = MutableStateFlow<List<GradeStudentProfile>>(emptyList())
     val data = MutableLiveData<AhuResult<List<Exam>>>()
@@ -85,6 +87,11 @@ class ExamViewModel @Inject constructor(
 
     // 防止重复刷新
     private var refreshJob: Job? = null
+    private var snapshotOwner: Triple<String?, Boolean, Boolean>? = null
+
+    private fun currentOwner() = Triple(session.currentUser()?.xh, session.isLoggedIn(), exams.usesMockData())
+
+    fun belongsToCurrentSession(): Boolean = snapshotOwner == currentOwner()
 
     fun loadExam(isRefresh: Boolean = false) {
         // 正在刷新中则忽略新请求。必须先于取消判断：否则会取消在途刷新后直接返回，
@@ -100,7 +107,13 @@ class ExamViewModel @Inject constructor(
         refreshJob = viewModelScope.launchSafe {
             val user = withContext(ioDispatcher) { session.currentUser() }
             val owner = Triple(user?.xh, session.isLoggedIn(), exams.usesMockData())
-            fun ownerIsCurrent() = owner == Triple(session.currentUser()?.xh, session.isLoggedIn(), exams.usesMockData())
+            fun ownerIsCurrent() = owner == currentOwner()
+            if (!ownerIsCurrent()) return@launchSafe
+            if (snapshotOwner != owner) {
+                snapshotOwner = owner
+                data.value = null
+                studentProfiles.value = emptyList()
+            }
             if (user == null && !exams.usesMockData()) {
                 data.value = AhuResult.Failure(AhuError.Unauthorized("账户未登录"))
                 errorMessage.value = "账户未登录"
@@ -116,13 +129,14 @@ class ExamViewModel @Inject constructor(
             if (!ownerIsCurrent()) return@launchSafe
             studentProfiles.value = cachedProfiles
             val hasCachedSnapshot = cachedAt > 0L
-            if (!isRefresh && (cached.isNotEmpty() || hasCachedSnapshot)) {
+            if ((!isRefresh || data.value == null) && (cached.isNotEmpty() || hasCachedSnapshot)) {
                 data.value = AhuResult.Success(cached)
             }
 
             if (!isRefresh && !ExamRefreshPolicy.shouldRefresh(cachedAt)) {
                 isLoading.value = false
                 errorMessage.value = null
+                if (user != null && owner.second && !owner.third) calendarSync?.syncExams(cached, ::ownerIsCurrent)
                 return@launchSafe
             }
 
@@ -173,6 +187,7 @@ class ExamViewModel @Inject constructor(
                         }
                     }
                 }
+                if (user != null && owner.second && !owner.third) calendarSync?.syncExams(newExams, ::ownerIsCurrent)
             } else {
                 // 网络失败：手动刷新时立即恢复 IDLE
                 if (isRefresh) {

@@ -2,14 +2,19 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ahu.ahutong.data.schedule.ScheduleCalendarSync
 import com.ahu.ahutong.data.crawler.gmis.PostgraduateScheduleRepository
 import com.ahu.ahutong.data.schedule.gmis.GmisTerm
+import com.ahu.ahutong.data.schedule.gmis.GmisTimetable
+import com.ahu.ahutong.data.schedule.gmis.GmisTimetableAdapter
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.schedule.PostgraduateScheduleController
 import com.ahu.ahutong.data.schedule.PostgraduateScheduleState
 import com.ahu.ahutong.data.schedule.PostgraduateTeachingWeek
 import java.time.LocalDate
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,28 +24,45 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class PostgraduateScheduleViewModel : ViewModel(), PostgraduateScheduleController {
+@HiltViewModel
+class PostgraduateScheduleViewModel @Inject constructor(
+    private val calendarSync: ScheduleCalendarSync
+) : ViewModel(), PostgraduateScheduleController {
     private val mutableState = MutableStateFlow(PostgraduateScheduleState())
     override val state = mutableState.asStateFlow()
     private var accountId: String? = null
     private val repository = PostgraduateScheduleRepository.instance
     private var job: Job? = null
+    private var refreshedTimetable: GmisTimetable? = null
 
-    override fun open(account: String?) {
-        if (accountId == account && (mutableState.value.timetable != null || mutableState.value.loading)) return
-        job?.cancel()
-        accountId = account
-        mutableState.value = PostgraduateScheduleState()
-        // current() already prefers the account cache; its decoding belongs on IO too.
-        if (account != null) load(force = false)
+    override fun onScheduleEntered(account: String?) {
+        if (accountId != account) {
+            job?.cancel()
+            accountId = account
+            refreshedTimetable = null
+            mutableState.value = PostgraduateScheduleState()
+        }
+        if (account == null) return
+        val syncEnabled = calendarSync.isEnabled() && !AHUCache.getMockData()
+        if (syncEnabled) {
+            if (job?.isActive != true) load(force = true, currentTerm = true)
+        } else if (mutableState.value.timetable == null && !mutableState.value.loading) {
+            // current() already prefers the account cache; its decoding belongs on IO too.
+            load(force = false)
+        }
+    }
+
+    override fun cleanPreviousCalendarWeek() {
+        val account = accountId ?: return
+        viewModelScope.launch { calendarSync.cleanPreviousWeek { isCalendarOwner(account) } }
     }
 
     override fun refresh() = load(force = true)
 
-    private fun load(force: Boolean) {
+    private fun load(force: Boolean, currentTerm: Boolean = false) {
         val account = accountId ?: return
         job?.cancel()
-        val previousCode = mutableState.value.selectedTerm?.code
+        val previousCode = mutableState.value.selectedTerm?.code?.takeUnless { currentTerm }
         mutableState.value = mutableState.value.copy(loading = true, error = null)
         job = viewModelScope.launch {
             try {
@@ -53,6 +75,10 @@ class PostgraduateScheduleViewModel : ViewModel(), PostgraduateScheduleControlle
                     firstWeekMonday = storedFirstMonday(snapshot.selectedTerm),
                     today = DebugClock.nowLocalDate()
                 )
+                if (force && (snapshot.selectedTerm.selected || snapshot.terms.none { it.selected })) {
+                    refreshedTimetable = snapshot.timetable
+                    syncCourses(account)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -67,6 +93,7 @@ class PostgraduateScheduleViewModel : ViewModel(), PostgraduateScheduleControlle
         if (mutableState.value.selectedTerm?.code == term.code && mutableState.value.timetable != null) return
         val account = accountId ?: return
         job?.cancel()
+        refreshedTimetable = null
         mutableState.value = mutableState.value.copy(
             selectedTerm = term, timetable = null, loading = true, error = null,
             firstWeekMonday = storedFirstMonday(term), today = DebugClock.nowLocalDate()
@@ -102,8 +129,25 @@ class PostgraduateScheduleViewModel : ViewModel(), PostgraduateScheduleControlle
             ?: return false
         AHUCache.savePostgraduateWeekStart(term.code, firstMonday.toString())
         mutableState.value = mutableState.value.copy(firstWeekMonday = firstMonday, today = today)
+        val account = accountId ?: return true
+        viewModelScope.launch { syncCourses(account) }
         return true
     }
+
+    private suspend fun syncCourses(account: String) {
+        if (!calendarSync.isEnabled() || !isCalendarOwner(account)) return
+        val state = mutableState.value
+        val table = refreshedTimetable?.takeIf { it === state.timetable } ?: return
+        val firstMonday = state.firstWeekMonday ?: return
+        val courses = GmisTimetableAdapter.adapt(table).courses
+        calendarSync.syncCourses(courses, firstMonday) {
+            isCalendarOwner(account) && mutableState.value.timetable === table &&
+                mutableState.value.firstWeekMonday == firstMonday
+        }
+    }
+
+    private fun isCalendarOwner(account: String): Boolean =
+        AHUCache.getCurrentUser()?.xh == account && !AHUCache.getMockData()
 
     private fun storedFirstMonday(term: GmisTerm): LocalDate? =
         PostgraduateTeachingWeek.parseStored(AHUCache.getPostgraduateWeekStart(term.code))

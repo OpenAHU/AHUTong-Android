@@ -51,6 +51,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.runtime.livedata.observeAsState
+import com.ahu.ahutong.ui.state.ExamViewModel
 import androidx.navigation.NavType
 import androidx.navigation.NavHostController
 import androidx.navigation.navArgument
@@ -197,7 +199,7 @@ fun Main(
     session: AhuSession,
     mainViewModel: MainViewModel = hiltViewModel(),
     loginViewModel: LoginViewModel = viewModel(),
-    postgraduateScheduleViewModel: com.ahu.ahutong.ui.state.PostgraduateScheduleViewModel = viewModel(),
+    postgraduateScheduleViewModel: com.ahu.ahutong.ui.state.PostgraduateScheduleViewModel = hiltViewModel(),
     discoveryViewModel: DiscoveryViewModel = viewModel(),
     scheduleViewModel: ScheduleViewModel = hiltViewModel(),
     aboutViewModel: AboutViewModel = viewModel(),
@@ -207,6 +209,7 @@ fun Main(
     paymentQrCommands: PaymentQrOpenCommandStore
 ) {
     val electricityAlertViewModel: ElectricityAlertViewModel = hiltViewModel()
+    val examViewModel: ExamViewModel = hiltViewModel()
     val electricityRechargeSelection by electricityAlertViewModel.rechargeSelection.collectAsState()
     val academicType by com.ahu.ahutong.data.dao.AHUCache.academicTypeUpdates().collectAsState()
     val undergraduateEnabled = academicType != com.ahu.ahutong.data.model.AcademicAccountType.POSTGRADUATE ||
@@ -539,11 +542,19 @@ fun Main(
                 PrimaryNavigationDestination(entry) {
                     // 无条件渲染，理由同 settings 路由：redirect 的二次 pop 会与
                     // 返回转场竞态；非 RADIANT 主题下独立展示课表页可正常用系统返回
+                    val exams by examViewModel.data.observeAsState()
                     Schedule(
                         scheduleViewModel = scheduleViewModel,
                         behaviorRecorder = behaviorRecorder,
                         graduateController = if (undergraduateEnabled) null else postgraduateScheduleViewModel,
                         graduateAccountId = if (undergraduateEnabled) null else SessionStore.currentUser()?.xh,
+                        isActive = currentBackStackEntry?.id == entry.id,
+                        exams = if (undergraduateEnabled && examViewModel.belongsToCurrentSession()) {
+                            exams?.valueOrNull().orEmpty()
+                        } else {
+                            emptyList()
+                        },
+                        onLoadExams = examViewModel::loadExam,
                         onOpenCustomCourses = { navController.navigate("custom_courses") },
                         onEditCustomCourse = { id ->
                             navController.navigate("custom_courses?editId=${Uri.encode(id)}")
@@ -605,7 +616,7 @@ fun Main(
                 AttendanceScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("exam") {
-                Exam(onBack = { navController.popBackStack() })
+                Exam(examViewModel = examViewModel, onBack = { navController.popBackStack() })
             }
             animatedComposable("evaluation") {
                 Evaluation(onBack = { navController.popBackStack() })

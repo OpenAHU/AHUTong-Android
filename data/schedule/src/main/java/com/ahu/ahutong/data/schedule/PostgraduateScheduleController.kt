@@ -17,7 +17,8 @@ data class PostgraduateScheduleState(
 
 interface PostgraduateScheduleController {
     val state: StateFlow<PostgraduateScheduleState>
-    fun open(account: String?)
+    fun onScheduleEntered(account: String?)
+    fun cleanPreviousCalendarWeek()
     fun refresh()
     fun selectTerm(term: GmisTerm)
     fun refreshCalendar()

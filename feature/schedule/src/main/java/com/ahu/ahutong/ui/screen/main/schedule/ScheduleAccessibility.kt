@@ -37,7 +37,9 @@ fun courseScheduleDescription(
     if (includeWeeks) add(course.weekRangeText())
     val firstSection = course.startTime
     val lastSection = firstSection + course.length - 1
-    add(if (firstSection == lastSection) "第${firstSection}节" else "第${firstSection}至${lastSection}节")
+    if (!course.isExam()) {
+        add(if (firstSection == lastSection) "第${firstSection}节" else "第${firstSection}至${lastSection}节")
+    }
     val start = timetable[firstSection]?.substringBefore('-')?.takeIf(String::isNotBlank)
     val end = timetable[lastSection]?.substringAfter('-')?.takeIf(String::isNotBlank)
     val clock = course.clockRange?.takeIf(String::isNotBlank)?.replace('-', '至')

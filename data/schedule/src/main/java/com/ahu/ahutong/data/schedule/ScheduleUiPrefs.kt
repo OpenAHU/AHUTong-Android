@@ -16,6 +16,7 @@ object ScheduleUiPrefs {
     private const val KEY_SHOW_SATURDAY = "show_saturday"
     private const val KEY_SHOW_SUNDAY = "show_sunday"
     private const val KEY_HIDE_WEEKENDS = "hide_weekends"
+    private const val KEY_CALENDAR_SYNC = "calendar_sync"
 
     private val prefs
         get() = AppEnvironmentHolder.context().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -25,6 +26,12 @@ object ScheduleUiPrefs {
 
     fun setNowTimelineVisible(visible: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_NOW_TIMELINE, visible).apply()
+    }
+
+    fun isCalendarSyncEnabled(): Boolean = prefs.getBoolean(KEY_CALENDAR_SYNC, false)
+
+    fun setCalendarSyncEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_CALENDAR_SYNC, enabled).apply()
     }
 
     /**

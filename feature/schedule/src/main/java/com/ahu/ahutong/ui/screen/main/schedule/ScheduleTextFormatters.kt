@@ -8,10 +8,10 @@ private val weekdayLabels = listOf("周一", "周二", "周三", "周四", "周�
 fun scheduleWeekdayLabel(weekday: Int): String =
     weekdayLabels.getOrNull(weekday - 1) ?: "周?"
 
-/** 卡片底部胶囊：自定义课程优先显示自定义钟点，其余仍是地点。 */
+/** 卡片底部胶囊优先显示考试和自定义课程的钟点。 */
 fun Course.cardCapsuleText(isCurrentWeek: Boolean): String {
     // clockRange 是 Java getter，无法智能转换；读一次存为局部变量。
-    val customClock = clockRange?.takeIf { isCustomCourse() && it.isNotBlank() }
+    val customClock = clockRange?.takeIf { (isCustomCourse() || isExam()) && it.isNotBlank() }
     return when {
         !isCurrentWeek -> "非本周"
         customClock != null -> customClock.replace("-", "–")
