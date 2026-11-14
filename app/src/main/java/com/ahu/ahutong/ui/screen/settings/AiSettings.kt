@@ -53,6 +53,7 @@ import com.ahu.ahutong.assistant.model.AssistantModelLibrary
 import com.ahu.ahutong.assistant.model.AssistantModelProfile
 import com.ahu.ahutong.assistant.model.AssistantThinkingLevel
 import com.ahu.ahutong.assistant.model.OpenAiCompatibleChatModel
+import com.ahu.ahutong.assistant.model.OfficialTrial
 import com.ahu.ahutong.assistant.model.guessSupportsThinking
 import com.ahu.ahutong.assistant.model.guessSupportsVision
 import com.ahu.ahutong.assistant.model.providerLabelFor
@@ -81,11 +82,14 @@ import kotlinx.coroutines.withContext
 fun AiSettings(
     onBack: () -> Unit = {},
     onOpenPrivacyPolicy: () -> Unit = {},
+    onOpenOfficialTrial: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snapshot by AssistantModelLibrary.state.collectAsState()
     val active = snapshot.active
+    val customProfiles = snapshot.profiles.filterNot { it.id == OfficialTrial.PROFILE_ID }
+    val trialActive = active?.id == OfficialTrial.PROFILE_ID && OfficialTrial.apiKey() != null
     var editor by remember { mutableStateOf<AssistantModelProfile?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<AssistantModelProfile?>(null) }
@@ -185,21 +189,27 @@ fun AiSettings(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop,
             ) {
-                if (snapshot.profiles.isEmpty()) {
+                SettingsActionRow(
+                    title = "官方试用服务器",
+                    subtitle = if (trialActive) "正在使用 · 安大通团队提供" else "安大通团队提供，完成验证即可开启",
+                    showDivider = true,
+                    onClick = onOpenOfficialTrial,
+                )
+                if (customProfiles.isEmpty()) {
                     Text(
-                        text = "还没有配置模型。添加一套 OpenAI 兼容接口后即可使用。",
+                        text = "也可以添加自己的 OpenAI 兼容接口。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
                     )
                 } else {
-                    snapshot.profiles.forEachIndexed { index, profile ->
+                    customProfiles.forEachIndexed { index, profile ->
                         val isActive = profile.id == active?.id
                         ModelLibraryRow(
                             profile = profile,
                             isActive = isActive,
                             testing = testingId == profile.id,
-                            showDivider = index < snapshot.profiles.lastIndex,
+                            showDivider = index < customProfiles.lastIndex,
                             onActivate = {
                                 if (!isActive) AssistantModelLibrary.setActive(profile.id)
                             },
@@ -239,15 +249,15 @@ fun AiSettings(
                 }
             }
 
-            if (snapshot.profiles.isNotEmpty()) {
+            if (customProfiles.isNotEmpty()) {
                 SettingsSection(
                     title = "维护",
                     modifier = Modifier.padding(horizontal = 16.dp),
                     backdrop = backdrop,
                 ) {
                     SettingsActionRow(
-                        title = "清除全部模型",
-                        subtitle = "删除本机保存的所有 Base URL、模型名与 API Key",
+                        title = "清除自定义模型",
+                        subtitle = "删除本机保存的自定义接口地址、模型名与 API Key",
                         destructive = true,
                         showChevron = false,
                         showDivider = false,
@@ -299,14 +309,14 @@ fun AiSettings(
 
     if (showClear) {
         SettingsConfirmationDialog(
-            title = "清除全部模型？",
-            message = "清除后需要重新添加模型才能再次使用 AI 功能；对话历史不会删除。",
+            title = "清除自定义模型？",
+            message = "将删除自定义接口地址、模型名与 API Key。",
             confirmLabel = "清除",
             destructive = true,
             onConfirm = {
-                AssistantModelLibrary.clear()
+                customProfiles.forEach { AssistantModelLibrary.delete(it.id) }
                 showClear = false
-                Toast.makeText(context, "已清除全部模型", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "已清除自定义模型", Toast.LENGTH_SHORT).show()
             },
             onDismiss = { showClear = false },
         )

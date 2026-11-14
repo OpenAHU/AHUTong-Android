@@ -120,7 +120,11 @@ class AssistantRuntimeTest {
     @Test
     fun cutsAtTheFirstReservedMarkerAndPreservesOrdinarySymbols() = runBlocking {
         val model = CapturingModel(listOf(AssistantModelReply(content = "收到")))
-        val runtime = AssistantRuntime(model, AssistantCapabilityRegistry(emptyList()))
+        val runtime = AssistantRuntime(
+            model,
+            AssistantCapabilityRegistry(emptyList()),
+            now = { java.time.ZonedDateTime.parse("2026-11-15T05:03:00Z") },
+        )
         val original = "A & B，2^3，*重点*"
         runtime.run(
             listOf(AssistantMessage(role = "user", content = "旧消息")),
@@ -136,7 +140,11 @@ class AssistantRuntimeTest {
             &^
         """.trimIndent()
         assertEquals("$expectedPrefix\n旧消息\n^&", messages[1].content)
-        assertEquals("$expectedPrefix\n$original\n^&", messages.last().content)
+        assertEquals(
+            "$expectedPrefix\n$original\n^&\n当前时间：2026-11-15 13:03 星期日（Asia/Shanghai）",
+            messages.last().content,
+        )
+        assertTrue("2026-11-15" !in messages.first().content.orEmpty())
     }
 
     @Test

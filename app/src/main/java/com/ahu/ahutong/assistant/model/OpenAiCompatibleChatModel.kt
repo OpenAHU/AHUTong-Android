@@ -28,11 +28,15 @@ class OpenAiCompatibleChatModel(
         connectTimeoutSeconds = 15,
         readTimeoutSeconds = 90,
         captureDiagnostics = false,
+        followRedirects = config.baseUrl != OfficialTrial.profile.baseUrl,
     ).build(),
 ) : AssistantChatModel {
 
     override val name: String get() = config.model
     override val supportsVision: Boolean get() = config.supportsVision
+    private val officialTrial: Boolean
+        get() = config.baseUrl == OfficialTrial.profile.baseUrl && config.model == OfficialTrial.profile.model
+    private val trialOwner = if (officialTrial) OfficialTrial.currentIdentity() else null
 
     override suspend fun complete(
         messages: List<AssistantMessage>,
@@ -111,9 +115,21 @@ class OpenAiCompatibleChatModel(
         stream: Boolean,
         includeUsage: Boolean = stream,
     ): Request {
+        val officialStudent = if (officialTrial) {
+            val owner = trialOwner
+            if (owner == null || owner != OfficialTrial.currentIdentity()) {
+                throw IOException("校园账号已切换，请重新打开对话。")
+            }
+            owner.userId
+        } else null
         val payload = JsonObject().apply {
             addProperty("model", config.model)
-            add("messages", JsonArray().apply { messages.forEach { add(it.toJson()) } })
+            add("messages", JsonArray().apply {
+                messages.forEach { message ->
+                    val json = message.toJson()
+                    add(officialStudent?.let { OfficialTrial.redactStudentNumber(json, it) } ?: json)
+                }
+            })
             if (tools.isNotEmpty()) {
                 add("tools", JsonArray().apply {
                     tools.forEach { spec ->

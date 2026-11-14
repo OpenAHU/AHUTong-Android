@@ -103,6 +103,7 @@ import com.ahu.ahutong.ui.screen.settings.License
 import com.ahu.ahutong.R
 import androidx.compose.ui.res.stringResource
 import com.ahu.ahutong.ui.screen.settings.AiSettings
+import com.ahu.ahutong.ui.screen.settings.OfficialTrialScreen
 import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.settings.PreferencesSection
 import com.ahu.ahutong.ui.screen.settings.ThemeLab
@@ -875,7 +876,12 @@ fun Main(
                 AiSettings(
                     onBack = { navController.popBackStack() },
                     onOpenPrivacyPolicy = { navController.navigate("settings__ai_privacy") },
+                    onOpenOfficialTrial = { navController.navigate("settings__ai_official_trial") },
                 )
+            }
+
+            animatedComposable("settings__ai_official_trial") {
+                OfficialTrialScreen(onBack = { navController.popBackStack() })
             }
 
             animatedComposable("settings__theme_lab") {

@@ -126,7 +126,8 @@ class AssistantServiceTest {
         assertEquals(listOf("system", "user", "assistant", "user"), seen.map { it.role })
         assertEquals("第一答", seen[2].content)
         assertTrue(seen[1].content.orEmpty().endsWith("\n&^\n第一问\n^&"))
-        assertTrue(seen[3].content.orEmpty().endsWith("\n&^\n第二问\n\n^&"))
+        assertTrue(seen[3].content.orEmpty().substringBeforeLast("\n").endsWith("\n&^\n第二问\n\n^&"))
+        assertTrue(seen[3].content.orEmpty().substringAfterLast("\n").startsWith("当前时间："))
     }
 
     @Test

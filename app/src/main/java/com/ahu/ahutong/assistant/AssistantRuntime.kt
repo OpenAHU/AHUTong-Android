@@ -108,7 +108,8 @@ class AssistantRuntime(
         }
         val strictStreaming = inputVerdict is ContentVerdict.Harden
         val hideReasoning = strictStreaming || inputVerdict is ContentVerdict.MuteReasoning
-        val promptText = systemPromptWithTime()
+        val promptText = systemPrompt.trim() + "\n\n" + AHU_COMMON_SENSE.trim() + "\n\n" + CURRENT_TIME_INSTRUCTION
+        val currentTime = now().withZoneSameInstant(ZONE).format(TIME_FORMAT)
         val leakFilter = SystemPromptLeakFilter(promptText)
         val messages = buildList {
             add(AssistantMessage(role = "system", content = promptText))
@@ -123,7 +124,10 @@ class AssistantRuntime(
                     }
                 )
             }
-            add(AssistantMessage(role = "user", content = wrapUserInput(userInput)))
+            add(AssistantMessage(
+                role = "user",
+                content = wrapUserInput(userInput) + "\n当前时间：$currentTime（Asia/Shanghai）",
+            ))
         }.toMutableList()
 
         emit(AssistantRuntimeEvent.Status("正在理解你的问题…"))
@@ -457,27 +461,6 @@ class AssistantRuntime(
         )
     }
 
-    private fun systemPromptWithTime(): String {
-        val current = now()
-        return buildString {
-            append(systemPrompt.trim())
-            appendLine()
-            appendLine()
-            append(AHU_COMMON_SENSE.trim())
-            appendLine()
-            appendLine()
-            appendLine("# 当前时间")
-            appendLine()
-            append(current.format(TIME_FORMAT))
-            append("（Asia/Shanghai）。这是准确时间；回答和日程、提醒等写入必须使用它。")
-            if (current.hour < 4) {
-                append("凌晨时段用户说“今天/明天/后天/这周/下周”等相对日期时可能有歧义，先确认具体日期，不要自行换算，也不要把当前时间说成前一天。")
-            } else {
-                append("用户说“今天/明天/本周/下周”时，以这个日期为准。")
-            }
-        }
-    }
-
     private fun successPayload(outcome: AssistantOutcome.Success): JsonObject = JsonObject().apply {
         addProperty("ok", true)
         addProperty("summary", outcome.answer.summary)
@@ -539,6 +522,8 @@ class AssistantRuntime(
         private val ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
         private val TIME_FORMAT: DateTimeFormatter =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm EEEE", Locale.CHINA)
+        private const val CURRENT_TIME_INSTRUCTION =
+            "本轮用户消息结束标记 ^& 后的最后一行由应用附加，提供校园时区当前时间。回答、日程和提醒使用该时间；用户框内的时间仍按用户输入处理。"
 
         private const val DECLINE_TOOL_NAME = "decline_scope"
 

@@ -64,17 +64,29 @@ object AssistantModelLibrary {
     fun activeConfig(): AssistantModelConfig? {
         val profile = activeProfile() ?: return null
         val key = apiKey(profile.id) ?: return null
-        return profile.toConfig(key)
+        return if (profile.id == OfficialTrial.PROFILE_ID) OfficialTrial.profile.toConfig(key) else profile.toConfig(key)
     }
 
     fun apiKey(id: String): String? =
-        runCatching { SecureBoxStore.get(BOX, KEY_PREFIX + id) }
+        if (id == OfficialTrial.PROFILE_ID) OfficialTrial.apiKey() else
+            runCatching { SecureBoxStore.get(BOX, KEY_PREFIX + id) }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
 
     fun hasApiKey(id: String): Boolean = apiKey(id) != null
 
+    fun selectOfficialTrial(): Boolean {
+        if (OfficialTrial.apiKey() == null) return false
+        val current = state.value
+        val profiles = current.profiles.filterNot { it.id == OfficialTrial.PROFILE_ID } + OfficialTrial.profile
+        val next = current.copy(activeId = OfficialTrial.PROFILE_ID, profiles = profiles)
+        persist(next)
+        refreshSearchCapability(next)
+        return true
+    }
+
     fun add(profile: AssistantModelProfile, apiKey: String): String? {
+        if (profile.id == OfficialTrial.PROFILE_ID) return null
         if (profile.baseUrl.isBlank() || profile.model.isBlank() || apiKey.isBlank()) return null
         // 先确定 id 再写 Key：首次新增时 profile.id 为空，否则 Key 会落到空 id 上。
         val id = profile.id.ifBlank { UUID.randomUUID().toString() }
@@ -99,6 +111,7 @@ object AssistantModelLibrary {
     }
 
     fun update(profile: AssistantModelProfile, apiKey: String?): Boolean {
+        if (profile.id == OfficialTrial.PROFILE_ID) return false
         val current = state.value
         val index = current.profiles.indexOfFirst { it.id == profile.id }
         if (index < 0) return false
@@ -130,6 +143,7 @@ object AssistantModelLibrary {
     }
 
     fun setActive(id: String): Boolean {
+        if (id == OfficialTrial.PROFILE_ID) return selectOfficialTrial()
         val current = state.value
         if (current.profiles.none { it.id == id }) return false
         if (current.activeId == id) return true
@@ -152,7 +166,7 @@ object AssistantModelLibrary {
     /** 兼容旧调用：当前模型存在则更新，否则新增一条。 */
     fun saveActive(config: AssistantModelConfig) {
         val existing = activeProfile()
-        if (existing == null) {
+        if (existing == null || existing.id == OfficialTrial.PROFILE_ID) {
             add(
                 AssistantModelProfile(
                     name = config.model,

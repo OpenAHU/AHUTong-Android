@@ -50,6 +50,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +94,11 @@ import com.ahu.ahutong.assistant.model.AssistantModelLibrarySnapshot
 import com.ahu.ahutong.assistant.model.AssistantModelProfile
 import com.ahu.ahutong.assistant.model.AssistantThinkingLevel
 import com.ahu.ahutong.assistant.model.AssistantThinkingPreferences
+import com.ahu.ahutong.assistant.model.OfficialTrial
+import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
+import java.io.IOException
+import java.math.BigDecimal
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -198,7 +203,8 @@ fun AssistantInputBar(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    placeholder: String = "问点什么…"
+    placeholder: String = "问点什么…",
+    conversationRunning: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val colors = MaterialTheme.colorScheme
@@ -208,6 +214,27 @@ fun AssistantInputBar(
 
     val library by AssistantModelLibrary.state.collectAsState()
     val active = library.active
+    val sessionStatus by AhuSessionState.status.collectAsState()
+    val trialOwner = remember(active?.id, sessionStatus, conversationRunning) {
+        if (active?.id == OfficialTrial.PROFILE_ID) OfficialTrial.currentIdentity() else null
+    }
+    var points by remember(trialOwner) { mutableStateOf<BigDecimal?>(null) }
+    var balanceUnavailable by remember(trialOwner) { mutableStateOf(false) }
+    LaunchedEffect(trialOwner, conversationRunning) {
+        if (trialOwner == null || conversationRunning) return@LaunchedEffect
+        try {
+            points = OfficialTrial.fetchPoints(trialOwner)
+            balanceUnavailable = points == null
+        } catch (_: IOException) {
+            balanceUnavailable = true
+        }
+    }
+    val pointsLabel = when {
+        trialOwner == null -> null
+        balanceUnavailable -> "积分未同步"
+        points != null -> "${points?.stripTrailingZeros()?.toPlainString()} 积分"
+        else -> "积分同步中"
+    }
     var level by remember { mutableStateOf(AssistantThinkingPreferences.level()) }
     var pickerOpen by remember { mutableStateOf(false) }
     var keepExpanded by remember { mutableStateOf(false) }
@@ -273,6 +300,7 @@ fun AssistantInputBar(
                     }
                 )
                 if (!expanded) {
+                    pointsLabel?.let { TrialPointsLabel(it) }
                     AssistantSendButton(
                         canSend = canSend,
                         colors = colors,
@@ -304,6 +332,7 @@ fun AssistantInputBar(
                         onClick = { pickerOpen = true },
                     )
                     Spacer(Modifier.weight(1f))
+                    pointsLabel?.let { TrialPointsLabel(it) }
                     AssistantSendButton(
                         canSend = canSend,
                         colors = colors,
@@ -341,6 +370,17 @@ fun AssistantInputBar(
             },
         )
     }
+}
+
+@Composable
+private fun TrialPointsLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable

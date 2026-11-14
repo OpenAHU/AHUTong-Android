@@ -442,6 +442,7 @@ fun AssistantChatScreen(
                             },
                             enabled = !running,
                             modifier = Modifier.padding(horizontal = 16.dp),
+                            conversationRunning = running,
                         )
                     }
                     Spacer(
@@ -1715,7 +1716,7 @@ private fun formatTokenCount(tokens: Int): String {
         tokens >= 1_000_000_000 -> 1_000_000_000L
         tokens >= 1_000_000 -> 1_000_000L
         tokens > 1_000 -> 1_000L
-        else -> return "$tokens Toks"
+        else -> return "$tokens 总 Tokens"
     }
     val value = BigDecimal(tokens)
         .divide(BigDecimal(divisor), 2, RoundingMode.HALF_UP)
@@ -1726,7 +1727,7 @@ private fun formatTokenCount(tokens: Int): String {
         1_000_000L -> "m"
         else -> "b"
     }
-    return "$value$suffix Toks"
+    return "$value$suffix 总 Tokens"
 }
 
 private const val ACADEMIC_INTEGRITY_NOTICE =
