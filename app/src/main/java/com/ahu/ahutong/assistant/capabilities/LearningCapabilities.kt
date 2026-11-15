@@ -11,6 +11,8 @@ import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.assistant.AssistantTrust
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
+import com.ahu.ahutong.assistant.model.AssistantModelLibrary
+import com.ahu.ahutong.assistant.model.OfficialTrial
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingApi
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingRiskControlException
@@ -237,6 +239,10 @@ class GetWorkDetailCapability(
     private val visionEnabled: () -> Boolean = {
         AssistantModelConfigStore.load()?.supportsVision == true
     },
+    // 官方试用网关不接收图片，也不希望免费模型代解作业：取题前直接拒绝。
+    private val officialTrialActive: () -> Boolean = {
+        AssistantModelLibrary.activeProfile()?.id == OfficialTrial.PROFILE_ID
+    },
 ) : AssistantCapability {
 
     override val spec = AssistantCapabilitySpec(
@@ -254,6 +260,12 @@ class GetWorkDetailCapability(
     )
 
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
+        if (officialTrialActive()) {
+            return AssistantOutcome.Failure(
+                "trial_model_unsupported",
+                "试用模型不提供解题服务，若要使用请自行配置模型",
+            )
+        }
         val workId = arguments.stringArg("work_id")
         val title = arguments.stringArg("title")
         val course = arguments.stringArg("course")
