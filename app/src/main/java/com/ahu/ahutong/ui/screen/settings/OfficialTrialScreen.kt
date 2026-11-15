@@ -25,17 +25,12 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.MailOutline
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -372,17 +367,6 @@ private fun TrialRecoveryForm(
         Text("该账号已开通试用。验证码将发送到当前账号的安徽大学学生邮箱。")
     } else {
         Text("请打开学生邮箱查收验证码。验证码 10 分钟内有效。")
-    }
-    AppButton(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onOpenMail,
-        variant = AppButtonVariant.Secondary,
-    ) {
-        Icon(Icons.Outlined.MailOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text("查看学生邮箱")
-    }
-    if (current.session != null) {
         AppTextField(
             value = code,
             onValueChange = { code = it.filter { digit -> digit in '0'..'9' }.take(8) },
@@ -411,6 +395,15 @@ private fun TrialRecoveryForm(
             current.session == null -> "发送验证码"
             else -> "重新发送验证码"
         })
+    }
+    if (current.session != null) {
+        AppButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onOpenMail,
+            variant = AppButtonVariant.Secondary,
+        ) {
+            Text("查看学生邮箱")
+        }
     }
 }
 
@@ -598,7 +591,6 @@ private fun TrialMailDetail(detail: MailDetail, date: String, onBack: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
         Text("返回收件箱", style = MaterialTheme.typography.labelLarge)
     }
     Column(
