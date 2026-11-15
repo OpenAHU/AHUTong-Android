@@ -84,6 +84,8 @@ import com.ahu.ahutong.data.schedule.forDate
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.ScheduleConfigBean
+import com.ahu.ahutong.data.model.Exam
+import com.ahu.ahutong.data.model.ExamTimeRange
 import com.ahu.ahutong.data.mock.MockScenarioController
 import com.ahu.ahutong.personalization.runtime.BehaviorPredictionRuntime
 import com.ahu.ahutong.personalization.semantic.MutationId
@@ -96,6 +98,7 @@ import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.screen.main.home.AtAGlance
+import com.ahu.ahutong.ui.screen.main.home.HomeExam
 import com.ahu.ahutong.ui.screen.main.home.HomeDateRow
 import com.ahu.ahutong.ui.screen.main.home.HomeWeatherWidget
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetDragOverlay
@@ -165,6 +168,8 @@ internal fun Home(
     undergraduateEnabled: Boolean,
     accountId: String?,
     academicState: HomeAcademicState,
+    exams: List<Exam> = emptyList(),
+    onLoadExams: (Boolean) -> Unit = {},
     onOpenSchedule: () -> Unit = { navController.navigate("schedule") }
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -174,6 +179,19 @@ internal fun Home(
     val currentMinutes = currentTime.hour * 60 + currentTime.minute
     val currentDateText = remember(today) {
         SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(Date.from(currentTime.toInstant()))
+    }
+    val todayExams = remember(exams, today) {
+        exams.mapNotNull { exam ->
+            val time = ExamTimeRange.parse(exam.time) ?: return@mapNotNull null
+            if (time.start.toLocalDate() != today) return@mapNotNull null
+            val name = exam.course?.trim().orEmpty().ifBlank { return@mapNotNull null }
+            HomeExam(
+                name = name,
+                location = exam.location?.trim().orEmpty(),
+                startMinutes = time.start.hour * 60 + time.start.minute,
+                endMinutes = time.end.hour * 60 + time.end.minute
+            )
+        }.sortedBy { it.startMinutes }
     }
     val noticeAccountId = accountId
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
@@ -288,6 +306,9 @@ internal fun Home(
     val mockRefreshRevision by MockScenarioController.refreshRevisions().collectAsState()
     LaunchedEffect(isActive) {
         if (isActive) scheduleViewModel.onHomeEntered()
+    }
+    LaunchedEffect(isActive, undergraduateEnabled, accountId) {
+        if (isActive && undergraduateEnabled) onLoadExams(false)
     }
     // 主页排版全主题统一为 Radiant 方案（曜光居中 Hero 布局），主题只换材质皮肤
     val layoutFamily = HomeWidgetLayoutFamily.RADIANT
@@ -584,6 +605,7 @@ internal fun Home(
                     isInSemester = isInSemester,
                     emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
                     enabled = !isEditingHome,
+                    todayExams = todayExams,
                     trailingContent = trailingContent
                 )
             }

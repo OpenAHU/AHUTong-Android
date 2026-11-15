@@ -458,6 +458,7 @@ fun Main(
         ) {
             animatedComposable("home") { entry ->
                 PrimaryNavigationDestination(entry) {
+                    val exams by examViewModel.data.observeAsState()
                     Home(
                         discoveryViewModel = discoveryViewModel,
                         scheduleViewModel = scheduleViewModel,
@@ -467,6 +468,12 @@ fun Main(
                         undergraduateEnabled = undergraduateEnabled,
                         accountId = SessionStore.currentUser()?.xh,
                         academicState = homeAcademicState,
+                        exams = if (undergraduateEnabled && examViewModel.belongsToCurrentSession()) {
+                            exams?.valueOrNull().orEmpty()
+                        } else {
+                            emptyList()
+                        },
+                        onLoadExams = examViewModel::loadExam,
                         onOpenSchedule = {
                             scope.launch { selectPrimaryDestination("schedule") }
                         }
