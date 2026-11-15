@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import com.ahu.ahutong.assistant.AssistantServiceEvent
+import com.ahu.ahutong.assistant.TRIAL_MODEL_UNSUPPORTED_CODE
 import com.ahu.ahutong.assistant.safety.AssistantApprovalRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -96,6 +97,27 @@ class AssistantToolSegmentsTest {
         val notices = buildRoundNotices(listOf(user, failed))
 
         assertFalse(notices.getValue("u1").usedWorkDetail)
+    }
+
+    @Test
+    fun `trial model refusal raises the scope notice without academic flags`() {
+        val user = AssistantChatItem.User("u1", "看看作业")
+        val refused = AssistantChatItem.Tool(
+            id = "tool-1",
+            event = AssistantServiceEvent.ToolResult(
+                toolId = "get_work_detail",
+                title = "查看作业题目",
+                ok = false,
+                summary = "试用模型不提供解题服务，若要使用请自行配置模型",
+                code = TRIAL_MODEL_UNSUPPORTED_CODE,
+            ),
+        )
+
+        val notices = buildRoundNotices(listOf(user, refused))
+
+        assertTrue(notices.getValue("u1").trialModelLimited)
+        assertFalse(notices.getValue("u1").usedWorkDetail)
+        assertFalse(notices.getValue("u1").academicAnswer)
     }
 
     private fun tool(id: String) = AssistantChatItem.Tool(

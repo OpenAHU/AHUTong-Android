@@ -307,6 +307,7 @@ fun AssistantChatScreen(
                                 val notices = display.userItem?.id?.let(roundNotices::get)
                                 val notice = when {
                                     !showActions -> null
+                                    notices?.trialModelLimited == true -> TRIAL_MODEL_LIMIT_NOTICE
                                     notices?.academicAnswer == true -> AI_ANSWER_NOTICE
                                     notices?.usedWorkDetail == true -> ACADEMIC_INTEGRITY_NOTICE
                                     else -> null
@@ -333,6 +334,7 @@ fun AssistantChatScreen(
                                     showRouteLinks = roundDone,
                                     showActions = showActions,
                                     notice = notice,
+                                    noticeScopeLimit = notice == TRIAL_MODEL_LIMIT_NOTICE,
                                     actionsText = actionsTextOf(display.items),
                                     regenerateEnabled = !running && !AssistantChatState.terminated,
                                     onRegenerate = {
@@ -592,6 +594,7 @@ private fun AssistantTurnBubble(
     showRouteLinks: Boolean,
     showActions: Boolean,
     notice: String?,
+    noticeScopeLimit: Boolean = false,
     actionsText: String,
     regenerateEnabled: Boolean,
     onRegenerate: () -> Unit,
@@ -624,7 +627,7 @@ private fun AssistantTurnBubble(
                 )
             }
         }
-        notice?.let { IntegrityNotice(it) }
+        notice?.let { IntegrityNotice(it, scopeLimit = noticeScopeLimit) }
         val routes = items
             .filterIsInstance<AssistantChatItem.Tool>()
             .mapNotNull { it.event.route }
@@ -1734,6 +1737,8 @@ private const val ACADEMIC_INTEGRITY_NOTICE =
     "学术诚信提醒：请善用工具，建议您独立思考完成作业。"
 private const val AI_ANSWER_NOTICE =
     "答案由AI生成，仅供参考；安大通倡导学术诚信，不鼓励任何形式的抄袭行为。"
+private const val TRIAL_MODEL_LIMIT_NOTICE =
+    "试用模型不提供取题和解题服务，若要使用请自行配置模型"
 
 private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"

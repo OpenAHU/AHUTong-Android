@@ -45,6 +45,8 @@ sealed interface AssistantServiceEvent {
         val fetchedAt: Long = System.currentTimeMillis(),
         val trust: AssistantTrust = AssistantTrust.TRUSTED,
         val navigateOnly: Boolean = false,
+        /** 失败时的能力错误码，界面据此区分普通失败与能力范围限制。 */
+        val code: String? = null,
     ) : AssistantServiceEvent
     data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantServiceEvent
     data class Usage(val totalTokens: Int) : AssistantServiceEvent
@@ -120,6 +122,7 @@ class AssistantService(
                         fetchedAt = event.fetchedAt,
                         trust = event.trust,
                         navigateOnly = event.navigateOnly,
+                        code = event.code,
                     )
                 )
                 is AssistantRuntimeEvent.ApprovalRequired -> emit(

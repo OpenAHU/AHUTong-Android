@@ -98,6 +98,9 @@ sealed interface AssistantOutcome {
     ) : AssistantOutcome
 }
 
+/** 官方试用模型不支持取题：界面据此展示能力范围提示条。 */
+const val TRIAL_MODEL_UNSUPPORTED_CODE = "trial_model_unsupported"
+
 interface AssistantCapability {
     val spec: AssistantCapabilitySpec
     suspend fun execute(arguments: JsonObject): AssistantOutcome

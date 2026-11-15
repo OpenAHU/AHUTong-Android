@@ -57,6 +57,8 @@ sealed interface AssistantRuntimeEvent {
         val fetchedAt: Long = System.currentTimeMillis(),
         val trust: AssistantTrust = AssistantTrust.TRUSTED,
         val navigateOnly: Boolean = false,
+        /** 失败时的能力错误码，界面据此区分普通失败与能力范围限制。 */
+        val code: String? = null,
     ) : AssistantRuntimeEvent
     data class ApprovalRequired(val request: AssistantApprovalRequest) : AssistantRuntimeEvent
     data class Usage(
@@ -347,6 +349,7 @@ class AssistantRuntime(
                                         ok = false,
                                         summary = outcome.message,
                                         source = capability.spec.source,
+                                        code = outcome.code,
                                     )
                                 )
                             }

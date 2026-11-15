@@ -10,6 +10,7 @@ import com.ahu.ahutong.assistant.AssistantCardTone
 import com.ahu.ahutong.assistant.AssistantOutcome
 import com.ahu.ahutong.assistant.AssistantSensitivity
 import com.ahu.ahutong.assistant.AssistantTrust
+import com.ahu.ahutong.assistant.TRIAL_MODEL_UNSUPPORTED_CODE
 import com.ahu.ahutong.assistant.model.AssistantModelConfigStore
 import com.ahu.ahutong.assistant.model.AssistantModelLibrary
 import com.ahu.ahutong.assistant.model.OfficialTrial
@@ -262,7 +263,7 @@ class GetWorkDetailCapability(
     override suspend fun execute(arguments: JsonObject): AssistantOutcome {
         if (officialTrialActive()) {
             return AssistantOutcome.Failure(
-                "trial_model_unsupported",
+                TRIAL_MODEL_UNSUPPORTED_CODE,
                 "试用模型不提供解题服务，若要使用请自行配置模型",
             )
         }
