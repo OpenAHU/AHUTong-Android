@@ -43,6 +43,7 @@ internal object OfficialTrial {
     private val random = SecureRandom()
     private val encoder = Base64.getUrlEncoder().withoutPadding()
     private val decoder = Base64.getUrlDecoder()
+    private val secretPattern = Regex("[A-Za-z0-9_-]{43}")
 
     val profile = AssistantModelProfile(
         id = PROFILE_ID,
@@ -73,11 +74,21 @@ internal object OfficialTrial {
             .getOrNull()?.takeIf { it.startsWith("sk-ahu-") && owner == currentIdentity() }
     }
 
-    suspend fun fetchPoints(owner: EarlyAccessIdentity): BigDecimal? {
+    suspend fun fetchPoints(owner: EarlyAccessIdentity): BigDecimal? = credentialBalance(owner)?.points
+
+    suspend fun existingCredential(owner: EarlyAccessIdentity): CredentialResult? =
+        credentialBalance(owner, allowInvalidKey = true)?.let { CredentialResult(it.points) }
+
+    private suspend fun credentialBalance(owner: EarlyAccessIdentity, allowInvalidKey: Boolean = false): TrialBalance? {
         val key = withContext(Dispatchers.IO) {
             if (owner == currentIdentity()) apiKey() else null
         } ?: return null
-        val balance = api.pointsBalance("Bearer $key").checked().points
+        val reply = api.pointsBalance("Bearer $key")
+        if (allowInvalidKey && reply.code() == 401) {
+            reply.errorBody()?.close()
+            return null
+        }
+        val balance = reply.checked()
         return balance.takeIf { owner == currentIdentity() }
     }
 
@@ -95,37 +106,83 @@ internal object OfficialTrial {
         else -> value
     }
 
-    suspend fun prepareBrowserRegistration(owner: EarlyAccessIdentity): BrowserRegistration {
+    suspend fun resolveEntry(owner: EarlyAccessIdentity): TrialEntry {
         if (owner != currentIdentity()) throw TrialException("账号已切换，请重新开始验证。")
-        val challenge = api.startBrowserRegistration(ByteArray(0).toRequestBody()).checked()
+        val challenge = api.startEntry(ByteArray(0).toRequestBody()).checked()
         val student = owner.userId ?: throw TrialException("请先登录安大通。")
-        val secretPattern = Regex("[A-Za-z0-9_-]{43}")
         if (!secretPattern.matches(challenge.browserTicket) || !secretPattern.matches(challenge.pollKey) ||
             challenge.expiresIn !in 1..300
         ) {
-            throw TrialException("试用网关返回了无效的浏览器会话。")
+            throw TrialException("试用网关返回了无效的验证会话。")
         }
         val encrypted = withContext(Dispatchers.Default) {
             encryptStudentNumber(student, challenge.challenge, challenge.publicKey)
         }
         if (owner != currentIdentity()) throw TrialException("账号已切换，请重新开始验证。")
-        val body = JSONObject().put("encrypted_student", encrypted)
-            .toString().toRequestBody("application/json".toMediaType())
-        val prepared = api.prepareBrowserRegistration("Bearer ${challenge.pollKey}", body)
-        if (prepared.code() != 204) prepared.checked()
+        val body = JSONObject().put("encrypted_student", encrypted).requestBody()
+        val entry = api.resolveEntry("Bearer ${challenge.pollKey}", body).checked()
         if (owner != currentIdentity()) throw TrialException("账号已切换，请重新开始验证。")
-        return BrowserRegistration(challenge.browserTicket, challenge.pollKey, challenge.expiresIn)
+        return when (entry.next) {
+            "register" -> TrialEntry.Register(RegistrationSession(challenge.browserTicket, challenge.pollKey, challenge.expiresIn))
+            "recover" -> TrialEntry.Recover
+            "frozen" -> throw TrialException("该试用账号已受限，请联系安大通团队。")
+            else -> throw TrialException("试用网关返回了无效的账号状态。")
+        }
     }
 
-    suspend fun pollBrowserRegistration(owner: EarlyAccessIdentity, session: BrowserRegistration): BrowserResult? {
+    suspend fun pollRegistration(owner: EarlyAccessIdentity, session: RegistrationSession): CredentialResult? {
         if (owner != currentIdentity()) throw TrialException("账号已切换，请重新开始验证。")
         val reply = api.browserRegistrationResult("Bearer ${session.pollKey}")
         if (reply.code() == 204) return null
-        val result = reply.checked()
+        return saveCredential(owner, reply.checked())
+    }
+
+    suspend fun sendRecoveryCode(owner: EarlyAccessIdentity): RecoverySession {
+        if (owner != currentIdentity()) throw TrialException("账号已切换，请重新打开此页面。")
+        val student = owner.userId ?: throw TrialException("请先登录安大通。")
+        val reply = api.startRecovery(ByteArray(0).toRequestBody())
+        if (reply.code() == 404) {
+            reply.errorBody()?.close()
+            throw TrialException("试用网关尚未开放邮箱恢复。")
+        }
+        val challenge = reply.checked()
+        if (!secretPattern.matches(challenge.challenge) || challenge.challengeId.isBlank()) {
+            throw TrialException("试用网关返回了无效的恢复挑战。")
+        }
+        val encrypted = withContext(Dispatchers.Default) {
+            encryptStudentNumber(student, challenge.challenge, challenge.publicKey)
+        }
+        if (owner != currentIdentity()) throw TrialException("账号已切换，请重新打开此页面。")
+        val session = api.sendRecoveryCode(
+            JSONObject()
+                .put("challenge_id", challenge.challengeId)
+                .put("challenge", challenge.challenge)
+                .put("encrypted_student", encrypted)
+                .requestBody(),
+        ).checked()
+        if (owner != currentIdentity()) throw TrialException("账号已切换，请重新打开此页面。")
+        if (!secretPattern.matches(session.token) || session.expiresIn !in 1..600 ||
+            session.retryAfter !in 1..60
+        ) {
+            throw TrialException("试用网关返回了无效的恢复会话。")
+        }
+        return session
+    }
+
+    suspend fun recover(owner: EarlyAccessIdentity, session: RecoverySession, code: String): CredentialResult {
+        require(code.length == 8 && code.all { it in '0'..'9' })
+        if (owner != currentIdentity()) throw TrialException("账号已切换，请重新打开此页面。")
+        val result = api.verifyRecoveryCode("Bearer ${session.token}", JSONObject().put("code", code).requestBody())
+        return saveCredential(owner, result.checked())
+    }
+
+    private fun JSONObject.requestBody(): RequestBody = toString().toRequestBody("application/json".toMediaType())
+
+    private suspend fun saveCredential(owner: EarlyAccessIdentity, result: RegistrationResult): CredentialResult {
         val userId = result.userId.orEmpty()
         val apiKey = result.apiKey.orEmpty()
         if (!userId.startsWith(DERIVED_ID_PREFIX) || !apiKey.startsWith("sk-ahu-")) {
-            throw TrialException("试用网关返回了无效的注册结果。")
+            throw TrialException("试用网关返回了无效的凭据。")
         }
         val student = owner.userId ?: throw TrialException("请先登录安大通。")
         withContext(Dispatchers.IO + NonCancellable) {
@@ -136,7 +193,7 @@ internal object OfficialTrial {
             }
         }
         if (owner != currentIdentity()) throw TrialException("账号已切换，请返回 AI 设置。")
-        return BrowserResult(result.points)
+        return CredentialResult(result.points)
     }
 
     internal fun encryptStudentNumber(student: String, challenge: String, publicKey: String): String {
@@ -188,7 +245,7 @@ internal object OfficialTrial {
                 else -> "验证码未通过（$edgeCode），请重新验证。"
             }
             "TRIAL_CHALLENGE_INVALID" -> "注册挑战已过期或无效，请重新验证。"
-            "TRIAL_BROWSER_EXPIRED" -> "浏览器验证已过期，请重新验证。"
+            "TRIAL_BROWSER_EXPIRED" -> "验证码会话已过期，请重新验证。"
             "TRIAL_CAPTCHA_EDGE_MISSING" -> when {
                 edgeCode == "T001" -> "ESA 已返回 T001，但网关未收到回源验签结果。"
                 edgeCode != null -> "验证码未通过（$edgeCode），请重新验证。"
@@ -196,7 +253,12 @@ internal object OfficialTrial {
             }
             "TRIAL_CAPTCHA_EDGE_REJECTED" -> "ESA 拒绝了验签${edgeCode?.let { "（$it）" }.orEmpty()}，请重新验证。"
             "TRIAL_CAPTCHA_ORIGIN_UNVERIFIED" -> "网关收到验签通过状态，但无法确认回源身份。"
-            "TRIAL_ALREADY_REGISTERED" -> "该试用账号已开通，请使用原设备或联系安大通团队。"
+            "TRIAL_ALREADY_REGISTERED" -> "该试用账号已开通，请使用邮箱恢复。"
+            "TRIAL_RECOVERY_UNAVAILABLE" -> "邮箱恢复暂不可用，请稍后再试。"
+            "TRIAL_RECOVERY_CHALLENGE_INVALID" -> "恢复请求已过期，请重新发送验证码。"
+            "TRIAL_RECOVERY_MAIL_UNAVAILABLE" -> "暂时无法发送恢复邮件，请稍后再试。"
+            "TRIAL_RECOVERY_RATE_LIMIT" -> "请求过于频繁，请稍后再试。每个账号每天最多发送 5 次。"
+            "TRIAL_RECOVERY_CODE_INVALID" -> "验证码错误或已失效，请检查邮件或重新发送。"
             "USER_FROZEN", "account_frozen" -> "该试用账号已受限，请联系安大通团队。"
             "IP_NOT_IN_HEFEI", "ip_not_in_hefei" -> "请使用合肥本地网络或安徽大学校园网。"
             "TRIAL_UNAVAILABLE" -> "官方试用暂未开放，请稍后再试。"
@@ -207,29 +269,41 @@ internal object OfficialTrial {
                 429 -> "验证请求过于频繁，请稍后重试。"
                 else -> "试用网关请求失败（HTTP $status），请稍后重试。"
             }
-        })
+        }, code)
     }
 
     private interface TrialApi {
         @GET("/v1/credits/balance")
         suspend fun pointsBalance(@Header("Authorization") authorization: String): Response<TrialBalance>
 
-        @POST("/v1/client/trial/browser/start")
-        suspend fun startBrowserRegistration(@Body body: RequestBody): Response<BrowserChallenge>
+        @POST("/v1/client/trial/entry/start")
+        suspend fun startEntry(@Body body: RequestBody): Response<RegistrationChallenge>
 
-        @POST("/v1/client/trial/browser/prepare")
-        suspend fun prepareBrowserRegistration(
+        @POST("/v1/client/trial/entry/resolve")
+        suspend fun resolveEntry(
             @Header("Authorization") authorization: String,
             @Body body: RequestBody,
-        ): Response<Unit>
+        ): Response<EntryResponse>
 
         @GET("/v1/client/trial/browser/status")
         suspend fun browserRegistrationResult(
             @Header("Authorization") authorization: String,
         ): Response<RegistrationResult>
+
+        @POST("/v1/client/trial/recovery/challenge")
+        suspend fun startRecovery(@Body body: RequestBody): Response<RecoveryChallenge>
+
+        @POST("/v1/client/trial/recovery/send")
+        suspend fun sendRecoveryCode(@Body body: RequestBody): Response<RecoverySession>
+
+        @POST("/v1/client/trial/recovery/verify")
+        suspend fun verifyRecoveryCode(
+            @Header("Authorization") authorization: String,
+            @Body body: RequestBody,
+        ): Response<RegistrationResult>
     }
 
-    private class BrowserChallenge(
+    private class RegistrationChallenge(
         @SerializedName("browser_ticket") val browserTicket: String,
         @SerializedName("poll_key") val pollKey: String,
         @SerializedName("expires_in") val expiresIn: Int,
@@ -242,11 +316,30 @@ internal object OfficialTrial {
         @SerializedName("points_balance_display") val points: BigDecimal?,
     )
 
+    private class EntryResponse(@SerializedName("next") val next: String)
+
+    private class RecoveryChallenge(
+        @SerializedName("challenge_id") val challengeId: String,
+        @SerializedName("challenge") val challenge: String,
+        @SerializedName("public_key") val publicKey: String,
+    )
+
+    class RecoverySession(
+        @SerializedName("recovery_token") val token: String,
+        @SerializedName("expires_in") val expiresIn: Int,
+        @SerializedName("retry_after") val retryAfter: Int,
+    )
+
     private class TrialBalance(@SerializedName("points_balance_display") val points: BigDecimal?)
 
-    class BrowserRegistration(val browserTicket: String, val pollKey: String, val expiresIn: Int)
+    sealed interface TrialEntry {
+        class Register(val session: RegistrationSession) : TrialEntry
+        data object Recover : TrialEntry
+    }
 
-    class BrowserResult(val points: BigDecimal?)
+    class RegistrationSession(val ticket: String, val pollKey: String, val expiresIn: Int)
+
+    class CredentialResult(val points: BigDecimal?)
 }
 
-internal class TrialException(message: String) : IOException(message)
+internal class TrialException(message: String, val gatewayCode: String? = null) : IOException(message)
