@@ -122,7 +122,7 @@ internal class OfficialTrialViewModel : ViewModel() {
                 }
                 val installed = OfficialTrial.existingCredential(owner)
                 mutableState.value = if (installed != null) {
-                    selectOfficialTrial("已启用官方试用服务器", installed.points)
+                    selectOfficialTrial("已启用官方试用模型", installed.points)
                 } else {
                     when (val entry = OfficialTrial.resolveEntry(owner)) {
                         is OfficialTrial.TrialEntry.Register -> OfficialTrialState.NewAccount(entry.session)
@@ -159,7 +159,7 @@ internal class OfficialTrialViewModel : ViewModel() {
                     }
                     pending
                 } ?: throw TrialException("验证码会话已过期，请重新验证。")
-                mutableState.value = selectOfficialTrial("已启用官方试用服务器", result.points)
+                mutableState.value = selectOfficialTrial("已启用官方试用模型", result.points)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -231,7 +231,7 @@ internal fun OfficialTrialScreen(
     var showMailSheet by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        AppPageHeader(title = "官方试用服务器", onBack = onBack)
+        AppPageHeader(title = "官方试用模型", onBack = onBack)
         if (current is OfficialTrialState.Verifying) {
             TrialCaptcha(
                 session = current.session,

@@ -190,7 +190,7 @@ fun AiSettings(
                 backdrop = backdrop,
             ) {
                 SettingsActionRow(
-                    title = "官方试用服务器",
+                    title = "官方试用模型",
                     subtitle = if (trialActive) "正在使用 · 安大通团队提供" else "安大通团队提供，完成验证即可开启",
                     showDivider = true,
                     onClick = onOpenOfficialTrial,

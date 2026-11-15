@@ -47,7 +47,7 @@ internal object OfficialTrial {
 
     val profile = AssistantModelProfile(
         id = PROFILE_ID,
-        name = "官方试用服务器",
+        name = "官方试用模型",
         baseUrl = "$ORIGIN/v1",
         model = "ahutong-ai",
         providerLabel = "安大通试用",
