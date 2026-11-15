@@ -10,18 +10,32 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.MailOutline
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,8 +49,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
@@ -45,10 +63,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.assistant.model.AssistantModelLibrary
 import com.ahu.ahutong.assistant.model.OfficialTrial
 import com.ahu.ahutong.assistant.model.TrialException
+import com.ahu.ahutong.data.mail.MailDetail
+import com.ahu.ahutong.data.mail.MailMessage
 import com.ahu.ahutong.data.preview.EarlyAccessIdentity
 import com.ahu.ahutong.ui.components.AppButton
+import com.ahu.ahutong.ui.components.AppButtonVariant
+import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.AppPageHeader
 import com.ahu.ahutong.ui.components.AppTextField
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import com.ahu.ahutong.ui.screen.main.mailDisplayDate
+import com.ahu.ahutong.ui.screen.main.mailDisplayName
+import com.ahu.ahutong.ui.state.MailScreen
+import com.ahu.ahutong.ui.state.StudentMailUiState
+import com.ahu.ahutong.ui.state.StudentMailViewModel
 import java.io.IOException
 import java.math.BigDecimal
 import kotlinx.coroutines.CancellationException
@@ -198,9 +226,14 @@ internal class OfficialTrialViewModel : ViewModel() {
 }
 
 @Composable
-internal fun OfficialTrialScreen(onBack: () -> Unit, model: OfficialTrialViewModel = viewModel()) {
+internal fun OfficialTrialScreen(
+    onBack: () -> Unit,
+    onOpenFullMail: () -> Unit = {},
+    model: OfficialTrialViewModel = viewModel(),
+) {
     val state by model.state.collectAsState()
     val current = state
+    var showMailSheet by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         AppPageHeader(title = "官方试用服务器", onBack = onBack)
@@ -242,10 +275,23 @@ internal fun OfficialTrialScreen(onBack: () -> Unit, model: OfficialTrialViewMod
                         Text("重试")
                     }
                 }
-                is OfficialTrialState.Recovery -> TrialRecoveryForm(current, model)
+                is OfficialTrialState.Recovery -> TrialRecoveryForm(
+                    current = current,
+                    model = model,
+                    onOpenMail = { showMailSheet = true },
+                )
                 is OfficialTrialState.Verifying -> Unit
             }
         }
+    }
+    if (showMailSheet) {
+        TrialMailSheet(
+            onDismiss = { showMailSheet = false },
+            onOpenFullMail = {
+                showMailSheet = false
+                onOpenFullMail()
+            },
+        )
     }
 }
 
@@ -306,7 +352,11 @@ private fun TrialCaptcha(
 }
 
 @Composable
-private fun TrialRecoveryForm(current: OfficialTrialState.Recovery, model: OfficialTrialViewModel) {
+private fun TrialRecoveryForm(
+    current: OfficialTrialState.Recovery,
+    model: OfficialTrialViewModel,
+    onOpenMail: () -> Unit,
+) {
     var code by remember(current.session) { mutableStateOf("") }
     var remaining by remember(current.retryAt) { mutableIntStateOf(0) }
     LaunchedEffect(current.retryAt) {
@@ -322,6 +372,17 @@ private fun TrialRecoveryForm(current: OfficialTrialState.Recovery, model: Offic
         Text("该账号已开通试用。验证码将发送到当前账号的安徽大学学生邮箱。")
     } else {
         Text("请打开学生邮箱查收验证码。验证码 10 分钟内有效。")
+    }
+    AppButton(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenMail,
+        variant = AppButtonVariant.Secondary,
+    ) {
+        Icon(Icons.Outlined.MailOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("查看学生邮箱")
+    }
+    if (current.session != null) {
         AppTextField(
             value = code,
             onValueChange = { code = it.filter { digit -> digit in '0'..'9' }.take(8) },
@@ -350,5 +411,224 @@ private fun TrialRecoveryForm(current: OfficialTrialState.Recovery, model: Offic
             current.session == null -> "发送验证码"
             else -> "重新发送验证码"
         })
+    }
+}
+
+/**
+ * 恢复验证码只发到学生邮箱。把邮箱挂成同页小窗，用户不必离开本页，
+ * 恢复会话（token、倒计时、已输入的验证码）就不会因为返回栈出栈而丢失。
+ */
+@Composable
+private fun TrialMailSheet(
+    onDismiss: () -> Unit,
+    onOpenFullMail: () -> Unit,
+) {
+    AppModalBottomSheet(title = "学生邮箱", onDismissRequest = onDismiss) {
+        // 只有小窗真正展开时才创建邮箱 ViewModel，避免一进试用页就后台连邮箱。
+        val vm: StudentMailViewModel = viewModel()
+        val state by vm.state.collectAsState()
+        LaunchedEffect(Unit) {
+            if (vm.state.value.connected) vm.refresh()
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            val detail = state.detail
+            if (state.screen == MailScreen.DETAIL && detail != null) {
+                TrialMailDetail(
+                    detail = detail,
+                    date = state.messages.firstOrNull { it.id == detail.id }?.date.orEmpty(),
+                    onBack = { vm.back() },
+                )
+            } else {
+                TrialMailInbox(
+                    state = state,
+                    onRetry = vm::connect,
+                    onRefresh = vm::refresh,
+                    onOpen = vm::openMessage,
+                )
+            }
+            AppButton(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onOpenFullMail,
+                variant = AppButtonVariant.Secondary,
+            ) {
+                Text("在完整邮箱中打开")
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrialMailInbox(
+    state: StudentMailUiState,
+    onRetry: () -> Unit,
+    onRefresh: () -> Unit,
+    onOpen: (MailMessage) -> Unit,
+) {
+    when {
+        !state.connected && state.loading -> {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+            Text("正在连接学生邮箱…", style = MaterialTheme.typography.bodyMedium)
+        }
+
+        !state.connected -> {
+            Text(
+                state.error ?: "学生邮箱暂时不可用，请稍后重试。",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            AppButton(modifier = Modifier.fillMaxWidth(), onClick = onRetry) { Text("重试") }
+        }
+
+        else -> {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        state.account.ifBlank { "学生邮箱" },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text("最近邮件", style = MaterialTheme.typography.titleSmall)
+                }
+                if (state.loading) {
+                    Text(
+                        "刷新中…",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        "刷新",
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onRefresh)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            if (state.messages.isEmpty()) {
+                Text(
+                    "收件箱暂无邮件。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    state.messages.take(20).forEach { message ->
+                        TrialMailRow(message = message, onClick = { onOpen(message) })
+                    }
+                }
+                if (state.messages.size > 20) {
+                    Text(
+                        "仅显示最近 20 封，可在完整邮箱中查看更多。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrialMailRow(message: MailMessage, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (message.read) {
+            Spacer(Modifier.size(7.dp))
+        } else {
+            Box(
+                Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                mailDisplayName(message.from),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (message.read) FontWeight.Normal else FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                message.subject.ifBlank { "（无主题）" },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            mailDisplayDate(message.date),
+            maxLines = 1,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun TrialMailDetail(detail: MailDetail, date: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onBack)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text("返回收件箱", style = MaterialTheme.typography.labelLarge)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 380.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            detail.subject.ifBlank { "（无主题）" },
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            buildString {
+                append(detail.from.joinToString("; "))
+                if (date.isNotBlank()) {
+                    append("\n")
+                    append(mailDisplayDate(date))
+                }
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SelectionContainer {
+            Text(
+                detail.text.ifBlank { "（无正文）" },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
     }
 }

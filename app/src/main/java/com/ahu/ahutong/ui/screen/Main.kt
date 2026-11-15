@@ -899,7 +899,10 @@ fun Main(
             }
 
             animatedComposable("settings__ai_official_trial") {
-                OfficialTrialScreen(onBack = { navController.popBackStack() })
+                OfficialTrialScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenFullMail = { navController.navigate("student_mail") },
+                )
             }
 
             animatedComposable("settings__theme_lab") {
