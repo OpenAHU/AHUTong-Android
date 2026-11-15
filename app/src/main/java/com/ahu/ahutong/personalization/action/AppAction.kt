@@ -165,7 +165,8 @@ object AppActionCatalog {
         "widgets" to AppActionId.OPEN_TOOLS,
         // 聚合相机：新路由名，旧 "scan" 保留兼容
         "camera" to AppActionId.OPEN_SCANNER,
-        "settings__privacy_general" to AppActionId.OPEN_PRIVACY_POLICY
+        "settings__privacy_general" to AppActionId.OPEN_PRIVACY_POLICY,
+        "settings__ai_official_trial" to AppActionId.OPEN_AI_SETTINGS
     )
     private val commandRoutePrefixes: Map<AppActionId, Set<String>> = mapOf(
         AppActionId.OPEN_PAYMENT_QR to setOf("home"),
@@ -249,7 +250,8 @@ object AppActionCatalog {
         "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__privacy_general", "settings__ai_privacy",
-        "settings__theme_lab", "settings__theme_color", "settings__ai", "scan", "camera", "billing", "billing_stats"
+        "settings__theme_lab", "settings__theme_color", "settings__ai", "settings__ai_official_trial",
+        "scan", "camera", "billing", "billing_stats"
     )
 
     init {
