@@ -474,6 +474,8 @@ private fun ConsentRow(
     onOpenPolicy: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val toggleInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val policyInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -481,8 +483,11 @@ private fun ConsentRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onToggle)
+                    .clickable(
+                        interactionSource = toggleInteraction,
+                        indication = null,
+                        onClick = onToggle,
+                    )
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -517,8 +522,11 @@ private fun ConsentRow(
             Text(
                 text = "《隐私政策》",
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable(onClick = onOpenPolicy)
+                    .clickable(
+                        interactionSource = policyInteraction,
+                        indication = null,
+                        onClick = onOpenPolicy,
+                    )
                     .padding(vertical = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.primary,
