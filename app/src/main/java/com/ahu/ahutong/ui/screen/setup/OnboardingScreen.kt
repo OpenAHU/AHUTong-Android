@@ -204,34 +204,25 @@ private fun WelcomePage(onStart: () -> Unit) {
                 }
                 Spacer(Modifier.height(28.dp))
                 Text(
-                    text = "欢迎使用安大通",
+                    text = "欢迎使用安大通！",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "AHUTong · 安大人的校园生活助手",
+                    text = "AHUTong，安大人的生活利器",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
                 Spacer(Modifier.height(28.dp))
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "课程表、成绩、考试、校园卡都在这里",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = "还有 AHUTong Intelligence，随时回答校园问题",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
+                Text(
+                    text = "在开始之前，请允许我们为您做简单的指引",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -242,6 +233,12 @@ private fun WelcomePage(onStart: () -> Unit) {
                 .height(OnboardingActionHeight),
         ) {
             Text("开始")
+            Spacer(Modifier.weight(1f))
+            Icon(
+                painter = painterResource(R.drawable.ic_arrow_right),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
         }
     }
 }
@@ -271,7 +268,7 @@ private fun AssistantPage(
             Spacer(Modifier.height(22.dp))
             PageTitle(
                 title = "AHUTong Intelligence",
-                subtitle = "随口的校园问题，交给安筱桐",
+                subtitle = "查空闲教室、作业辅助，一句话搞定",
             )
             Spacer(Modifier.height(22.dp))
             OnboardingCard {
@@ -295,7 +292,7 @@ private fun AssistantPage(
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "也可以稍后在「AI 设置」里配置自己的模型。",
+                text = "您也可以稍后在AI设置内配置自定义模型",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -635,6 +632,15 @@ private fun EarlyAccessPage(
             PageTitle(
                 title = "抢先体验计划",
                 subtitle = "提前收到新功能，可能包含未完成的内容",
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = "加入抢先体验计划后，你可以提前收到新功能版本。抢先版本仍在测试，" +
+                    "可能出现功能异常、性能或兼容性问题。\n\n" +
+                    "你可以随时在 设置 → 应用 → 抢先体验 中退出。退出后只检查正式版本，" +
+                    "已安装的抢先版本不会自动降级。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(22.dp))
             OnboardingCard {
