@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,15 +58,19 @@ import androidx.compose.ui.autofill.AutofillType
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalAutofillTree
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,12 +80,16 @@ import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
-import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
+import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import com.ahu.ahutong.ui.markdown.AppMarkdown
 import com.ahu.ahutong.ui.state.LoginState
 import com.ahu.ahutong.ui.state.LoginViewModel
+import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.monet.n1
+import com.kyant.monet.withNight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -97,8 +107,12 @@ fun Login(
     onboardingStep: Int? = null,
     onLoggedIn: () -> Unit
 ) {
-    var userID by rememberSaveable { mutableStateOf(initialUserId) }
-    var password by rememberSaveable { mutableStateOf(initialPassword) }
+    var userID by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(initialUserId))
+    }
+    var password by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(initialPassword))
+    }
     var focusIndex by rememberSaveable { mutableStateOf(0) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var showWebLoginContent by rememberSaveable { mutableStateOf(false) }
@@ -121,7 +135,7 @@ fun Login(
             initialLoginStarted = true
             loginAttempted = true
             LoginNavigationGate.beginAuthentication()
-            loginViewModel.loginWithCrawler(userID, password)
+            loginViewModel.loginWithCrawler(userID.text, password.text)
         }
     }
     LaunchedEffect(loginViewModel.state) {
@@ -161,7 +175,7 @@ fun Login(
         } else {
             consentHint = false
             if (consentRequired) onConsentAccepted()
-            logIn(loginViewModel, userID, password) { loginAttempted = true }
+            logIn(loginViewModel, userID.text, password.text) { loginAttempted = true }
         }
     }
 
@@ -172,13 +186,13 @@ fun Login(
     ) {
         if (loginViewModel.state == LoginState.WebVerification) {
             JwxtWebLogin(
-                userID = userID,
-                password = password,
+                userID = userID.text,
+                password = password.text,
                 onInteractionRequired = { showWebLoginContent = true },
                 onVerified = { cookiesJson ->
                     loginViewModel.completeWebVerification(
                         cookiesJson = cookiesJson,
-                        password = password
+                        password = password.text
                     )
                 },
                 onFailed = loginViewModel::failWebVerification
@@ -225,55 +239,104 @@ fun Login(
                 LoginEmoji(focusIndex = focusIndex)
                 Spacer(Modifier.height(20.dp))
 
-                AppTextField(
+                BasicTextField(
                     value = userID,
                     onValueChange = { userID = it },
-                    label = "学号",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appLiquidGlassSurface(
+                            shape = ContinuousCapsule,
+                            fallbackColor = 100.n1 withNight 20.n1,
+                            level = LiquidGlassSurfaceLevel.Control
+                        )
+                        .onFocusChanged { if (it.isFocused) focusIndex = 0 }
+                        .autofill(AutofillType.Username) { userID = userID.copy(text = it) },
+                    textStyle = LocalTextStyle.current.copy(
+                        color = LocalContentColor.current,
+                        fontFamily = FontFamily.Monospace
+                    ),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Ascii,
                         imeAction = ImeAction.Next
                     ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .autofill(AutofillType.Username) { userID = it }
-                        .onFocusChanged { if (it.isFocused) focusIndex = 0 }
-                )
-                Spacer(Modifier.height(12.dp))
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    AppTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = "密码",
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { submitLogin() }),
-                        visualTransformation = if (passwordVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
+                    singleLine = true,
+                    cursorBrush = SolidColor(LocalContentColor.current)
+                ) {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .autofill(AutofillType.Password) { password = it }
-                            .onFocusChanged { if (it.isFocused) focusIndex = 1 }
-                    )
-                    IconButton(
-                        onClick = { passwordVisible = !passwordVisible },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 4.dp)
+                            .padding(horizontal = 24.dp)
+                            .height(64.dp),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Icon(
-                            imageVector = if (passwordVisible) {
-                                Icons.Default.Visibility
-                            } else {
-                                Icons.Default.VisibilityOff
-                            },
-                            contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        it()
+                        if (userID.text.isBlank()) {
+                            Text(
+                                text = stringResource(id = R.string.hint_userid),
+                                color = 30.n1 withNight 80.n1,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                BasicTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .appLiquidGlassSurface(
+                            shape = ContinuousCapsule,
+                            fallbackColor = 100.n1 withNight 20.n1,
+                            level = LiquidGlassSurfaceLevel.Control
                         )
+                        .onFocusChanged { if (it.isFocused) focusIndex = 1 }
+                        .autofill(AutofillType.Password) { password = password.copy(text = it) },
+                    textStyle = LocalTextStyle.current.copy(
+                        color = LocalContentColor.current,
+                        fontFamily = FontFamily.Monospace
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { submitLogin() }),
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    cursorBrush = SolidColor(LocalContentColor.current)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .height(64.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Box(Modifier.fillMaxWidth().padding(end = 44.dp)) { it() }
+                        if (password.text.isBlank()) {
+                            Text(
+                                text = stringResource(id = R.string.hint_wisdom_password),
+                                color = 30.n1 withNight 80.n1,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                        IconButton(
+                            onClick = { passwordVisible = !passwordVisible },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Icon(
+                                imageVector = if (passwordVisible) {
+                                    Icons.Default.Visibility
+                                } else {
+                                    Icons.Default.VisibilityOff
+                                },
+                                contentDescription = if (passwordVisible) "隐藏密码" else "显示密码"
+                            )
+                        }
                     }
                 }
 
