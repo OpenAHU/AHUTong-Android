@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
@@ -73,6 +74,7 @@ import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
+import com.ahu.ahutong.ui.components.AppTitleIconButton
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
@@ -302,7 +304,6 @@ private fun AssistantPage(
         }
         Spacer(Modifier.height(16.dp))
         BottomActions(
-            backLabel = "上一步",
             nextLabel = "下一步",
             onBack = onBack,
             onNext = onNext,
@@ -421,19 +422,11 @@ private fun XuexiaotongPage(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AppButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    variant = AppButtonVariant.Secondary,
-                ) {
-                    Text("上一步")
-                }
+                OnboardingBackButton(onClick = onBack)
                 AppButton(
                     onClick = onDone,
                     modifier = Modifier
-                        .weight(1.4f)
+                        .weight(1f)
                         .fillMaxHeight(),
                 ) {
                     Text("下一步")
@@ -447,15 +440,7 @@ private fun XuexiaotongPage(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AppButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    variant = AppButtonVariant.Secondary,
-                ) {
-                    Text("上一步")
-                }
+                OnboardingBackButton(onClick = onBack)
                 AppButton(
                     onClick = onDone,
                     modifier = Modifier
@@ -616,7 +601,6 @@ private fun AdvancedPage(
         }
         Spacer(Modifier.height(16.dp))
         BottomActions(
-            backLabel = "上一步",
             nextLabel = "下一步",
             onBack = onBack,
             onNext = onNext,
@@ -675,7 +659,6 @@ private fun EarlyAccessPage(
         }
         Spacer(Modifier.height(16.dp))
         BottomActions(
-            backLabel = "上一步",
             nextLabel = "完成",
             onBack = onBack,
             onNext = onFinish,
@@ -817,7 +800,6 @@ private fun RowDivider() {
 
 @Composable
 private fun BottomActions(
-    backLabel: String,
     nextLabel: String,
     onBack: () -> Unit,
     onNext: () -> Unit,
@@ -829,22 +811,23 @@ private fun BottomActions(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppButton(
-            onClick = onBack,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            variant = AppButtonVariant.Secondary,
-        ) {
-            Text(backLabel)
-        }
+        OnboardingBackButton(onClick = onBack)
         AppButton(
             onClick = onNext,
             modifier = Modifier
-                .weight(1.4f)
+                .weight(1f)
                 .fillMaxHeight(),
         ) {
             Text(nextLabel)
         }
     }
+}
+
+@Composable
+private fun OnboardingBackButton(onClick: () -> Unit) {
+    AppTitleIconButton(
+        onClick = onClick,
+        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+        contentDescription = "上一步",
+    )
 }
