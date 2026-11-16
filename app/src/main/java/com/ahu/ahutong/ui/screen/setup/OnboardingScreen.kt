@@ -32,7 +32,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
@@ -830,9 +829,9 @@ private fun OnboardingBackButton(onClick: () -> Unit) {
         variant = AppButtonVariant.Secondary,
     ) {
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            painter = painterResource(R.drawable.ic_arrow_left),
             contentDescription = "上一步",
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(24.dp),
         )
     }
 }
