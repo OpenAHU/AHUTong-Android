@@ -147,7 +147,7 @@ fun Login(
             delay(1000)
             loginViewModel.state = LoginState.Idle
         } else if (loginViewModel.state == LoginState.Succeeded) {
-            delay(500)
+            delay(1_500)
             loginViewModel.state = LoginState.Idle
             LoginNavigationGate.completeAuthentication()
             onLoggedIn()
@@ -381,6 +381,7 @@ fun Login(
                 Spacer(Modifier.height(16.dp))
                 val busy = loginViewModel.state == LoginState.InProgress ||
                     loginViewModel.state == LoginState.Succeeded
+                val succeeded = loginViewModel.state == LoginState.Succeeded
                 AppButton(
                     onClick = submitLogin,
                     modifier = Modifier
@@ -388,16 +389,18 @@ fun Login(
                         .height(OnboardingActionHeight),
                     enabled = !busy
                 ) {
-                    if (busy) {
-                        AppCircularProgressIndicator(
-                            size = 20.dp,
-                            color = LocalContentColor.current,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("登录中…", fontSize = 16.sp)
-                    } else {
-                        Text("登录", fontSize = 16.sp)
+                    when {
+                        succeeded -> Text("登录成功", fontSize = 16.sp)
+                        busy -> {
+                            AppCircularProgressIndicator(
+                                size = 20.dp,
+                                color = LocalContentColor.current,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("登录中…", fontSize = 16.sp)
+                        }
+                        else -> Text("登录", fontSize = 16.sp)
                     }
                 }
             }
