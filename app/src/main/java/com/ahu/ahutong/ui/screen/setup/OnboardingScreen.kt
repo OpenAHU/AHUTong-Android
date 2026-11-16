@@ -145,6 +145,7 @@ internal fun OnboardingScreen(
                     XuexiaotongPage(
                         step = activeStep,
                         viewModel = xuexiaotongViewModel,
+                        onBack = { step = 1 },
                         onDone = { step = 3 },
                     )
                 }
@@ -313,6 +314,7 @@ private fun AssistantPage(
 private fun XuexiaotongPage(
     step: Int,
     viewModel: XuexiaotongViewModel,
+    onBack: () -> Unit,
     onDone: () -> Unit,
 ) {
     val loggedIn by viewModel.loggedIn.collectAsState()
@@ -412,13 +414,30 @@ private fun XuexiaotongPage(
         }
         Spacer(Modifier.height(16.dp))
         if (loggedIn) {
-            AppButton(
-                onClick = onDone,
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(OnboardingActionHeight),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("下一步")
+                AppButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    variant = AppButtonVariant.Secondary,
+                ) {
+                    Text("上一步")
+                }
+                AppButton(
+                    onClick = onDone,
+                    modifier = Modifier
+                        .weight(1.4f)
+                        .fillMaxHeight(),
+                ) {
+                    Text("下一步")
+                }
             }
         } else {
             Row(
@@ -428,6 +447,15 @@ private fun XuexiaotongPage(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                AppButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    variant = AppButtonVariant.Secondary,
+                ) {
+                    Text("上一步")
+                }
                 AppButton(
                     onClick = onDone,
                     modifier = Modifier
@@ -440,7 +468,7 @@ private fun XuexiaotongPage(
                 AppButton(
                     onClick = { connect() },
                     modifier = Modifier
-                        .weight(1.4f)
+                        .weight(1.2f)
                         .fillMaxHeight(),
                     enabled = !busy,
                 ) {
@@ -453,7 +481,7 @@ private fun XuexiaotongPage(
                         Spacer(Modifier.width(8.dp))
                         Text("连接中…")
                     } else {
-                        Text("连接学习通")
+                        Text("连接")
                     }
                 }
             }
