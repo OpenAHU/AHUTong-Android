@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -33,7 +32,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -70,7 +72,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.ui.components.AppButton
-import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.AppTextField
@@ -238,11 +239,7 @@ fun Login(
                         .onFocusChanged { if (it.isFocused) focusIndex = 0 }
                 )
                 Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     AppTextField(
                         value = password,
                         onValueChange = { password = it },
@@ -258,16 +255,25 @@ fun Login(
                             PasswordVisualTransformation()
                         },
                         modifier = Modifier
-                            .weight(1f)
+                            .fillMaxWidth()
                             .autofill(AutofillType.Password) { password = it }
                             .onFocusChanged { if (it.isFocused) focusIndex = 1 }
                     )
-                    AppButton(
+                    IconButton(
                         onClick = { passwordVisible = !passwordVisible },
-                        modifier = Modifier.widthIn(min = 72.dp),
-                        variant = AppButtonVariant.Secondary
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 4.dp)
                     ) {
-                        Text(if (passwordVisible) "隐藏" else "显示", fontSize = 13.sp)
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Default.Visibility
+                            } else {
+                                Icons.Default.VisibilityOff
+                            },
+                            contentDescription = if (passwordVisible) "隐藏密码" else "显示密码",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
