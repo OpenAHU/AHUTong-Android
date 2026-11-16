@@ -10,5 +10,6 @@ fun Debug(
     scheduleViewModel: ScheduleViewModel,
     discoveryViewModel: DiscoveryViewModel,
     onGrayStateChanged: () -> Unit = {},
+    onReplayOnboarding: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null
 ) = Unit

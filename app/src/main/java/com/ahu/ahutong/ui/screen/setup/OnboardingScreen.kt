@@ -56,6 +56,7 @@ import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import com.ahu.ahutong.ui.state.LoginViewModel
 
 private const val STEP_COUNT = 4
@@ -67,7 +68,13 @@ internal fun OnboardingScreen(
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     var step by rememberSaveable {
-        mutableIntStateOf(if (SessionStore.isLoggedIn()) 2 else 0)
+        mutableIntStateOf(
+            when {
+                OnboardingState.consumeReplay() -> 0
+                SessionStore.isLoggedIn() -> 2
+                else -> 0
+            }
+        )
     }
     BackHandler(enabled = step >= 2) { step-- }
 
@@ -92,7 +99,7 @@ internal fun OnboardingScreen(
         ) { activeStep ->
             when (activeStep) {
                 0 -> WelcomePage(onStart = { step = 1 })
-                1 -> {
+                1 -> Box(Modifier.fillMaxSize()) {
                     val loginViewModel: LoginViewModel = hiltViewModel()
                     Login(
                         loginViewModel = loginViewModel,
@@ -101,6 +108,21 @@ internal fun OnboardingScreen(
                         onBack = { step = 0 },
                         onLoggedIn = { step = 2 },
                     )
+                    // 调试重播时账号已登录，允许直接跳到下一页，避免必须重新输入密码。
+                    if (SessionStore.isLoggedIn()) {
+                        Text(
+                            text = "已登录，跳过",
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(end = 20.dp, top = 28.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { step = 2 }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 2 -> AssistantPage(
                     step = activeStep,

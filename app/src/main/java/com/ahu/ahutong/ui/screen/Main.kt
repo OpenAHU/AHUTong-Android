@@ -1003,7 +1003,13 @@ fun Main(
                     Debug(
                         scheduleViewModel = scheduleViewModel,
                         discoveryViewModel = discoveryViewModel,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onReplayOnboarding = {
+                            navController.navigate("onboarding") {
+                                popUpTo("debug") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
             }

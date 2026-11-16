@@ -57,6 +57,7 @@ import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.screen.main.home.recallLine
 import com.ahu.ahutong.ui.screen.main.home.terminalLine
+import com.ahu.ahutong.ui.screen.setup.OnboardingState
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.state.DiscoveryViewModel
 import com.ahu.ahutong.ui.state.ScheduleViewModel
@@ -80,6 +81,7 @@ fun Debug(
     scheduleViewModel: ScheduleViewModel = viewModel(),
     discoveryViewModel: DiscoveryViewModel = viewModel(),
     onGrayStateChanged: () -> Unit = {},
+    onReplayOnboarding: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -214,6 +216,23 @@ fun Debug(
                 color = secondaryTextColor,
                 style = MaterialTheme.typography.bodyLarge
             )
+        }
+
+        if (onReplayOnboarding != null) {
+            DebugSection(
+                title = "首次引导",
+                subtitle = "只重置引导完成标记，不清除登录、设置与缓存",
+                cardColor = cardColor
+            ) {
+                DebugActionRow(
+                    title = "重播首次引导",
+                    subtitle = "从欢迎页重新走一遍四页引导",
+                    onClick = {
+                        OnboardingState.startReplay()
+                        onReplayOnboarding()
+                    }
+                )
+            }
         }
 
         if (graySectionVisible) {

@@ -18,6 +18,8 @@ internal object OnboardingState {
     private const val KEY_COMPLETED = "completed_v1"
     private const val KEY_MIGRATION_DONE = "migration_v1"
 
+    private var replayRequested = false
+
     private fun prefs(context: Context): android.content.SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -32,6 +34,23 @@ internal object OnboardingState {
                 .putBoolean(KEY_MIGRATION_DONE, true)
                 .apply()
         }
+    }
+
+    /** Debug-only：下次进入引导从欢迎页开始，不清登录与设置。 */
+    fun startReplay() {
+        replayRequested = true
+        runCatching {
+            prefs(AppEnvironmentHolder.context()).edit()
+                .putBoolean(KEY_COMPLETED, false)
+                .putBoolean(KEY_MIGRATION_DONE, true)
+                .apply()
+        }
+    }
+
+    fun consumeReplay(): Boolean {
+        val requested = replayRequested
+        replayRequested = false
+        return requested
     }
 
     /** true 表示需要展示新引导。 */
