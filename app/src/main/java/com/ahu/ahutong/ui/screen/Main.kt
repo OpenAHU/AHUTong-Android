@@ -518,7 +518,7 @@ fun Main(
             }
             animatedComposable("onboarding") {
                 com.ahu.ahutong.ui.screen.setup.OnboardingScreen(
-                    onOpenAiSettings = { navController.navigate("settings__ai") },
+                    onOpenOfficialTrial = { navController.navigate("settings__ai_official_trial") },
                     onFinished = {
                         navController.navigate("home") {
                             popUpTo("onboarding") { inclusive = true }

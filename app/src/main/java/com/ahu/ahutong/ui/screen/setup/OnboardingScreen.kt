@@ -57,6 +57,7 @@ import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import com.ahu.ahutong.ui.state.LoginViewModel
 
 private const val STEP_COUNT = 4
@@ -65,7 +66,7 @@ internal val OnboardingActionHeight = 48.dp
 
 @Composable
 internal fun OnboardingScreen(
-    onOpenAiSettings: () -> Unit,
+    onOpenOfficialTrial: () -> Unit,
     onFinished: () -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
@@ -116,7 +117,7 @@ internal fun OnboardingScreen(
                     step = activeStep,
                     onBack = { step = 1 },
                     onNext = { step = 3 },
-                    onOpenAiSettings = onOpenAiSettings,
+                    onOpenOfficialTrial = onOpenOfficialTrial,
                 )
                 else -> AdvancedPage(
                     step = activeStep,
@@ -208,7 +209,7 @@ private fun AssistantPage(
     step: Int,
     onBack: () -> Unit,
     onNext: () -> Unit,
-    onOpenAiSettings: () -> Unit,
+    onOpenOfficialTrial: () -> Unit,
 ) {
     var aiEnabled by remember { mutableStateOf(AssistantPreferences.serviceEnabled()) }
     Column(
@@ -233,7 +234,7 @@ private fun AssistantPage(
             Spacer(Modifier.height(22.dp))
             OnboardingCard {
                 ToggleRow(
-                    title = "启用 AI 助手",
+                    title = "开启 AI 服务",
                     subtitle = "主页显示 AI 入口，随时提问",
                     checked = aiEnabled,
                     onCheckedChange = { enabled ->
@@ -242,18 +243,17 @@ private fun AssistantPage(
                         AssistantAccessState.refresh()
                     },
                 )
-            }
-            Spacer(Modifier.height(14.dp))
-            AppButton(
-                onClick = onOpenAiSettings,
-                modifier = Modifier.fillMaxWidth(),
-                variant = AppButtonVariant.Secondary,
-            ) {
-                Text("配置模型")
+                RowDivider()
+                ActionRow(
+                    title = "激活免费试用模型",
+                    subtitle = "官方提供，完成验证即可使用",
+                    trailing = "去激活",
+                    onClick = onOpenOfficialTrial,
+                )
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "也可以稍后在「AI 设置」里配置模型或开启官方试用模型。",
+                text = "也可以稍后在「AI 设置」里配置自己的模型。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -432,6 +432,44 @@ private fun ToggleRow(
             onCheckedChange = onCheckedChange,
             enabled = enabled,
             contentDescription = title,
+        )
+    }
+}
+
+@Composable
+private fun ActionRow(
+    title: String,
+    subtitle: String,
+    trailing: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = trailing,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
         )
     }
 }
