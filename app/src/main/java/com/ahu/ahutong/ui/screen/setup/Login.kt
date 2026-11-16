@@ -209,11 +209,16 @@ fun Login(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(horizontal = 22.dp, vertical = 14.dp),
             ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                ) {
                 onboardingStep?.let { OnboardingStepDots(it) }
                 Spacer(Modifier.height(22.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -372,14 +377,15 @@ fun Login(
                 }
                 Spacer(Modifier.height(10.dp))
                 LoginStatusLine(statusMessage)
-                Spacer(Modifier.height(10.dp))
+                }
+                Spacer(Modifier.height(16.dp))
                 val busy = loginViewModel.state == LoginState.InProgress ||
                     loginViewModel.state == LoginState.Succeeded
                 AppButton(
                     onClick = submitLogin,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(OnboardingActionHeight),
                     enabled = !busy
                 ) {
                     if (busy) {

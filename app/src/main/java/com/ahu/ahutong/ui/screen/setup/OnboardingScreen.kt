@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,6 +61,8 @@ import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import com.ahu.ahutong.ui.state.LoginViewModel
 
 private const val STEP_COUNT = 4
+
+internal val OnboardingActionHeight = 48.dp
 
 @Composable
 internal fun OnboardingScreen(
@@ -149,57 +152,67 @@ private fun WelcomePage(onStart: () -> Unit) {
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 28.dp, vertical = 24.dp),
+            .padding(horizontal = 22.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.weight(1f))
         Box(
             modifier = Modifier
-                .size(112.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                .weight(1f)
+                .fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            Image(
-                painter = painterResource(R.mipmap.ic_launcher_foreground),
-                contentDescription = null,
-                modifier = Modifier.size(92.dp),
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(112.dp)
+                        .clip(RoundedCornerShape(32.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.mipmap.ic_launcher_foreground),
+                        contentDescription = null,
+                        modifier = Modifier.size(92.dp),
+                    )
+                }
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    text = "欢迎使用安大通",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "AHUTong · 安大人的校园生活助手",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(28.dp))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = "课程表、成绩、考试、校园卡都在这里",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "还有 AHUTong Intelligence，随时回答校园问题",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
         }
-        Spacer(Modifier.height(28.dp))
-        Text(
-            text = "欢迎使用安大通",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = "AHUTong · 安大人的校园生活助手",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(28.dp))
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "课程表、成绩、考试、校园卡都在这里",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = "还有 AHUTong Intelligence，随时回答校园问题",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(16.dp))
         AppButton(
             onClick = onStart,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(OnboardingActionHeight),
         ) {
             Text("开始")
         }
@@ -221,40 +234,47 @@ private fun AssistantPage(
             .navigationBarsPadding()
             .padding(horizontal = 22.dp, vertical = 14.dp),
     ) {
-        OnboardingStepDots(step)
-        Spacer(Modifier.height(22.dp))
-        PageTitle(
-            title = "AHUTong Intelligence",
-            subtitle = "随口的校园问题，交给安筱桐",
-        )
-        Spacer(Modifier.height(22.dp))
-        OnboardingCard {
-            ToggleRow(
-                title = "启用 AI 助手",
-                subtitle = "主页显示 AI 入口，随时提问",
-                checked = aiEnabled,
-                onCheckedChange = { enabled ->
-                    aiEnabled = enabled
-                    AssistantPreferences.setServiceEnabled(enabled)
-                    AssistantAccessState.refresh()
-                },
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            OnboardingStepDots(step)
+            Spacer(Modifier.height(22.dp))
+            PageTitle(
+                title = "AHUTong Intelligence",
+                subtitle = "随口的校园问题，交给安筱桐",
+            )
+            Spacer(Modifier.height(22.dp))
+            OnboardingCard {
+                ToggleRow(
+                    title = "启用 AI 助手",
+                    subtitle = "主页显示 AI 入口，随时提问",
+                    checked = aiEnabled,
+                    onCheckedChange = { enabled ->
+                        aiEnabled = enabled
+                        AssistantPreferences.setServiceEnabled(enabled)
+                        AssistantAccessState.refresh()
+                    },
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            AppButton(
+                onClick = onOpenAiSettings,
+                modifier = Modifier.fillMaxWidth(),
+                variant = AppButtonVariant.Secondary,
+            ) {
+                Text("配置模型")
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "也可以稍后在「AI 设置」里配置模型或开启官方试用模型。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.height(14.dp))
-        AppButton(
-            onClick = onOpenAiSettings,
-            modifier = Modifier.fillMaxWidth(),
-            variant = AppButtonVariant.Secondary,
-        ) {
-            Text("配置模型")
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = "也可以稍后在「AI 设置」里配置模型或开启官方试用模型。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(16.dp))
         BottomActions(
             backLabel = "上一步",
             nextLabel = "下一步",
@@ -283,55 +303,61 @@ private fun AdvancedPage(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 22.dp, vertical = 14.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(horizontal = 22.dp, vertical = 14.dp),
     ) {
-        OnboardingStepDots(step)
-        Spacer(Modifier.height(22.dp))
-        PageTitle(
-            title = "高级选项",
-            subtitle = "这些功能都可以稍后在设置里修改",
-        )
-        Spacer(Modifier.height(22.dp))
-        OnboardingCard {
-            ToggleRow(
-                title = "必吃榜数据共建",
-                subtitle = "上传去标识的食堂消费记录，帮助生成窗口热度榜",
-                checked = canteen == true,
-                onCheckedChange = viewModel::setCanteenConsent,
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            OnboardingStepDots(step)
+            Spacer(Modifier.height(22.dp))
+            PageTitle(
+                title = "高级选项",
+                subtitle = "这些功能都可以稍后在设置里修改",
             )
-            RowDivider()
-            ToggleRow(
-                title = "智能预测",
-                subtitle = "提前加载你下一步可能要看的内容",
-                checked = predictive,
-                onCheckedChange = viewModel::setPredictivePrefetchEnabled,
-            )
-            RowDivider()
-            ToggleRow(
-                title = "猜你想用",
-                subtitle = "根据本机使用习惯显示常用入口",
-                checked = personalization,
-                onCheckedChange = viewModel::setPersonalizationEnabled,
-            )
-            RowDivider()
-            ToggleRow(
-                title = "抢先体验计划",
-                subtitle = "提前收到新功能，可能包含未完成的功能",
-                checked = earlyAccess.joined == true || earlyAccess.choice == EarlyAccessChoice.Yes,
-                enabled = !earlyAccessBusy,
-                onCheckedChange = viewModel::setEarlyAccess,
-            )
+            Spacer(Modifier.height(22.dp))
+            OnboardingCard {
+                ToggleRow(
+                    title = "必吃榜数据共建",
+                    subtitle = "上传去标识的食堂消费记录，帮助生成窗口热度榜",
+                    checked = canteen == true,
+                    onCheckedChange = viewModel::setCanteenConsent,
+                )
+                RowDivider()
+                ToggleRow(
+                    title = "智能预测",
+                    subtitle = "提前加载你下一步可能要看的内容",
+                    checked = predictive,
+                    onCheckedChange = viewModel::setPredictivePrefetchEnabled,
+                )
+                RowDivider()
+                ToggleRow(
+                    title = "猜你想用",
+                    subtitle = "根据本机使用习惯显示常用入口",
+                    checked = personalization,
+                    onCheckedChange = viewModel::setPersonalizationEnabled,
+                )
+                RowDivider()
+                ToggleRow(
+                    title = "抢先体验计划",
+                    subtitle = "提前收到新功能，可能包含未完成的功能",
+                    checked = earlyAccess.joined == true || earlyAccess.choice == EarlyAccessChoice.Yes,
+                    enabled = !earlyAccessBusy,
+                    onCheckedChange = viewModel::setEarlyAccess,
+                )
+            }
+            earlyAccessError?.let { message ->
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
-        earlyAccessError?.let { message ->
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
         BottomActions(
             backLabel = "上一步",
             nextLabel = "完成",
@@ -441,17 +467,27 @@ private fun BottomActions(
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(OnboardingActionHeight),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         AppButton(
             onClick = onBack,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
             variant = AppButtonVariant.Secondary,
         ) {
             Text(backLabel)
         }
         AppButton(
             onClick = onNext,
-            modifier = Modifier.weight(1.4f),
+            modifier = Modifier
+                .weight(1.4f)
+                .fillMaxHeight(),
         ) {
             Text(nextLabel)
         }
