@@ -57,7 +57,6 @@ import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
-import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
 import com.ahu.ahutong.ui.state.LoginViewModel
 
 private const val STEP_COUNT = 4
@@ -112,21 +111,6 @@ internal fun OnboardingScreen(
                         onboardingStep = 1,
                         onLoggedIn = { step = 2 },
                     )
-                    // 调试重播时账号已登录，允许直接跳到下一页，避免必须重新输入密码。
-                    if (SessionStore.isLoggedIn()) {
-                        Text(
-                            text = "已登录，跳过",
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .statusBarsPadding()
-                                .padding(end = 20.dp, top = 28.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { step = 2 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
                 }
                 2 -> AssistantPage(
                     step = activeStep,

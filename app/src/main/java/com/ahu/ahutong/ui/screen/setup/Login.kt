@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.session.AhuSessionState
+import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -131,6 +132,13 @@ fun Login(
     var initialLoginStarted by rememberSaveable { mutableStateOf(false) }
     var loginAttempted by rememberSaveable { mutableStateOf(false) }
     val sessionStatus by AhuSessionState.status.collectAsState()
+    val alreadyLoggedIn = SessionStore.isLoggedIn() &&
+        sessionStatus == AhuSessionState.Status.Authenticated
+    LaunchedEffect(alreadyLoggedIn) {
+        if (alreadyLoggedIn && userID.text.isBlank()) {
+            userID = TextFieldValue(SessionStore.currentUser()?.xh.orEmpty())
+        }
+    }
     LaunchedEffect(Unit) {
         if (autoLogin && !initialLoginStarted && loginViewModel.state == LoginState.Idle) {
             initialLoginStarted = true
@@ -266,6 +274,7 @@ fun Login(
                         imeAction = ImeAction.Next
                     ),
                     singleLine = true,
+                    enabled = !alreadyLoggedIn,
                     cursorBrush = SolidColor(LocalContentColor.current)
                 ) {
                     Box(
@@ -308,6 +317,7 @@ fun Login(
                     ),
                     keyboardActions = KeyboardActions(onDone = { submitLogin() }),
                     singleLine = true,
+                    enabled = !alreadyLoggedIn,
                     visualTransformation = if (passwordVisible) {
                         VisualTransformation.None
                     } else {
@@ -325,28 +335,34 @@ fun Login(
                         Box(Modifier.fillMaxWidth().padding(end = 44.dp)) { it() }
                         if (password.text.isBlank()) {
                             Text(
-                                text = stringResource(id = R.string.hint_wisdom_password),
+                                text = if (alreadyLoggedIn) {
+                                    "已登录"
+                                } else {
+                                    stringResource(id = R.string.hint_wisdom_password)
+                                },
                                 color = 30.n1 withNight 80.n1,
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
-                        IconButton(
-                            onClick = { passwordVisible = !passwordVisible },
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) {
-                            Icon(
-                                imageVector = if (passwordVisible) {
-                                    Icons.Default.Visibility
-                                } else {
-                                    Icons.Default.VisibilityOff
-                                },
-                                contentDescription = if (passwordVisible) "隐藏密码" else "显示密码"
-                            )
+                        if (!alreadyLoggedIn) {
+                            IconButton(
+                                onClick = { passwordVisible = !passwordVisible },
+                                modifier = Modifier.align(Alignment.CenterEnd)
+                            ) {
+                                Icon(
+                                    imageVector = if (passwordVisible) {
+                                        Icons.Default.Visibility
+                                    } else {
+                                        Icons.Default.VisibilityOff
+                                    },
+                                    contentDescription = if (passwordVisible) "隐藏密码" else "显示密码"
+                                )
+                            }
                         }
                     }
                 }
 
-                if (consentRequired) {
+                if (consentRequired && !alreadyLoggedIn) {
                     Spacer(Modifier.height(12.dp))
                     ConsentRow(
                         checked = legalConsent,
@@ -383,13 +399,14 @@ fun Login(
                     loginViewModel.state == LoginState.Succeeded
                 val succeeded = loginViewModel.state == LoginState.Succeeded
                 AppButton(
-                    onClick = submitLogin,
+                    onClick = if (alreadyLoggedIn) onLoggedIn else submitLogin,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(OnboardingActionHeight),
-                    enabled = !busy
+                    enabled = alreadyLoggedIn || !busy
                 ) {
                     when {
+                        alreadyLoggedIn -> Text("已登录，下一步", fontSize = 16.sp)
                         succeeded -> Text("登录成功", fontSize = 16.sp)
                         busy -> {
                             AppCircularProgressIndicator(
