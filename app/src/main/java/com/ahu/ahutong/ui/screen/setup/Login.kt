@@ -480,7 +480,11 @@ private fun ConsentRow(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Row(
                 modifier = Modifier
                     .clickable(
@@ -535,6 +539,7 @@ private fun ConsentRow(
         if (showHint && !checked) {
             Text(
                 text = "请先勾选同意《隐私政策》",
+                modifier = Modifier.align(Alignment.CenterHorizontally),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.error,
             )
