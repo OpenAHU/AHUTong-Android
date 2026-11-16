@@ -8,23 +8,30 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
@@ -38,6 +45,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +62,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAutofill
 import androidx.compose.ui.platform.LocalAutofillTree
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -66,17 +76,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.AppPageHeader
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
+import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import com.ahu.ahutong.ui.markdown.AppMarkdown
 import com.ahu.ahutong.ui.state.LoginState
 import com.ahu.ahutong.ui.state.LoginViewModel
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -87,6 +102,8 @@ fun Login(
     initialPassword: String = "",
     autoLogin: Boolean = false,
     onBack: ((Boolean) -> Unit)? = null,
+    consentRequired: Boolean = false,
+    onConsentAccepted: () -> Unit = {},
     onLoggedIn: () -> Unit
 ) {
     var userID by rememberSaveable(stateSaver = TextFieldValue.Saver) {
@@ -98,6 +115,16 @@ fun Login(
     var focusIndex by rememberSaveable { mutableStateOf(0) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var showWebLoginContent by rememberSaveable { mutableStateOf(false) }
+    var legalConsent by rememberSaveable(consentRequired) { mutableStateOf(!consentRequired) }
+    var consentHint by remember { mutableStateOf(false) }
+    var showPolicy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val policyMarkdown by produceState<String?>(null, showPolicy) {
+        if (!showPolicy) return@produceState
+        value = withContext(Dispatchers.IO) {
+            context.resources.openRawResource(R.raw.privacy_policy).bufferedReader().use { it.readText() }
+        }
+    }
     val activity = LocalActivity.current
     var initialLoginStarted by rememberSaveable { mutableStateOf(false) }
     var loginAttempted by rememberSaveable { mutableStateOf(false) }
@@ -144,6 +171,16 @@ fun Login(
         }
     }
     BackHandler(onBack = handleBack)
+
+    val submitLogin: () -> Unit = {
+        if (consentRequired && !legalConsent) {
+            consentHint = true
+        } else {
+            consentHint = false
+            if (consentRequired) onConsentAccepted()
+            logIn(loginViewModel, userID.text, password.text) { loginAttempted = true }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -311,12 +348,7 @@ fun Login(
                     imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(onDone = {
-                    logIn(
-                        loginViewModel = loginViewModel,
-                        userID = userID.text,
-                        password = password.text,
-                        onAuthenticationStarted = { loginAttempted = true }
-                    )
+                    submitLogin()
                 }),
                 singleLine = true,
                 visualTransformation = if (passwordVisible) {
@@ -356,19 +388,110 @@ fun Login(
                     }
                 }
             }
+            if (consentRequired) {
+                ConsentRow(
+                    checked = legalConsent,
+                    showHint = consentHint,
+                    onToggle = {
+                        legalConsent = !legalConsent
+                        if (legalConsent) consentHint = false
+                    },
+                    onOpenPolicy = { showPolicy = true },
+                )
+            }
         }
         LoginDynamicIsland(
             state = loginViewModel.state,
             failureMessage = loginViewModel.failureMessage,
             succeedMessage = loginViewModel.succeedMessage
         ) {
-            logIn(
-                loginViewModel = loginViewModel,
-                userID = userID.text,
-                password = password.text,
-                onAuthenticationStarted = { loginAttempted = true }
+            submitLogin()
+        }
+        }
+        if (showPolicy) {
+            AppModalBottomSheet(title = "隐私政策", onDismissRequest = { showPolicy = false }) {
+                if (policyMarkdown == null) {
+                    Text("政策加载中…", modifier = Modifier.padding(24.dp))
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 520.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 24.dp, vertical = 8.dp)
+                    ) {
+                        AppMarkdown(markdown = policyMarkdown.orEmpty(), lazy = false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConsentRow(
+    checked: Boolean,
+    showHint: Boolean,
+    onToggle: () -> Unit,
+    onOpenPolicy: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier.padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onToggle)
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(if (checked) colors.primary else androidx.compose.ui.graphics.Color.Transparent)
+                        .border(
+                            width = 1.5.dp,
+                            color = if (checked) colors.primary else colors.outline,
+                            shape = RoundedCornerShape(5.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (checked) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = colors.onPrimary,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "我已阅读并同意",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = "《隐私政策》",
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = onOpenPolicy)
+                    .padding(vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.primary,
             )
         }
+        if (showHint && !checked) {
+            Text(
+                text = "请先勾选同意《隐私政策》",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.error,
+            )
         }
     }
 }

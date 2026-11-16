@@ -247,7 +247,7 @@ fun Main(
         canUseAuthenticatedPages(SessionStore.isLoggedIn(), sessionStatus, authenticationRequired)
     }
     val protectedRouteBlocked = currentRoute != null &&
-        currentRoute !in setOf("login", "splash") && !canUseBusinessPages
+        currentRoute !in setOf("login", "splash", "onboarding") && !canUseBusinessPages
     LaunchedEffect(protectedRouteBlocked, currentRoute, sessionStatus) {
         if (!protectedRouteBlocked) return@LaunchedEffect
         // Refresh and confirmation finish before the session publishes Expired.
@@ -318,7 +318,9 @@ fun Main(
     LaunchedEffect(pendingShortcutRoute, canUseBusinessPages, currentRoute) {
         val target = pendingShortcutRoute ?: return@LaunchedEffect
         if (!canUseBusinessPages) return@LaunchedEffect
-        if (currentRoute == null || currentRoute == "splash" || currentRoute == "login") {
+        if (currentRoute == null || currentRoute == "splash" || currentRoute == "login" ||
+            currentRoute == "onboarding"
+        ) {
             return@LaunchedEffect
         }
         when (target) {
@@ -512,6 +514,17 @@ fun Main(
                             )
                         }
                     }
+                )
+            }
+            animatedComposable("onboarding") {
+                com.ahu.ahutong.ui.screen.setup.OnboardingScreen(
+                    onOpenAiSettings = { navController.navigate("settings__ai") },
+                    onFinished = {
+                        navController.navigate("home") {
+                            popUpTo("onboarding") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             animatedComposable("login") {
@@ -1030,7 +1043,8 @@ fun Main(
         }
 
         val productUiBlocked = !canUseBusinessPages || effectiveRoute == "login" || effectiveRoute == "setup" ||
-            effectiveRoute == "splash" || effectiveRoute == "scan" || effectiveRoute == "camera" || effectiveRoute?.contains("deposit") == true ||
+            effectiveRoute == "splash" || effectiveRoute == "onboarding" || effectiveRoute == "scan" ||
+            effectiveRoute == "camera" || effectiveRoute?.contains("deposit") == true ||
             effectiveRoute?.startsWith("settings__feedback") == true ||
             effectiveRoute?.contains("recharge") == true ||
             effectiveRoute in setOf("electricity_pay", "electricity_recent_rooms", "electricity_alert_settings") ||

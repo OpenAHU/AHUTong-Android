@@ -134,6 +134,7 @@ object AppActionCatalog {
         spec(AppActionId.LOGIN, ActionFamily.TECHNICAL, "login", "登录", labelEligible = false, predictable = false, suggestible = false, sensitivity = Sensitivity.AUTHENTICATION),
         spec(AppActionId.SETUP, ActionFamily.TECHNICAL, "setup", "初始化", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.SPLASH, ActionFamily.TECHNICAL, "splash", "启动", labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.ONBOARDING, ActionFamily.TECHNICAL, "onboarding", "首次引导", labelEligible = false, predictable = false, suggestible = false),
         // Complete route coverage without changing the learned output ABI or enabling new suggestions.
         spec(AppActionId.VIEW_CAMPUS_NOTICES, ActionFamily.CAMPUS_SERVICE, "campus_notices", "校园通知", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_CANTEEN_RANKING, ActionFamily.CAMPUS_SERVICE, "canteen_ranking", "安大必吃榜", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
@@ -247,7 +248,7 @@ object AppActionCatalog {
         "settings__license", "settings__contributors", "preferences", "preferences/{section}", "electricity_pay",
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
-        "splash", "campus_notices", "student_mail", "program_completion", "identity_code",
+        "splash", "onboarding", "campus_notices", "student_mail", "program_completion", "identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__privacy_general", "settings__ai_privacy",
         "settings__theme_lab", "settings__theme_color", "settings__ai", "settings__ai_official_trial",
