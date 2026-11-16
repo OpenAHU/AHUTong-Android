@@ -355,40 +355,45 @@ private fun LoginEmoji(focusIndex: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(128.dp),
-        contentAlignment = Alignment.Center
+            .height(164.dp),
+        contentAlignment = Alignment.TopCenter
     ) {
-        Image(
-            painter = if (focusIndex == 0) {
-                painterResource(id = R.mipmap.emoji_username)
-            } else {
-                painterResource(id = R.mipmap.emoji_password)
-            },
-            contentDescription = null
-        )
-        androidx.compose.animation.AnimatedVisibility(
-            visible = focusIndex == 1,
-            modifier = Modifier.offset(y = 64.dp),
-            enter = fadeIn() + expandIn(),
-            exit = shrinkOut() + fadeOut()
+        Box(
+            modifier = Modifier.height(128.dp),
+            contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.mipmap.emoji_left_hand),
+                painter = if (focusIndex == 0) {
+                    painterResource(id = R.mipmap.emoji_username)
+                } else {
+                    painterResource(id = R.mipmap.emoji_password)
+                },
                 contentDescription = null
             )
-        }
-        androidx.compose.animation.AnimatedVisibility(
-            visible = focusIndex == 1,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset((-16).dp, 64.dp),
-            enter = fadeIn() + expandIn(),
-            exit = shrinkOut() + fadeOut()
-        ) {
-            Image(
-                painter = painterResource(id = R.mipmap.emoji_right_hand),
-                contentDescription = null
-            )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = focusIndex == 1,
+                modifier = Modifier.offset(y = 64.dp),
+                enter = fadeIn() + expandIn(),
+                exit = shrinkOut() + fadeOut()
+            ) {
+                Image(
+                    painter = painterResource(id = R.mipmap.emoji_left_hand),
+                    contentDescription = null
+                )
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = focusIndex == 1,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset((-16).dp, 64.dp),
+                enter = fadeIn() + expandIn(),
+                exit = shrinkOut() + fadeOut()
+            ) {
+                Image(
+                    painter = painterResource(id = R.mipmap.emoji_right_hand),
+                    contentDescription = null
+                )
+            }
         }
     }
 }
