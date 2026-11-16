@@ -491,7 +491,7 @@ private fun LoginEmoji(focusIndex: Int) {
 }
 
 @Composable
-private fun LoginStatusLine(message: LoginMessage?) {
+internal fun LoginStatusLine(message: LoginMessage?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -512,9 +512,9 @@ private fun LoginStatusLine(message: LoginMessage?) {
     }
 }
 
-private enum class LoginMessageTone { Error, Success }
+internal enum class LoginMessageTone { Error, Success }
 
-private data class LoginMessage(val text: String, val tone: LoginMessageTone)
+internal data class LoginMessage(val text: String, val tone: LoginMessageTone)
 
 @Composable
 private fun ConsentRow(

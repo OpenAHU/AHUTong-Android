@@ -27,8 +27,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,13 +46,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,12 +72,22 @@ import com.ahu.ahutong.data.preview.EarlyAccessManager
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
+import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
+import com.ahu.ahutong.ui.components.appLiquidGlassSurface
+import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongViewModel
 import com.ahu.ahutong.ui.state.LoginViewModel
+import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
+import com.kyant.capsule.ContinuousCapsule
+import com.kyant.monet.n1
+import com.kyant.monet.withNight
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
-private const val STEP_COUNT = 4
+private const val STEP_COUNT = 5
 
 internal val OnboardingActionHeight = 48.dp
 
@@ -113,16 +140,30 @@ internal fun OnboardingScreen(
                         onLoggedIn = { step = 2 },
                     )
                 }
-                2 -> AssistantPage(
+                2 -> {
+                    val xuexiaotongViewModel: XuexiaotongViewModel = hiltViewModel()
+                    XuexiaotongPage(
+                        step = activeStep,
+                        viewModel = xuexiaotongViewModel,
+                        onDone = { step = 3 },
+                    )
+                }
+                3 -> AssistantPage(
                     step = activeStep,
-                    onBack = { step = 1 },
-                    onNext = { step = 3 },
+                    onBack = { step = 2 },
+                    onNext = { step = 4 },
                     onOpenOfficialTrial = onOpenOfficialTrial,
                 )
-                else -> AdvancedPage(
+                4 -> AdvancedPage(
                     step = activeStep,
                     viewModel = viewModel,
-                    onBack = { step = 2 },
+                    onBack = { step = 3 },
+                    onNext = { step = 5 },
+                )
+                else -> EarlyAccessPage(
+                    step = activeStep,
+                    viewModel = viewModel,
+                    onBack = { step = 4 },
                     onFinish = { viewModel.finish(onFinished) },
                 )
             }
@@ -269,18 +310,238 @@ private fun AssistantPage(
 }
 
 @Composable
+private fun XuexiaotongPage(
+    step: Int,
+    viewModel: XuexiaotongViewModel,
+    onDone: () -> Unit,
+) {
+    val loggedIn by viewModel.loggedIn.collectAsState()
+    var account by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue())
+    }
+    var password by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue())
+    }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun connect() {
+        if (busy) return
+        error = null
+        if (account.text.isBlank() || password.text.isBlank()) {
+            error = "请填写账号和密码"
+            return
+        }
+        busy = true
+        scope.launch {
+            try {
+                viewModel.login(account.text.trim(), password.text)
+                viewModel.onLoginSuccess()
+                onDone()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                error = failure.message?.takeIf { it.isNotBlank() } ?: "连接失败，请检查账号密码"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 22.dp, vertical = 14.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            OnboardingStepDots(step)
+            Spacer(Modifier.height(22.dp))
+            PageTitle(
+                title = "连接学习通",
+                subtitle = "用于作业、课程进度与截止提醒，可以跳过",
+            )
+            Spacer(Modifier.height(20.dp))
+            if (loggedIn) {
+                Text(
+                    text = "已连接学习通，可以直接继续。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                CapsuleInput(
+                    value = account,
+                    onValueChange = { account = it },
+                    placeholder = "手机号 / 超星号 / 邮箱",
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    ),
+                )
+                Spacer(Modifier.height(12.dp))
+                CapsuleInput(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = "学习通密码",
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { connect() }),
+                    visualTransformation = if (passwordVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    onTogglePassword = { passwordVisible = !passwordVisible },
+                    passwordVisible = passwordVisible,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            LoginStatusLine(
+                error?.let { LoginMessage(it, LoginMessageTone.Error) }
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        if (loggedIn) {
+            AppButton(
+                onClick = onDone,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(OnboardingActionHeight),
+            ) {
+                Text("下一步")
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(OnboardingActionHeight),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppButton(
+                    onClick = onDone,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    variant = AppButtonVariant.Secondary,
+                ) {
+                    Text("跳过")
+                }
+                AppButton(
+                    onClick = { connect() },
+                    modifier = Modifier
+                        .weight(1.4f)
+                        .fillMaxHeight(),
+                    enabled = !busy,
+                ) {
+                    if (busy) {
+                        AppCircularProgressIndicator(
+                            size = 20.dp,
+                            color = LocalContentColor.current,
+                            strokeWidth = 2.dp,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("连接中…")
+                    } else {
+                        Text("连接学习通")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapsuleInput(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String,
+    keyboardOptions: KeyboardOptions,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    onTogglePassword: (() -> Unit)? = null,
+    passwordVisible: Boolean = false,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .appLiquidGlassSurface(
+                shape = ContinuousCapsule,
+                fallbackColor = 100.n1 withNight 20.n1,
+                level = LiquidGlassSurfaceLevel.Control
+            ),
+        textStyle = LocalTextStyle.current.copy(
+            color = LocalContentColor.current,
+            fontFamily = FontFamily.Monospace
+        ),
+        keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
+        singleLine = true,
+        visualTransformation = visualTransformation,
+        cursorBrush = SolidColor(LocalContentColor.current)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .height(64.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(end = if (onTogglePassword != null) 44.dp else 0.dp)
+            ) {
+                it()
+            }
+            if (value.text.isBlank()) {
+                Text(
+                    text = placeholder,
+                    color = 30.n1 withNight 80.n1,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            if (onTogglePassword != null) {
+                IconButton(
+                    onClick = onTogglePassword,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(
+                        imageVector = if (passwordVisible) {
+                            Icons.Default.Visibility
+                        } else {
+                            Icons.Default.VisibilityOff
+                        },
+                        contentDescription = if (passwordVisible) "隐藏密码" else "显示密码"
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun AdvancedPage(
     step: Int,
     viewModel: OnboardingViewModel,
     onBack: () -> Unit,
-    onFinish: () -> Unit,
+    onNext: () -> Unit,
 ) {
     val personalization by viewModel.personalizationEnabled.collectAsState()
     val predictive by viewModel.predictivePrefetchEnabled.collectAsState()
     val canteen by viewModel.canteenConsent.collectAsState()
-    val earlyAccess by EarlyAccessManager.state.collectAsState()
-    val earlyAccessBusy by viewModel.earlyAccessBusy.collectAsState()
-    val earlyAccessError by viewModel.earlyAccessError.collectAsState()
 
     Column(
         modifier = Modifier
@@ -323,10 +584,53 @@ private fun AdvancedPage(
                     checked = personalization,
                     onCheckedChange = viewModel::setPersonalizationEnabled,
                 )
-                RowDivider()
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        BottomActions(
+            backLabel = "上一步",
+            nextLabel = "下一步",
+            onBack = onBack,
+            onNext = onNext,
+        )
+    }
+}
+
+@Composable
+private fun EarlyAccessPage(
+    step: Int,
+    viewModel: OnboardingViewModel,
+    onBack: () -> Unit,
+    onFinish: () -> Unit,
+) {
+    val earlyAccess by EarlyAccessManager.state.collectAsState()
+    val earlyAccessBusy by viewModel.earlyAccessBusy.collectAsState()
+    val earlyAccessError by viewModel.earlyAccessError.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 22.dp, vertical = 14.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            OnboardingStepDots(step)
+            Spacer(Modifier.height(22.dp))
+            PageTitle(
+                title = "抢先体验计划",
+                subtitle = "提前收到新功能，可能包含未完成的内容",
+            )
+            Spacer(Modifier.height(22.dp))
+            OnboardingCard {
                 ToggleRow(
-                    title = "抢先体验计划",
-                    subtitle = "提前收到新功能，可能包含未完成的功能",
+                    title = "加入抢先体验计划",
+                    subtitle = "加入后可以提前收到测试版本与新功能",
                     checked = earlyAccess.joined == true || earlyAccess.choice == EarlyAccessChoice.Yes,
                     enabled = !earlyAccessBusy,
                     onCheckedChange = viewModel::setEarlyAccess,
@@ -353,9 +657,10 @@ private fun AdvancedPage(
 
 @Composable
 internal fun OnboardingStepDots(step: Int) {
+    val activeIndex = (step - 1).coerceIn(0, STEP_COUNT - 1)
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         repeat(STEP_COUNT) { index ->
-            val active = index == step
+            val active = index == activeIndex
             Box(
                 modifier = Modifier
                     .size(if (active) 18.dp else 7.dp, 7.dp)
