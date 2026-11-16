@@ -72,6 +72,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -344,7 +345,6 @@ fun Login(
                     Spacer(Modifier.height(12.dp))
                     ConsentRow(
                         checked = legalConsent,
-                        showHint = consentHint,
                         onToggle = {
                             legalConsent = !legalConsent
                             if (legalConsent) consentHint = false
@@ -353,28 +353,26 @@ fun Login(
                     )
                 }
 
-                val errorText = loginViewModel.failureMessage
-                    .takeIf { loginViewModel.state == LoginState.Failed }
-                if (errorText != null) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = errorText,
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 13.sp
+                val statusMessage = when {
+                    loginViewModel.state == LoginState.Succeeded &&
+                        loginViewModel.succeedMessage.isNotBlank() -> LoginMessage(
+                        text = loginViewModel.succeedMessage,
+                        tone = LoginMessageTone.Success,
                     )
-                }
-                val successText = loginViewModel.succeedMessage
-                    .takeIf { loginViewModel.state == LoginState.Succeeded }
-                if (successText != null) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = successText,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 13.sp
+                    loginViewModel.state == LoginState.Failed &&
+                        loginViewModel.failureMessage.isNotBlank() -> LoginMessage(
+                        text = loginViewModel.failureMessage,
+                        tone = LoginMessageTone.Error,
                     )
+                    consentHint && consentRequired && !legalConsent -> LoginMessage(
+                        text = "请先勾选同意《隐私政策》",
+                        tone = LoginMessageTone.Error,
+                    )
+                    else -> null
                 }
-
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(10.dp))
+                LoginStatusLine(statusMessage)
+                Spacer(Modifier.height(10.dp))
                 val busy = loginViewModel.state == LoginState.InProgress ||
                     loginViewModel.state == LoginState.Succeeded
                 AppButton(
@@ -467,9 +465,34 @@ private fun LoginEmoji(focusIndex: Int) {
 }
 
 @Composable
+private fun LoginStatusLine(message: LoginMessage?) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        message?.let {
+            Text(
+                text = it.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = when (it.tone) {
+                    LoginMessageTone.Error -> MaterialTheme.colorScheme.error
+                    LoginMessageTone.Success -> MaterialTheme.colorScheme.primary
+                },
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+private enum class LoginMessageTone { Error, Success }
+
+private data class LoginMessage(val text: String, val tone: LoginMessageTone)
+
+@Composable
 private fun ConsentRow(
     checked: Boolean,
-    showHint: Boolean,
     onToggle: () -> Unit,
     onOpenPolicy: () -> Unit,
 ) {
@@ -534,14 +557,6 @@ private fun ConsentRow(
                     .padding(vertical = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.primary,
-            )
-        }
-        if (showHint && !checked) {
-            Text(
-                text = "请先勾选同意《隐私政策》",
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.error,
             )
         }
     }
