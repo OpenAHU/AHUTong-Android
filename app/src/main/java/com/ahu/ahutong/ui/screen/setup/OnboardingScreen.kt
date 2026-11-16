@@ -74,7 +74,6 @@ import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
-import com.ahu.ahutong.ui.components.AppTitleIconButton
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
@@ -825,9 +824,15 @@ private fun BottomActions(
 
 @Composable
 private fun OnboardingBackButton(onClick: () -> Unit) {
-    AppTitleIconButton(
+    AppButton(
         onClick = onClick,
-        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-        contentDescription = "上一步",
-    )
+        modifier = Modifier.size(OnboardingActionHeight),
+        variant = AppButtonVariant.Secondary,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "上一步",
+            modifier = Modifier.size(18.dp),
+        )
+    }
 }
