@@ -12,7 +12,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,13 +69,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ahu.ahutong.R
 import com.ahu.ahutong.data.session.AhuSessionState
-import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
-import com.ahu.ahutong.ui.components.AppCard
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
-import com.ahu.ahutong.ui.components.AppPageHeader
 import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
@@ -96,6 +93,7 @@ fun Login(
     onBack: ((Boolean) -> Unit)? = null,
     consentRequired: Boolean = false,
     onConsentAccepted: () -> Unit = {},
+    onboardingStep: Int? = null,
     onLoggedIn: () -> Unit
 ) {
     var userID by rememberSaveable { mutableStateOf(initialUserId) }
@@ -116,11 +114,7 @@ fun Login(
     val activity = LocalActivity.current
     var initialLoginStarted by rememberSaveable { mutableStateOf(false) }
     var loginAttempted by rememberSaveable { mutableStateOf(false) }
-    val originalAccountId = rememberSaveable { SessionStore.currentUser()?.xh.orEmpty() }
     val sessionStatus by AhuSessionState.status.collectAsState()
-    val canShowBack = onBack != null && canCancelLogin(
-        originalAccountId, SessionStore.currentUser()?.xh, sessionStatus, loginAttempted
-    ) && loginViewModel.state != LoginState.InProgress && loginViewModel.state != LoginState.Succeeded
     LaunchedEffect(Unit) {
         if (autoLogin && !initialLoginStarted && loginViewModel.state == LoginState.Idle) {
             initialLoginStarted = true
@@ -201,25 +195,23 @@ fun Login(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .statusBarsPadding()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .navigationBarsPadding()
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
             ) {
-                AppPageHeader(
-                    title = "登录",
-                    onBack = if (canShowBack) handleBack else null,
-                    horizontalPadding = 0.dp
-                )
-                Text(
-                    text = "使用智慧安大账号登录",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "登录信息仅保存在本机，不会上传到安大通服务器",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
+                onboardingStep?.let { OnboardingStepDots(it) }
+                Spacer(Modifier.height(22.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "登录安大通",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    )
+                    Text(
+                        text = "使用智慧安大账号登录",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (sessionStatus == AhuSessionState.Status.Expired) {
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -228,116 +220,111 @@ fun Login(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(20.dp))
                 LoginEmoji(focusIndex = focusIndex)
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
 
-                AppCard(
+                AppTextField(
+                    value = userID,
+                    onValueChange = { userID = it },
+                    label = "学号",
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Next
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .autofill(AutofillType.Username) { userID = it }
+                        .onFocusChanged { if (it.isFocused) focusIndex = 0 }
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(20.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     AppTextField(
-                        value = userID,
-                        onValueChange = { userID = it },
-                        label = "学号",
+                        value = password,
+                        onValueChange = { password = it },
+                        label = "密码",
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Ascii,
-                            imeAction = ImeAction.Next
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
                         ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .autofill(AutofillType.Username) { userID = it }
-                            .onFocusChanged { if (it.isFocused) focusIndex = 0 }
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AppTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = "密码",
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(onDone = { submitLogin() }),
-                            visualTransformation = if (passwordVisible) {
-                                VisualTransformation.None
-                            } else {
-                                PasswordVisualTransformation()
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .autofill(AutofillType.Password) { password = it }
-                                .onFocusChanged { if (it.isFocused) focusIndex = 1 }
-                        )
-                        AppButton(
-                            onClick = { passwordVisible = !passwordVisible },
-                            modifier = Modifier.widthIn(min = 72.dp),
-                            variant = AppButtonVariant.Secondary
-                        ) {
-                            Text(if (passwordVisible) "隐藏" else "显示", fontSize = 13.sp)
-                        }
-                    }
-
-                    if (consentRequired) {
-                        Spacer(Modifier.height(12.dp))
-                        ConsentRow(
-                            checked = legalConsent,
-                            showHint = consentHint,
-                            onToggle = {
-                                legalConsent = !legalConsent
-                                if (legalConsent) consentHint = false
-                            },
-                            onOpenPolicy = { showPolicy = true },
-                        )
-                    }
-
-                    val errorText = loginViewModel.failureMessage
-                        .takeIf { loginViewModel.state == LoginState.Failed }
-                    if (errorText != null) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            text = errorText,
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 13.sp
-                        )
-                    }
-                    val successText = loginViewModel.succeedMessage
-                        .takeIf { loginViewModel.state == LoginState.Succeeded }
-                    if (successText != null) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            text = successText,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-                    val busy = loginViewModel.state == LoginState.InProgress ||
-                        loginViewModel.state == LoginState.Succeeded
-                    AppButton(
-                        onClick = submitLogin,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        enabled = !busy
-                    ) {
-                        if (busy) {
-                            AppCircularProgressIndicator(
-                                size = 20.dp,
-                                color = LocalContentColor.current,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("登录中…", fontSize = 16.sp)
+                        keyboardActions = KeyboardActions(onDone = { submitLogin() }),
+                        visualTransformation = if (passwordVisible) {
+                            VisualTransformation.None
                         } else {
-                            Text("登录", fontSize = 16.sp)
-                        }
+                            PasswordVisualTransformation()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .autofill(AutofillType.Password) { password = it }
+                            .onFocusChanged { if (it.isFocused) focusIndex = 1 }
+                    )
+                    AppButton(
+                        onClick = { passwordVisible = !passwordVisible },
+                        modifier = Modifier.widthIn(min = 72.dp),
+                        variant = AppButtonVariant.Secondary
+                    ) {
+                        Text(if (passwordVisible) "隐藏" else "显示", fontSize = 13.sp)
+                    }
+                }
+
+                if (consentRequired) {
+                    Spacer(Modifier.height(12.dp))
+                    ConsentRow(
+                        checked = legalConsent,
+                        showHint = consentHint,
+                        onToggle = {
+                            legalConsent = !legalConsent
+                            if (legalConsent) consentHint = false
+                        },
+                        onOpenPolicy = { showPolicy = true },
+                    )
+                }
+
+                val errorText = loginViewModel.failureMessage
+                    .takeIf { loginViewModel.state == LoginState.Failed }
+                if (errorText != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = errorText,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 13.sp
+                    )
+                }
+                val successText = loginViewModel.succeedMessage
+                    .takeIf { loginViewModel.state == LoginState.Succeeded }
+                if (successText != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = successText,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+                val busy = loginViewModel.state == LoginState.InProgress ||
+                    loginViewModel.state == LoginState.Succeeded
+                AppButton(
+                    onClick = submitLogin,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    enabled = !busy
+                ) {
+                    if (busy) {
+                        AppCircularProgressIndicator(
+                            size = 20.dp,
+                            color = LocalContentColor.current,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("登录中…", fontSize = 16.sp)
+                    } else {
+                        Text("登录", fontSize = 16.sp)
                     }
                 }
             }
@@ -366,7 +353,9 @@ fun Login(
 @Composable
 private fun LoginEmoji(focusIndex: Int) {
     Box(
-        modifier = Modifier.height(128.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(128.dp),
         contentAlignment = Alignment.Center
     ) {
         Image(

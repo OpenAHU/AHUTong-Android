@@ -106,6 +106,7 @@ internal fun OnboardingScreen(
                         consentRequired = true,
                         onConsentAccepted = viewModel::acceptLegalConsent,
                         onBack = { step = 0 },
+                        onboardingStep = 1,
                         onLoggedIn = { step = 2 },
                     )
                     // 调试重播时账号已登录，允许直接跳到下一页，避免必须重新输入密码。
@@ -220,7 +221,7 @@ private fun AssistantPage(
             .navigationBarsPadding()
             .padding(horizontal = 22.dp, vertical = 14.dp),
     ) {
-        StepDots(step)
+        OnboardingStepDots(step)
         Spacer(Modifier.height(22.dp))
         PageTitle(
             title = "AHUTong Intelligence",
@@ -285,7 +286,7 @@ private fun AdvancedPage(
             .padding(horizontal = 22.dp, vertical = 14.dp)
             .verticalScroll(rememberScrollState()),
     ) {
-        StepDots(step)
+        OnboardingStepDots(step)
         Spacer(Modifier.height(22.dp))
         PageTitle(
             title = "高级选项",
@@ -341,7 +342,7 @@ private fun AdvancedPage(
 }
 
 @Composable
-private fun StepDots(step: Int) {
+internal fun OnboardingStepDots(step: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         repeat(STEP_COUNT) { index ->
             val active = index == step
