@@ -204,7 +204,7 @@ private fun WelcomePage(onStart: () -> Unit) {
                 }
                 Spacer(Modifier.height(28.dp))
                 Text(
-                    text = "欢迎使用安大通！",
+                    text = "欢迎使用安大通",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -233,7 +233,7 @@ private fun WelcomePage(onStart: () -> Unit) {
                 .height(OnboardingActionHeight),
         ) {
             Text("开始")
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(6.dp))
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_right),
                 contentDescription = null,
