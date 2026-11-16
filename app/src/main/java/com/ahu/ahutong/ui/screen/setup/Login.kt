@@ -359,8 +359,7 @@ private fun LoginEmoji(focusIndex: Int) {
         contentAlignment = Alignment.TopCenter
     ) {
         Box(
-            modifier = Modifier.height(128.dp),
-            contentAlignment = Alignment.Center
+            modifier = Modifier.height(128.dp)
         ) {
             Image(
                 painter = if (focusIndex == 0) {
