@@ -232,13 +232,7 @@ private fun WelcomePage(onStart: () -> Unit) {
                 .fillMaxWidth()
                 .height(OnboardingActionHeight),
         ) {
-            Text("开始")
-            Spacer(Modifier.width(6.dp))
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_right),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-            )
+            Text("开始 →")
         }
     }
 }
