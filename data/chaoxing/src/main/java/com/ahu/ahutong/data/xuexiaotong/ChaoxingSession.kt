@@ -27,6 +27,7 @@ interface ChaoxingSession {
     suspend fun syncWorks(
         full: Boolean = false,
         semesterRange: LongRange? = null,
+        onCourseListKnown: ((Int) -> Unit)? = null,
         onWorkListKnown: ((Int) -> Unit)? = null,
         onProgress: (Int, Int, String) -> Unit
     ): List<Work>

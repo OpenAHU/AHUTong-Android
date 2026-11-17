@@ -13,17 +13,18 @@ internal object SyncThrottle {
         zone: ZoneId = ZoneId.systemDefault()
     ): Pair<Long?, Long?> {
         val m = coursePeriod.find(courseBlockHtml) ?: return null to null
-        fun date(year: String, month: String, day: String): Long? {
+        fun date(year: String, month: String, day: String, endOfDay: Boolean): Long? {
             return runCatching {
+                val time = if (endOfDay) LocalTime.MAX else LocalTime.MIN
                 LocalDate.of(year.toInt(), month.toInt(), day.toInt())
-                    .atTime(LocalTime.MAX)
+                    .atTime(time)
                     .atZone(zone)
                     .toInstant()
                     .toEpochMilli()
             }.getOrNull()
         }
-        return date(m.groupValues[1], m.groupValues[2], m.groupValues[3]) to
-            date(m.groupValues[4], m.groupValues[5], m.groupValues[6])
+        return date(m.groupValues[1], m.groupValues[2], m.groupValues[3], endOfDay = false) to
+            date(m.groupValues[4], m.groupValues[5], m.groupValues[6], endOfDay = true)
     }
 
     fun parseCourseStartTs(courseBlockHtml: String, zone: ZoneId = ZoneId.systemDefault()): Long? =
@@ -32,12 +33,11 @@ internal object SyncThrottle {
     fun parseCourseEndTs(courseBlockHtml: String, zone: ZoneId = ZoneId.systemDefault()): Long? =
         parseCoursePeriod(courseBlockHtml, zone).second
 
-    /** 课程区间与学期区间有交集即属于该学期；日期缺失时不误判为“不属于”。 */
-    fun Course.overlapsSemester(range: LongRange?): Boolean {
+    /** 只看课程开始时间：2–7 月属于春季学期，8–次年 1 月属于秋季学期。 */
+    fun Course.startsInSemester(range: LongRange?): Boolean {
         if (range == null) return true
-        val end = endTs ?: return true
-        val start = startTs ?: end
-        return start <= range.last && end >= range.first
+        val start = startTs ?: return true
+        return start in range
     }
 
     /**

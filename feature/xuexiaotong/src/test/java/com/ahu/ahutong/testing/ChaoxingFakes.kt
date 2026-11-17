@@ -57,11 +57,13 @@ class FakeChaoxingSession(
     override suspend fun syncWorks(
         full: Boolean,
         semesterRange: LongRange?,
+        onCourseListKnown: ((Int) -> Unit)?,
         onWorkListKnown: ((Int) -> Unit)?,
         onProgress: (Int, Int, String) -> Unit
     ): List<Work> {
         syncWorksCount++
         syncFailure?.let { throw it }
+        onCourseListKnown?.invoke(1)
         onWorkListKnown?.invoke(works.size)
         onProgress(1, 1, "同步完成")
         return works
@@ -106,6 +108,7 @@ class FakeChaoxingSyncService(
                 val works = session.syncWorks(
                     full = mode == com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncMode.FULL,
                     semesterRange = null,
+                    onCourseListKnown = null,
                     onWorkListKnown = null,
                     onProgress = { done, total, message ->
                         mutableState.update {

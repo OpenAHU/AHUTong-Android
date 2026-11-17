@@ -1,9 +1,5 @@
 package com.ahu.ahutong.data.schedule
 
-import com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi
-import com.ahu.ahutong.data.crawler.fetchCurrentSemester
-import com.ahu.ahutong.data.crawler.model.jwxt.EndDate
-import com.ahu.ahutong.data.crawler.model.jwxt.StartDate
 import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSemesterRangeProvider
 import java.time.LocalDate
 import java.time.LocalTime
@@ -12,50 +8,25 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 教务当前学期区间：优先使用教务返回的官方起止日期；失败后退回周配置，
- * 再退回 3–8 月 / 9–次年 2 月的月份口径。按天缓存，避免重复请求。
+ * 学习通「本学期」的口径：只看月份，不取教务的学期起止日期。
+ *
+ * 2–7 月为春季学期、8 月–次年 1 月为秋季学期；2 月和 8 月本身就是寒暑假缓冲，
+ * 正常教学会在 3 月和 9 月开始。
  */
 @Singleton
 class AppXuexiaotongSemesterRangeProvider @Inject constructor() : XuexiaotongSemesterRangeProvider {
 
-    private var cached: Pair<LocalDate, LongRange>? = null
+    override suspend fun currentSemesterRange(): LongRange = rangeFor(LocalDate.now())
 
-    override suspend fun currentSemesterRange(): LongRange? {
-        val today = LocalDate.now()
-        cached?.let { (day, range) -> if (day == today) return range }
-        val official = runCatching {
-            val semester = fetchCurrentSemester(JwxtApi.API)
-            val start = semester.startDate.toLocalDateOrNull()
-            val end = semester.endDate.toLocalDateOrNull()
-            if (start != null && end != null && !end.isBefore(start)) start to end else null
-        }.getOrNull()
-        val dates = official ?: fallbackSemesterDates(today) ?: return null
-        val zone = ZoneId.systemDefault()
-        val range = dates.first.atStartOfDay(zone).toInstant().toEpochMilli()..
-            dates.second.atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
-        cached = today to range
-        return range
-    }
-
-    private fun fallbackSemesterDates(today: LocalDate): Pair<LocalDate, LocalDate>? {
-        val config = runCatching { CurrentWeekResolver.resolveLocalConfig()?.config }.getOrNull()
-        val startDate = config?.startTime?.toInstant()
-            ?.atZone(ZoneId.systemDefault())
-            ?.toLocalDate()
-        if (startDate != null) {
-            return startDate to startDate.plusWeeks(20).minusDays(1)
-        }
+    internal fun rangeFor(today: LocalDate): LongRange {
         val year = today.year
-        return when (today.monthValue) {
-            in 3..8 -> LocalDate.of(year, 3, 1) to LocalDate.of(year, 8, 31)
-            in 9..12 -> LocalDate.of(year, 9, 1) to LocalDate.of(year + 1, 3, 1).minusDays(1)
-            else -> LocalDate.of(year - 1, 9, 1) to LocalDate.of(year, 3, 1).minusDays(1)
+        val (start, end) = when (today.monthValue) {
+            in 2..7 -> LocalDate.of(year, 2, 1) to LocalDate.of(year, 7, 31)
+            in 8..12 -> LocalDate.of(year, 8, 1) to LocalDate.of(year + 1, 1, 31)
+            else -> LocalDate.of(year - 1, 8, 1) to LocalDate.of(year, 1, 31)
         }
+        val zone = ZoneId.systemDefault()
+        return start.atStartOfDay(zone).toInstant().toEpochMilli()..
+            end.atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
     }
-
-    private fun StartDate.toLocalDateOrNull(): LocalDate? =
-        runCatching { LocalDate.of(year, monthOfYear, dayOfMonth) }.getOrNull()
-
-    private fun EndDate.toLocalDateOrNull(): LocalDate? =
-        runCatching { LocalDate.of(year, monthOfYear, dayOfMonth) }.getOrNull()
 }

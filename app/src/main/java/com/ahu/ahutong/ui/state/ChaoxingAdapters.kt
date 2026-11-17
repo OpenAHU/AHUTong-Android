@@ -54,12 +54,14 @@ class AppChaoxingSession @Inject constructor() : ChaoxingSession {
     override suspend fun syncWorks(
         full: Boolean,
         semesterRange: LongRange?,
+        onCourseListKnown: ((Int) -> Unit)?,
         onWorkListKnown: ((Int) -> Unit)?,
         onProgress: (Int, Int, String) -> Unit
     ): List<Work> =
         api.syncAllWorks(
             full = full,
             semesterRange = semesterRange,
+            onCourseListKnown = onCourseListKnown,
             onWorkListKnown = onWorkListKnown,
             listener = object : ChaoxingApi.ProgressListener {
                 override fun onProgress(done: Int, total: Int, message: String) {

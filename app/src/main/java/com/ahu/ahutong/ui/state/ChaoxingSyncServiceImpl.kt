@@ -68,22 +68,25 @@ class ChaoxingSyncServiceImpl @Inject constructor(
                     worksError = null,
                 )
             }
-            if (automatic) toast("连接成功，正在获取作业列表...")
+            toast(
+                if (automatic) "连接成功，正在获取作业列表..." else "正在获取作业列表..."
+            )
             try {
                 val semesterRange = semesterRangeProvider.currentSemesterRange()
                 session.silentRelogin()
                 session.syncWorks(
                     full = mode == XuexiaotongSyncMode.FULL,
                     semesterRange = semesterRange,
+                    onCourseListKnown = { count ->
+                        toast("正在同步${count}门课程的作业列表")
+                    },
                     onWorkListKnown = { count ->
-                        if (automatic) {
-                            val text = if (count > 0) {
-                                "正在同步${count}条作业，预计需要${estimateMinutes(count)}分钟"
-                            } else {
-                                "作业列表已更新，暂无需要同步详情的作业"
-                            }
-                            toast(text)
+                        val text = if (count > 0) {
+                            "正在同步${count}条作业，预计需要${estimateMinutes(count)}分钟"
+                        } else {
+                            "作业列表已更新，暂无需要同步详情的作业"
                         }
+                        toast(text)
                     },
                     onProgress = { done, total, message ->
                         _state.update {

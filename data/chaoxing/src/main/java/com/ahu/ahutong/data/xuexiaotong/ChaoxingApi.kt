@@ -389,6 +389,7 @@ class ChaoxingApi(private val context: Context) {
     suspend fun syncAllWorks(
         full: Boolean = false,
         semesterRange: LongRange? = null,
+        onCourseListKnown: ((Int) -> Unit)? = null,
         onWorkListKnown: ((Int) -> Unit)? = null,
         listener: ProgressListener? = null,
     ): List<Work> = withContext(Dispatchers.IO) {
@@ -404,6 +405,7 @@ class ChaoxingApi(private val context: Context) {
         if (courses.isEmpty()) throw IOException("课程列表获取为空，请稍后重试")
 
         val eligible = courses.filter { it.isInSemesterRange(semesterRange) }
+        onCourseListKnown?.invoke(eligible.count { !it.isEnded() })
         val eligibleIds = eligible.mapTo(mutableSetOf()) { it.courseId }
         val existing = Store.getWorks()
         val existingByCourse = existing.groupBy { it.courseId }.mapValues { (_, v) ->
@@ -417,10 +419,10 @@ class ChaoxingApi(private val context: Context) {
         for (course in eligible) {
             if (course.isEnded()) {
                 courseDone++
-                listener?.onProgress(courseDone, eligible.size, "已结课跳过：${course.name}")
+                listener?.onProgress(courseDone, eligible.size, "正在获取列表 $courseDone/${eligible.size}")
                 continue
             }
-            listener?.onProgress(courseDone, eligible.size, "正在获取：${course.name} 的作业列表")
+            listener?.onProgress(courseDone, eligible.size, "正在获取列表 ${courseDone + 1}/${eligible.size}")
             try {
                 val keys = fetchCourseKeys(course)
                 delay(600)
@@ -432,7 +434,7 @@ class ChaoxingApi(private val context: Context) {
                 failedCourses += course.courseId
             }
             courseDone++
-            listener?.onProgress(courseDone, eligible.size, "已获取 $courseDone/${eligible.size} 门课程")
+            listener?.onProgress(courseDone, eligible.size, "正在获取列表 $courseDone/${eligible.size}")
         }
 
         val allWorks = mutableListOf<Work>()
@@ -493,11 +495,11 @@ class ChaoxingApi(private val context: Context) {
     }
 
     /**
-     * 只把「本学期」的课程视为可同步：课程区间与教务学期区间有交集。
-     * 日期缺失时按未结课处理，避免误删。
+     * 只把「本学期」的课程视为可同步：按教务月份口径判断课程开始时间
+     * （2–7 月一个学期，8–次年 1 月一个学期）。日期缺失时按未结课处理，避免误删。
      */
     private fun Course.isInSemesterRange(range: LongRange?): Boolean =
-        with(SyncThrottle) { overlapsSemester(range) }
+        with(SyncThrottle) { startsInSemester(range) }
 
     suspend fun syncCourseProgress(
         semesterRange: LongRange? = null,
