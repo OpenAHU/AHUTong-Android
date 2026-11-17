@@ -127,8 +127,8 @@ class HomeHeroTextTest {
             assignments = listOf(assignment(endTs = at(11, 0))),
             nowMillis = at(10, 0)
         )
-        assertEquals("最近的作业还有\n1小时整截止", hero.headline)
-        assertEquals("第三章作业", hero.subtitle)
+        assertEquals("最近的作业\n还有1小时整截止", hero.headline)
+        assertEquals("高等数学 · 今天 11:00", hero.subtitle)
         assertEquals(HomeHeroTarget.XUEXIAOTONG_SCHEDULE, hero.target)
     }
 
@@ -190,7 +190,7 @@ class HomeHeroTextTest {
             assignments = listOf(assignment(endTs = at(11, 0))),
             nowMillis = at(10, 0)
         )
-        assertEquals("最近的作业还有\n1小时整截止", hero.headline)
+        assertEquals("最近的作业\n还有1小时整截止", hero.headline)
     }
 
     @Test fun nextExamSoonerThanTheAssignmentWins() {
@@ -214,8 +214,8 @@ class HomeHeroTextTest {
             assignments = listOf(assignment(endTs = at(8, 0, dayOffset = 1))),
             nowMillis = at(20, 0)
         )
-        assertEquals("最近的作业还有\n12小时整截止", hero.headline)
-        assertEquals("第三章作业", hero.subtitle)
+        assertEquals("最近的作业\n还有12小时整截止", hero.headline)
+        assertEquals("高等数学 · 明天 08:00", hero.subtitle)
     }
 
     @Test fun multiDayDeadlineIsExpressedInDays() {
@@ -227,8 +227,8 @@ class HomeHeroTextTest {
             assignments = listOf(assignment(endTs = at(10, 0, dayOffset = 3))),
             nowMillis = at(10, 0)
         )
-        assertEquals("最近的作业还有\n3天截止", hero.headline)
-        assertEquals("第三章作业", hero.subtitle)
+        assertEquals("最近的作业\n还有3天截止", hero.headline)
+        assertEquals("高等数学 · 11-20 10:00", hero.subtitle)
     }
 
     @Test fun holidayStillReportsAnAssignment() {
@@ -240,18 +240,18 @@ class HomeHeroTextTest {
             assignments = listOf(assignment(endTs = at(11, 0))),
             nowMillis = at(10, 0)
         )
-        assertEquals("最近的作业还有\n1小时整截止", hero.headline)
+        assertEquals("最近的作业\n还有1小时整截止", hero.headline)
     }
 
-    @Test fun blankTitleFallsBackToTheCourseName() {
+    @Test fun assignmentWithoutCourseNameShowsOnlyTheDeadline() {
         val hero = resolveHomeHeroText(
             todayCourses = emptyList(),
             todayExams = emptyList(),
             currentMinutes = 10 * 60,
             isInSemester = true,
-            assignments = listOf(assignment(title = "", endTs = at(11, 0))),
+            assignments = listOf(assignment(courseName = "", endTs = at(11, 0))),
             nowMillis = at(10, 0)
         )
-        assertEquals("高等数学", hero.subtitle)
+        assertEquals("今天 11:00", hero.subtitle)
     }
 }
