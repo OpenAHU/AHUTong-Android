@@ -2,6 +2,8 @@ package com.ahu.ahutong.ui.components
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -65,32 +67,22 @@ fun GuidedTourOverlay(
     val safeIndex = index.coerceIn(0, steps.lastIndex)
     val primary = MaterialTheme.colorScheme.primary
 
-    val left = remember { Animatable(0f) }
-    val top = remember { Animatable(0f) }
-    val right = remember { Animatable(0f) }
-    val bottom = remember { Animatable(0f) }
+    val animatedBounds = remember { Animatable(Rect.Zero, Rect.VectorConverter) }
     var hasBounds by remember { mutableStateOf(false) }
 
     LaunchedEffect(targetBounds) {
         val bounds = targetBounds ?: return@LaunchedEffect
         if (!hasBounds) {
-            left.snapTo(bounds.left)
-            top.snapTo(bounds.top)
-            right.snapTo(bounds.right)
-            bottom.snapTo(bounds.bottom)
+            animatedBounds.snapTo(bounds)
             hasBounds = true
         } else {
-            left.animateTo(bounds.left, tween(300))
-            top.animateTo(bounds.top, tween(300))
-            right.animateTo(bounds.right, tween(300))
-            bottom.animateTo(bounds.bottom, tween(300))
+            animatedBounds.animateTo(
+                targetValue = bounds,
+                animationSpec = tween(320, easing = FastOutSlowInEasing)
+            )
         }
     }
-    val holeRect = if (hasBounds) {
-        Rect(left.value, top.value, right.value, bottom.value)
-    } else {
-        null
-    }
+    val holeRect = if (hasBounds) animatedBounds.value else null
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
