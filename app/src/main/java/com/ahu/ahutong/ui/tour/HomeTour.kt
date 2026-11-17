@@ -28,7 +28,8 @@ private data class TourStop(
     val title: String,
     val body: String,
     val page: TourStopPage,
-    val gate: TourGate = TourGate.NONE
+    val gate: TourGate = TourGate.NONE,
+    val targetClickable: Boolean = false
 )
 
 private val TourStops = listOf(
@@ -54,7 +55,8 @@ private val TourStops = listOf(
         targetId = "home_campus",
         title = "校园卡",
         body = "点击即展开付款二维码。",
-        page = TourStopPage.HOME
+        page = TourStopPage.HOME,
+        targetClickable = true
     ),
     TourStop(
         targetId = "home_widgets",
@@ -191,6 +193,7 @@ internal fun HomeTourHost(
         index = index,
         targetBounds = current?.let { TourBounds.get(it.targetId) },
         allowTargetInteraction = gated,
+        allowHighlightedInteraction = current?.targetClickable == true,
         nextEnabled = !gated || dockUnlocked,
         hint = if (gated) "点两下试试→" else null,
         onNext = {

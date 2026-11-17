@@ -6,12 +6,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -75,6 +73,7 @@ fun GuidedTourOverlay(
     onPrevious: () -> Unit,
     onSkip: () -> Unit,
     allowTargetInteraction: Boolean = false,
+    allowHighlightedInteraction: Boolean = false,
     nextEnabled: Boolean = true,
     hint: String? = null,
 ) {
@@ -137,13 +136,49 @@ fun GuidedTourOverlay(
             }
         }
 
-        // 需要用户亲自点目标时才放行底层点击
-        if (!allowTargetInteraction) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) { detectTapGestures { } }
-            )
+        // 整页放行 / 只放行镂空区域 / 全部拦截
+        when {
+            allowTargetInteraction -> Unit
+            allowHighlightedInteraction && holeRect != null -> {
+                val screenW = with(density) { maxWidth.toPx() }
+                val screenH = with(density) { maxHeight.toPx() }
+                val padPx = with(density) { 6.dp.toPx() }
+                val leftDp = with(density) {
+                    (holeRect.left - padPx).coerceAtLeast(0f).toDp()
+                }
+                val topDp = with(density) {
+                    (holeRect.top - padPx).coerceAtLeast(0f).toDp()
+                }
+                val rightDp = with(density) {
+                    (holeRect.right + padPx).coerceAtMost(screenW).toDp()
+                }
+                val bottomDp = with(density) {
+                    (holeRect.bottom + padPx).coerceAtMost(screenH).toDp()
+                }
+                val holeHeight = (bottomDp - topDp).coerceAtLeast(0.dp)
+                TourTouchBlocker(Modifier.fillMaxWidth().height(topDp))
+                TourTouchBlocker(
+                    Modifier
+                        .fillMaxWidth()
+                        .height((maxHeight - bottomDp).coerceAtLeast(0.dp))
+                        .offset(y = bottomDp)
+                )
+                TourTouchBlocker(
+                    Modifier
+                        .width(leftDp)
+                        .height(holeHeight)
+                        .offset(y = topDp)
+                )
+                TourTouchBlocker(
+                    Modifier
+                        .width((maxWidth - rightDp).coerceAtLeast(0.dp))
+                        .height(holeHeight)
+                        .offset(x = rightDp, y = topDp)
+                )
+            }
+            else -> {
+                TourTouchBlocker(Modifier.fillMaxSize())
+            }
         }
 
         var hintSize by remember { mutableStateOf(IntSize.Zero) }
@@ -178,34 +213,22 @@ fun GuidedTourOverlay(
         }
 
         var cardHeightPx by remember { mutableStateOf(0) }
-        var above by remember { mutableStateOf(false) }
         val screenHeightPx = with(density) { maxHeight.toPx() }
-        LaunchedEffect(holeRect, screenHeightPx) {
-            val h = holeRect ?: return@LaunchedEffect
-            val center = (h.top + h.bottom) / 2f
-            // 迟滞区间：越过 58% 才翻到上方，回到 38% 以下才翻回下方
-            above = if (above) {
-                center > screenHeightPx * 0.38f
-            } else {
-                center > screenHeightPx * 0.58f
-            }
-        }
         val cardWidth = (maxWidth - 32.dp).coerceAtLeast(240.dp)
         val gapPx = with(density) { 22.dp.toPx() }
+        // 方向只由该步目标本身决定一次：目标在上半屏 → 卡片放下方，反之放上方。
+        // 卡片位置直接跟随已平滑的聚焦框，不另做缓动，避免两者不同步。
+        val above = targetBounds != null &&
+            (targetBounds.top + targetBounds.bottom) / 2f > screenHeightPx / 2f
         val rawTopPx = when {
             holeRect == null -> (screenHeightPx - cardHeightPx) / 2f
             above -> holeRect.top - gapPx - cardHeightPx
             else -> holeRect.bottom + gapPx
         }
-        val animatedTopPx by animateFloatAsState(
-            targetValue = rawTopPx,
-            animationSpec = tween(240, easing = FastOutSlowInEasing),
-            label = "tourCardTop"
-        )
         val minTopPx = with(density) { 88.dp.toPx() }
         val bottomInsetPx = with(density) { 32.dp.toPx() }
         val maxTopPx = (screenHeightPx - cardHeightPx - bottomInsetPx).coerceAtLeast(minTopPx)
-        val cardTopPx = animatedTopPx.coerceIn(minTopPx, maxTopPx)
+        val cardTopPx = rawTopPx.coerceIn(minTopPx, maxTopPx)
 
         Surface(
             modifier = Modifier
@@ -275,4 +298,17 @@ fun GuidedTourOverlay(
             }
         }
     }
+}
+
+@Composable
+private fun TourTouchBlocker(modifier: Modifier) {
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent().changes.forEach { it.consume() }
+                }
+            }
+        }
+    )
 }
