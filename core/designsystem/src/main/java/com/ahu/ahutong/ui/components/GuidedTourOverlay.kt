@@ -94,7 +94,20 @@ fun GuidedTourOverlay(
         var startSide by remember { mutableFloatStateOf(targetSide) }
         var endSide by remember { mutableFloatStateOf(targetSide) }
         var hasBounds by remember { mutableStateOf(false) }
+        var animatingStep by remember { mutableStateOf(false) }
 
+        // 切步：从当前姿态向新目标做一次形变
+        LaunchedEffect(safeIndex) {
+            if (!hasBounds) return@LaunchedEffect
+            animatingStep = true
+            startRect = lerpRect(startRect, endRect, progress.value)
+            startSide += (endSide - startSide) * progress.value
+            progress.snapTo(0f)
+            progress.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+            animatingStep = false
+        }
+
+        // 边界变化：切步动画中只更新终点；动画结束后直接跟随（卡片展开等逐帧变化）
         LaunchedEffect(targetBounds, targetSide) {
             val target = targetBounds ?: return@LaunchedEffect
             if (!hasBounds) {
@@ -104,13 +117,17 @@ fun GuidedTourOverlay(
                 endSide = targetSide
                 progress.snapTo(1f)
                 hasBounds = true
-            } else {
-                startRect = lerpRect(startRect, endRect, progress.value)
-                startSide += (endSide - startSide) * progress.value
+                return@LaunchedEffect
+            }
+            if (animatingStep || progress.value < 1f) {
                 endRect = target
                 endSide = targetSide
-                progress.snapTo(0f)
-                progress.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+            } else {
+                startRect = target
+                endRect = target
+                startSide = targetSide
+                endSide = targetSide
+                progress.snapTo(1f)
             }
         }
 
