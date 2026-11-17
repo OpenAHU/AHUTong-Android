@@ -75,6 +75,7 @@ import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.liquidGlassSurface
 import com.ahu.ahutong.ui.components.liquidGlassTint
+import com.ahu.ahutong.ui.components.tourTarget
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.util.Locale
@@ -150,7 +151,7 @@ fun CampusCard(
         )
     }
     Box(
-        modifier = modifier.then(campusSurface)
+        modifier = modifier.then(campusSurface).tourTarget("home_campus")
     ) {
         AnimatedContent(
             targetState = isQrcode,

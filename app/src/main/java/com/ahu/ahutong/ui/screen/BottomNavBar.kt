@@ -84,6 +84,7 @@ import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.LocalAppBackground
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.appWallpaperFrostedSurface
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongSubTab
@@ -236,7 +237,12 @@ private fun BoxScope.RadiantBottomNavBar(
                     val selected = selectedRoute == destination.route
                     LiquidBottomTab(
                         selected = selected,
-                        onClick = { select(destination.route) }
+                        onClick = { select(destination.route) },
+                        modifier = if (destination.route == "xuexiaotong") {
+                            Modifier.tourTarget("nav_xuexiaotong")
+                        } else {
+                            Modifier
+                        }
                     ) {
                         Icon(
                             painter = painterResource(destination.iconId),
@@ -265,6 +271,11 @@ private fun BoxScope.RadiantBottomNavBar(
                 NavigationBarItem(
                     selected = selected,
                     onClick = { select(destination.route) },
+                    modifier = if (destination.route == "xuexiaotong") {
+                        Modifier.tourTarget("nav_xuexiaotong")
+                    } else {
+                        Modifier
+                    },
                     icon = {
                         Icon(
                             painter = painterResource(destination.iconId),
@@ -463,7 +474,12 @@ private fun BoxScope.ClassicBottomNavBar(
                     val selected = selectedRoute == destination.route
                     LiquidBottomTab(
                         selected = selected,
-                        onClick = { select(destination.route) }
+                        onClick = { select(destination.route) },
+                        modifier = if (destination.route == "xuexiaotong") {
+                            Modifier.tourTarget("nav_xuexiaotong")
+                        } else {
+                            Modifier
+                        }
                     ) {
                         Icon(
                             imageVector = if (selected) {
@@ -532,6 +548,11 @@ private fun BoxScope.ClassicBottomNavBar(
                 NavigationBarItem(
                     selected = selected,
                     onClick = { select(destination.route) },
+                    modifier = if (destination.route == "xuexiaotong") {
+                        Modifier.tourTarget("nav_xuexiaotong")
+                    } else {
+                        Modifier
+                    },
                     icon = {
                         Icon(
                             imageVector = if (selected) {
@@ -589,6 +610,13 @@ private fun BoxScope.MaterialFloatingBottomNavBar(
                     )
                     Row(
                         modifier = Modifier.weight(itemWeight).height(48.dp)
+                            .then(
+                                if (destination.route == "xuexiaotong") {
+                                    Modifier.tourTarget("nav_xuexiaotong")
+                                } else {
+                                    Modifier
+                                }
+                            )
                             .clip(CircleShape).background(itemColor)
                             .selectable(selected = selected, role = Role.Tab,
                                 onClick = { onSelect(destination.route) })

@@ -53,6 +53,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.runtime.livedata.observeAsState
 import com.ahu.ahutong.ui.state.ExamViewModel
+import com.ahu.ahutong.ui.tour.HomeTourHost
+import com.ahu.ahutong.ui.tour.HomeTourState
 import androidx.navigation.NavType
 import androidx.navigation.NavHostController
 import androidx.navigation.navArgument
@@ -1015,7 +1017,8 @@ fun Main(
                                 popUpTo("debug") { inclusive = true }
                                 launchSingleTop = true
                             }
-                        }
+                        },
+                        onReplayTour = { HomeTourState.requestReplay() }
                     )
                 }
             }
@@ -1125,6 +1128,18 @@ fun Main(
                 com.ahu.ahutong.ui.screen.assistant.AssistantChatState.close()
                 com.ahu.ahutong.ui.glow.AssistantGlowState.visible = false
                 navController.navigate(route) { launchSingleTop = true }
+            },
+        )
+        HomeTourHost(
+            currentRoute = currentRoute,
+            undergraduateEnabled = undergraduateEnabled,
+            onOpenHome = { scope.launch { selectPrimaryDestination("home") } },
+            onOpenCustomCourses = {
+                navController.navigate("custom_courses") { launchSingleTop = true }
+            },
+            onOpenXuexiaotongSchedule = {
+                XuexiaotongDockState.tab = XuexiaotongSubTab.SCHEDULE
+                scope.launch { selectPrimaryDestination("xuexiaotong") }
             },
         )
 

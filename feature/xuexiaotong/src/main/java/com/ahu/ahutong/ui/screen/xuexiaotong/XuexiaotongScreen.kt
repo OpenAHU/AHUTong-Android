@@ -76,6 +76,7 @@ import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -295,7 +296,7 @@ fun XuexiaotongScreen() {
                                 }
                             } else {
                                 IconButton(
-                                    modifier = Modifier.size(38.dp),
+                                    modifier = Modifier.size(38.dp).tourTarget("xuexiaotong_refresh"),
                                     onClick = {
                                         if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
                                         else viewModel.syncWorks()
@@ -468,10 +469,13 @@ fun XuexiaotongScreen() {
                                 )
                             }
                         } else {
-                            IconButton(onClick = {
-                                if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
-                                else viewModel.syncWorks()
-                            }) {
+                            IconButton(
+                                modifier = Modifier.tourTarget("xuexiaotong_refresh"),
+                                onClick = {
+                                    if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
+                                    else viewModel.syncWorks()
+                                }
+                            ) {
                                 Icon(
                                     Icons.Filled.Refresh,
                                     contentDescription = "同步",

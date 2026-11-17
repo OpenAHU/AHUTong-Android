@@ -35,6 +35,7 @@ data class TrailingAction(
     val icon: ImageVector,
     val contentDescription: String,
     val painter: Painter? = null,
+    val modifier: Modifier = Modifier,
     val onClick: () -> Unit
 ) {
     constructor(painter: Painter, contentDescription: String, onClick: () -> Unit) : this(
@@ -117,6 +118,7 @@ fun SecondaryPageHeader(
                         limited.forEach { action ->
                             Box(
                                 modifier = Modifier
+                                    .then(action.modifier)
                                     .size(34.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
@@ -163,7 +165,7 @@ fun SecondaryPageHeader(
             if (limited.isNotEmpty()) {
                 Row {
                     limited.forEach { action ->
-                        IconButton(onClick = action.onClick) {
+                        IconButton(onClick = action.onClick, modifier = action.modifier) {
                             if (action.painter != null) {
                                 Icon(action.painter, action.contentDescription)
                             } else {

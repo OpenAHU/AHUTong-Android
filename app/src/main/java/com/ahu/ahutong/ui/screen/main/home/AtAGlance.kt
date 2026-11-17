@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.a1
 import com.kyant.monet.withNight
@@ -103,6 +104,7 @@ private fun RadiantAtAGlance(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .tourTarget("home_hero")
             .then(
                 if (enabled) {
                     Modifier.clickable(

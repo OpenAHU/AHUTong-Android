@@ -76,6 +76,7 @@ import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.R
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.a1
 import com.kyant.monet.n1
@@ -422,7 +423,7 @@ private fun RadiantHomeWidgetSlotLayout(
         CanteenAskCardHost(enabled = !isEditing)
 
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().tourTarget("home_widgets"),
             // 编辑态每格有描边和左上角移除钮（向上偏移 8dp），行距需容纳它们
             verticalArrangement = Arrangement.spacedBy(if (isEditing) 12.dp else 4.dp)
         ) {

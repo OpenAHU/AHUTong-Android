@@ -92,6 +92,7 @@ import com.ahu.ahutong.personalization.semantic.MutationId
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.action.ActionSource
 import com.ahu.ahutong.ui.components.appLiquidGlassSceneBackground
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.components.headerBackdropSource
@@ -526,7 +527,8 @@ internal fun Home(
         val scanButton: @Composable () -> Unit = {
             HomeScanButton(
                 onClick = { navController.navigate("camera") { launchSingleTop = true } },
-                backdrop = headerControlsBackdrop
+                backdrop = headerControlsBackdrop,
+                modifier = Modifier.tourTarget("home_camera")
             )
         }
         val assistantButton: @Composable () -> Unit = {
@@ -546,15 +548,17 @@ internal fun Home(
                     }
                 },
                 backdrop = headerControlsBackdrop,
-                modifier = Modifier.onGloballyPositioned { coordinates ->
-                    val topLeft = coordinates.positionInWindow()
-                    val center = Offset(
-                        x = topLeft.x + coordinates.size.width / 2f,
-                        y = topLeft.y + coordinates.size.height / 2f,
-                    )
-                    assistantOrigin = center
-                    AssistantGlowState.origin = center
-                }
+                modifier = Modifier
+                    .tourTarget("home_ai")
+                    .onGloballyPositioned { coordinates ->
+                        val topLeft = coordinates.positionInWindow()
+                        val center = Offset(
+                            x = topLeft.x + coordinates.size.width / 2f,
+                            y = topLeft.y + coordinates.size.height / 2f,
+                        )
+                        assistantOrigin = center
+                        AssistantGlowState.origin = center
+                    }
             )
         }
         val trailingContent: @Composable RowScope.() -> Unit = {

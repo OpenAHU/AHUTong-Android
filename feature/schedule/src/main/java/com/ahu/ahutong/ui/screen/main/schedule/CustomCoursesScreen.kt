@@ -53,6 +53,7 @@ import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.AppFilterChip
 import com.ahu.ahutong.ui.components.AppPageScaffold
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.AppSectionCard
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
@@ -151,7 +152,14 @@ private fun CustomCourseListScaffold(
         actions = if (state.semesterKey == null) {
             emptyList()
         } else {
-            listOf(TrailingAction(Icons.Default.Add, "添加课程", onClick = onAdd))
+            listOf(
+                TrailingAction(
+                    icon = Icons.Default.Add,
+                    contentDescription = "添加课程",
+                    onClick = onAdd,
+                    modifier = Modifier.tourTarget("custom_courses_add")
+                )
+            )
         },
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = {
