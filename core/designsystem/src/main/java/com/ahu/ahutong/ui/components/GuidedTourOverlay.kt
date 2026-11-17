@@ -55,7 +55,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-data class GuidedTourStep(val title: String, val body: String)
+data class GuidedTourStep(
+    val title: String,
+    val body: String,
+    val note: String? = null
+)
 
 /**
  * 全屏新手导览：暗幕 + 主题色镂空 + 贴着目标的说明卡。
@@ -237,6 +241,13 @@ fun GuidedTourOverlay(
                         lineHeight = 22.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (step.note != null) {
+                        Text(
+                            text = step.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth().height(44.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),

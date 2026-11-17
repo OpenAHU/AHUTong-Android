@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.GuidedTourOverlay
@@ -130,6 +131,11 @@ internal fun HomeTourHost(
     var handledReplay by remember { mutableIntStateOf(HomeTourState.replaySignal) }
     var dockBaseline by remember { mutableStateOf(XuexiaotongDockState.tab) }
     var dockUnlocked by remember { mutableStateOf(false) }
+    val assistantEnabled = AssistantAccessState.enabled
+    LaunchedEffect(Unit) { AssistantAccessState.ensureLoaded() }
+    LaunchedEffect(visible) {
+        if (visible) AssistantAccessState.refresh()
+    }
 
     fun finish() {
         visible = false
@@ -175,7 +181,13 @@ internal fun HomeTourHost(
     val gated = current?.gate == TourGate.DOCK_TOGGLE
     GuidedTourOverlay(
         visible = visible,
-        steps = stops.map { GuidedTourStep(it.title, it.body) },
+        steps = stops.mapIndexed { i, stop ->
+            GuidedTourStep(
+                title = stop.title,
+                body = stop.body,
+                note = if (i == 0 && !assistantEnabled) "（该功能已关闭）" else null
+            )
+        },
         index = index,
         targetBounds = current?.let { TourBounds.get(it.targetId) },
         allowTargetInteraction = gated,
