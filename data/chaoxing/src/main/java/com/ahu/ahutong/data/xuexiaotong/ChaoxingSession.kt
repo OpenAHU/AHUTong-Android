@@ -24,9 +24,17 @@ interface ChaoxingSession {
     suspend fun silentRelogin()
 
     /** 拉取全部作业；[onProgress] 报告进度（已完成 / 总数 / 说明）。 */
-    suspend fun syncWorks(onProgress: (Int, Int, String) -> Unit): List<Work>
+    suspend fun syncWorks(
+        full: Boolean = false,
+        semesterRange: LongRange? = null,
+        onWorkListKnown: ((Int) -> Unit)? = null,
+        onProgress: (Int, Int, String) -> Unit
+    ): List<Work>
 
     /** 拉取课程进度。 */
-    suspend fun syncCourseProgress(onProgress: (Int, Int, String) -> Unit): List<CourseProgress>
+    suspend fun syncCourseProgress(
+        semesterRange: LongRange? = null,
+        onProgress: (Int, Int, String) -> Unit
+    ): List<CourseProgress>
 }
 

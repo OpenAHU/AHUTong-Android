@@ -115,6 +115,7 @@ fun XuexiaotongScreen() {
     val showDone by viewModel.showDone.collectAsState()
     val doneGray by viewModel.doneGray.collectAsState()
     val showEmptyCourses by viewModel.showEmptyCourses.collectAsState()
+    val fullSyncEnabled by viewModel.fullSyncEnabled.collectAsState()
     val remindSetting by viewModel.remindSetting.collectAsState()
 
     // 未登录也可直接使用日历（自建日程本地可用），仅登录/同步需进独立登录页
@@ -655,6 +656,15 @@ fun XuexiaotongScreen() {
                 BottomSheetSwitchItem("查看已完成作业", showDone) { viewModel.toggleShowDone() }
                 BottomSheetSwitchItem("查看无任务点课程", showEmptyCourses) { viewModel.toggleShowEmptyCourses() }
                 BottomSheetSwitchItem("已完成任务置灰", doneGray) { viewModel.toggleDoneGray() }
+                BottomSheetSwitchItem("全量抓取", fullSyncEnabled) {
+                    viewModel.setFullSyncEnabled(!fullSyncEnabled)
+                }
+                Text(
+                    "开启后每次刷新都会重抓已完成作业的详情，耗时更长",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
+                )
                 Spacer(Modifier.height(8.dp))
                 // 通知设置
                 Box(

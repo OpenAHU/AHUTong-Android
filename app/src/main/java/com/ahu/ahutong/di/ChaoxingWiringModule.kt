@@ -3,11 +3,13 @@ package com.ahu.ahutong.di
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingStore
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminderStore
 import com.ahu.ahutong.data.xuexiaotong.Store
 import com.ahu.ahutong.ui.state.AppChaoxingReminders
 import com.ahu.ahutong.ui.state.AppChaoxingSession
 import com.ahu.ahutong.ui.state.AppChaoxingStore
+import com.ahu.ahutong.ui.state.ChaoxingSyncServiceImpl
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDispatcher
 import dagger.Binds
 import dagger.Module
@@ -40,6 +42,12 @@ abstract class ChaoxingWiringModule {
     abstract fun bindChaoxingReminders(
         implementation: AppChaoxingReminders
     ): ChaoxingReminders
+
+    @Binds
+    @Singleton
+    abstract fun bindChaoxingSyncService(
+        implementation: ChaoxingSyncServiceImpl
+    ): ChaoxingSyncService
 
     companion object {
 

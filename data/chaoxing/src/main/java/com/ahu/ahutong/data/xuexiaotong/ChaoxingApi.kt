@@ -383,88 +383,125 @@ class ChaoxingApi(private val context: Context) {
         fun onProgress(done: Int, total: Int, message: String)
     }
 
-    suspend fun syncAllWorks(listener: ProgressListener? = null): List<Work> =
-        withContext(Dispatchers.IO) {
-            listener?.onProgress(0, 0, "正在获取课程列表...")
-            // 每次同步都刷新课程列表，新加入的课程无需退出登录即可看到
-            val courses = try {
-                fetchCourses()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Store.getCourses()
-            }
-            if (courses.isEmpty()) throw IOException("课程列表获取为空，请稍后重试")
+    suspend fun syncAllWorks(
+        full: Boolean = false,
+        semesterRange: LongRange? = null,
+        onWorkListKnown: ((Int) -> Unit)? = null,
+        listener: ProgressListener? = null,
+    ): List<Work> = withContext(Dispatchers.IO) {
+        listener?.onProgress(0, 0, "正在获取作业列表...")
+        // 每次同步都刷新课程列表，新加入的课程无需退出登录即可看到
+        val courses = try {
+            fetchCourses()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Store.getCourses()
+        }
+        if (courses.isEmpty()) throw IOException("课程列表获取为空，请稍后重试")
 
-            val existing = Store.getWorks()
-            val existingByCourse = existing.groupBy { it.courseId }.mapValues { (_, v) ->
-                v.associateBy { it.workId }
-            }
-
-            val allWorks = mutableListOf<Work>()
-            var done = 0
-            val total = courses.size
-
-            for (course in courses) {
-                if (course.isEnded()) {
-                    // 已结课：整课跳过，不发任何请求，保留本地缓存
-                    existingByCourse[course.courseId]?.values?.let { allWorks.addAll(it) }
-                    done++
-                    listener?.onProgress(done, total, "已结课跳过：${course.name}")
-                    continue
-                }
-                listener?.onProgress(done, total, "正在处理：${course.name}")
-                try {
-                    val keys = fetchCourseKeys(course)
-                    delay(600)
-                    val works = fetchCourseWorks(course, keys)
-                    delay(600)
-
-                    for (work in works) {
-                        val previous = existingByCourse[course.courseId]?.get(work.workId)
-                        var startTs = previous?.startTs
-                        var endTs = previous?.endTs
-
-                        // 节流：已完成 / 已上日历（本地已有起止时间）的作业不再请求详情页
-                        if (SyncThrottle.needsDeadlineFetch(work, previous)) {
-                            try {
-                                val dl = fetchWorkDeadline(work.copy(startTs = startTs, endTs = endTs))
-                                if (dl != null) {
-                                    startTs = dl.first
-                                    endTs = dl.second
-                                }
-                                delay(800)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (_: Exception) { }
-                        }
-
-                        allWorks.add(work.copy(startTs = startTs, endTs = endTs,
-                            rawStart = previous?.rawStart ?: "", rawEnd = previous?.rawEnd ?: ""))
-                    }
-                } catch (e: CancellationException) {
-                    // 退出登录会取消同步；不能当作单门课程失败继续跑，否则会把旧账号数据写回磁盘
-                    throw e
-                } catch (e: Exception) {
-                    // 单门课程失败时保留旧数据，避免该课程作业从日历消失
-                    val oldCourseWorks = existingByCourse[course.courseId]?.values ?: emptyList()
-                    allWorks.addAll(oldCourseWorks)
-                }
-                done++
-                listener?.onProgress(done, total, "已完成 $done/$total 门课程")
-            }
-
-            if (allWorks.isEmpty() && Store.getWorks().isNotEmpty()) {
-                throw IOException("同步结果为空，已保留本地数据，请稍后重试")
-            }
-
-            Store.saveWorks(allWorks)
-            Store.saveLastSync(System.currentTimeMillis())
-            listener?.onProgress(total, total, "同步完成")
-            allWorks
+        val eligible = courses.filter { it.isInSemesterRange(semesterRange) }
+        val eligibleIds = eligible.mapTo(mutableSetOf()) { it.courseId }
+        val existing = Store.getWorks()
+        val existingByCourse = existing.groupBy { it.courseId }.mapValues { (_, v) ->
+            v.associateBy { it.workId }
         }
 
-    suspend fun syncCourseProgress(listener: ProgressListener? = null): List<CourseProgress> =
+        // 第一段只拉作业列表，先算出需要补详情的条数；第二段再逐条抓起止时间。
+        val collected = mutableMapOf<String, List<Work>>()
+        val failedCourses = mutableSetOf<String>()
+        var courseDone = 0
+        for (course in eligible) {
+            if (course.isEnded()) {
+                courseDone++
+                listener?.onProgress(courseDone, eligible.size, "已结课跳过：${course.name}")
+                continue
+            }
+            listener?.onProgress(courseDone, eligible.size, "正在获取：${course.name} 的作业列表")
+            try {
+                val keys = fetchCourseKeys(course)
+                delay(600)
+                collected[course.courseId] = fetchCourseWorks(course, keys)
+                delay(600)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                failedCourses += course.courseId
+            }
+            courseDone++
+            listener?.onProgress(courseDone, eligible.size, "已获取 $courseDone/${eligible.size} 门课程")
+        }
+
+        val allWorks = mutableListOf<Work>()
+        val pendingDetails = mutableListOf<Pair<Course, Work>>()
+        for (course in courses) {
+            val cached = existingByCourse[course.courseId]?.values.orEmpty()
+            // 非本学期、已结课、列表失败：整课保留缓存，不删除旧数据
+            if (course.courseId !in eligibleIds || course.isEnded() || course.courseId in failedCourses) {
+                allWorks += cached
+                continue
+            }
+            for (work in collected[course.courseId].orEmpty()) {
+                val previous = existingByCourse[course.courseId]?.get(work.workId)
+                if (SyncThrottle.needsDeadlineFetch(work, full)) {
+                    pendingDetails += course to work
+                } else {
+                    allWorks += work.copy(
+                        startTs = previous?.startTs,
+                        endTs = previous?.endTs,
+                        rawStart = previous?.rawStart ?: "",
+                        rawEnd = previous?.rawEnd ?: ""
+                    )
+                }
+            }
+        }
+
+        onWorkListKnown?.invoke(pendingDetails.size)
+        var done = 0
+        for ((course, work) in pendingDetails) {
+            val previous = existingByCourse[course.courseId]?.get(work.workId)
+            var startTs = previous?.startTs
+            var endTs = previous?.endTs
+            try {
+                val dl = fetchWorkDeadline(work.copy(startTs = startTs, endTs = endTs))
+                if (dl != null) {
+                    startTs = dl.first
+                    endTs = dl.second
+                }
+                delay(800)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) { }
+            allWorks += work.copy(startTs = startTs, endTs = endTs,
+                rawStart = previous?.rawStart ?: "", rawEnd = previous?.rawEnd ?: "")
+            done++
+            listener?.onProgress(done, pendingDetails.size, "正在同步作业 $done/${pendingDetails.size}")
+        }
+
+        if (allWorks.isEmpty() && Store.getWorks().isNotEmpty()) {
+            throw IOException("同步结果为空，已保留本地数据，请稍后重试")
+        }
+
+        Store.saveWorks(allWorks)
+        Store.saveLastSync(System.currentTimeMillis())
+        listener?.onProgress(1, 1, "同步完成")
+        allWorks
+    }
+
+    /**
+     * 只把「本学期」的课程视为可同步：用课程结课日期与学期区间求交集。
+     * 结束日期缺失时按未结课处理，避免误删。
+     */
+    private fun Course.isInSemesterRange(range: LongRange?): Boolean {
+        if (range == null) return true
+        val end = endTs ?: return true
+        return end >= range.first && end <= range.last
+    }
+
+    suspend fun syncCourseProgress(
+        semesterRange: LongRange? = null,
+        listener: ProgressListener? = null
+    ): List<CourseProgress> =
         withContext(Dispatchers.IO) {
             listener?.onProgress(0, 0, "正在获取课程进度...")
             // 每次同步都刷新课程列表
@@ -477,12 +514,20 @@ class ChaoxingApi(private val context: Context) {
             }
             if (courses.isEmpty()) throw IOException("课程列表获取为空，请稍后重试")
 
+            val eligible = courses.filter { it.isInSemesterRange(semesterRange) }
+            val eligibleIds = eligible.mapTo(mutableSetOf()) { it.courseId }
             val existingProgress = Store.getCourseProgress().associateBy { it.courseId }
             val result = mutableListOf<CourseProgress>()
             var done = 0
-            val total = courses.size
+            val total = eligible.size
 
-            for (course in courses) {
+            for (course in eligible) {
+                if (course.isEnded()) {
+                    existingProgress[course.courseId]?.let { result.add(it) }
+                    done++
+                    listener?.onProgress(done, total, "已结课跳过：${course.name}")
+                    continue
+                }
                 listener?.onProgress(done, total, "正在处理：${course.name}")
                 try {
                     val url = "https://mooc2-ans.chaoxing.com/mooc2-ans/mycourse/studentcourse" +
@@ -507,6 +552,11 @@ class ChaoxingApi(private val context: Context) {
                 }
                 done++
                 listener?.onProgress(done, total, "已完成 $done/$total 门课程")
+            }
+
+            // 非本学期课程保留旧进度，避免切换学期后数据凭空消失
+            courses.filterNot { it.courseId in eligibleIds }.forEach { course ->
+                existingProgress[course.courseId]?.let { result.add(it) }
             }
 
             if (result.isEmpty() && Store.getCourseProgress().isNotEmpty()) {

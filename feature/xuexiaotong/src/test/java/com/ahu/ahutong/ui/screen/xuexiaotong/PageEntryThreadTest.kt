@@ -6,6 +6,7 @@ import com.ahu.ahutong.data.xuexiaotong.Work
 import com.ahu.ahutong.testing.FakeChaoxingReminders
 import com.ahu.ahutong.testing.FakeChaoxingSession
 import com.ahu.ahutong.testing.FakeChaoxingStore
+import com.ahu.ahutong.testing.FakeChaoxingSyncService
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -46,7 +47,15 @@ class PageEntryThreadTest {
         Dispatchers.setMain(dispatcher)
         try {
             scope.launch {
-                val vm = XuexiaotongViewModel(FakeChaoxingSession(), storage, FakeChaoxingReminders(), Dispatchers.IO)
+                val session = FakeChaoxingSession()
+                val reminders = FakeChaoxingReminders()
+                val vm = XuexiaotongViewModel(
+                    session,
+                    storage,
+                    reminders,
+                    FakeChaoxingSyncService(session, storage, reminders),
+                    Dispatchers.IO
+                )
                 viewModels.put("learning", vm)
                 subject.set(vm)
             }

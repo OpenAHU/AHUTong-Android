@@ -51,21 +51,35 @@ class AppChaoxingSession @Inject constructor() : ChaoxingSession {
         api.silentRelogin()
     }
 
-    override suspend fun syncWorks(onProgress: (Int, Int, String) -> Unit): List<Work> =
-        api.syncAllWorks(object : ChaoxingApi.ProgressListener {
-            override fun onProgress(done: Int, total: Int, message: String) {
-                onProgress(done, total, message)
+    override suspend fun syncWorks(
+        full: Boolean,
+        semesterRange: LongRange?,
+        onWorkListKnown: ((Int) -> Unit)?,
+        onProgress: (Int, Int, String) -> Unit
+    ): List<Work> =
+        api.syncAllWorks(
+            full = full,
+            semesterRange = semesterRange,
+            onWorkListKnown = onWorkListKnown,
+            listener = object : ChaoxingApi.ProgressListener {
+                override fun onProgress(done: Int, total: Int, message: String) {
+                    onProgress(done, total, message)
+                }
             }
-        })
+        )
 
     override suspend fun syncCourseProgress(
+        semesterRange: LongRange?,
         onProgress: (Int, Int, String) -> Unit
     ): List<CourseProgress> =
-        api.syncCourseProgress(object : ChaoxingApi.ProgressListener {
-            override fun onProgress(done: Int, total: Int, message: String) {
-                onProgress(done, total, message)
+        api.syncCourseProgress(
+            semesterRange = semesterRange,
+            listener = object : ChaoxingApi.ProgressListener {
+                override fun onProgress(done: Int, total: Int, message: String) {
+                    onProgress(done, total, message)
+                }
             }
-        })
+        )
 }
 
 @Singleton

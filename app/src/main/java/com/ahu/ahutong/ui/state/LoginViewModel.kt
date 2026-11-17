@@ -32,7 +32,8 @@ class LoginViewModel @Inject constructor(
     private val session: AhuSession,
     private val credentials: CredentialVault,
     private val chaoxingSession: com.ahu.ahutong.data.xuexiaotong.ChaoxingSession,
-    private val chaoxingReminders: com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
+    private val chaoxingReminders: com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders,
+    private val chaoxingSync: com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService
 ) : ViewModel() {
     var state by mutableStateOf(LoginState.Idle)
     var failureMessage by mutableStateOf("")
@@ -48,6 +49,7 @@ class LoginViewModel @Inject constructor(
             // 切换账号前只经会话接缝清理旧 token/Cookie，再清旧账号的缓存与持久身份。
             CampusNoticeNotifier.cancelAll(AppEnvironmentHolder.context())
             chaoxingReminders.cancelAll()
+            chaoxingSync.cancel()
             session.signOut()
             // 换号清理不碰设备级法律同意（否则每次登录后隐私政策重弹）
             AHUCache.clearAll(preserveLegalConsent = true)

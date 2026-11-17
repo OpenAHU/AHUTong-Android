@@ -104,6 +104,14 @@ object Store : ChaoxingReminderStore {
     fun saveLastSync(ts: Long) = putLong("cx_last_sync", ts)
     fun getLastSync(): Long = getLong("cx_last_sync", 0)
 
+    /** 首次连接学习通后的全量同步是否已完成（按当前账号的 Store 生命周期）。 */
+    fun isFirstFullSyncDone(): Boolean = getBool("cx_first_full_sync_done", false)
+    fun saveFirstFullSyncDone() = putBool("cx_first_full_sync_done", true)
+
+    /** 用户开启后，每次手动同步都按全量处理（含已完成作业详情）。 */
+    fun isFullSyncEnabled(): Boolean = getBool("cx_full_sync_enabled", false)
+    fun saveFullSyncEnabled(enabled: Boolean) = putBool("cx_full_sync_enabled", enabled)
+
     fun saveCourseColor(courseId: String, bg: String, text: String) {
         putString("cx_color_$courseId", "$bg|$text")
     }
@@ -160,5 +168,7 @@ object Store : ChaoxingReminderStore {
         remove("cx_course_progress")
         remove("cx_cred_phone")
         remove("cx_cred_pwd")
+        remove("cx_first_full_sync_done")
+        remove("cx_full_sync_enabled")
     }
 }

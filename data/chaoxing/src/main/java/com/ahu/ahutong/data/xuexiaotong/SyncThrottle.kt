@@ -18,9 +18,9 @@ internal object SyncThrottle {
         }.getOrNull()
     }
 
-    fun needsDeadlineFetch(work: Work, cached: Work?): Boolean {
-        if (work.isDone) return false
-        if (cached != null && cached.startTs != null && cached.endTs != null) return false
-        return true
-    }
+    /**
+     * 已完成作业不需要再进详情；未完成作业每次都要重抓，否则老师改期刷不出来。
+     * 全量模式连已完成作业也重抓，用于补齐历史时间。
+     */
+    fun needsDeadlineFetch(work: Work, full: Boolean): Boolean = full || !work.isDone
 }

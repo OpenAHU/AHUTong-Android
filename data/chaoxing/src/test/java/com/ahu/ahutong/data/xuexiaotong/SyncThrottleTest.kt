@@ -40,23 +40,17 @@ class SyncThrottleTest {
     }
 
     @Test
-    fun `done work never fetches deadline`() {
-        val cached = Work(workId = "w1", status = "已完成", startTs = 100L, endTs = 200L)
-        assertFalse(SyncThrottle.needsDeadlineFetch(cached, cached))
-        assertFalse(SyncThrottle.needsDeadlineFetch(Work(workId = "w1", status = "待批阅"), null))
+    fun `lite sync skips finished works but full sync refetches them`() {
+        val done = Work(workId = "w1", status = "已完成", startTs = 100L, endTs = 200L)
+        assertFalse(SyncThrottle.needsDeadlineFetch(done, full = false))
+        assertTrue(SyncThrottle.needsDeadlineFetch(done, full = true))
     }
 
     @Test
-    fun `undone work already on calendar skips deadline fetch`() {
-        val cached = Work(workId = "w1", status = "未交", startTs = 100L, endTs = 200L)
-        assertFalse(SyncThrottle.needsDeadlineFetch(Work(workId = "w1", status = "未交"), cached))
-    }
-
-    @Test
-    fun `undone work without cached deadline fetches deadline`() {
-        assertTrue(SyncThrottle.needsDeadlineFetch(Work(workId = "w1", status = "未交"), null))
-        assertTrue(SyncThrottle.needsDeadlineFetch(Work(workId = "w1", status = "未交"), Work(workId = "w1", status = "未交")))
-        assertTrue(SyncThrottle.needsDeadlineFetch(Work(workId = "w1", status = "未交"), Work(workId = "w1", status = "未交", startTs = 100L)))
+    fun `unfinished work is always refetched so deadline edits are visible`() {
+        val undone = Work(workId = "w1", status = "未交", startTs = 100L, endTs = 200L)
+        assertTrue(SyncThrottle.needsDeadlineFetch(undone, full = false))
+        assertTrue(SyncThrottle.needsDeadlineFetch(undone, full = true))
     }
 
     @Test

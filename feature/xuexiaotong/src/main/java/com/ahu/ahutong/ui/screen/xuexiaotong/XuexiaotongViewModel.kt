@@ -8,11 +8,13 @@ import javax.inject.Qualifier
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingStore
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService
 import com.ahu.ahutong.data.xuexiaotong.Course
 import com.ahu.ahutong.data.xuexiaotong.CourseProgress
 import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.RemindSetting
 import com.ahu.ahutong.data.xuexiaotong.Work
+import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.cancelChildren
@@ -34,6 +36,7 @@ class XuexiaotongViewModel @Inject constructor(
     private val session: ChaoxingSession,
     private val store: ChaoxingStore,
     private val reminders: ChaoxingReminders,
+    private val syncService: ChaoxingSyncService,
     @XuexiaotongDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
@@ -97,6 +100,41 @@ class XuexiaotongViewModel @Inject constructor(
     private var stateRevision = 0L
     private val restoreJob = viewModelScope.launch { applySavedState(readSavedState()) }
 
+    val fullSyncEnabled: StateFlow<Boolean> = syncService.fullSyncEnabled
+
+    init {
+        viewModelScope.launch {
+            var worksRevision = syncService.state.value.worksRevision
+            var progressRevision = syncService.state.value.progressRevision
+            var lastWorksError = syncService.state.value.worksError
+            syncService.state.collect { state ->
+                _syncing.value = state.worksRunning
+                _syncProgress.value = SyncProgress(
+                    done = state.worksDone,
+                    total = state.worksTotal,
+                    message = state.worksError ?: state.worksMessage,
+                )
+                _courseSyncing.value = state.progressRunning
+                _courseSyncProgress.value = SyncProgress(
+                    done = state.progressDone,
+                    total = state.progressTotal,
+                    message = state.progressError ?: state.progressMessage,
+                )
+                if (worksRevision != state.worksRevision) {
+                    worksRevision = state.worksRevision
+                    refreshState()
+                }
+                if (state.worksError != lastWorksError) {
+                    lastWorksError = state.worksError
+                }
+                if (progressRevision != state.progressRevision) {
+                    progressRevision = state.progressRevision
+                    refreshState()
+                }
+            }
+        }
+    }
+
     private suspend fun readSavedState() = withContext(ioDispatcher) {
         SavedState(session.hasSession(), store.works(), store.courses(), store.courseProgress(),
             store.lastSync(), store.remindSetting(), store.customEvents(), store.showDone(), store.doneGray(), store.showEmptyCourses())
@@ -154,7 +192,8 @@ class XuexiaotongViewModel @Inject constructor(
         stateRevision++
         _loggedIn.value = true
         refreshState()
-        syncWorks()
+        // 首次连接：交给应用级服务做本学期的全量作业同步，页面退出也不中断
+        syncService.onConnected()
     }
 
     /**
@@ -170,6 +209,7 @@ class XuexiaotongViewModel @Inject constructor(
     fun logout() {
         stateRevision++
         _loggedIn.value = false
+        syncService.cancel()
         viewModelScope.coroutineContext.cancelChildren()
         reminders.cancelAll()
         session.clearSession()
@@ -186,65 +226,22 @@ class XuexiaotongViewModel @Inject constructor(
     }
 
     fun syncWorks() = afterRestore {
-        if (!_loggedIn.value || _syncing.value || _courseSyncing.value) return@afterRestore
-        viewModelScope.launch {
-            _syncing.value = true
-            _syncProgress.value = SyncProgress(message = "正在同步作业...")
-            try {
-                val works = withContext(ioDispatcher) {
-                    session.silentRelogin()
-                    session.syncWorks { done, total, message ->
-                        _syncProgress.value = SyncProgress(done, total, message)
-                    }
-                }
-                stateRevision++
-                _works.value = works
-                _courses.value = withContext(ioDispatcher) { store.courses() }
-                _syncProgress.value = SyncProgress(message = "同步完成")
-                store.saveLastSync(System.currentTimeMillis())
-                _lastSync.value = store.lastSync()
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                _syncProgress.value = SyncProgress(message = exception.message ?: "同步失败")
-            } finally {
-                _syncing.value = false
-                if (_loggedIn.value) {
-                    reminders.rescheduleAll()
-                } else {
-                    clearRemoteStateAfterLogout()
-                }
+        if (!_loggedIn.value) return@afterRestore
+        syncService.startWorksSync(
+            if (syncService.fullSyncEnabled.value) {
+                XuexiaotongSyncMode.FULL
+            } else {
+                XuexiaotongSyncMode.LITE
             }
-        }
+        )
     }
 
     fun syncCourseProgress() = afterRestore {
-        if (!_loggedIn.value || _syncing.value || _courseSyncing.value) return@afterRestore
-        viewModelScope.launch {
-            _courseSyncing.value = true
-            _courseSyncProgress.value = SyncProgress(message = "正在同步课程进度...")
-            try {
-                val list = withContext(ioDispatcher) {
-                    session.silentRelogin()
-                    session.syncCourseProgress { done, total, message ->
-                        _courseSyncProgress.value = SyncProgress(done, total, message)
-                    }
-                }
-                stateRevision++
-                _progress.value = list
-                _courseSyncProgress.value = SyncProgress(message = "同步完成")
-                store.saveLastSync(System.currentTimeMillis())
-                _lastSync.value = store.lastSync()
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                _courseSyncProgress.value = SyncProgress(message = exception.message ?: "同步失败")
-            } finally {
-                _courseSyncing.value = false
-                if (!_loggedIn.value) clearRemoteStateAfterLogout()
-            }
-        }
+        if (!_loggedIn.value) return@afterRestore
+        syncService.startCourseProgressSync()
     }
+
+    fun setFullSyncEnabled(enabled: Boolean) = syncService.setFullSyncEnabled(enabled)
 
     fun saveRemind(setting: RemindSetting) = afterRestore {
         stateRevision++

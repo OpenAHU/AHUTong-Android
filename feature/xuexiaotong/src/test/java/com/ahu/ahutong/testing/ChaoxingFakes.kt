@@ -8,6 +8,12 @@ import com.ahu.ahutong.data.xuexiaotong.CourseProgress
 import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.RemindSetting
 import com.ahu.ahutong.data.xuexiaotong.Work
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * 学习通三个端口的 fake，供 feature 自己的单测驱动 ViewModel：
@@ -48,19 +54,98 @@ class FakeChaoxingSession(
         silentReloginCount++
     }
 
-    override suspend fun syncWorks(onProgress: (Int, Int, String) -> Unit): List<Work> {
+    override suspend fun syncWorks(
+        full: Boolean,
+        semesterRange: LongRange?,
+        onWorkListKnown: ((Int) -> Unit)?,
+        onProgress: (Int, Int, String) -> Unit
+    ): List<Work> {
         syncWorksCount++
         syncFailure?.let { throw it }
+        onWorkListKnown?.invoke(works.size)
         onProgress(1, 1, "同步完成")
         return works
     }
 
     override suspend fun syncCourseProgress(
+        semesterRange: LongRange?,
         onProgress: (Int, Int, String) -> Unit
     ): List<CourseProgress> {
         syncFailure?.let { throw it }
         onProgress(1, 1, "同步完成")
         return courseProgress
+    }
+}
+
+class FakeChaoxingSyncService(
+    private val session: ChaoxingSession,
+    private val store: ChaoxingStore,
+    private val reminders: ChaoxingReminders
+) : com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService {
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+    private val mutableState = kotlinx.coroutines.flow.MutableStateFlow(
+        com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncState()
+    )
+    override val state = mutableState.asStateFlow()
+    private val fullEnabled = kotlinx.coroutines.flow.MutableStateFlow(false)
+    override val fullSyncEnabled = fullEnabled.asStateFlow()
+
+    var connectedCount = 0
+        private set
+
+    override fun onConnected() {
+        connectedCount++
+    }
+
+    override fun startWorksSync(mode: com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncMode): Boolean {
+        mutableState.update { it.copy(worksRunning = true, worksMessage = "正在获取作业列表...") }
+        scope.launch {
+            try {
+                session.silentRelogin()
+                val works = session.syncWorks(
+                    full = mode == com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncMode.FULL,
+                    semesterRange = null,
+                    onWorkListKnown = null,
+                    onProgress = { done, total, message ->
+                        mutableState.update {
+                            it.copy(worksDone = done, worksTotal = total, worksMessage = message)
+                        }
+                    }
+                )
+                (store as? FakeChaoxingStore)?.let {
+                    it.works = works
+                    it.lastSync = System.currentTimeMillis()
+                }
+                mutableState.update {
+                    it.copy(
+                        worksRunning = false,
+                        worksMessage = "同步完成",
+                        worksError = null,
+                        worksRevision = it.worksRevision + 1
+                    )
+                }
+                reminders.rescheduleAll()
+            } catch (failure: Exception) {
+                mutableState.update {
+                    it.copy(worksRunning = false, worksMessage = "同步失败", worksError = failure.message)
+                }
+                reminders.rescheduleAll()
+            }
+        }
+        return true
+    }
+
+    override fun startCourseProgressSync(): Boolean {
+        return true
+    }
+
+    override fun setFullSyncEnabled(enabled: Boolean) {
+        fullEnabled.value = enabled
+    }
+
+    override fun cancel() {
+        mutableState.update { it.copy(worksRunning = false, progressRunning = false) }
     }
 }
 
