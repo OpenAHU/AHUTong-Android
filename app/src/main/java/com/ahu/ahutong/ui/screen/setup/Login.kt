@@ -132,7 +132,8 @@ fun Login(
     var initialLoginStarted by rememberSaveable { mutableStateOf(false) }
     var loginAttempted by rememberSaveable { mutableStateOf(false) }
     val sessionStatus by AhuSessionState.status.collectAsState()
-    val alreadyLoggedIn = SessionStore.isLoggedIn() &&
+    // 只有引导流程里「回访登录页」才锁定为已登录态；重新登录/切换账号必须可输入。
+    val alreadyLoggedIn = onboardingStep != null && SessionStore.isLoggedIn() &&
         sessionStatus == AhuSessionState.Status.Authenticated
     LaunchedEffect(alreadyLoggedIn) {
         if (alreadyLoggedIn && userID.text.isBlank()) {
