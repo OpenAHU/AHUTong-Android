@@ -207,6 +207,7 @@ internal fun resolveHomeHeroText(
                 subtitle = buildString {
                     if (urgentAssignment.courseName.isNotBlank()) {
                         append(urgentAssignment.courseName)
+                        append("的作业")
                         append(" · ")
                     }
                     append(formatDeadline(urgentAssignment.endTs, nowMillis))

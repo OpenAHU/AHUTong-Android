@@ -128,7 +128,7 @@ class HomeHeroTextTest {
             nowMillis = at(10, 0)
         )
         assertEquals("最近的作业\n还有1小时整截止", hero.headline)
-        assertEquals("高等数学 · 今天 11:00", hero.subtitle)
+        assertEquals("高等数学的作业 · 今天 11:00", hero.subtitle)
         assertEquals(HomeHeroTarget.XUEXIAOTONG_SCHEDULE, hero.target)
     }
 
@@ -215,7 +215,7 @@ class HomeHeroTextTest {
             nowMillis = at(20, 0)
         )
         assertEquals("最近的作业\n还有12小时整截止", hero.headline)
-        assertEquals("高等数学 · 明天 08:00", hero.subtitle)
+        assertEquals("高等数学的作业 · 明天 08:00", hero.subtitle)
     }
 
     @Test fun multiDayDeadlineIsExpressedInDays() {
@@ -228,7 +228,7 @@ class HomeHeroTextTest {
             nowMillis = at(10, 0)
         )
         assertEquals("最近的作业\n还有3天截止", hero.headline)
-        assertEquals("高等数学 · 11-20 10:00", hero.subtitle)
+        assertEquals("高等数学的作业 · 11-20 10:00", hero.subtitle)
     }
 
     @Test fun holidayStillReportsAnAssignment() {
