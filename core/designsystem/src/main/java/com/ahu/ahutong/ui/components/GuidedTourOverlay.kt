@@ -161,7 +161,7 @@ fun GuidedTourOverlay(
                 text = hint,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Medium,
-                color = primary,
+                color = Color.White,
                 modifier = Modifier
                     .offset {
                         IntOffset(
