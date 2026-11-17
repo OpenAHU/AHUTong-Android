@@ -216,8 +216,7 @@ internal fun HomeTourHost(
         },
         index = index,
         targetBounds = current?.let { TourBounds.get(it.targetId) },
-        allowTargetInteraction = gated,
-        allowHighlightedInteraction = current?.targetClickable == true,
+        allowHighlightedInteraction = current?.targetClickable == true || gated,
         nextEnabled = !gated || dockUnlocked,
         hint = when {
             current?.targetClickable == true -> "点击试试↑"

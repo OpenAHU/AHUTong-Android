@@ -76,7 +76,6 @@ fun GuidedTourOverlay(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onSkip: () -> Unit,
-    allowTargetInteraction: Boolean = false,
     allowHighlightedInteraction: Boolean = false,
     nextEnabled: Boolean = true,
     hint: String? = null,
@@ -176,9 +175,8 @@ fun GuidedTourOverlay(
             }
         }
 
-        // 整页放行 / 只放行镂空区域 / 全部拦截
+        // 只放行镂空区域 / 全部拦截
         when {
-            allowTargetInteraction -> Unit
             allowHighlightedInteraction && holeRect != null -> {
                 val screenW = with(density) { maxWidth.toPx() }
                 val screenH = with(density) { maxHeight.toPx() }
