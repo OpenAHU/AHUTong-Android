@@ -3,7 +3,6 @@ package com.ahu.ahutong.ui.components
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -30,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,25 +81,43 @@ fun GuidedTourOverlay(
     val safeIndex = index.coerceIn(0, steps.lastIndex)
     val primary = MaterialTheme.colorScheme.primary
 
-    val animatedBounds = remember { Animatable(Rect.Zero, Rect.VectorConverter) }
-    var hasBounds by remember { mutableStateOf(false) }
-
-    LaunchedEffect(targetBounds) {
-        val bounds = targetBounds ?: return@LaunchedEffect
-        if (!hasBounds) {
-            animatedBounds.snapTo(bounds)
-            hasBounds = true
-        } else {
-            animatedBounds.animateTo(
-                targetValue = bounds,
-                animationSpec = tween(320, easing = FastOutSlowInEasing)
-            )
-        }
-    }
-    val holeRect = if (hasBounds) animatedBounds.value else null
-
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
+        val screenHeightPx = with(density) { maxHeight.toPx() }
+        val targetAbove = targetBounds != null &&
+            (targetBounds.top + targetBounds.bottom) / 2f > screenHeightPx / 2f
+        val targetSide = if (targetAbove) 1f else 0f
+
+        val progress = remember { Animatable(1f) }
+        var startRect by remember { mutableStateOf(Rect.Zero) }
+        var endRect by remember { mutableStateOf(Rect.Zero) }
+        var startSide by remember { mutableFloatStateOf(targetSide) }
+        var endSide by remember { mutableFloatStateOf(targetSide) }
+        var hasBounds by remember { mutableStateOf(false) }
+
+        LaunchedEffect(targetBounds, targetSide) {
+            val target = targetBounds ?: return@LaunchedEffect
+            if (!hasBounds) {
+                startRect = target
+                endRect = target
+                startSide = targetSide
+                endSide = targetSide
+                progress.snapTo(1f)
+                hasBounds = true
+            } else {
+                startRect = lerpRect(startRect, endRect, progress.value)
+                startSide += (endSide - startSide) * progress.value
+                endRect = target
+                endSide = targetSide
+                progress.snapTo(0f)
+                progress.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+            }
+        }
+
+        val t = if (hasBounds) progress.value else 0f
+        val holeRect = if (hasBounds) lerpRect(startRect, endRect, t) else null
+        val sideBlend = if (hasBounds) startSide + (endSide - startSide) * t else 0f
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val outer = Path().apply {
                 addRect(Rect(0f, 0f, size.width, size.height))
@@ -213,17 +231,17 @@ fun GuidedTourOverlay(
         }
 
         var cardHeightPx by remember { mutableStateOf(0) }
-        val screenHeightPx = with(density) { maxHeight.toPx() }
         val cardWidth = (maxWidth - 32.dp).coerceAtLeast(240.dp)
         val gapPx = with(density) { 22.dp.toPx() }
-        // 方向只由该步目标本身决定一次：目标在上半屏 → 卡片放下方，反之放上方。
-        // 卡片位置直接跟随已平滑的聚焦框，不另做缓动，避免两者不同步。
-        val above = targetBounds != null &&
-            (targetBounds.top + targetBounds.bottom) / 2f > screenHeightPx / 2f
+        // 框与卡片共用同一个进度：卡片在“下方锚点”和“上方锚点”之间随方向混合，
+        // 切步时从当前姿态连续过渡到新姿态，不会在动画开始前瞬间换边。
         val rawTopPx = when {
             holeRect == null -> (screenHeightPx - cardHeightPx) / 2f
-            above -> holeRect.top - gapPx - cardHeightPx
-            else -> holeRect.bottom + gapPx
+            else -> {
+                val belowTop = holeRect.bottom + gapPx
+                val aboveTop = holeRect.top - gapPx - cardHeightPx
+                belowTop + (aboveTop - belowTop) * sideBlend
+            }
         }
         val minTopPx = with(density) { 88.dp.toPx() }
         val bottomInsetPx = with(density) { 32.dp.toPx() }
@@ -312,3 +330,10 @@ private fun TourTouchBlocker(modifier: Modifier) {
         }
     )
 }
+
+private fun lerpRect(start: Rect, end: Rect, fraction: Float): Rect = Rect(
+    left = start.left + (end.left - start.left) * fraction,
+    top = start.top + (end.top - start.top) * fraction,
+    right = start.right + (end.right - start.right) * fraction,
+    bottom = start.bottom + (end.bottom - start.bottom) * fraction
+)
