@@ -297,7 +297,7 @@ internal fun MiuixPageScaffoldImpl(
                 actions = {
                     actions.forEach { action ->
                         if (action.painter != null) {
-                            IconButton(onClick = action.onClick, modifier = action.modifier) {
+                            IconButton(onClick = action.onClick) {
                                 Icon(
                                     painter = action.painter,
                                     contentDescription = action.contentDescription
@@ -307,8 +307,7 @@ internal fun MiuixPageScaffoldImpl(
                             AppHeaderIconButton(
                                 imageVector = action.icon,
                                 contentDescription = action.contentDescription,
-                                onClick = action.onClick,
-                                modifier = action.modifier
+                                onClick = action.onClick
                             )
                         }
                     }
@@ -401,7 +400,7 @@ private fun ClassicPageScaffoldHeader(
             actions = {
                 actions.forEach { action ->
                     if (action.painter != null) {
-                        IconButton(onClick = action.onClick, modifier = action.modifier) {
+                        IconButton(onClick = action.onClick) {
                             Icon(
                                 painter = action.painter,
                                 contentDescription = action.contentDescription
@@ -411,8 +410,7 @@ private fun ClassicPageScaffoldHeader(
                         AppHeaderIconButton(
                             imageVector = action.icon,
                             contentDescription = action.contentDescription,
-                            onClick = action.onClick,
-                            modifier = action.modifier
+                            onClick = action.onClick
                         )
                     }
                 }

@@ -1134,9 +1134,7 @@ fun Main(
             currentRoute = currentRoute,
             undergraduateEnabled = undergraduateEnabled,
             onOpenHome = { scope.launch { selectPrimaryDestination("home") } },
-            onOpenCustomCourses = {
-                navController.navigate("custom_courses") { launchSingleTop = true }
-            },
+            onOpenSchedule = { scope.launch { selectPrimaryDestination("schedule") } },
             onOpenXuexiaotongSchedule = {
                 XuexiaotongDockState.tab = XuexiaotongSubTab.SCHEDULE
                 scope.launch { selectPrimaryDestination("xuexiaotong") }

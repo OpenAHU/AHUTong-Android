@@ -15,64 +15,69 @@ import com.ahu.ahutong.ui.components.GuidedTourOverlay
 import com.ahu.ahutong.ui.components.GuidedTourStep
 import com.ahu.ahutong.ui.components.TourBounds
 import com.ahu.ahutong.ui.screen.setup.OnboardingState
+import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import android.content.Context
 
-private enum class TourStopPage { HOME, CUSTOM_COURSES, XUEXIAOTONG }
+private enum class TourStopPage { HOME, SCHEDULE, XUEXIAOTONG }
+
+private enum class TourGate { NONE, DOCK_TOGGLE }
 
 private data class TourStop(
     val targetId: String,
     val title: String,
     val body: String,
-    val page: TourStopPage
+    val page: TourStopPage,
+    val gate: TourGate = TourGate.NONE
 )
 
 private val TourStops = listOf(
     TourStop(
         targetId = "home_ai",
-        title = "安大通 AI",
-        body = "点一下唤起 AI，课表、空闲教室、成绩、校园通知都能直接问。还没配置模型时会先带你去 AI 设置。",
+        title = "AHUTong Intelligence",
+        body = "安大通原生智能体，通过自然语言把你的需求拆解并执行。目前已支持查询空闲教室、作业辅导等30+能力。",
         page = TourStopPage.HOME
     ),
     TourStop(
         targetId = "home_camera",
-        title = "扫一扫与笔记",
-        body = "扫共享单车和外卖平台的码，也能拍板书做笔记；笔记会按上课时间自动归到对应课程。",
+        title = "智慧视觉",
+        body = "扫一扫：支持扫描美团单车和学习通签到QR，一步跳转。\n笔记相机：智能识别在上的课程，归档笔记。",
         page = TourStopPage.HOME
     ),
     TourStop(
         targetId = "home_hero",
-        title = "今天最要紧的事",
-        body = "正在上的课、下一场考试、最近的作业截止时间都显示在这里。作业上屏时，点一下可以直接进入日程。",
+        title = "任务速览",
+        body = "提醒即将开始的考试和课程、即将截止的作业。",
         page = TourStopPage.HOME
     ),
     TourStop(
         targetId = "home_campus",
         title = "校园卡",
-        body = "点一下展开付款码，食堂和超市都能直接刷；余额会随主页一起刷新。",
+        body = "点击即展开付款二维码。",
         page = TourStopPage.HOME
     ),
     TourStop(
         targetId = "home_widgets",
-        title = "常用小工具",
-        body = "长按主页可以调整顺序、增删入口；“更多”里能添加校园通知、电费充值等。",
+        title = "小工具",
+        body = "长按以调整顺序、增删卡片，剩余小工具可以在更多中找到。",
         page = TourStopPage.HOME
     ),
     TourStop(
-        targetId = "custom_courses_add",
-        title = "自定义课程",
-        body = "教务课表里没有的加课、晚自习可以手动添加；只保存在本机，按学期分开管理。",
-        page = TourStopPage.CUSTOM_COURSES
+        targetId = "schedule_settings",
+        title = "课表设置",
+        body = "可以在此设置是否显示周末以及自定义课程。",
+        page = TourStopPage.SCHEDULE
     ),
     TourStop(
         targetId = "nav_xuexiaotong",
         title = "日程与课程",
-        body = "点进来是学习通的日程页；已经在这个页面时，再点一下就在日程和课程之间切换。",
-        page = TourStopPage.HOME
+        body = "学习通作业按日历排列展示、学习通课程任务点完成情况。重复点击以切换两个子页。",
+        page = TourStopPage.HOME,
+        gate = TourGate.DOCK_TOGGLE
     ),
     TourStop(
         targetId = "xuexiaotong_refresh",
-        title = "刷新当前页",
-        body = "日程页刷新作业，课程页刷新学习进度；第一次连接学习通时会自动抓取本学期的全量作业。",
+        title = "刷新日程与课程",
+        body = "由于风控策略，作业与课程同步需要手动刷新，默认只抓取未完成的作业，您可以在日程设置内打开全量抓取。",
         page = TourStopPage.XUEXIAOTONG
     )
 )
@@ -109,7 +114,7 @@ internal fun HomeTourHost(
     currentRoute: String?,
     undergraduateEnabled: Boolean,
     onOpenHome: () -> Unit,
-    onOpenCustomCourses: () -> Unit,
+    onOpenSchedule: () -> Unit,
     onOpenXuexiaotongSchedule: () -> Unit
 ) {
     val context = LocalContext.current
@@ -117,12 +122,14 @@ internal fun HomeTourHost(
         if (undergraduateEnabled) {
             TourStops
         } else {
-            TourStops.filterNot { it.page == TourStopPage.CUSTOM_COURSES }
+            TourStops.filterNot { it.targetId == "schedule_settings" }
         }
     }
     var visible by remember { mutableStateOf(false) }
     var index by remember { mutableIntStateOf(0) }
     var handledReplay by remember { mutableIntStateOf(HomeTourState.replaySignal) }
+    var dockBaseline by remember { mutableStateOf(XuexiaotongDockState.tab) }
+    var dockUnlocked by remember { mutableStateOf(false) }
 
     fun finish() {
         visible = false
@@ -144,11 +151,19 @@ internal fun HomeTourHost(
     }
     LaunchedEffect(visible, index) {
         if (!visible) return@LaunchedEffect
+        dockUnlocked = false
+        dockBaseline = XuexiaotongDockState.tab
         when (stops.getOrNull(index)?.page) {
             TourStopPage.HOME -> onOpenHome()
-            TourStopPage.CUSTOM_COURSES -> onOpenCustomCourses()
+            TourStopPage.SCHEDULE -> onOpenSchedule()
             TourStopPage.XUEXIAOTONG -> onOpenXuexiaotongSchedule()
             null -> Unit
+        }
+    }
+    LaunchedEffect(visible, index, XuexiaotongDockState.tab) {
+        val gated = stops.getOrNull(index)?.gate == TourGate.DOCK_TOGGLE
+        if (visible && gated && XuexiaotongDockState.tab != dockBaseline) {
+            dockUnlocked = true
         }
     }
 
@@ -157,12 +172,16 @@ internal fun HomeTourHost(
     }
 
     val current = stops.getOrNull(index)
+    val gated = current?.gate == TourGate.DOCK_TOGGLE
     GuidedTourOverlay(
         visible = visible,
         steps = stops.map { GuidedTourStep(it.title, it.body) },
         index = index,
         targetBounds = current?.let { TourBounds.get(it.targetId) },
+        allowTargetInteraction = gated,
+        nextEnabled = !gated || dockUnlocked,
         onNext = {
+            if (gated && !dockUnlocked) return@GuidedTourOverlay
             if (index >= stops.lastIndex) finish() else index += 1
         },
         onPrevious = {

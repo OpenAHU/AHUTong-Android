@@ -4,6 +4,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -12,12 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -44,8 +45,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 data class GuidedTourStep(val title: String, val body: String)
 
@@ -62,6 +65,8 @@ fun GuidedTourOverlay(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onSkip: () -> Unit,
+    allowTargetInteraction: Boolean = false,
+    nextEnabled: Boolean = true,
 ) {
     if (!visible || steps.isEmpty()) return
     val safeIndex = index.coerceIn(0, steps.lastIndex)
@@ -91,7 +96,7 @@ fun GuidedTourOverlay(
                 addRect(Rect(0f, 0f, size.width, size.height))
             }
             if (holeRect == null) {
-                drawPath(outer, Color.Black.copy(alpha = 0.78f))
+                drawPath(outer, Color.Black.copy(alpha = 0.55f))
             } else {
                 val pad = 6.dp.toPx()
                 val padded = Rect(
@@ -104,64 +109,66 @@ fun GuidedTourOverlay(
                     addRoundRect(
                         RoundRect(
                             rect = padded,
-                            cornerRadius = CornerRadius(20.dp.toPx())
+                            cornerRadius = CornerRadius(16.dp.toPx())
                         )
                     )
                 }
                 drawPath(
                     Path.combine(PathOperation.Difference, outer, hole),
-                    Color.Black.copy(alpha = 0.78f)
-                )
-                drawRoundRect(
-                    color = primary.copy(alpha = 0.22f),
-                    topLeft = padded.topLeft,
-                    size = Size(padded.width, padded.height),
-                    cornerRadius = CornerRadius(20.dp.toPx()),
-                    style = Stroke(width = 8.dp.toPx())
+                    Color.Black.copy(alpha = 0.55f)
                 )
                 drawRoundRect(
                     color = primary,
                     topLeft = padded.topLeft,
                     size = Size(padded.width, padded.height),
-                    cornerRadius = CornerRadius(20.dp.toPx()),
-                    style = Stroke(width = 2.dp.toPx())
+                    cornerRadius = CornerRadius(16.dp.toPx()),
+                    style = Stroke(width = 1.5f.dp.toPx())
                 )
             }
         }
 
-        // 暗幕吞掉点击，避免引导期间误触底层页面
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) { detectTapGestures { } }
-        )
-
-        TextButton(
-            onClick = onSkip,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(end = 8.dp, top = 4.dp)
-        ) {
-            Text("跳过", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // 需要用户亲自点目标时才放行底层点击
+        if (!allowTargetInteraction) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures { } }
+            )
         }
 
         var cardHeightPx by remember { mutableStateOf(0) }
-        val cardWidth = (maxWidth - 32.dp).coerceAtLeast(240.dp)
+        var above by remember { mutableStateOf(false) }
         val screenHeightPx = with(density) { maxHeight.toPx() }
-        val cardTop = when {
-            holeRect == null -> (maxHeight - with(density) { cardHeightPx.toDp() }) / 2
-            (holeRect.top + holeRect.bottom) / 2f > screenHeightPx / 2f ->
-                with(density) { (holeRect.top - 22.dp.toPx() - cardHeightPx).toDp() }
-            else -> with(density) { (holeRect.bottom + 22.dp.toPx()).toDp() }
+        LaunchedEffect(holeRect, screenHeightPx) {
+            val h = holeRect ?: return@LaunchedEffect
+            val center = (h.top + h.bottom) / 2f
+            // 迟滞区间：越过 58% 才翻到上方，回到 38% 以下才翻回下方
+            above = if (above) {
+                center > screenHeightPx * 0.38f
+            } else {
+                center > screenHeightPx * 0.58f
+            }
         }
-        val maxTop = (maxHeight - with(density) { cardHeightPx.toDp() } - 32.dp)
-            .coerceAtLeast(88.dp)
-        val clampedTop = cardTop.coerceIn(88.dp, maxTop)
+        val cardWidth = (maxWidth - 32.dp).coerceAtLeast(240.dp)
+        val gapPx = with(density) { 22.dp.toPx() }
+        val rawTopPx = when {
+            holeRect == null -> (screenHeightPx - cardHeightPx) / 2f
+            above -> holeRect.top - gapPx - cardHeightPx
+            else -> holeRect.bottom + gapPx
+        }
+        val animatedTopPx by animateFloatAsState(
+            targetValue = rawTopPx,
+            animationSpec = tween(240, easing = FastOutSlowInEasing),
+            label = "tourCardTop"
+        )
+        val minTopPx = with(density) { 88.dp.toPx() }
+        val bottomInsetPx = with(density) { 32.dp.toPx() }
+        val maxTopPx = (screenHeightPx - cardHeightPx - bottomInsetPx).coerceAtLeast(minTopPx)
+        val cardTopPx = animatedTopPx.coerceIn(minTopPx, maxTopPx)
 
         Surface(
             modifier = Modifier
-                .offset(x = 16.dp, y = clampedTop)
+                .offset { IntOffset(16.dp.roundToPx(), cardTopPx.roundToInt()) }
                 .width(cardWidth)
                 .onSizeChanged { cardHeightPx = it.height },
             shape = RoundedCornerShape(24.dp),
@@ -195,14 +202,22 @@ fun GuidedTourOverlay(
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth().height(44.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        TextButton(onClick = onSkip) {
+                            Text(
+                                "跳过",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
                         if (i > 0) {
                             TextButton(onClick = onPrevious) { Text("上一步") }
                         }
                         AppButton(
                             onClick = onNext,
+                            enabled = nextEnabled,
                             modifier = Modifier.height(44.dp)
                         ) {
                             Text(if (i == steps.lastIndex) "完成" else "下一步")

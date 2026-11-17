@@ -113,6 +113,7 @@ import com.ahu.ahutong.data.schedule.hasHolidayCourses
 import com.ahu.ahutong.data.schedule.scheduleWeekDates
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
@@ -672,7 +673,9 @@ fun Schedule(
                     }
                 }
                 IconButton(
-                    modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
+                    modifier = Modifier
+                        .size(if (radiant) 38.dp else 48.dp)
+                        .tourTarget("schedule_settings"),
                     onClick = { isSettingsVisible = true }
                 ) {
                     if (radiant) {
