@@ -311,12 +311,15 @@ class ChaoxingApi(private val context: Context) {
 
                     val color = Store.getCourseColorCached(course.courseId)
                         ?: CourseColors.byCourseId(course.courseId)
+                    // 详情页偶发失败时，列表里的相对倒计时仍能提供截止时间兜底
+                    val remainingEndTs = WorkDeadlineParser.parseRemaining(liContent)
 
                     works.add(
                         Work(
                             workId = workId, answerId = answerId, courseId = course.courseId,
                             courseName = course.name, title = title, status = statusRaw,
-                            detailUrl = detailUrl, colorBg = color.bg, colorText = color.text
+                            detailUrl = detailUrl, endTs = remainingEndTs,
+                            colorBg = color.bg, colorText = color.text
                         )
                     )
                     pageWorks++
@@ -446,9 +449,10 @@ class ChaoxingApi(private val context: Context) {
                 if (SyncThrottle.needsDeadlineFetch(work, full)) {
                     pendingDetails += course to work
                 } else {
+                    val fallbackEnd = previous?.endTs ?: work.endTs
                     allWorks += work.copy(
-                        startTs = previous?.startTs,
-                        endTs = previous?.endTs,
+                        startTs = previous?.startTs ?: fallbackEnd,
+                        endTs = fallbackEnd,
                         rawStart = previous?.rawStart ?: "",
                         rawEnd = previous?.rawEnd ?: ""
                     )
@@ -460,8 +464,8 @@ class ChaoxingApi(private val context: Context) {
         var done = 0
         for ((course, work) in pendingDetails) {
             val previous = existingByCourse[course.courseId]?.get(work.workId)
-            var startTs = previous?.startTs
-            var endTs = previous?.endTs
+            var startTs = previous?.startTs ?: work.startTs
+            var endTs = previous?.endTs ?: work.endTs
             try {
                 val dl = fetchWorkDeadline(work.copy(startTs = startTs, endTs = endTs))
                 if (dl != null) {
@@ -472,7 +476,7 @@ class ChaoxingApi(private val context: Context) {
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) { }
-            allWorks += work.copy(startTs = startTs, endTs = endTs,
+            allWorks += work.copy(startTs = startTs ?: endTs, endTs = endTs,
                 rawStart = previous?.rawStart ?: "", rawEnd = previous?.rawEnd ?: "")
             done++
             listener?.onProgress(done, pendingDetails.size, "正在同步作业 $done/${pendingDetails.size}")

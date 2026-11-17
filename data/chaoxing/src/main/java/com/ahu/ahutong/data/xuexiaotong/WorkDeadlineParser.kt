@@ -46,6 +46,16 @@ internal object WorkDeadlineParser {
         }
     }
 
+    fun parseRemaining(text: String, referenceMillis: Long = System.currentTimeMillis()): Long? {
+        val m = Regex("""剩余\s*(?:(\d+)\s*天)?\s*(?:(\d+)\s*小时)?\s*(?:(\d+)\s*分钟)?""")
+            .find(text) ?: return null
+        val days = m.groupValues[1].toIntOrNull() ?: 0
+        val hours = m.groupValues[2].toIntOrNull() ?: 0
+        val minutes = m.groupValues[3].toIntOrNull() ?: 0
+        if (days == 0 && hours == 0 && minutes == 0) return null
+        return referenceMillis + (days * 24L * 60 + hours * 60L + minutes) * 60_000L
+    }
+
     private fun parseEndpoint(value: String): Endpoint? {
         val parts = timestamp.matchEntire(value.trim())?.groupValues ?: return null
         return runCatching {

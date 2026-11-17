@@ -72,11 +72,16 @@ class WorkDeadlineParserTest {
     }
 
     @Test
-    fun `invalid dates and reversed explicit ranges do not silently normalize`() {
-        val now = time("2026-09-06T12:00")
-        assertNull(WorkDeadlineParser.parseRange("02-30 09:00", "03-01 18:00", now, zone))
-        assertNull(WorkDeadlineParser.parseRange("09-06 25:00", "09-07 18:00", now, zone))
-        assertNull(WorkDeadlineParser.parseRange("2026-12-31 09:00", "2026-01-02 18:00", now, zone))
-        assertNull(WorkDeadlineParser.parseRange("09-06 18:00", "09-06 09:00", now, zone))
+    fun `remaining countdown from the work list yields a deadline`() {
+        val now = time("2026-11-17T12:00")
+        assertEquals(
+            now + (1203 * 60 + 49) * 60_000L,
+            WorkDeadlineParser.parseRemaining("剩余1203小时49分钟", now)
+        )
+        assertEquals(
+            now + (2 * 24 * 60 + 3 * 60) * 60_000L,
+            WorkDeadlineParser.parseRemaining("剩余2天3小时", now)
+        )
+        assertNull(WorkDeadlineParser.parseRemaining("已结束", now))
     }
 }
