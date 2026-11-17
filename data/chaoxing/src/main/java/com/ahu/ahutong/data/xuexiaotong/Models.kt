@@ -10,7 +10,9 @@ data class Course(
     val name: String = "",
     val href: String = "",
     /** 课程结束日期（毫秒）。null = 未知（按未结课处理，绝不误跳）。 */
-    val endTs: Long? = null
+    val endTs: Long? = null,
+    /** 课程开始日期（毫秒）。 */
+    val startTs: Long? = null
 ) {
     /** 已结课：有明确结课标记，或结束日期早于今天（3 天宽限防时区/填写误差）。 */
     fun isEnded(nowMillis: Long = System.currentTimeMillis()): Boolean {

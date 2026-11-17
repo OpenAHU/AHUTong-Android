@@ -40,6 +40,25 @@ class SyncThrottleTest {
     }
 
     @Test
+    fun `course period exposes both start and end dates`() {
+        val html = """<p>开课时间：2026-09-07～2027-01-15</p>"""
+        val (start, end) = SyncThrottle.parseCoursePeriod(html, zone)
+        assertEquals(time("2026-09-07T23:59:59.999"), start)
+        assertEquals(time("2027-01-15T23:59:59.999"), end)
+    }
+
+    @Test
+    fun `course overlaps semester when ranges intersect`() {
+        val semester = time("2026-09-01T00:00")..time("2027-02-28T23:59:59")
+        val inside = Course(startTs = time("2026-09-07T00:00"), endTs = time("2027-01-15T00:00"))
+        val before = Course(startTs = time("2026-03-01T00:00"), endTs = time("2026-06-30T00:00"))
+        val missingDates = Course()
+        assertTrue(with(SyncThrottle) { inside.overlapsSemester(semester) })
+        assertFalse(with(SyncThrottle) { before.overlapsSemester(semester) })
+        assertTrue(with(SyncThrottle) { missingDates.overlapsSemester(semester) })
+    }
+
+    @Test
     fun `lite sync skips finished works but full sync refetches them`() {
         val done = Work(workId = "w1", status = "已完成", startTs = 100L, endTs = 200L)
         assertFalse(SyncThrottle.needsDeadlineFetch(done, full = false))

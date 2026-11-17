@@ -4,16 +4,14 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
-import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService
 import com.ahu.ahutong.data.xuexiaotong.Store
+import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSemesterRangeProvider
 import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncMode
 import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncState
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.time.LocalTime
-import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.ceil
@@ -32,6 +30,7 @@ import kotlinx.coroutines.launch
 class ChaoxingSyncServiceImpl @Inject constructor(
     private val session: ChaoxingSession,
     private val reminders: ChaoxingReminders,
+    private val semesterRangeProvider: XuexiaotongSemesterRangeProvider,
     @ApplicationContext private val context: Context,
 ) : ChaoxingSyncService {
 
@@ -71,10 +70,11 @@ class ChaoxingSyncServiceImpl @Inject constructor(
             }
             if (automatic) toast("连接成功，正在获取作业列表...")
             try {
+                val semesterRange = semesterRangeProvider.currentSemesterRange()
                 session.silentRelogin()
                 session.syncWorks(
                     full = mode == XuexiaotongSyncMode.FULL,
-                    semesterRange = currentSemesterRange(),
+                    semesterRange = semesterRange,
                     onWorkListKnown = { count ->
                         if (automatic) {
                             val text = if (count > 0) {
@@ -133,9 +133,10 @@ class ChaoxingSyncServiceImpl @Inject constructor(
                 )
             }
             try {
+                val semesterRange = semesterRangeProvider.currentSemesterRange()
                 session.silentRelogin()
                 session.syncCourseProgress(
-                    semesterRange = currentSemesterRange(),
+                    semesterRange = semesterRange,
                     onProgress = { done, total, message ->
                         _state.update {
                             it.copy(progressDone = done, progressTotal = total, progressMessage = message)
@@ -184,22 +185,6 @@ class ChaoxingSyncServiceImpl @Inject constructor(
                 progressError = null,
             )
         }
-    }
-
-    /** 教务学期区间：第一周周一到第 20 周末；拿不到时退回「未结课」判断。 */
-    private fun currentSemesterRange(): LongRange? {
-        val config = runCatching { CurrentWeekResolver.resolveLocalConfig()?.config }.getOrNull() ?: return null
-        val startDate = config.startTime?.toInstant()
-            ?.atZone(ZoneId.systemDefault())
-            ?.toLocalDate() ?: return null
-        val zone = ZoneId.systemDefault()
-        val start = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = startDate.plusWeeks(20).minusDays(1)
-            .atTime(LocalTime.MAX)
-            .atZone(zone)
-            .toInstant()
-            .toEpochMilli()
-        return start..end
     }
 
     private fun estimateMinutes(count: Int): Int {

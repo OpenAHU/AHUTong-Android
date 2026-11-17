@@ -4,8 +4,10 @@ import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingStore
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService
+import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSemesterRangeProvider
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminderStore
 import com.ahu.ahutong.data.xuexiaotong.Store
+import com.ahu.ahutong.data.schedule.AppXuexiaotongSemesterRangeProvider
 import com.ahu.ahutong.ui.state.AppChaoxingReminders
 import com.ahu.ahutong.ui.state.AppChaoxingSession
 import com.ahu.ahutong.ui.state.AppChaoxingStore
@@ -48,6 +50,12 @@ abstract class ChaoxingWiringModule {
     abstract fun bindChaoxingSyncService(
         implementation: ChaoxingSyncServiceImpl
     ): ChaoxingSyncService
+
+    @Binds
+    @Singleton
+    abstract fun bindSemesterRangeProvider(
+        implementation: AppXuexiaotongSemesterRangeProvider
+    ): XuexiaotongSemesterRangeProvider
 
     companion object {
 

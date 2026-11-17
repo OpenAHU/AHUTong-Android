@@ -192,8 +192,8 @@ class ChaoxingApi(private val context: Context) {
             val courseId = Regex("""class="courseId"[^>]*value="(\d+)"""").find(block)
                 ?.groupValues?.get(1) ?: ""
 
-            val endTs = SyncThrottle.parseCourseEndTs(block)
-            courses.add(Course(courseId, clazzId, cpi, name, href, endTs))
+            val (startTs, endTs) = SyncThrottle.parseCoursePeriod(block)
+            courses.add(Course(courseId, clazzId, cpi, name, href, endTs, startTs))
         }
 
         if (courses.isNotEmpty()) Store.saveCourses(courses)
@@ -489,14 +489,11 @@ class ChaoxingApi(private val context: Context) {
     }
 
     /**
-     * 只把「本学期」的课程视为可同步：用课程结课日期与学期区间求交集。
-     * 结束日期缺失时按未结课处理，避免误删。
+     * 只把「本学期」的课程视为可同步：课程区间与教务学期区间有交集。
+     * 日期缺失时按未结课处理，避免误删。
      */
-    private fun Course.isInSemesterRange(range: LongRange?): Boolean {
-        if (range == null) return true
-        val end = endTs ?: return true
-        return end >= range.first && end <= range.last
-    }
+    private fun Course.isInSemesterRange(range: LongRange?): Boolean =
+        with(SyncThrottle) { overlapsSemester(range) }
 
     suspend fun syncCourseProgress(
         semesterRange: LongRange? = null,
