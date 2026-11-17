@@ -1,8 +1,11 @@
 package com.ahu.ahutong.ui.components
 
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -270,15 +273,19 @@ fun GuidedTourOverlay(
             modifier = Modifier
                 .offset { IntOffset(16.dp.roundToPx(), cardTopPx.roundToInt()) }
                 .width(cardWidth)
-                .animateContentSize(
-                    animationSpec = tween(220, easing = FastOutSlowInEasing)
-                )
                 .onSizeChanged { cardHeightPx = it.height },
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             shadowElevation = 16.dp
         ) {
-            Crossfade(targetState = safeIndex, animationSpec = tween(180)) { i ->
+            AnimatedContent(
+                targetState = safeIndex,
+                transitionSpec = {
+                    (fadeIn(tween(180)) togetherWith fadeOut(tween(120)))
+                        .using(SizeTransform(clip = true))
+                },
+                label = "tourCard"
+            ) { i ->
                 val step = steps[i]
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
