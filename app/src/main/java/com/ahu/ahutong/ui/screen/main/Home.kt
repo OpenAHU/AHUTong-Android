@@ -172,7 +172,8 @@ internal fun Home(
     exams: List<Exam> = emptyList(),
     onLoadExams: (Boolean) -> Unit = {},
     heroViewModel: HomeHeroViewModel = hiltViewModel(),
-    onOpenSchedule: () -> Unit = { navController.navigate("schedule") }
+    onOpenSchedule: () -> Unit = { navController.navigate("schedule") },
+    onOpenXuexiaotongSchedule: () -> Unit = onOpenSchedule
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -608,6 +609,7 @@ internal fun Home(
                     currentMinutes = currentMinutes,
                     currentDateText = currentDateText,
                     onOpenSchedule = onOpenSchedule,
+                    onOpenXuexiaotongSchedule = onOpenXuexiaotongSchedule,
                     isInSemester = isInSemester,
                     emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
                     enabled = !isEditingHome,

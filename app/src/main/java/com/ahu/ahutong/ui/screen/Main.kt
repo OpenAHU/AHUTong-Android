@@ -92,7 +92,9 @@ import com.ahu.ahutong.ui.screen.main.REPOSITORY_ROUTE
 import com.ahu.ahutong.ui.screen.main.SchoolCalendar
 import com.ahu.ahutong.ui.screen.main.RepositorySettings
 import com.ahu.ahutong.ui.screen.main.Weather
+import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongScreen
+import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongSubTab
 import com.ahu.ahutong.ui.screen.profile.ProfileScreen
 import com.ahu.ahutong.ui.screen.settings.Contributors
 import com.ahu.ahutong.ui.screen.settings.EarlyAccessScreen
@@ -478,6 +480,10 @@ fun Main(
                         onLoadExams = examViewModel::loadExam,
                         onOpenSchedule = {
                             scope.launch { selectPrimaryDestination("schedule") }
+                        },
+                        onOpenXuexiaotongSchedule = {
+                            XuexiaotongDockState.tab = XuexiaotongSubTab.SCHEDULE
+                            scope.launch { selectPrimaryDestination("xuexiaotong") }
                         }
                     )
                     // 必吃榜匿名上传同意（未表态时弹一次，之后不再打扰）

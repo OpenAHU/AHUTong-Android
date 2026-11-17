@@ -44,7 +44,13 @@ internal data class HomeAssignment(
     val endTs: Long
 )
 
-internal data class HomeHeroText(val headline: String, val subtitle: String)
+internal enum class HomeHeroTarget { SCHEDULE, XUEXIAOTONG_SCHEDULE }
+
+internal data class HomeHeroText(
+    val headline: String,
+    val subtitle: String,
+    val target: HomeHeroTarget = HomeHeroTarget.SCHEDULE
+)
 
 @Composable
 internal fun AtAGlance(
@@ -52,6 +58,7 @@ internal fun AtAGlance(
     currentMinutes: Int,
     currentDateText: String,
     onOpenSchedule: () -> Unit,
+    onOpenXuexiaotongSchedule: () -> Unit = onOpenSchedule,
     isInSemester: Boolean = true,
     emptyCourseText: String = "已全部上完",
     enabled: Boolean = true,
@@ -65,6 +72,7 @@ internal fun AtAGlance(
         todayCourses = todayCourses,
         currentMinutes = currentMinutes,
         onOpenSchedule = onOpenSchedule,
+        onOpenXuexiaotongSchedule = onOpenXuexiaotongSchedule,
         isInSemester = isInSemester,
         todayExams = todayExams,
         assignments = assignments,
@@ -79,6 +87,7 @@ private fun RadiantAtAGlance(
     todayCourses: List<Course>,
     currentMinutes: Int,
     onOpenSchedule: () -> Unit,
+    onOpenXuexiaotongSchedule: () -> Unit,
     isInSemester: Boolean,
     todayExams: List<HomeExam>,
     assignments: List<HomeAssignment>,
@@ -94,7 +103,19 @@ private fun RadiantAtAGlance(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (enabled) Modifier.clickable(onClick = onOpenSchedule) else Modifier)
+            .then(
+                if (enabled) {
+                    Modifier.clickable(
+                        onClick = if (hero.target == HomeHeroTarget.XUEXIAOTONG_SCHEDULE) {
+                            onOpenXuexiaotongSchedule
+                        } else {
+                            onOpenSchedule
+                        }
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -190,7 +211,8 @@ internal fun resolveHomeHeroText(
                         append(" · ")
                     }
                     append(formatDeadline(urgentAssignment.endTs, nowMillis))
-                }
+                },
+                target = HomeHeroTarget.XUEXIAOTONG_SCHEDULE
             )
         }
 

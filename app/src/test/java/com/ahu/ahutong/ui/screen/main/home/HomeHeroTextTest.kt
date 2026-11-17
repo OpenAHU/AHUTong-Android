@@ -62,6 +62,7 @@ class HomeHeroTextTest {
             isInSemester = true
         )
         assertEquals("下节课是 大学物理", hero.headline)
+        assertEquals(HomeHeroTarget.SCHEDULE, hero.target)
     }
 
     @Test fun nextExamShowsWhenAllCoursesAreDone() {
@@ -128,6 +129,7 @@ class HomeHeroTextTest {
         )
         assertEquals("《第三章作业》还有 1小时整截止", hero.headline)
         assertEquals("高等数学 · 今天 11:00", hero.subtitle)
+        assertEquals(HomeHeroTarget.XUEXIAOTONG_SCHEDULE, hero.target)
     }
 
     @Test fun nextCourseSoonerThanTheAssignmentWins() {
