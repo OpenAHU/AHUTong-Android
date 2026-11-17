@@ -219,7 +219,12 @@ internal fun HomeTourHost(
         allowTargetInteraction = gated,
         allowHighlightedInteraction = current?.targetClickable == true,
         nextEnabled = !gated || dockUnlocked,
-        hint = if (gated) "点两下试试→" else null,
+        hint = when {
+            current?.targetClickable == true -> "点击试试↑"
+            gated -> "点两下试试→"
+            else -> null
+        },
+        hintBelow = current?.targetClickable == true,
         onNext = {
             if (gated && !dockUnlocked) return@GuidedTourOverlay
             if (index >= stops.lastIndex) finish() else index += 1

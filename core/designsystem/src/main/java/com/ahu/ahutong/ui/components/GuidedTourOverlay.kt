@@ -80,6 +80,7 @@ fun GuidedTourOverlay(
     allowHighlightedInteraction: Boolean = false,
     nextEnabled: Boolean = true,
     hint: String? = null,
+    hintBelow: Boolean = false,
 ) {
     if (!visible || steps.isEmpty()) return
     val safeIndex = index.coerceIn(0, steps.lastIndex)
@@ -231,10 +232,17 @@ fun GuidedTourOverlay(
             label = "tourHintOffset"
         )
         if (hint != null && holeRect != null) {
-            val hintX = with(density) {
-                (holeRect.left - 10.dp.toPx() - hintSize.width).coerceAtLeast(8.dp.toPx())
+            val hintX: Float
+            val hintY: Float
+            if (hintBelow) {
+                hintX = (holeRect.left + holeRect.right) / 2f - hintSize.width / 2f
+                hintY = with(density) { holeRect.bottom + 8.dp.toPx() }
+            } else {
+                hintX = with(density) {
+                    (holeRect.left - 10.dp.toPx() - hintSize.width).coerceAtLeast(8.dp.toPx())
+                }
+                hintY = (holeRect.top + holeRect.bottom) / 2f - hintSize.height / 2f
             }
-            val hintY = (holeRect.top + holeRect.bottom) / 2f - hintSize.height / 2f
             Text(
                 text = hint,
                 style = MaterialTheme.typography.labelLarge,
@@ -242,9 +250,10 @@ fun GuidedTourOverlay(
                 color = Color.White,
                 modifier = Modifier
                     .offset {
+                        val floatPx = hintFloat.dp.toPx()
                         IntOffset(
-                            (hintX + hintFloat.dp.toPx()).roundToInt(),
-                            hintY.roundToInt()
+                            (hintX + if (hintBelow) 0f else floatPx).roundToInt(),
+                            (hintY + if (hintBelow) floatPx else 0f).roundToInt()
                         )
                     }
                     .onSizeChanged { hintSize = it }
@@ -253,7 +262,9 @@ fun GuidedTourOverlay(
 
         var cardHeightPx by remember { mutableStateOf(0) }
         val cardWidth = (maxWidth - 32.dp).coerceAtLeast(240.dp)
-        val gapPx = with(density) { 22.dp.toPx() }
+        // 框下方有提示时给提示和浮动留出空间
+        val cardGapDp = if (hint != null && hintBelow) 48.dp else 22.dp
+        val gapPx = with(density) { cardGapDp.toPx() }
         // 框与卡片共用同一个进度：卡片在“下方锚点”和“上方锚点”之间随方向混合，
         // 切步时从当前姿态连续过渡到新姿态，不会在动画开始前瞬间换边。
         val rawTopPx = when {
