@@ -4,7 +4,11 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -46,6 +50,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -67,6 +72,7 @@ fun GuidedTourOverlay(
     onSkip: () -> Unit,
     allowTargetInteraction: Boolean = false,
     nextEnabled: Boolean = true,
+    hint: String? = null,
 ) {
     if (!visible || steps.isEmpty()) return
     val safeIndex = index.coerceIn(0, steps.lastIndex)
@@ -96,7 +102,7 @@ fun GuidedTourOverlay(
                 addRect(Rect(0f, 0f, size.width, size.height))
             }
             if (holeRect == null) {
-                drawPath(outer, Color.Black.copy(alpha = 0.55f))
+                drawPath(outer, Color.Black.copy(alpha = 0.35f))
             } else {
                 val pad = 6.dp.toPx()
                 val padded = Rect(
@@ -115,7 +121,7 @@ fun GuidedTourOverlay(
                 }
                 drawPath(
                     Path.combine(PathOperation.Difference, outer, hole),
-                    Color.Black.copy(alpha = 0.55f)
+                    Color.Black.copy(alpha = 0.35f)
                 )
                 drawRoundRect(
                     color = primary,
@@ -133,6 +139,37 @@ fun GuidedTourOverlay(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) { detectTapGestures { } }
+            )
+        }
+
+        var hintSize by remember { mutableStateOf(IntSize.Zero) }
+        val hintFloat by rememberInfiniteTransition(label = "tourHintFloat").animateFloat(
+            initialValue = -5f,
+            targetValue = 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "tourHintOffset"
+        )
+        if (hint != null && holeRect != null) {
+            val hintX = with(density) {
+                (holeRect.left - 10.dp.toPx() - hintSize.width).coerceAtLeast(8.dp.toPx())
+            }
+            val hintY = (holeRect.top + holeRect.bottom) / 2f - hintSize.height / 2f
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = primary,
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (hintX + hintFloat.dp.toPx()).roundToInt(),
+                            hintY.roundToInt()
+                        )
+                    }
+                    .onSizeChanged { hintSize = it }
             )
         }
 

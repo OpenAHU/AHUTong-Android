@@ -180,6 +180,7 @@ internal fun HomeTourHost(
         targetBounds = current?.let { TourBounds.get(it.targetId) },
         allowTargetInteraction = gated,
         nextEnabled = !gated || dockUnlocked,
+        hint = if (gated) "点两下试试→" else null,
         onNext = {
             if (gated && !dockUnlocked) return@GuidedTourOverlay
             if (index >= stops.lastIndex) finish() else index += 1
