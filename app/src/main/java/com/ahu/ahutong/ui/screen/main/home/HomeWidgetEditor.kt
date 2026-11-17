@@ -77,6 +77,7 @@ import androidx.navigation.NavHostController
 import com.ahu.ahutong.R
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.tourTarget
+import com.ahu.ahutong.ui.tour.HomeTourState
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.a1
 import com.kyant.monet.n1
@@ -420,7 +421,7 @@ private fun RadiantHomeWidgetSlotLayout(
         )
 
         // 众包补标注：与校园卡同级。壳负责"有没有候选"的显隐动画，编辑态不出现。
-        CanteenAskCardHost(enabled = !isEditing)
+        CanteenAskCardHost(enabled = !isEditing && !HomeTourState.running)
 
         Column(
             modifier = Modifier.fillMaxWidth().tourTarget("home_widgets"),

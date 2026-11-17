@@ -92,8 +92,19 @@ internal object HomeTourState {
     var replaySignal by mutableIntStateOf(0)
         private set
 
+    /** 导览进行中：主页据此让出空间（如隐藏必吃榜确认卡）。 */
+    var running by mutableStateOf(false)
+
+    /** 离开校园卡步骤时通知主页把卡收起。 */
+    var campusCollapseSignal by mutableIntStateOf(0)
+        private set
+
     fun requestReplay() {
         replaySignal += 1
+    }
+
+    fun requestCampusCollapse() {
+        campusCollapseSignal += 1
     }
 
     fun shouldAutoStart(context: Context): Boolean =
@@ -131,6 +142,7 @@ internal fun HomeTourHost(
     var visible by remember { mutableStateOf(false) }
     var index by remember { mutableIntStateOf(0) }
     var handledReplay by remember { mutableIntStateOf(HomeTourState.replaySignal) }
+    var previousIndex by remember { mutableIntStateOf(-1) }
     var dockBaseline by remember { mutableStateOf(XuexiaotongDockState.tab) }
     var dockUnlocked by remember { mutableStateOf(false) }
     val assistantEnabled = AssistantAccessState.enabled
@@ -139,26 +151,38 @@ internal fun HomeTourHost(
         if (visible) AssistantAccessState.refresh()
     }
 
+    fun start() {
+        HomeTourState.running = true
+        index = 0
+        visible = true
+    }
+
     fun finish() {
         visible = false
+        HomeTourState.running = false
         HomeTourState.markSeen(context)
     }
 
     LaunchedEffect(HomeTourState.replaySignal) {
         if (HomeTourState.replaySignal > handledReplay) {
             handledReplay = HomeTourState.replaySignal
-            index = 0
-            visible = true
+            start()
         }
     }
     LaunchedEffect(currentRoute) {
         if (!visible && currentRoute == "home" && HomeTourState.shouldAutoStart(context)) {
-            index = 0
-            visible = true
+            start()
         }
     }
     LaunchedEffect(visible, index) {
         if (!visible) return@LaunchedEffect
+        val previous = previousIndex
+        previousIndex = index
+        if (previous >= 0 && previous != index &&
+            stops.getOrNull(previous)?.targetId == "home_campus"
+        ) {
+            HomeTourState.requestCampusCollapse()
+        }
         dockUnlocked = false
         dockBaseline = XuexiaotongDockState.tab
         when (stops.getOrNull(index)?.page) {

@@ -76,6 +76,7 @@ import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.components.liquidGlassSurface
 import com.ahu.ahutong.ui.components.liquidGlassTint
 import com.ahu.ahutong.ui.components.tourTarget
+import com.ahu.ahutong.ui.tour.HomeTourState
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 import java.util.Locale
@@ -127,6 +128,10 @@ fun CampusCard(
     LaunchedEffect(pref, enabled) {
         // This is an explicit display preference, independent of prediction startup.
         isQrcode = pref && enabled && SessionStore.isLoggedIn()
+    }
+
+    LaunchedEffect(HomeTourState.campusCollapseSignal) {
+        if (HomeTourState.running) isQrcode = false
     }
 
     LaunchedEffect(paymentQrCommand?.commandId) {
