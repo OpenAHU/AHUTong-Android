@@ -99,6 +99,7 @@ import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.screen.main.home.AtAGlance
 import com.ahu.ahutong.ui.screen.main.home.HomeExam
+import com.ahu.ahutong.ui.screen.main.home.HomeHeroViewModel
 import com.ahu.ahutong.ui.screen.main.home.HomeDateRow
 import com.ahu.ahutong.ui.screen.main.home.HomeWeatherWidget
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetDragOverlay
@@ -170,6 +171,7 @@ internal fun Home(
     academicState: HomeAcademicState,
     exams: List<Exam> = emptyList(),
     onLoadExams: (Boolean) -> Unit = {},
+    heroViewModel: HomeHeroViewModel = hiltViewModel(),
     onOpenSchedule: () -> Unit = { navController.navigate("schedule") }
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -194,6 +196,10 @@ internal fun Home(
         }.sortedBy { it.startMinutes }
     }
     val noticeAccountId = accountId
+    val heroAssignments by heroViewModel.assignments.collectAsState()
+    LaunchedEffect(isActive, noticeAccountId) {
+        if (isActive) heroViewModel.refresh()
+    }
     val noticeSnapshot by CampusNoticeRepository.snapshot.collectAsState()
     var assistantOrigin by remember { mutableStateOf<Offset?>(null) }
     // 点击后整页像被按了一下：透镜涟漪从 AI 键向四周推开。
@@ -606,6 +612,8 @@ internal fun Home(
                     emptyCourseText = if (undergraduateEnabled) "已全部上完" else "今日无课",
                     enabled = !isEditingHome,
                     todayExams = todayExams,
+                    assignments = heroAssignments,
+                    nowMillis = currentTime.toInstant().toEpochMilli(),
                     trailingContent = trailingContent
                 )
             }

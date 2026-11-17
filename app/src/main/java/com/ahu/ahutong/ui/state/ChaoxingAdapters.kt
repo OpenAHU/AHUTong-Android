@@ -82,6 +82,9 @@ class AppChaoxingSession @Inject constructor() : ChaoxingSession {
                 }
             }
         )
+
+    override suspend fun refreshWorkStatus(course: Course, workId: String): Work? =
+        api.refreshWorkStatus(course, workId)
 }
 
 @Singleton

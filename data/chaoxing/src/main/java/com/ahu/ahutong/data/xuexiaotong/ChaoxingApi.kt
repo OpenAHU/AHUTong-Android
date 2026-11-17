@@ -261,7 +261,11 @@ class ChaoxingApi(private val context: Context) {
         return re2.find(html)?.groupValues?.get(1) ?: ""
     }
 
-    suspend fun fetchCourseWorks(course: Course, keys: CourseKeys): List<Work> =
+    suspend fun fetchCourseWorks(
+        course: Course,
+        keys: CourseKeys,
+        maxPages: Int = 50
+    ): List<Work> =
         withContext(Dispatchers.IO) {
             val works = mutableListOf<Work>()
             val baseParams = "courseId=${course.courseId}&classId=${course.clazzId}&cpi=${course.cpi}" +
@@ -271,7 +275,7 @@ class ChaoxingApi(private val context: Context) {
             var totalPages = 1
             var hasMore = true
 
-            while (hasMore && pageNum <= 50) {
+            while (hasMore && pageNum <= maxPages) {
                 val url = "https://mooc1.chaoxing.com/mooc2/work/list?$baseParams&status=0&pageNum=$pageNum"
                 val referer = "https://mooc2-ans.chaoxing.com/mooc2-ans/mycourse/stu?courseid=${course.courseId}" +
                     "&clazzid=${course.clazzId}&cpi=${course.cpi}"
@@ -330,6 +334,21 @@ class ChaoxingApi(private val context: Context) {
             }
             works
         }
+
+    /**
+     * 单条状态校准：取一次课程密钥，再拉这门课的作业列表（最多 [maxPages] 页），
+     * 找到指定作业返回最新状态。列表里找不到时返回 null，调用方保留缓存。
+     */
+    suspend fun refreshWorkStatus(
+        course: Course,
+        workId: String,
+        maxPages: Int = 3
+    ): Work? = withContext(Dispatchers.IO) {
+        val keys = fetchCourseKeys(course)
+        delay(600)
+        fetchCourseWorks(course, keys, maxPages = maxPages)
+            .firstOrNull { it.workId == workId }
+    }
 
     /**
      * 只读获取作业详情页 HTML。命中风控验证页或登录页时抛异常，交由调用方熔断提示。

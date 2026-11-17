@@ -9,6 +9,7 @@ import com.ahu.ahutong.data.xuexiaotong.ChaoxingSession
 import com.ahu.ahutong.data.xuexiaotong.ChaoxingSyncService
 import com.ahu.ahutong.data.xuexiaotong.Store
 import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSemesterRangeProvider
+import com.ahu.ahutong.data.xuexiaotong.WorkStatusRefresh
 import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncMode
 import com.ahu.ahutong.data.xuexiaotong.XuexiaotongSyncState
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,6 +27,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private const val MINI_REFRESH_INTERVAL_MS = 10 * 60_000L
+
 @Singleton
 class ChaoxingSyncServiceImpl @Inject constructor(
     private val session: ChaoxingSession,
@@ -41,6 +44,9 @@ class ChaoxingSyncServiceImpl @Inject constructor(
 
     private var worksJob: Job? = null
     private var progressJob: Job? = null
+    private var miniJob: Job? = null
+    /** 首页 Hero 的静默校准是低频动作，10 分钟内不重复请求。 */
+    private var lastMiniRefreshAt = 0L
 
     private val _state = MutableStateFlow(XuexiaotongSyncState())
     override val state: StateFlow<XuexiaotongSyncState> = _state.asStateFlow()
@@ -170,6 +176,34 @@ class ChaoxingSyncServiceImpl @Inject constructor(
         return true
     }
 
+    override fun refreshMostUrgentWorkStatus() {
+        if (worksJob?.isActive == true || miniJob?.isActive == true) return
+        val now = System.currentTimeMillis()
+        if (now - lastMiniRefreshAt < MINI_REFRESH_INTERVAL_MS) return
+        lastMiniRefreshAt = now
+        miniJob = scope.launch {
+            try {
+                val candidate = WorkStatusRefresh.pickMostUrgent(Store.getWorks(), now) ?: return@launch
+                if (!session.hasSession()) return@launch
+                val course = Store.getCourses().firstOrNull { it.courseId == candidate.courseId }
+                    ?: return@launch
+                val refreshed = session.refreshWorkStatus(course, candidate.workId) ?: return@launch
+                // 全量同步正好在跑时让位，避免两侧各写一份缓存
+                if (_state.value.worksRunning) return@launch
+                val current = Store.getWorks()
+                val merged = WorkStatusRefresh.merge(current, refreshed)
+                if (merged == current) return@launch
+                Store.saveWorks(merged)
+                _state.update { it.copy(worksRevision = it.worksRevision + 1) }
+                runCatching { reminders.rescheduleAll() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // 静默失败：保留缓存状态，下次进入首页再试
+            }
+        }
+    }
+
     override fun setFullSyncEnabled(enabled: Boolean) {
         _fullSyncEnabled.value = enabled
         runCatching { syncPrefs.edit().putBoolean("full_sync", enabled).apply() }
@@ -178,6 +212,7 @@ class ChaoxingSyncServiceImpl @Inject constructor(
     override fun cancel() {
         worksJob?.cancel()
         progressJob?.cancel()
+        miniJob?.cancel()
         _state.update {
             it.copy(
                 worksRunning = false,

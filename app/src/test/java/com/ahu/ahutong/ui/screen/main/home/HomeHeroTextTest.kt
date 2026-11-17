@@ -1,6 +1,8 @@
 package com.ahu.ahutong.ui.screen.main.home
 
 import com.ahu.ahutong.data.model.Course
+import java.time.LocalDateTime
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -13,6 +15,22 @@ class HomeHeroTextTest {
 
     private fun exam(name: String, start: Int, end: Int, location: String = "博学北楼A101") =
         HomeExam(name = name, location = location, startMinutes = start, endMinutes = end)
+
+    private val zone: ZoneId = ZoneId.systemDefault()
+
+    /** 统一以 2026-11-17 为“今天”，避免测试依赖运行时的真实日期。 */
+    private fun at(hour: Int, minute: Int, dayOffset: Long = 0): Long =
+        LocalDateTime.of(2026, 11, 17, hour, minute)
+            .plusDays(dayOffset)
+            .atZone(zone)
+            .toInstant()
+            .toEpochMilli()
+
+    private fun assignment(
+        title: String = "第三章作业",
+        courseName: String = "高等数学",
+        endTs: Long
+    ) = HomeAssignment(title = title, courseName = courseName, endTs = endTs)
 
     @Test fun ongoingExamTakesPriorityOverOngoingCourse() {
         val hero = resolveHomeHeroText(
@@ -97,5 +115,141 @@ class HomeHeroTextTest {
         )
         assertEquals("正在上课 · 大学物理", hero.headline)
         assertEquals("距下课还有 1小时25分钟", hero.subtitle)
+    }
+
+    @Test fun assignmentDueSoonerThanTheNextCourseWins() {
+        val hero = resolveHomeHeroText(
+            todayCourses = listOf(course("大学物理", "12:00-13:35")),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(11, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("《第三章作业》还有 1小时整截止", hero.headline)
+        assertEquals("高等数学 · 今天 11:00", hero.subtitle)
+    }
+
+    @Test fun nextCourseSoonerThanTheAssignmentWins() {
+        val hero = resolveHomeHeroText(
+            todayCourses = listOf(course("大学物理", "10:30-12:00")),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(14, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("下节课是 大学物理", hero.headline)
+        assertEquals("还有 30分钟，在 博学北楼", hero.subtitle)
+    }
+
+    @Test fun ongoingCourseBeatsAnUpcomingAssignment() {
+        val hero = resolveHomeHeroText(
+            todayCourses = listOf(course("大学物理", "08:00-09:35")),
+            todayExams = emptyList(),
+            currentMinutes = 8 * 60 + 30,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(9, 0))),
+            nowMillis = at(8, 30)
+        )
+        assertEquals("正在上课 · 大学物理", hero.headline)
+    }
+
+    @Test fun ongoingExamBeatsAnUpcomingAssignment() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = listOf(exam("高等数学", 8 * 60, 10 * 60)),
+            currentMinutes = 8 * 60 + 30,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(9, 0))),
+            nowMillis = at(8, 30)
+        )
+        assertEquals("正在考试 · 高等数学", hero.headline)
+    }
+
+    @Test fun overdueAssignmentsNeverShowUp() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(9, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("今日空闲", hero.headline)
+    }
+
+    @Test fun assignmentWinsWhenTheDeadlineTiesTheCourseStart() {
+        val hero = resolveHomeHeroText(
+            todayCourses = listOf(course("大学物理", "11:00-12:00")),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(11, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("《第三章作业》还有 1小时整截止", hero.headline)
+    }
+
+    @Test fun nextExamSoonerThanTheAssignmentWins() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = listOf(exam("高等数学", 10 * 60 + 30, 12 * 60)),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(11, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("下一场考试是 高等数学", hero.headline)
+    }
+
+    @Test fun tomorrowAssignmentStillShowsWhenTodayIsOver() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = emptyList(),
+            currentMinutes = 20 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(8, 0, dayOffset = 1))),
+            nowMillis = at(20, 0)
+        )
+        assertEquals("《第三章作业》还有 12小时整截止", hero.headline)
+        assertEquals("高等数学 · 明天 08:00", hero.subtitle)
+    }
+
+    @Test fun multiDayDeadlineIsExpressedInDays() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(10, 0, dayOffset = 3))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("《第三章作业》还有 3天截止", hero.headline)
+        assertEquals("高等数学 · 11-20 10:00", hero.subtitle)
+    }
+
+    @Test fun holidayStillReportsAnAssignment() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = false,
+            assignments = listOf(assignment(endTs = at(11, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("《第三章作业》还有 1小时整截止", hero.headline)
+    }
+
+    @Test fun assignmentWithoutCourseNameShowsOnlyTheDeadline() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(courseName = "", endTs = at(11, 0))),
+            nowMillis = at(10, 0)
+        )
+        assertEquals("今天 11:00", hero.subtitle)
     }
 }

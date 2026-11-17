@@ -26,6 +26,8 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.a1
 import com.kyant.monet.withNight
+import java.time.Instant
+import java.time.ZoneId
 
 /** 今日考试随时间变化的部分；首页只关心钟点，不关心学期周次。 */
 internal data class HomeExam(
@@ -33,6 +35,13 @@ internal data class HomeExam(
     val location: String,
     val startMinutes: Int,
     val endMinutes: Int
+)
+
+/** 待交作业：首页只关心标题、课程名与截止时刻，数据全部来自本地缓存。 */
+internal data class HomeAssignment(
+    val title: String,
+    val courseName: String,
+    val endTs: Long
 )
 
 internal data class HomeHeroText(val headline: String, val subtitle: String)
@@ -47,6 +56,8 @@ internal fun AtAGlance(
     emptyCourseText: String = "已全部上完",
     enabled: Boolean = true,
     todayExams: List<HomeExam> = emptyList(),
+    assignments: List<HomeAssignment> = emptyList(),
+    nowMillis: Long = 0L,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     // 主页排版全主题统一为 Radiant 方案（currentDateText/trailingContent 由曜光头部承担）
@@ -56,6 +67,8 @@ internal fun AtAGlance(
         onOpenSchedule = onOpenSchedule,
         isInSemester = isInSemester,
         todayExams = todayExams,
+        assignments = assignments,
+        nowMillis = nowMillis,
         enabled = enabled
     )
 }
@@ -68,9 +81,13 @@ private fun RadiantAtAGlance(
     onOpenSchedule: () -> Unit,
     isInSemester: Boolean,
     todayExams: List<HomeExam>,
+    assignments: List<HomeAssignment>,
+    nowMillis: Long,
     enabled: Boolean
 ) {
-    val hero = resolveHomeHeroText(todayCourses, todayExams, currentMinutes, isInSemester)
+    val hero = resolveHomeHeroText(
+        todayCourses, todayExams, currentMinutes, isInSemester, assignments, nowMillis
+    )
     val headline = hero.headline
     val subtitle = hero.subtitle
 
@@ -103,27 +120,49 @@ private fun RadiantAtAGlance(
     }
 }
 
-/** 考试与上课共用同一条时间线：正在进行的优先，其次比下一件事谁先开始。 */
+/**
+ * 考试、上课、作业共用同一条时间线：
+ * 先看"正在进行"（考试优先于课），否则取最近的未来时间点——
+ * 作业截止、下节课开始、下一场考试开始，谁先到上谁；同一分钟时截止优先。
+ * 已逾期未交的作业不上屏。
+ */
 internal fun resolveHomeHeroText(
     todayCourses: List<Course>,
     todayExams: List<HomeExam>,
     currentMinutes: Int,
-    isInSemester: Boolean
+    isInSemester: Boolean,
+    assignments: List<HomeAssignment> = emptyList(),
+    nowMillis: Long = 0L
 ): HomeHeroText {
-    val currentCourse = todayCourses.find {
-        currentMinutes in ScheduleSectionTimes.getCourseTimeRangeInMinutes(it)
-    }
-    val currentCourseIndex = todayCourses.indexOfFirst {
-        val range = ScheduleSectionTimes.getCourseTimeRangeInMinutes(it)
-        currentMinutes in range || currentMinutes < range.first
-    }.takeIf { it != -1 } ?: todayCourses.lastIndex
-    val hasRemainingCourses = todayCourses.isNotEmpty() &&
-        currentMinutes <= ScheduleSectionTimes.getCourseTimeRangeInMinutes(todayCourses.last()).last
-    val nextCourse = todayCourses.getOrNull(currentCourseIndex)?.takeIf { hasRemainingCourses }
     val ongoingExam = todayExams.firstOrNull {
         currentMinutes >= it.startMinutes && currentMinutes < it.endMinutes
     }
-    val nextExam = todayExams.firstOrNull { currentMinutes < it.startMinutes }
+    val currentCourse = todayCourses.find {
+        currentMinutes in ScheduleSectionTimes.getCourseTimeRangeInMinutes(it)
+    }
+    val nextExam = todayExams.asSequence()
+        .filter { it.startMinutes > currentMinutes }
+        .minByOrNull { it.startMinutes }
+    val nextCourse = todayCourses.asSequence()
+        .map { it to ScheduleSectionTimes.getCourseTimeRangeInMinutes(it).first }
+        .filter { (_, start) -> start > currentMinutes }
+        .minByOrNull { (_, start) -> start }
+    val nearestAssignment = assignments.asSequence()
+        .filter { it.endTs > nowMillis }
+        .minByOrNull { it.endTs }
+
+    val assignmentMinutes = nearestAssignment?.let {
+        currentMinutes + minutesUntil(it.endTs, nowMillis)
+    }
+    val courseStart = nextCourse?.second
+    val examStart = nextExam?.startMinutes
+    val assignmentWins = assignmentMinutes != null &&
+        (courseStart == null || assignmentMinutes <= courseStart) &&
+        (examStart == null || assignmentMinutes <= examStart)
+    val courseWins = !assignmentWins && courseStart != null &&
+        (examStart == null || courseStart <= examStart)
+    val urgentAssignment = nearestAssignment?.takeIf { assignmentWins }
+    val upcomingCourse = nextCourse?.takeIf { courseWins }
 
     return when {
         ongoingExam != null -> HomeHeroText(
@@ -140,22 +179,31 @@ internal fun resolveHomeHeroText(
             }"
         )
 
-        nextExam != null && (
-            nextCourse == null ||
-                nextExam.startMinutes < ScheduleSectionTimes.getCourseTimeRangeInMinutes(nextCourse).first
-            ) -> HomeHeroText(
+        urgentAssignment != null -> {
+            val remaining = minutesUntil(urgentAssignment.endTs, nowMillis)
+            HomeHeroText(
+                headline = "《${urgentAssignment.title.ifBlank { "作业" }}》还有 " +
+                    "${formatCourseDuration(remaining)}截止",
+                subtitle = buildString {
+                    if (urgentAssignment.courseName.isNotBlank()) {
+                        append(urgentAssignment.courseName)
+                        append(" · ")
+                    }
+                    append(formatDeadline(urgentAssignment.endTs, nowMillis))
+                }
+            )
+        }
+
+        upcomingCourse != null -> HomeHeroText(
+            headline = "下节课是 ${upcomingCourse.first.name}",
+            subtitle = "还有 ${formatCourseDuration(upcomingCourse.second - currentMinutes)}，" +
+                "在 ${upcomingCourse.first.location}"
+        )
+
+        nextExam != null -> HomeHeroText(
             headline = "下一场考试是 ${nextExam.name}",
             subtitle = "还有 ${formatCourseDuration(nextExam.startMinutes - currentMinutes)}" +
                 nextExam.location.takeIf { it.isNotBlank() }?.let { "，在 $it" }.orEmpty()
-        )
-
-        nextCourse != null -> HomeHeroText(
-            headline = "下节课是 ${nextCourse.name}",
-            subtitle = "还有 ${
-                formatCourseDuration(
-                    ScheduleSectionTimes.getCourseTimeRangeInMinutes(nextCourse).first - currentMinutes
-                )
-            }，在 ${nextCourse.location}"
         )
 
         !isInSemester -> HomeHeroText(headline = "假期中", subtitle = "准备您自己的安排吧")
@@ -163,8 +211,30 @@ internal fun resolveHomeHeroText(
     }
 }
 
-private fun formatCourseDuration(durationMinutes: Int): String = when {
-    durationMinutes % 60 == 0 -> "${durationMinutes / 60}小时整"
-    durationMinutes > 60 -> "${durationMinutes / 60}小时${durationMinutes % 60}分钟"
-    else -> "${durationMinutes}分钟"
+private fun minutesUntil(endTs: Long, nowMillis: Long): Int =
+    (((endTs - nowMillis).coerceAtLeast(0L) + 59_999L) / 60_000L).toInt()
+
+private fun formatDeadline(endTs: Long, nowMillis: Long): String {
+    val zone = ZoneId.systemDefault()
+    val deadline = Instant.ofEpochMilli(endTs).atZone(zone)
+    val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+    val day = when (deadline.toLocalDate()) {
+        today -> "今天"
+        today.plusDays(1) -> "明天"
+        else -> "${deadline.monthValue}-${deadline.dayOfMonth}"
+    }
+    return "$day ${"%02d:%02d".format(deadline.hour, deadline.minute)}"
+}
+
+private fun formatCourseDuration(durationMinutes: Int): String {
+    val days = durationMinutes / (24 * 60)
+    if (days > 0) {
+        val hours = (durationMinutes % (24 * 60)) / 60
+        return if (hours > 0) "${days}天${hours}小时" else "${days}天"
+    }
+    return when {
+        durationMinutes % 60 == 0 -> "${durationMinutes / 60}小时整"
+        durationMinutes > 60 -> "${durationMinutes / 60}小时${durationMinutes % 60}分钟"
+        else -> "${durationMinutes}分钟"
+    }
 }

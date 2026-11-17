@@ -37,5 +37,8 @@ interface ChaoxingSession {
         semesterRange: LongRange? = null,
         onProgress: (Int, Int, String) -> Unit
     ): List<CourseProgress>
+
+    /** 只拉一门课的作业列表，取指定作业的最新状态；列表里找不到时返回 null。 */
+    suspend fun refreshWorkStatus(course: Course, workId: String): Work?
 }
 

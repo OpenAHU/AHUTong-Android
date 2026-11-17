@@ -36,6 +36,9 @@ interface ChaoxingSyncService {
 
     fun startCourseProgressSync(): Boolean
 
+    /** 静默刷新缓存里最紧急一条作业的状态；内部节流、无提示，失败保留缓存。 */
+    fun refreshMostUrgentWorkStatus()
+
     fun setFullSyncEnabled(enabled: Boolean)
 
     fun cancel()

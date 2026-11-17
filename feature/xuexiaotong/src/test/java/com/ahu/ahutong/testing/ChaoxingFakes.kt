@@ -24,7 +24,8 @@ class FakeChaoxingSession(
     var works: List<Work> = emptyList(),
     var courseProgress: List<CourseProgress> = emptyList(),
     var syncFailure: Exception? = null,
-    var loginFailure: Exception? = null
+    var loginFailure: Exception? = null,
+    var refreshedWork: Work? = null
 ) : ChaoxingSession {
 
     val loginCalls = mutableListOf<Pair<String, String>>()
@@ -77,6 +78,8 @@ class FakeChaoxingSession(
         onProgress(1, 1, "同步完成")
         return courseProgress
     }
+
+    override suspend fun refreshWorkStatus(course: Course, workId: String): Work? = refreshedWork
 }
 
 class FakeChaoxingSyncService(
@@ -142,6 +145,8 @@ class FakeChaoxingSyncService(
     override fun startCourseProgressSync(): Boolean {
         return true
     }
+
+    override fun refreshMostUrgentWorkStatus() = Unit
 
     override fun setFullSyncEnabled(enabled: Boolean) {
         fullEnabled.value = enabled
