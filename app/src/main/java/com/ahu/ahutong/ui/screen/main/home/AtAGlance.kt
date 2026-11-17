@@ -26,8 +26,6 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.kyant.monet.a1
 import com.kyant.monet.withNight
-import java.time.Instant
-import java.time.ZoneId
 
 /** 今日考试随时间变化的部分；首页只关心钟点，不关心学期周次。 */
 internal data class HomeExam(
@@ -203,15 +201,8 @@ internal fun resolveHomeHeroText(
         urgentAssignment != null -> {
             val remaining = minutesUntil(urgentAssignment.endTs, nowMillis)
             HomeHeroText(
-                headline = "《${urgentAssignment.title.ifBlank { "作业" }}》还有 " +
-                    "${formatCourseDuration(remaining)}截止",
-                subtitle = buildString {
-                    if (urgentAssignment.courseName.isNotBlank()) {
-                        append(urgentAssignment.courseName)
-                        append(" · ")
-                    }
-                    append(formatDeadline(urgentAssignment.endTs, nowMillis))
-                },
+                headline = "最近的作业还有\n${formatCourseDuration(remaining)}截止",
+                subtitle = urgentAssignment.title.ifBlank { urgentAssignment.courseName },
                 target = HomeHeroTarget.XUEXIAOTONG_SCHEDULE
             )
         }
@@ -235,18 +226,6 @@ internal fun resolveHomeHeroText(
 
 private fun minutesUntil(endTs: Long, nowMillis: Long): Int =
     (((endTs - nowMillis).coerceAtLeast(0L) + 59_999L) / 60_000L).toInt()
-
-private fun formatDeadline(endTs: Long, nowMillis: Long): String {
-    val zone = ZoneId.systemDefault()
-    val deadline = Instant.ofEpochMilli(endTs).atZone(zone)
-    val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
-    val day = when (deadline.toLocalDate()) {
-        today -> "今天"
-        today.plusDays(1) -> "明天"
-        else -> "${deadline.monthValue}-${deadline.dayOfMonth}"
-    }
-    return "$day ${"%02d:%02d".format(deadline.hour, deadline.minute)}"
-}
 
 private fun formatCourseDuration(durationMinutes: Int): String {
     val days = durationMinutes / (24 * 60)
