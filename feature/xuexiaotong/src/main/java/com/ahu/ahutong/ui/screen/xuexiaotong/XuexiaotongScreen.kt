@@ -684,17 +684,17 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                 XxtSettingSwitchRow(
                     title = "查看已完成作业",
                     selected = showDone,
-                    onSelect = { viewModel.toggleShowDone() }
+                    onSelect = viewModel::setShowDone
                 )
                 XxtSettingSwitchRow(
                     title = "查看无任务点课程",
                     selected = showEmptyCourses,
-                    onSelect = { viewModel.toggleShowEmptyCourses() }
+                    onSelect = viewModel::setShowEmptyCourses
                 )
                 XxtSettingSwitchRow(
                     title = "已完成任务置灰",
                     selected = doneGray,
-                    onSelect = { viewModel.toggleDoneGray() }
+                    onSelect = viewModel::setDoneGray
                 )
                 XxtSettingSwitchRow(
                     title = "全量抓取",
@@ -721,8 +721,8 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
 }
 
 /**
- * 与课表设置同款开关行。文字区可点整行切换；开关本体保持原生交互（点按与玻璃主题的拖动）。
- * 两者是并列区域而非父子，同一次点击不会被两边同时接走。
+ * 与课表设置同款开关行：整行可点，开关本体保留原生交互（点按与玻璃主题拖动）。
+ * 回调按目标值设置而非翻转，重复触发也只会落在同一个值上。
  */
 @Composable
 private fun XxtSettingSwitchRow(
@@ -734,16 +734,14 @@ private fun XxtSettingSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(SmoothRoundedCornerShape(12.dp))
+            .clickable { onSelect(!selected) }
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .clip(SmoothRoundedCornerShape(12.dp))
-                .clickable { onSelect(!selected) }
-                .padding(vertical = 4.dp),
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(

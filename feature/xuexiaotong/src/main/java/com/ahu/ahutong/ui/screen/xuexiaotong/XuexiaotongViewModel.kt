@@ -167,25 +167,34 @@ class XuexiaotongViewModel @Inject constructor(
         }
     }
 
-    fun toggleShowDone() = afterRestore {
+    fun toggleShowDone() = setShowDone(!_showDone.value)
+
+    fun setShowDone(value: Boolean) = afterRestore {
         stateRevision++
-        val v = !_showDone.value
-        store.saveShowDone(v)
-        _showDone.value = v
+        if (_showDone.value != value) {
+            store.saveShowDone(value)
+            _showDone.value = value
+        }
     }
 
-    fun toggleDoneGray() = afterRestore {
+    fun toggleDoneGray() = setDoneGray(!_doneGray.value)
+
+    fun setDoneGray(value: Boolean) = afterRestore {
         stateRevision++
-        val v = !_doneGray.value
-        store.saveDoneGray(v)
-        _doneGray.value = v
+        if (_doneGray.value != value) {
+            store.saveDoneGray(value)
+            _doneGray.value = value
+        }
     }
 
-    fun toggleShowEmptyCourses() = afterRestore {
+    fun toggleShowEmptyCourses() = setShowEmptyCourses(!_showEmptyCourses.value)
+
+    fun setShowEmptyCourses(value: Boolean) = afterRestore {
         stateRevision++
-        val v = !_showEmptyCourses.value
-        store.saveShowEmptyCourses(v)
-        _showEmptyCourses.value = v
+        if (_showEmptyCourses.value != value) {
+            store.saveShowEmptyCourses(value)
+            _showEmptyCourses.value = value
+        }
     }
 
     fun onLoginSuccess() = afterRestore {
