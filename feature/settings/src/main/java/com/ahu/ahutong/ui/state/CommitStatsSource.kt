@@ -7,6 +7,7 @@ interface CommitStatsSource {
 
 data class ActiveAuthor(
     val login: String,
+    val totalCommits: Int,
     val commits: List<CommitRecord>
 )
 

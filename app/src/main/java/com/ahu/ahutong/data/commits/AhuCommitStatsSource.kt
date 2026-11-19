@@ -36,6 +36,7 @@ class AhuCommitStatsSource @Inject constructor() : CommitStatsSource {
             json.decodeFromString<CommitsPayload>(body).authors.map { author ->
                 ActiveAuthor(
                     login = author.login,
+                    totalCommits = author.totalCommits,
                     commits = author.commits.map { commit ->
                         CommitRecord(
                             shortSha = commit.shortSha,
@@ -57,6 +58,7 @@ class AhuCommitStatsSource @Inject constructor() : CommitStatsSource {
     @Serializable
     private data class AuthorPayload(
         @SerialName("login") val login: String,
+        @SerialName("totalCommits") val totalCommits: Int = 0,
         @SerialName("commits") val commits: List<CommitPayload> = emptyList()
     )
 

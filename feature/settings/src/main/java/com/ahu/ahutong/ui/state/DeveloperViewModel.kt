@@ -93,14 +93,18 @@ class DeveloperViewModel @Inject constructor(
 
     fun qqOf(login: String): String? = qqByLogin[login]
 
-    /** 未展开时的概述：提交数、最近活跃日期、涉及的领域。 */
+    /** 未展开时的概述：总提交数、最近活跃日期、涉及的领域。 */
     fun summary(author: ActiveAuthor): String {
         val latest = author.commits.firstOrNull()?.dateCst?.take(10)
         val scopes = author.commits.mapNotNull { commitScope(it.title) }
             .distinct()
             .take(2)
         return buildString {
-            append("近 ${author.commits.size} 次提交")
+            if (author.totalCommits > 0) {
+                append("共 ${author.totalCommits} 次提交")
+            } else {
+                append("近 ${author.commits.size} 次提交")
+            }
             latest?.let { append("，最近 $it") }
             if (scopes.isNotEmpty()) {
                 append("，主要涉及 ")
