@@ -57,6 +57,7 @@ fun SettingsHub(
         onOpenAiSettings = { navController.navigate("settings__ai") },
         onOpenCampusCard = { navController.navigate("preferences/home") },
         onOpenNotifications = { navController.navigate("preferences/notifications") },
+        onNavigateToPlugins = { navController.navigate("settings__plugins") },
         onOpenAppearance = { navController.navigate("preferences/appearance") },
         onOpenIntelligence = { navController.navigate("preferences/intelligence") },
         onOpenDataPrivacy = { navController.navigate("preferences/data") },

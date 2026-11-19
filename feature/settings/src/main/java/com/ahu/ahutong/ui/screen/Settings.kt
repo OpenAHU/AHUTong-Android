@@ -96,6 +96,7 @@ fun Settings(
     onOpenAiSettings: () -> Unit,
     onOpenCampusCard: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onNavigateToPlugins: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenIntelligence: () -> Unit,
     onOpenDataPrivacy: () -> Unit,
@@ -228,8 +229,13 @@ fun Settings(
             SettingsActionRow(
                 title = "通知",
                 leadingPainter = painterResource(R.drawable.ic_remind),
-                showDivider = false,
                 onClick = onOpenNotifications
+            )
+            SettingsActionRow(
+                title = "插件",
+                leadingPainter = painterResource(R.drawable.ic_plugin),
+                showDivider = false,
+                onClick = onNavigateToPlugins
             )
         }
 

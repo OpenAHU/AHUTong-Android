@@ -112,6 +112,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.ahu.ahutong.ui.screen.settings.AboutScreen
 import com.ahu.ahutong.ui.screen.settings.AiSettings
+import com.ahu.ahutong.ui.screen.settings.PluginSettingsScreen
 import com.ahu.ahutong.ui.screen.settings.OfficialTrialScreen
 import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.settings.PreferencesSection
@@ -833,6 +834,9 @@ fun Main(
                     scheduleViewModel = scheduleViewModel,
                     onBack = { navController.popBackStack() }
                 )
+            }
+            animatedComposable("settings__plugins") {
+                PluginSettingsScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("settings__about") {
                 AboutScreen(

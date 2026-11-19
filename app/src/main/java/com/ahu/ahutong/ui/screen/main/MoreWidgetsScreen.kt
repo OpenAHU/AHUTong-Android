@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.ui.components.AppPageScaffold
-import com.ahu.ahutong.ui.plugin.PluginManagerSection
 import com.ahu.ahutong.ui.plugin.PluginRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetSpec
@@ -68,8 +67,6 @@ fun MoreWidgetsScreen(
                     )
                     WidgetTileRows(specs, onOpen = { navController.navigate(it.route) })
                 }
-                // 插件管理（安装/卸载 .ahup）
-                Box(Modifier.padding(top = 12.dp)) { PluginManagerSection() }
                 // 桌面课表微件卡（研究生不显示，组件内部自判）
                 Box(Modifier.padding(top = 12.dp)) { DesktopScheduleWidgetCard() }
             }
