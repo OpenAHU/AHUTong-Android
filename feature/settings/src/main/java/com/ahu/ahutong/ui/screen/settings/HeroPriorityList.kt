@@ -53,7 +53,7 @@ private val HeroRowHeight = 64.dp
 private fun HomeHeroSlot.label(): String = when (this) {
     HomeHeroSlot.ONGOING_EXAM -> "正在考试"
     HomeHeroSlot.ONGOING_COURSE -> "正在上课"
-    HomeHeroSlot.ASSIGNMENT -> "作业"
+    HomeHeroSlot.ASSIGNMENT -> "离截止最近的作业"
     HomeHeroSlot.NEXT_COURSE -> "下节课"
     HomeHeroSlot.NEXT_EXAM -> "下一场考试"
 }
