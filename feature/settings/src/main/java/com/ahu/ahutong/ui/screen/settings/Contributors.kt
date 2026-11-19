@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,8 +81,7 @@ fun Contributors(
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         var seniorArea by remember { mutableStateOf(Rect.Zero) }
         var rootOrigin by remember { mutableStateOf(Offset.Zero) }
-        val authorHeaderAreas = remember { mutableStateMapOf<String, Rect>() }
-        var authorTapUntil by remember { mutableLongStateOf(0L) }
+        val authorAreas = remember { mutableStateMapOf<String, Rect>() }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -102,8 +100,7 @@ fun Contributors(
                                     seniorsExpanded = false
                                 }
                                 if (expandedAuthors.isNotEmpty() &&
-                                    System.currentTimeMillis() >= authorTapUntil &&
-                                    authorHeaderAreas.values.none { it.contains(windowPosition) }
+                                    authorAreas.values.none { it.contains(windowPosition) }
                                 ) {
                                     expandedAuthors = emptySet()
                                 }
@@ -240,7 +237,6 @@ fun Contributors(
                                 summary = developerViewModel.summary(author),
                                 expanded = author.login in expandedAuthors,
                                 onToggle = {
-                                    authorTapUntil = System.currentTimeMillis() + 250
                                     expandedAuthors = if (author.login in expandedAuthors) {
                                         expandedAuthors - author.login
                                     } else {
@@ -255,7 +251,7 @@ fun Contributors(
                                         openUrl(context, "https://github.com/${author.login}")
                                     }
                                 },
-                                onHeaderBounds = { authorHeaderAreas[author.login] = it },
+                                onBounds = { authorAreas[author.login] = it },
                                 onOpenCommit = { openUrl(context, it.url) }
                             )
                             if (index != state.authors.lastIndex) {
@@ -312,14 +308,17 @@ private fun ActiveAuthorRow(
     expanded: Boolean,
     onToggle: () -> Unit,
     onContact: () -> Unit,
-    onHeaderBounds: (Rect) -> Unit,
+    onBounds: (Rect) -> Unit,
     onOpenCommit: (CommitRecord) -> Unit
 ) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { onBounds(it.boundsInWindow()) }
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .onGloballyPositioned { onHeaderBounds(it.boundsInWindow()) }
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
