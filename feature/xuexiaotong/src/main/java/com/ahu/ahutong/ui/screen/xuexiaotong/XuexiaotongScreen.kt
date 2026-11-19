@@ -1527,43 +1527,49 @@ private fun demoTourWorks(): List<Work> {
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
+    fun work(
+        id: String,
+        courseId: String,
+        course: String,
+        title: String,
+        startDay: Int,
+        endDay: Int,
+        status: String = "未交",
+        colorBg: String,
+        colorText: String
+    ) = Work(
+        workId = id,
+        courseId = courseId,
+        courseName = course,
+        title = title,
+        status = status,
+        detailUrl = "https://mooc1.chaoxing.com/",
+        startTs = dayAt(startDay, 8),
+        endTs = dayAt(endDay, 23),
+        colorBg = colorBg,
+        colorText = colorText
+    )
     return listOf(
-        Work(
-            workId = "demo_1",
-            courseId = "demo_c1",
-            courseName = "高等数学",
-            title = "第三章课后作业",
-            status = "未交",
-            detailUrl = "https://mooc1.chaoxing.com/",
-            startTs = dayAt(5, 8),
-            endTs = dayAt(5, 23),
-            colorBg = "#FFE8E0",
-            colorText = "#C05621"
-        ),
-        Work(
-            workId = "demo_2",
-            courseId = "demo_c2",
-            courseName = "大学物理",
-            title = "实验报告",
-            status = "未交",
-            detailUrl = "https://mooc1.chaoxing.com/",
-            startTs = dayAt(12, 8),
-            endTs = dayAt(12, 23),
-            colorBg = "#E0F4F9",
-            colorText = "#1E6FA3"
-        ),
-        Work(
-            workId = "demo_3",
-            courseId = "demo_c3",
-            courseName = "大学英语",
-            title = "章节测验",
-            status = "已完成",
-            detailUrl = "https://mooc1.chaoxing.com/",
-            startTs = dayAt(19, 8),
-            endTs = dayAt(19, 23),
-            colorBg = "#E9E4FD",
-            colorText = "#5B45A8"
-        )
+        work("demo_1", "demo_c1", "高等数学", "第三章课后作业", 3, 5,
+            colorBg = "#FFE8E0", colorText = "#C05621"),
+        work("demo_2", "demo_c2", "大学物理", "实验报告", 4, 8,
+            colorBg = "#E0F4F9", colorText = "#1E6FA3"),
+        work("demo_3", "demo_c3", "大学英语", "章节测验", 5, 5, status = "已完成",
+            colorBg = "#E9E4FD", colorText = "#5B45A8"),
+        work("demo_4", "demo_c4", "线性代数", "习题集", 6, 6,
+            colorBg = "#DDF5E4", colorText = "#276749"),
+        work("demo_5", "demo_c5", "程序设计", "课程设计", 4, 18,
+            colorBg = "#DFF7F2", colorText = "#157A6E"),
+        work("demo_6", "demo_c3", "大学英语", "阅读笔记", 12, 12,
+            colorBg = "#FDE4F0", colorText = "#8B4B93"),
+        work("demo_7", "demo_c6", "软件工程", "小组项目", 12, 15,
+            colorBg = "#FFF3D6", colorText = "#B7791F"),
+        work("demo_8", "demo_c7", "大学化学", "实验预习", 14, 14, status = "已完成",
+            colorBg = "#E8F1F8", colorText = "#35597A"),
+        work("demo_9", "demo_c8", "马克思主义基本原理", "课程论文", 19, 25,
+            colorBg = "#FFE2E5", colorText = "#B23A5E"),
+        work("demo_10", "demo_c3", "大学英语", "听力练习", 22, 23,
+            colorBg = "#F2E8DD", colorText = "#8A6B4A")
     )
 }
 
