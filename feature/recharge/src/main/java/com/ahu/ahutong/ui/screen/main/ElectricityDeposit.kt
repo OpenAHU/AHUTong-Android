@@ -73,7 +73,6 @@ import kotlinx.coroutines.delay
 fun ElectricityDeposit(
     onBack: () -> Unit,
     onOpenRecentRooms: () -> Unit,
-    onOpenAlertSettings: () -> Unit,
     viewModel: ElectricityDepositViewModel = hiltViewModel(),
     initialSelection: RoomSelectionInfo? = null,
     onInitialSelectionConsumed: () -> Unit = {}
@@ -245,14 +244,6 @@ fun ElectricityDeposit(
     AppPageScaffold(
         title = "电控缴费",
         onBack = onBack,
-        actions = listOf(
-            TrailingAction(
-                icon = if (alertConfiguration.enabled) Icons.Outlined.NotificationsActive
-                    else Icons.Outlined.NotificationsNone,
-                contentDescription = "电费预警设置",
-                onClick = onOpenAlertSettings
-            )
-        ),
         modifier = Modifier.fillMaxSize(),
         bottomPadding = 48.dp,
         content = pageContent

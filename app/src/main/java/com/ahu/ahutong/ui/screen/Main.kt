@@ -929,6 +929,9 @@ fun Main(
                         onBack = { navController.popBackStack() },
                         onOpenThemeLab = { navController.navigate("settings__theme_lab") },
                         onOpenThemeColors = { navController.navigate("settings__theme_color") },
+                        onOpenElectricityAlertSettings = {
+                            navController.navigate("electricity_alert_settings")
+                        },
                         undergraduateEnabled = undergraduateEnabled
                     )
                 }
@@ -960,7 +963,6 @@ fun Main(
                 ElectricityDeposit(
                     onBack = { navController.popBackStack() },
                     onOpenRecentRooms = { navController.navigate("electricity_recent_rooms") },
-                    onOpenAlertSettings = { navController.navigate("electricity_alert_settings") },
                     initialSelection = electricityRechargeSelection,
                     onInitialSelectionConsumed = electricityAlertViewModel::selectionConsumed
                 )

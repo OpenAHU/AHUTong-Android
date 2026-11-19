@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.ahu.ahutong.core.common.CourseReminderControl
 import com.ahu.ahutong.core.common.UserNoticeHolder
+import com.ahu.ahutong.core.storage.ElectricityAlertSettings
+import com.ahu.ahutong.data.model.ElectricityAlertConfiguration
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.data.repository.RepositoryAccelerationSource
 import com.ahu.ahutong.data.repository.RepositoryIndex
@@ -29,9 +31,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -53,8 +57,20 @@ class PreferencesViewModel @Inject constructor(
     private val repository: RepositoryIndex,
     private val behavior: BehaviorRecorder,
     private val chaoxingStore: ChaoxingStore,
-    private val chaoxingReminders: ChaoxingReminders
+    private val chaoxingReminders: ChaoxingReminders,
+    private val electricityAlertSettings: ElectricityAlertSettings
 ) : ViewModel() {
+
+    val electricityAlertConfiguration: StateFlow<ElectricityAlertConfiguration> =
+        electricityAlertSettings.configuration.stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            ElectricityAlertConfiguration()
+        )
+
+    fun setElectricityAlertEnabled(enabled: Boolean) = viewModelScope.launch {
+        electricityAlertSettings.setEnabled(enabled)
+    }
 
     private val _xuexiaotongRemind = MutableStateFlow(chaoxingStore.remindSetting())
     val xuexiaotongRemind: StateFlow<RemindSetting> = _xuexiaotongRemind.asStateFlow()
