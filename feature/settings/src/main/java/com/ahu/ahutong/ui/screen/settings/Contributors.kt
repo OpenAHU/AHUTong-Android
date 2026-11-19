@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -108,56 +109,62 @@ fun Contributors(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
-                // 收起时头像重叠成堆、右侧标历史开发者；点一下原地缓动摊成一排并显示小名
-                val gap by animateDpAsState(
-                    targetValue = if (seniorsExpanded) 8.dp else (-14).dp,
-                    animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
-                    label = "senior-avatar-gap"
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { seniorArea = it.boundsInWindow() }
-                        .clickable { seniorsExpanded = !seniorsExpanded }
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(gap),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    developerViewModel.seniors.forEach { senior ->
-                        Column(
-                            modifier = Modifier
-                                .width(44.dp)
-                                .clickable {
-                                    if (seniorsExpanded) {
-                                        selectedSenior = senior
-                                    } else {
-                                        seniorsExpanded = true
-                                    }
-                                },
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            AsyncImage(
-                                model = senior.avatar,
-                                contentDescription = senior.name,
+                // 收起时头像重叠成堆；摊开时按可用宽度均分，左右两端贴边对齐
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val contentWidth = maxWidth - 40.dp
+                    val expandedGap = ((contentWidth - 44.dp * developerViewModel.seniors.size) /
+                        (developerViewModel.seniors.size - 1).coerceAtLeast(1))
+                        .coerceAtLeast(0.dp)
+                    val gap by animateDpAsState(
+                        targetValue = if (seniorsExpanded) expandedGap else (-14).dp,
+                        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+                        label = "senior-avatar-gap"
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { seniorArea = it.boundsInWindow() }
+                            .clickable { seniorsExpanded = !seniorsExpanded }
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(gap),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        developerViewModel.seniors.forEach { senior ->
+                            Column(
                                 modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .border(
-                                        2.dp,
-                                        MaterialTheme.colorScheme.surfaceContainer,
-                                        CircleShape
-                                    )
-                            )
-                            AnimatedVisibility(visible = seniorsExpanded) {
-                                Text(
-                                    text = senior.shortName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = 3.dp)
+                                    .width(44.dp)
+                                    .clickable {
+                                        if (seniorsExpanded) {
+                                            selectedSenior = senior
+                                        } else {
+                                            seniorsExpanded = true
+                                        }
+                                    },
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                AsyncImage(
+                                    model = senior.avatar,
+                                    contentDescription = senior.name,
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .border(
+                                            2.dp,
+                                            MaterialTheme.colorScheme.surfaceContainer,
+                                            CircleShape
+                                        )
                                 )
+                                AnimatedVisibility(visible = seniorsExpanded) {
+                                    Text(
+                                        text = senior.shortName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 3.dp)
+                                    )
+                                }
                             }
                         }
                     }
