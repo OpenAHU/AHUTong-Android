@@ -374,3 +374,19 @@ private fun lerpRect(start: Rect, end: Rect, fraction: Float): Rect = Rect(
     right = start.right + (end.right - start.right) * fraction,
     bottom = start.bottom + (end.bottom - start.bottom) * fraction
 )
+
+/** 由主窗口注入、在作业详情弹窗窗口内复用的导览层。 */
+data class GuidedTourDialogOverlayState(
+    val steps: List<GuidedTourStep>,
+    val index: Int,
+    val targetBounds: Rect?,
+    val hint: String?,
+    val hintBelow: Boolean,
+    val nextEnabled: Boolean,
+    val onNext: () -> Unit,
+    val onPrevious: () -> Unit,
+    val onSkip: () -> Unit
+)
+
+val LocalGuidedTourDialogOverlay =
+    androidx.compose.runtime.staticCompositionLocalOf<GuidedTourDialogOverlayState?> { null }

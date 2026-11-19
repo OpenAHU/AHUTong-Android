@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.ui.haptics.HapticDialog as Dialog
 import com.ahu.ahutong.data.xuexiaotong.Work
 import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -88,7 +89,8 @@ fun WorkDetailDialog(
                             label = "跳转学习通",
                             onClick = it,
                             style = AppDialogActionStyle.Neutral,
-                            enabled = actionsEnabled
+                            enabled = actionsEnabled,
+                            modifier = Modifier.tourTarget("work_jump_btn")
                         )
                     )
                 }
@@ -99,7 +101,8 @@ fun WorkDetailDialog(
                             label = "查看题目",
                             onClick = it,
                             style = AppDialogActionStyle.Primary,
-                            enabled = actionsEnabled
+                            enabled = actionsEnabled,
+                            modifier = Modifier.tourTarget("work_questions_btn")
                         )
                     )
                 }

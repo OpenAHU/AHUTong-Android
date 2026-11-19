@@ -3,6 +3,7 @@ package com.ahu.ahutong.ui.tour
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -12,16 +13,20 @@ import androidx.compose.ui.platform.LocalContext
 import com.ahu.ahutong.assistant.AssistantAccessState
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.ui.components.GuidedTourDialogOverlayState
 import com.ahu.ahutong.ui.components.GuidedTourOverlay
 import com.ahu.ahutong.ui.components.GuidedTourStep
 import com.ahu.ahutong.ui.components.TourBounds
 import com.ahu.ahutong.ui.screen.setup.OnboardingState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
+import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongTourState
 import android.content.Context
 
 private enum class TourStopPage { HOME, SCHEDULE, XUEXIAOTONG }
 
-private enum class TourGate { NONE, DOCK_TOGGLE }
+private enum class TourGate { NONE, DOCK_TOGGLE, WORK_DETAIL_OPEN }
+
+private enum class TourHostWindow { MAIN, WORK_DIALOG }
 
 private data class TourStop(
     val targetId: String,
@@ -29,7 +34,8 @@ private data class TourStop(
     val body: String,
     val page: TourStopPage,
     val gate: TourGate = TourGate.NONE,
-    val targetClickable: Boolean = false
+    val targetClickable: Boolean = false,
+    val hostWindow: TourHostWindow = TourHostWindow.MAIN
 )
 
 private val TourStops = listOf(
@@ -82,7 +88,22 @@ private val TourStops = listOf(
         title = "作业详情",
         body = "点开一条作业查看状态和起止时间；正式作业还能跳转学习通或查看题目。",
         page = TourStopPage.XUEXIAOTONG,
+        gate = TourGate.WORK_DETAIL_OPEN,
         targetClickable = true
+    ),
+    TourStop(
+        targetId = "work_jump_btn",
+        title = "跳转学习通",
+        body = "正式作业点这里，会用学习通自己的登录态打开同一页，可以直接作答。",
+        page = TourStopPage.XUEXIAOTONG,
+        hostWindow = TourHostWindow.WORK_DIALOG
+    ),
+    TourStop(
+        targetId = "work_questions_btn",
+        title = "查看题目",
+        body = "只读打开题目页，不进详情也能快速看题，不会改动作业状态。",
+        page = TourStopPage.XUEXIAOTONG,
+        hostWindow = TourHostWindow.WORK_DIALOG
     ),
     TourStop(
         targetId = "xuexiaotong_refresh",
@@ -136,7 +157,8 @@ internal fun HomeTourHost(
     undergraduateEnabled: Boolean,
     onOpenHome: () -> Unit,
     onOpenSchedule: () -> Unit,
-    onOpenXuexiaotongSchedule: () -> Unit
+    onOpenXuexiaotongSchedule: () -> Unit,
+    onDialogOverlayChanged: (GuidedTourDialogOverlayState?) -> Unit
 ) {
     val context = LocalContext.current
     val stops = remember(undergraduateEnabled) {
@@ -167,6 +189,7 @@ internal fun HomeTourHost(
     fun finish() {
         visible = false
         HomeTourState.running = false
+        XuexiaotongTourState.closeWorkDetailRequested = true
         HomeTourState.markSeen(context)
     }
 
@@ -206,38 +229,95 @@ internal fun HomeTourHost(
         }
     }
 
+    var previousHostWindow by remember { mutableStateOf<TourHostWindow?>(null) }
+    LaunchedEffect(visible, index) {
+        if (!visible) {
+            previousHostWindow = null
+            return@LaunchedEffect
+        }
+        val hostWindow = stops.getOrNull(index)?.hostWindow
+        if (previousHostWindow == TourHostWindow.WORK_DIALOG &&
+            hostWindow != TourHostWindow.WORK_DIALOG
+        ) {
+            XuexiaotongTourState.closeWorkDetailRequested = true
+        }
+        previousHostWindow = hostWindow
+    }
+    // 打开作业详情后自动进入弹窗内的两步
+    LaunchedEffect(visible, index, XuexiaotongTourState.workDetailOpen) {
+        val stop = stops.getOrNull(index) ?: return@LaunchedEffect
+        if (visible && stop.gate == TourGate.WORK_DETAIL_OPEN &&
+            XuexiaotongTourState.workDetailOpen && index < stops.lastIndex
+        ) {
+            index += 1
+        }
+    }
+
     BackHandler(enabled = visible) {
         if (index > 0) index -= 1 else finish()
     }
 
     val current = stops.getOrNull(index)
-    val gated = current?.gate == TourGate.DOCK_TOGGLE
+    val dockGate = current?.gate == TourGate.DOCK_TOGGLE
+    val gateSatisfied = when (current?.gate) {
+        TourGate.DOCK_TOGGLE -> dockUnlocked
+        TourGate.WORK_DETAIL_OPEN -> XuexiaotongTourState.workDetailOpen
+        else -> true
+    }
+    val inDialog = current?.hostWindow == TourHostWindow.WORK_DIALOG
+    val overlaySteps = stops.mapIndexed { i, stop ->
+        GuidedTourStep(
+            title = stop.title,
+            body = stop.body,
+            note = if (i == 0 && !assistantEnabled) "（该功能已关闭）" else null
+        )
+    }
+    val targetBounds = current?.let { TourBounds.get(it.targetId) }
+    val hint = when {
+        current?.targetClickable == true -> "点击试试↑"
+        dockGate -> "点两下试试→"
+        else -> null
+    }
+    val hintBelow = current?.targetClickable == true
+
+    fun advance() {
+        if (index >= stops.lastIndex) finish() else index += 1
+    }
+
+    fun retreat() {
+        if (index > 0) index -= 1 else finish()
+    }
+
+    val dialogOverlay = if (visible && inDialog) {
+        GuidedTourDialogOverlayState(
+            steps = overlaySteps,
+            index = index,
+            targetBounds = targetBounds,
+            hint = hint,
+            hintBelow = hintBelow,
+            nextEnabled = gateSatisfied,
+            onNext = {
+                if (gateSatisfied) advance()
+            },
+            onPrevious = ::retreat,
+            onSkip = ::finish
+        )
+    } else null
+    SideEffect { onDialogOverlayChanged(dialogOverlay) }
+
     GuidedTourOverlay(
-        visible = visible,
-        steps = stops.mapIndexed { i, stop ->
-            GuidedTourStep(
-                title = stop.title,
-                body = stop.body,
-                note = if (i == 0 && !assistantEnabled) "（该功能已关闭）" else null
-            )
-        },
+        visible = visible && !inDialog,
+        steps = overlaySteps,
         index = index,
-        targetBounds = current?.let { TourBounds.get(it.targetId) },
-        allowHighlightedInteraction = current?.targetClickable == true || gated,
-        nextEnabled = !gated || dockUnlocked,
-        hint = when {
-            current?.targetClickable == true -> "点击试试↑"
-            gated -> "点两下试试→"
-            else -> null
-        },
-        hintBelow = current?.targetClickable == true,
+        targetBounds = targetBounds,
+        allowHighlightedInteraction = current?.targetClickable == true || dockGate,
+        nextEnabled = gateSatisfied,
+        hint = hint,
+        hintBelow = hintBelow,
         onNext = {
-            if (gated && !dockUnlocked) return@GuidedTourOverlay
-            if (index >= stops.lastIndex) finish() else index += 1
+            if (gateSatisfied) advance()
         },
-        onPrevious = {
-            if (index > 0) index -= 1 else finish()
-        },
+        onPrevious = ::retreat,
         onSkip = ::finish
     )
 }

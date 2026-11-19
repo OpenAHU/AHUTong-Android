@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -441,6 +442,12 @@ fun Main(
             )
         }
         val updateInset = UpdateStatusStripHeight * updateStripProgress.value
+        val dialogTourOverlay = remember {
+            mutableStateOf<com.ahu.ahutong.ui.components.GuidedTourDialogOverlayState?>(null)
+        }
+        CompositionLocalProvider(
+            com.ahu.ahutong.ui.components.LocalGuidedTourDialogOverlay provides dialogTourOverlay.value
+        ) {
         Box(Modifier.fillMaxSize()) {
         FixedPrimaryNavigationHost(
             navController = navController,
@@ -1139,8 +1146,10 @@ fun Main(
                 XuexiaotongDockState.tab = XuexiaotongSubTab.SCHEDULE
                 scope.launch { selectPrimaryDestination("xuexiaotong") }
             },
+            onDialogOverlayChanged = { dialogTourOverlay.value = it },
         )
 
+        }
         }
     }
     }

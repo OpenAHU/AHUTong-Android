@@ -46,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -169,6 +170,15 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
     var sideMenuOpen by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     var selectedWork by remember { mutableStateOf<Work?>(null) }
+    LaunchedEffect(selectedWork != null) {
+        XuexiaotongTourState.workDetailOpen = selectedWork != null
+    }
+    LaunchedEffect(XuexiaotongTourState.closeWorkDetailRequested) {
+        if (XuexiaotongTourState.closeWorkDetailRequested) {
+            selectedWork = null
+            XuexiaotongTourState.closeWorkDetailRequested = false
+        }
+    }
     var webViewWork by remember { mutableStateOf<Work?>(null) }
     var showAddEvent by remember { mutableStateOf(false) }
     var pendingDeleteEvent by remember { mutableStateOf<Work?>(null) }

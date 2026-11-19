@@ -244,7 +244,7 @@ fun Debug(
             ) {
                 DebugActionRow(
                     title = "重播新手导览",
-                    subtitle = "从主页 AI 键开始，共 9 步",
+                    subtitle = "从主页 AI 键开始，共 11 步",
                     onClick = onReplayTour
                 )
             }

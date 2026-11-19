@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -55,7 +56,8 @@ data class AppDialogAction(
     val label: String,
     val onClick: () -> Unit,
     val style: AppDialogActionStyle = AppDialogActionStyle.Neutral,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val modifier: Modifier = Modifier
 )
 
 /**
@@ -185,6 +187,7 @@ private fun MaterialDialogAction(action: AppDialogAction) {
     TextButton(
         onClick = rememberHapticAction(action.hapticEvent(), action.onClick),
         enabled = action.enabled,
+        modifier = action.modifier,
         colors = ButtonDefaults.textButtonColors(
             contentColor = if (action.style == AppDialogActionStyle.Danger) {
                 MaterialTheme.colorScheme.error
@@ -197,7 +200,7 @@ private fun MaterialDialogAction(action: AppDialogAction) {
 private fun MiuixDialogAction(action: AppDialogAction, modifier: Modifier) {
     MiuixButtonImpl(
         onClick = rememberHapticAction(action.hapticEvent(), action.onClick),
-        modifier = modifier,
+        modifier = modifier.then(action.modifier),
         enabled = action.enabled,
         variant = when (action.style) {
             AppDialogActionStyle.Neutral -> AppButtonVariant.Secondary
@@ -260,64 +263,101 @@ private fun RadiantDialog(
     headerContent: (@Composable ColumnScope.() -> Unit)?,
     content: (@Composable ColumnScope.() -> Unit)?
 ) {
-    Dialog(onDismissRequest = onDismiss, properties = properties) {
-        Column(
-            modifier = modifier
-                .clip(SmoothRoundedCornerShape(32.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-        ) {
+    val tourOverlay = LocalGuidedTourDialogOverlay.current
+    val windowProperties = if (tourOverlay != null) {
+        DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    } else {
+        properties
+    }
+    Dialog(onDismissRequest = onDismiss, properties = windowProperties) {
+        val card: @Composable (Modifier) -> Unit = { cardModifier ->
             Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = cardModifier
+                    .clip(SmoothRoundedCornerShape(32.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
-                Text(
-                    text = title,
-                    style = titleStyle,
-                    fontWeight = titleFontWeight,
-                    maxLines = titleMaxLines,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (subtitle != null) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     Text(
-                        text = subtitle,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        text = title,
+                        style = titleStyle,
+                        fontWeight = titleFontWeight,
+                        maxLines = titleMaxLines,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    headerContent?.invoke(this)
                 }
-                headerContent?.invoke(this)
+
+                AppDialogDivider()
+
+                if (content != null) {
+                    Column(
+                        modifier = (if (contentScrollable) Modifier.weight(1f, fill = false) else Modifier)
+                            .padding(24.dp)
+                            .then(
+                                if (contentScrollable) {
+                                    Modifier.verticalScroll(rememberScrollState())
+                                } else {
+                                    Modifier
+                                }
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(contentSpacing),
+                        content = content
+                    )
+                }
+
+                if (actions.isNotEmpty()) {
+                    AppDialogDivider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        actions.forEach { AppDialogCapsuleButton(it) }
+                    }
+                }
             }
-
-            AppDialogDivider()
-
-            if (content != null) {
-                Column(
-                    modifier = (if (contentScrollable) Modifier.weight(1f, fill = false) else Modifier)
+        }
+        if (tourOverlay != null) {
+            Box(Modifier.fillMaxSize()) {
+                card(
+                    Modifier
+                        .align(Alignment.Center)
                         .padding(24.dp)
-                        .then(
-                            if (contentScrollable) {
-                                Modifier.verticalScroll(rememberScrollState())
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(contentSpacing),
-                    content = content
+                        .widthIn(max = 360.dp)
+                )
+                GuidedTourOverlay(
+                    visible = true,
+                    steps = tourOverlay.steps,
+                    index = tourOverlay.index,
+                    targetBounds = tourOverlay.targetBounds,
+                    onNext = tourOverlay.onNext,
+                    onPrevious = tourOverlay.onPrevious,
+                    onSkip = tourOverlay.onSkip,
+                    nextEnabled = tourOverlay.nextEnabled,
+                    hint = tourOverlay.hint,
+                    hintBelow = tourOverlay.hintBelow
                 )
             }
-
-            if (actions.isNotEmpty()) {
-                AppDialogDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    actions.forEach { AppDialogCapsuleButton(it) }
-                }
-            }
+        } else {
+            card(modifier)
         }
     }
 }
@@ -344,6 +384,7 @@ private fun RowScope.AppDialogCapsuleButton(action: AppDialogAction) {
         modifier = Modifier
             .weight(1f)
             .height(40.dp)
+            .then(action.modifier)
             .clip(RoundedCornerShape(20.dp))
             .background(if (action.enabled) container else scheme.onSurface.copy(alpha = 0.05f))
             .clickable(enabled = action.enabled, onClick = rememberHapticAction(action.hapticEvent(), action.onClick)),
