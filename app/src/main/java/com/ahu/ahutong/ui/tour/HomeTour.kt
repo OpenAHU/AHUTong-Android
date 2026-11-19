@@ -18,7 +18,6 @@ import com.ahu.ahutong.ui.components.GuidedTourOverlay
 import com.ahu.ahutong.ui.components.GuidedTourStep
 import com.ahu.ahutong.ui.components.TourBounds
 import com.ahu.ahutong.ui.screen.setup.OnboardingState
-import kotlinx.coroutines.delay
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongTourState
 import android.content.Context
@@ -233,7 +232,6 @@ internal fun HomeTourHost(
     var previousHostWindow by remember { mutableStateOf<TourHostWindow?>(null) }
     var detailOpenedThisStep by remember { mutableStateOf(false) }
     var detailMustCloseFirst by remember { mutableStateOf(false) }
-    var dialogSettled by remember { mutableStateOf(false) }
     LaunchedEffect(visible, index) {
         if (!visible) {
             previousHostWindow = null
@@ -254,26 +252,6 @@ internal fun HomeTourHost(
         // 回到弹窗内的步骤（如 11 → 10）时，若弹窗已关需要重新打开
         if (hostWindow == TourHostWindow.WORK_DIALOG && !XuexiaotongTourState.workDetailOpen) {
             XuexiaotongTourState.openWorkDetailRequested = true
-        }
-    }
-    // 等弹窗自身的入场动画稳定后，再让弹窗内的导览层出现
-    LaunchedEffect(visible, index, XuexiaotongTourState.workDetailOpen) {
-        if (!visible) {
-            dialogSettled = false
-            return@LaunchedEffect
-        }
-        val wantsDialog = stops.getOrNull(index)?.hostWindow == TourHostWindow.WORK_DIALOG
-        if (!wantsDialog) {
-            dialogSettled = false
-            return@LaunchedEffect
-        }
-        if (XuexiaotongTourState.workDetailOpen) {
-            if (!dialogSettled) {
-                delay(350)
-                dialogSettled = true
-            }
-        } else {
-            dialogSettled = false
         }
     }
     // 打开作业详情后自动进入弹窗内的两步；只认本步内新打开的事件，避免旧状态立刻顶回去
@@ -327,7 +305,7 @@ internal fun HomeTourHost(
         if (index > 0) index -= 1 else finish()
     }
 
-    val dialogOverlay = if (visible && inDialog && dialogSettled) {
+    val dialogOverlay = if (visible && inDialog) {
         GuidedTourDialogOverlayState(
             steps = overlaySteps,
             index = index,
