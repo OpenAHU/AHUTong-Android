@@ -40,7 +40,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.platform.LocalWindowInfo
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,7 +55,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -269,6 +270,28 @@ fun Settings(
         {}
     }
 
+    val pageScrollState = rememberScrollState()
+    val screenHeightPx = with(LocalDensity.current) {
+        LocalConfiguration.current.screenHeightDp.dp.toPx()
+    }
+    LaunchedEffect(TourScrollRequest.signal) {
+        val targetId = TourScrollRequest.targetId ?: return@LaunchedEffect
+        if (!targetId.startsWith("settings_")) return@LaunchedEffect
+        var target = TourBounds.get(targetId)
+        if (target == null) {
+            delay(120)
+            target = TourBounds.get(targetId)
+        }
+        val rect = target ?: return@LaunchedEffect
+        val delta = (rect.top + rect.bottom) / 2f - screenHeightPx / 2f
+        if (kotlin.math.abs(delta) > 8f) {
+            pageScrollState.animateScrollBy(
+                delta,
+                tween(durationMillis = 320, easing = FastOutSlowInEasing)
+            )
+        }
+    }
+
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         if (showSettingsSearch) {
             androidx.activity.compose.BackHandler { showSettingsSearch = false }
@@ -281,6 +304,7 @@ fun Settings(
         }
         SettingsPageLayout(
             title = stringResource(id = R.string.setting),
+            scrollState = pageScrollState,
             backdrop = backdrop,
             actions = {
                 AppHeaderIconButton(
