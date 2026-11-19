@@ -475,8 +475,7 @@ fun ElectricityAlertSettings(
                 backdrop = backdrop
             ) {
                 SettingsActionRow(
-                    title = "当前房间",
-                    value = currentRoom?.label ?: "尚未选择",
+                    title = currentRoom?.label ?: "尚未选择",
                     showChevron = false,
                     onClick = {}
                 )
