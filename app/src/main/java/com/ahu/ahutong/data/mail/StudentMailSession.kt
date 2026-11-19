@@ -7,6 +7,7 @@ import com.ahu.ahutong.data.network.AhuHttp
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.session.SecureCredentialVault
 import com.ahu.ahutong.data.session.SessionStore
+import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import com.google.gson.JsonParser
 import java.io.IOException
 import java.util.UUID
@@ -126,8 +127,11 @@ object StudentMailSession {
                     invalidate(existing)
                 }
             }
-            val account = SessionStore.currentUserForRefresh()?.xh?.takeIf { it.isNotBlank() }
-                ?: throw MailServiceFailure("请先登录智慧安大")
+            val account = try {
+                SessionStore.currentUserForRefresh()?.xh?.takeIf { it.isNotBlank() }
+            } catch (_: SecureStorageUnavailableException) {
+                throw MailServiceFailure("无法读取本机登录信息，请稍后重试")
+            } ?: throw MailServiceFailure("请先登录智慧安大")
             val reset = resetGeneration
             val identity = SessionRefreshCoordinator.currentIdentityGeneration()
             val portalStamp = PortalSessionStamp()
@@ -179,8 +183,11 @@ object StudentMailSession {
                 if (service?.host != PORTAL_HOST || service.encodedPath != "/tp_up/view") {
                     throw MailServiceFailure("智慧安大邮箱登录入口已变化")
                 }
-                val password = SecureCredentialVault.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
-                    ?: throw MailServiceFailure("智慧安大登录已过期，请重新登录")
+                val password = try {
+                    SecureCredentialVault.wisdomPasswordForRefresh()?.takeIf { it.isNotBlank() }
+                } catch (_: SecureStorageUnavailableException) {
+                    throw MailServiceFailure("无法读取本机登录信息，请稍后重试")
+                } ?: throw MailServiceFailure("智慧安大登录已过期，请重新登录")
                 val refreshed = portalStamp.refresh {
                     StudentMailDiagnostics.record("portal.cas.refresh.begin")
                     checkCurrent()

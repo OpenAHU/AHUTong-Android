@@ -53,12 +53,17 @@ object SessionStore : SessionIdentity {
 
     fun isUserRestoreUnavailable(): Boolean = userRestore.unavailable
 
+    /**
+     * 续期专用读取：**读不出来不等于没有账号**。
+     *
+     * 原先只有可重试的读取失败才抛异常，不可重试（密文损坏、数据非法）直接返回 null，
+     * 于是会话层把它当成"本机没有凭据"→ 连一次登录都不试就宣告过期，
+     * 用户看到"登录已过期，请重新登录"却其实什么凭据都没被校方拒绝过。
+     * 现在所有读取失败统一抛出，由会话层走"存储不可用、稍后重试"的路径。
+     */
     fun currentUserForRefresh(): User? = when (val restored = restoreCurrentUser()) {
         is CurrentUserRestoreResult.Ready -> restored.user
-        is CurrentUserRestoreResult.Unavailable -> {
-            if (restored.retryable) throw SecureStorageUnavailableException(restored.cause)
-            null
-        }
+        is CurrentUserRestoreResult.Unavailable -> throw SecureStorageUnavailableException(restored.cause)
     }
 
     override fun isLoggedIn(): Boolean = currentUser() != null
