@@ -94,7 +94,7 @@ private fun HeroPriorityList(
     onCommit: (List<HomeHeroSlot>) -> Unit
 ) {
     var localOrder by remember { mutableStateOf(HomeHeroSlot.normalize(order)) }
-    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var draggingSlot by remember { mutableStateOf<HomeHeroSlot?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val rowHeightPx = with(LocalDensity.current) { HeroRowHeight.toPx() }
     val haptics = LocalHapticFeedback.current
@@ -102,7 +102,7 @@ private fun HeroPriorityList(
 
     // 外部写入只在未拖动时同步进来，避免打断手势
     LaunchedEffect(order) {
-        if (draggingIndex == null) localOrder = HomeHeroSlot.normalize(order)
+        if (draggingSlot == null) localOrder = HomeHeroSlot.normalize(order)
     }
 
     fun moveTo(from: Int, to: Int): List<HomeHeroSlot> {
@@ -120,7 +120,7 @@ private fun HeroPriorityList(
         userScrollEnabled = false
     ) {
         itemsIndexed(localOrder, key = { _, slot -> slot }) { index, slot ->
-            val dragging = draggingIndex == index
+            val dragging = draggingSlot == slot
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -155,19 +155,20 @@ private fun HeroPriorityList(
                         dragHandleModifier = Modifier.pointerInput(slot) {
                             detectDragGestures(
                                 onDragStart = {
-                                    draggingIndex = index
+                                    draggingSlot = slot
                                     dragOffset = 0f
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 },
                                 onDrag = { change, amount ->
                                     change.consume()
-                                    val from = draggingIndex ?: return@detectDragGestures
+                                    // 手势块以 slot 为 key 不会随换位重建，索引必须现查，不能用组合时捕获的值
+                                    val from = localOrder.indexOf(slot)
+                                    if (from < 0) return@detectDragGestures
                                     dragOffset += amount.y
                                     val shift = (dragOffset / rowHeightPx).roundToInt()
                                     val target = (from + shift).coerceIn(0, localOrder.lastIndex)
                                     if (target != from) {
                                         moveTo(from, target)
-                                        draggingIndex = target
                                         dragOffset -= (target - from) * rowHeightPx
                                         haptics.performHapticFeedback(
                                             HapticFeedbackType.TextHandleMove
@@ -175,12 +176,12 @@ private fun HeroPriorityList(
                                     }
                                 },
                                 onDragEnd = {
-                                    draggingIndex = null
+                                    draggingSlot = null
                                     dragOffset = 0f
                                     onCommit(localOrder)
                                 },
                                 onDragCancel = {
-                                    draggingIndex = null
+                                    draggingSlot = null
                                     dragOffset = 0f
                                     localOrder = HomeHeroSlot.normalize(order)
                                 }
