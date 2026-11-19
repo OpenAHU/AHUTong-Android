@@ -73,7 +73,7 @@ import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.Work
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
-import com.ahu.ahutong.ui.components.AppSheetSwitchRow
+import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.components.tourTarget
@@ -681,22 +681,22 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                AppSheetSwitchRow(
+                XxtSettingSwitchRow(
                     title = "查看已完成作业",
                     selected = showDone,
                     onSelect = { viewModel.toggleShowDone() }
                 )
-                AppSheetSwitchRow(
+                XxtSettingSwitchRow(
                     title = "查看无任务点课程",
                     selected = showEmptyCourses,
                     onSelect = { viewModel.toggleShowEmptyCourses() }
                 )
-                AppSheetSwitchRow(
+                XxtSettingSwitchRow(
                     title = "已完成任务置灰",
                     selected = doneGray,
                     onSelect = { viewModel.toggleDoneGray() }
                 )
-                AppSheetSwitchRow(
+                XxtSettingSwitchRow(
                     title = "全量抓取",
                     description = "开启后每次刷新都会重抓已完成作业的详情，耗时更长",
                     selected = fullSyncEnabled,
@@ -717,6 +717,55 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+}
+
+/**
+ * 与课表设置同款开关行。文字区可点整行切换；开关本体保持原生交互（点按与玻璃主题的拖动）。
+ * 两者是并列区域而非父子，同一次点击不会被两边同时接走。
+ */
+@Composable
+private fun XxtSettingSwitchRow(
+    title: String,
+    description: String? = null,
+    selected: Boolean,
+    onSelect: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clip(SmoothRoundedCornerShape(12.dp))
+                .clickable { onSelect(!selected) }
+                .padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            description?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+        AppToggle(
+            checked = selected,
+            onCheckedChange = onSelect,
+            modifier = Modifier.padding(start = 16.dp),
+            contentDescription = title
+        )
     }
 }
 
