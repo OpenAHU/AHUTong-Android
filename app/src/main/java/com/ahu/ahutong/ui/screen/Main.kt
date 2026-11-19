@@ -838,9 +838,7 @@ fun Main(
                 AboutScreen(
                     appName = stringResource(R.string.app_name),
                     appIcon = painterResource(R.mipmap.ic_launcher_foreground),
-                    updateAvailable = updateInfo != null,
                     onBack = { navController.popBackStack() },
-                    onCheckUpdate = mainViewModel::checkApkUpdateManually,
                     onOpenFeedback = { navController.navigate(FEEDBACK_ROUTE) },
                     onOpenContributors = { navController.navigate("settings__contributors") },
                     onOpenLicense = { navController.navigate("settings__license") },

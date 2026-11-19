@@ -14,15 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.outlined.DeleteForever
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Feedback
-import androidx.compose.material.icons.outlined.PeopleOutline
-import androidx.compose.material.icons.outlined.PrivacyTip
-import androidx.compose.material.icons.outlined.Public
-import androidx.compose.material.icons.outlined.Update
+import com.ahu.ahutong.feature.settings.R
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,9 +51,7 @@ import kotlinx.coroutines.launch
 fun AboutScreen(
     appName: String,
     appIcon: Painter,
-    updateAvailable: Boolean,
     onBack: () -> Unit,
-    onCheckUpdate: ((String) -> Unit) -> Unit,
     onOpenFeedback: () -> Unit,
     onOpenContributors: () -> Unit,
     onOpenLicense: () -> Unit,
@@ -117,24 +108,13 @@ fun AboutScreen(
                     showDivider = true
                 )
                 SettingsActionRow(
-                    title = "版本更新",
-                    value = if (updateAvailable) "有新版本可用" else "已是最新",
-                    leadingIcon = Icons.Outlined.Update,
-                    onClick = {
-                        onCheckUpdate { message ->
-                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                )
-                SettingsActionRow(
                     title = "更新说明",
-                    leadingIcon = Icons.AutoMirrored.Outlined.Article,
+                    leadingPainter = painterResource(R.drawable.ic_log),
                     onClick = { showUpdateLog = true }
                 )
                 SettingsActionRow(
                     title = "官网",
-                    subtitle = "openahu.org",
-                    leadingIcon = Icons.Outlined.Public,
+                    leadingPainter = painterResource(R.drawable.ic_earth),
                     onClick = {
                         runCatching {
                             context.startActivity(
@@ -147,27 +127,17 @@ fun AboutScreen(
                 )
                 SettingsActionRow(
                     title = "反馈",
-                    leadingIcon = Icons.Outlined.Feedback,
+                    leadingPainter = painterResource(R.drawable.ic_feedback),
                     onClick = onOpenFeedback
                 )
                 SettingsActionRow(
                     title = "贡献者",
-                    leadingIcon = Icons.Outlined.PeopleOutline,
+                    leadingPainter = painterResource(R.drawable.ic_peoples),
                     onClick = onOpenContributors
                 )
                 SettingsActionRow(
-                    title = "开源许可",
-                    leadingIcon = Icons.Outlined.Description,
-                    onClick = onOpenLicense
-                )
-                SettingsActionRow(
-                    title = "隐私政策",
-                    leadingIcon = Icons.Outlined.PrivacyTip,
-                    onClick = onOpenPrivacy
-                )
-                SettingsActionRow(
                     title = "清除所有数据",
-                    leadingIcon = Icons.Outlined.DeleteForever,
+                    leadingPainter = painterResource(R.drawable.ic_delete),
                     destructive = true,
                     showDivider = false,
                     onClick = { showClear = true }
