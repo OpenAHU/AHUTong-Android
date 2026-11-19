@@ -261,6 +261,15 @@ fun Settings(
     }
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
+        if (showSettingsSearch) {
+            androidx.activity.compose.BackHandler { showSettingsSearch = false }
+            SettingsSearchPage(
+                entries = searchEntries,
+                backdrop = backdrop,
+                onBack = { showSettingsSearch = false }
+            )
+            return@SettingsBackdropContainer
+        }
         SettingsPageLayout(
             title = stringResource(id = R.string.setting),
             backdrop = backdrop,
@@ -420,13 +429,6 @@ fun Settings(
                 leadingPainter = painterResource(R.drawable.ic_info),
                 showDivider = false,
                 onClick = onNavigateToAbout
-            )
-        }
-
-        if (showSettingsSearch) {
-            SettingsSearchSheet(
-                entries = searchEntries,
-                onDismiss = { showSettingsSearch = false }
             )
         }
     }
