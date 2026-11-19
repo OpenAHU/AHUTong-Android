@@ -500,8 +500,7 @@ fun ElectricityAlertSettings(
                     configuration.rooms.forEachIndexed { index, room ->
                         SettingsActionRow(
                             title = room.label,
-                            value = "剩余不足 ${room.thresholdDays} 天",
-                            showChevron = false,
+                            value = "不足 ${room.thresholdDays} 天时提醒",
                             showDivider = index < configuration.rooms.lastIndex,
                             onClick = {
                                 threshold = room.thresholdDays.toString()
