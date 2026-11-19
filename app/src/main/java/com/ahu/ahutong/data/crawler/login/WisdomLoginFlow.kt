@@ -22,7 +22,15 @@ internal class WisdomLoginFlow(
         }
 
         repeat(CAPTCHA_ATTEMPTS) { attempt ->
-            val captcha = solveCaptcha(fetchCaptcha())
+            val captcha = solveCaptcha(fetchCaptcha()).trim()
+            if (captcha.isEmpty()) {
+                // 识别失败时不要把空验证码提交上去：校方对空 imgcode 的响应可能是风控
+                // 失败码，甚至被当成"账号密码错误"，把一次 OCR 抖动放大成登出。
+                if (attempt == CAPTCHA_ATTEMPTS - 1) {
+                    return failure(-1, "验证码识别失败，请稍后重试")
+                }
+                return@repeat
+            }
             val info = Gson().fromJson(
                 submitLogin(account, password, captcha),
                 WisdomLoginResponse::class.java
@@ -41,10 +49,12 @@ internal class WisdomLoginFlow(
             val message = info.msg?.takeIf { it.isNotBlank() } ?: "智慧安大登录失败"
             // Retry OCR errors only. Wrong credentials and other business errors
             // must retain the upstream explanation and must not trigger more logins.
-            if (info.code == INVALID_CREDENTIALS_CODE ||
-                !message.contains("验证码") || attempt == CAPTCHA_ATTEMPTS - 1
+            val captchaProblem = message.contains("验证码")
+            if ((info.code == INVALID_CREDENTIALS_CODE && !captchaProblem) ||
+                !captchaProblem || attempt == CAPTCHA_ATTEMPTS - 1
             ) {
-                return failure(info.code ?: -1, message)
+                // 上游把验证码问题报成 10012 时不能算"密码被拒"，只当可重试的验证码失败。
+                return failure(if (captchaProblem) -1 else info.code ?: -1, message)
             }
         }
         error("Captcha attempts exhausted without a response")

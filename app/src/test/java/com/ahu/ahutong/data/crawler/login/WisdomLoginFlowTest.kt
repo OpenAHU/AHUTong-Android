@@ -123,6 +123,37 @@ class WisdomLoginFlowTest {
         }
     }
 
+    @Test
+    fun blankCaptchaIsNeverSubmittedAndIsNotMistakenForCredentials() = runTest {
+        var fetches = 0
+        var submits = 0
+        val flow = WisdomLoginFlow(
+            fetchCaptcha = { byteArrayOf((++fetches).toByte()) },
+            solveCaptcha = { "" },
+            submitLogin = { _, _, _ -> submits++; CAPTCHA_FAILURE }
+        )
+
+        val response = flow.login("G20260001", "secret")
+
+        assertEquals(5, fetches)
+        assertEquals(0, submits)
+        assertFalse(response.isSuccess)
+        assertFalse(response.errorOrNull() is AhuError.Unauthorized)
+    }
+
+    @Test
+    fun captchaErrorReportedAsInvalidCredentialsIsRetriedInsteadOfLoggingOut() = runTest {
+        var requests = 0
+        val response = flow {
+            requests++
+            """{"code":10012,"msg":"验证码错误","object":null}"""
+        }.login("G20260001", "secret")
+
+        assertEquals(5, requests)
+        assertFalse(response.isSuccess)
+        assertFalse(response.errorOrNull() is AhuError.Unauthorized)
+    }
+
     private fun flow(response: suspend () -> String) = WisdomLoginFlow(
         fetchCaptcha = { byteArrayOf(1) },
         solveCaptcha = { "ABCD" },
