@@ -52,7 +52,7 @@ enum class PreferencesSection(
     val subtitle: String,
 ) {
     APPEARANCE("appearance", "外观与主题", "主题套装、深色模式、主题色、背景与触感"),
-    HOME("home", "主页与充值", "主页付款码与安全密码键盘"),
+    HOME("home", "校园卡与主页", "付款码、安全键盘与充值"),
     NOTIFICATIONS("notifications", "通知提醒", "课前提醒、准时权限与岛卡"),
     INTELLIGENCE("intelligence", "智能体验", "快捷建议、预加载与本地学习"),
     DATA("data", "数据与隐私", "本地记录、必吃榜共建与训练数据");
@@ -65,12 +65,10 @@ enum class PreferencesSection(
 
 @Composable
 fun Preferences(
+    section: PreferencesSection,
     onBack: () -> Unit = {},
-    section: PreferencesSection? = null,
-    onOpenSection: (PreferencesSection) -> Unit = {},
     onOpenThemeLab: () -> Unit = {},
     onOpenThemeColors: () -> Unit = {},
-    onOpenAiSettings: () -> Unit = {},
     undergraduateEnabled: Boolean = true
 ) {
     val viewModel: PreferencesViewModel = hiltViewModel()
@@ -141,21 +139,13 @@ fun Preferences(
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         SettingsPageLayout(
-            title = section?.title ?: "偏好设置",
+            title = section.title,
             onBack = onBack,
             backdrop = backdrop,
             scrollState = pageScrollState,
             scrollEnabled = !isToggleHorizontalDragActive
         ) {
             LaunchedEffect(section) { pageScrollState.scrollTo(0) }
-            if (section == null) {
-                PreferencesHubContent(
-                    backdrop = backdrop,
-                    onOpenSection = onOpenSection,
-                    onOpenAiSettings = onOpenAiSettings,
-                    undergraduateEnabled = undergraduateEnabled,
-                )
-            }
             if (section == PreferencesSection.APPEARANCE) ThemeSettingsSection(
                 viewModel = viewModel,
                 backdrop = backdrop,
@@ -165,7 +155,7 @@ fun Preferences(
             )
 
             if (section == PreferencesSection.HOME) SettingsSection(
-                title = "主页与充值",
+                title = "校园卡与主页",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
@@ -419,31 +409,3 @@ fun Preferences(
     }
 }
 
-@Composable
-private fun PreferencesHubContent(
-    backdrop: Backdrop,
-    onOpenSection: (PreferencesSection) -> Unit,
-    onOpenAiSettings: () -> Unit,
-    undergraduateEnabled: Boolean,
-) {
-    SettingsSection(
-        title = "设置分类",
-        modifier = Modifier.padding(horizontal = 16.dp),
-        backdrop = backdrop,
-    ) {
-        PreferencesSection.entries.forEach { item ->
-            if (item == PreferencesSection.NOTIFICATIONS && !undergraduateEnabled) return@forEach
-            SettingsActionRow(
-                title = item.title,
-                subtitle = item.subtitle,
-                onClick = { onOpenSection(item) },
-            )
-        }
-        SettingsActionRow(
-            title = "AI 设置",
-            subtitle = "模型、性格、联网搜索与 AI 隐私入口",
-            showDivider = false,
-            onClick = onOpenAiSettings,
-        )
-    }
-}

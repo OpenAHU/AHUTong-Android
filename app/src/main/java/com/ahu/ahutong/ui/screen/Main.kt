@@ -316,7 +316,6 @@ fun Main(
         }
     }
 
-    NormalizePreferencesParent(navController, currentRoute, appUiTheme)
 
     // 启动器静态快捷方式：等登录门禁放行且已离开 splash/login 再落地
     val pendingShortcutRoute by com.ahu.ahutong.ShortcutRoutes.pending.collectAsState()
@@ -887,16 +886,13 @@ fun Main(
             }
 
             animatedComposable("preferences") {
-                Preferences(
-                    onBack = ::navigateBackFromPreferences,
-                    onOpenSection = { section ->
-                        navController.navigate("preferences/${section.routeKey}")
-                    },
-                    onOpenThemeLab = { navController.navigate("settings__theme_lab") },
-                    onOpenThemeColors = { navController.navigate("settings__theme_color") },
-                    onOpenAiSettings = { navController.navigate("settings__ai") },
-                    undergraduateEnabled = undergraduateEnabled
-                )
+                // 旧的“偏好设置”中间层已取消，深链统一落到设置根页
+                LaunchedEffect(Unit) {
+                    navController.navigate("settings") {
+                        popUpTo("preferences") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             }
             animatedComposable("preferences/{section}", arguments = listOf(
                 navArgument("section") { type = NavType.StringType }
@@ -912,7 +908,6 @@ fun Main(
                         onBack = { navController.popBackStack() },
                         onOpenThemeLab = { navController.navigate("settings__theme_lab") },
                         onOpenThemeColors = { navController.navigate("settings__theme_color") },
-                        onOpenAiSettings = { navController.navigate("settings__ai") },
                         undergraduateEnabled = undergraduateEnabled
                     )
                 }

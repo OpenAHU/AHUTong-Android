@@ -15,8 +15,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.Login
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ClearAll
+import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Feedback
 import androidx.compose.material.icons.outlined.PeopleOutline
 import androidx.compose.material.icons.outlined.PrivacyTip
@@ -87,7 +92,12 @@ fun Settings(
     onNavigateToLogin: () -> Unit,
     onSwitchAccount: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    onNavigateToPreferences: () -> Unit,
+    onOpenAiSettings: () -> Unit,
+    onOpenCampusCard: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onOpenAppearance: () -> Unit,
+    onOpenIntelligence: () -> Unit,
+    onOpenDataPrivacy: () -> Unit,
     onNavigateToEarlyAccess: () -> Unit,
     earlyAccessSummary: String,
     onNavigateToDebug: () -> Unit,
@@ -218,32 +228,57 @@ fun Settings(
         }
 
         SettingsSection(
-            title = "应用",
+            title = "服务",
             modifier = Modifier.padding(horizontal = 16.dp),
             backdrop = backdrop
         ) {
             SettingsActionRow(
-                title = stringResource(id = R.string.preferences),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Settings
-                    isRadiant -> null
-                    else -> Icons.Outlined.Tune
-                },
-                leadingPainter = if (isRadiant) {
-                    painterResource(R.drawable.ic_setting_config)
-                } else {
-                    null
-                },
-                onClick = onNavigateToPreferences
+                title = "AHUTong Intelligence",
+                subtitle = "模型、思考强度与联网搜索",
+                leadingIcon = Icons.Outlined.AutoAwesome,
+                onClick = onOpenAiSettings
+            )
+            SettingsActionRow(
+                title = "校园卡",
+                subtitle = "付款码、安全键盘与充值",
+                leadingIcon = Icons.Outlined.CreditCard,
+                onClick = onOpenCampusCard
+            )
+            SettingsActionRow(
+                title = "通知",
+                subtitle = "课程提醒与岛卡权限",
+                leadingIcon = Icons.Outlined.Notifications,
+                showDivider = false,
+                onClick = onOpenNotifications
+            )
+        }
+
+        SettingsSection(
+            title = "通用",
+            modifier = Modifier.padding(horizontal = 16.dp),
+            backdrop = backdrop
+        ) {
+            SettingsActionRow(
+                title = "外观与主题",
+                subtitle = "主题套装、主题色、背景与触感",
+                leadingIcon = Icons.Outlined.Palette,
+                onClick = onOpenAppearance
+            )
+            SettingsActionRow(
+                title = "智能体验",
+                subtitle = "快捷建议与预测预加载",
+                leadingIcon = Icons.Outlined.AutoAwesome,
+                onClick = onOpenIntelligence
+            )
+            SettingsActionRow(
+                title = "数据与隐私",
+                subtitle = "本地记录、必吃榜与训练数据",
+                leadingIcon = Icons.Outlined.Shield,
+                onClick = onOpenDataPrivacy
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.check_update),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Update
-                    isRadiant -> null
-                    else -> Icons.Outlined.Update
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_update) else null,
+                leadingIcon = Icons.Outlined.Update,
                 onClick = {
                     onCheckUpdate { message ->
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -253,8 +288,7 @@ fun Settings(
             SettingsActionRow(
                 title = "抢先体验",
                 value = earlyAccessSummary,
-                leadingIcon = if (isRadiant) null else Icons.Outlined.Science,
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_experiment) else null,
+                leadingIcon = Icons.Outlined.Science,
                 showDivider = false,
                 onClick = onNavigateToEarlyAccess
             )
