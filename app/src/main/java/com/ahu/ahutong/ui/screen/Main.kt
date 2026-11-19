@@ -1184,6 +1184,7 @@ fun Main(
                 XuexiaotongDockState.tab = XuexiaotongSubTab.SCHEDULE
                 scope.launch { selectPrimaryDestination("xuexiaotong") }
             },
+            onOpenSettings = { scope.launch { selectPrimaryDestination("settings") } },
             onDialogOverlayChanged = { dialogTourOverlay.value = it },
         )
 

@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -42,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
@@ -49,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -85,6 +88,7 @@ fun GuidedTourOverlay(
     nextEnabled: Boolean = true,
     hint: String? = null,
     hintBelow: Boolean = false,
+    celebrate: Boolean = false,
 ) {
     if (steps.isEmpty()) return
     val transition = remember {
@@ -106,7 +110,8 @@ fun GuidedTourOverlay(
             allowHighlightedInteraction = allowHighlightedInteraction,
             nextEnabled = nextEnabled,
             hint = hint,
-            hintBelow = hintBelow
+            hintBelow = hintBelow,
+            celebrate = celebrate
         )
     }
 }
@@ -122,7 +127,8 @@ private fun GuidedTourOverlayBody(
     allowHighlightedInteraction: Boolean,
     nextEnabled: Boolean,
     hint: String?,
-    hintBelow: Boolean
+    hintBelow: Boolean,
+    celebrate: Boolean
 ) {
     val safeIndex = index.coerceIn(0, steps.lastIndex)
     val primary = MaterialTheme.colorScheme.primary
@@ -258,6 +264,54 @@ private fun GuidedTourOverlayBody(
             }
             else -> {
                 TourTouchBlocker(Modifier.fillMaxSize())
+            }
+        }
+
+        // 收尾卡片：两侧不断弹起的彩色纸花
+        if (celebrate) {
+            val confetti = rememberInfiniteTransition(label = "tourConfetti")
+            val confettiProgress by confetti.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2200, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "tourConfettiProgress"
+            )
+            Canvas(Modifier.fillMaxSize()) {
+                val palette = listOf(
+                    Color(0xFFF26D6D),
+                    Color(0xFFF6B352),
+                    Color(0xFF66C2A5),
+                    Color(0xFF5AA9E6),
+                    Color(0xFFB984DB),
+                    Color(0xFFF28DB2)
+                )
+                val pieceW = 7.dp.toPx()
+                val pieceH = 12.dp.toPx()
+                repeat(18) { i ->
+                    val fromLeft = i % 2 == 0
+                    val t = (confettiProgress + i * 0.055f) % 1f
+                    val dir = if (fromLeft) 1f else -1f
+                    val originX = if (fromLeft) 0f else size.width
+                    val originY = size.height * (0.34f + (i % 5) * 0.05f)
+                    val x = originX + dir * size.width * 0.30f * t
+                    val y = originY + size.height * 0.30f * t * t - size.height * 0.18f * t
+                    val alpha = ((1f - t) / 0.25f).coerceIn(0f, 1f)
+                    if (alpha <= 0f) return@repeat
+                    rotate(
+                        degrees = 200f * t * if (fromLeft) 1f else -1f,
+                        pivot = Offset(x, y)
+                    ) {
+                        drawRoundRect(
+                            color = palette[i % palette.size].copy(alpha = alpha),
+                            topLeft = Offset(x - pieceW / 2f, y - pieceH / 2f),
+                            size = Size(pieceW, pieceH),
+                            cornerRadius = CornerRadius(2.dp.toPx())
+                        )
+                    }
+                }
             }
         }
 

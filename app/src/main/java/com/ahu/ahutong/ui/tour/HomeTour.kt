@@ -17,12 +17,13 @@ import com.ahu.ahutong.ui.components.GuidedTourDialogOverlayState
 import com.ahu.ahutong.ui.components.GuidedTourOverlay
 import com.ahu.ahutong.ui.components.GuidedTourStep
 import com.ahu.ahutong.ui.components.TourBounds
+import com.ahu.ahutong.ui.components.TourScrollRequest
 import com.ahu.ahutong.ui.screen.setup.OnboardingState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongTourState
 import android.content.Context
 
-private enum class TourStopPage { HOME, SCHEDULE, XUEXIAOTONG, CURRENT }
+private enum class TourStopPage { HOME, SCHEDULE, XUEXIAOTONG, SETTINGS, CURRENT }
 
 private enum class TourGate { NONE, DOCK_TOGGLE, WORK_DETAIL_OPEN }
 
@@ -35,7 +36,8 @@ private data class TourStop(
     val page: TourStopPage,
     val gate: TourGate = TourGate.NONE,
     val targetClickable: Boolean = false,
-    val hostWindow: TourHostWindow = TourHostWindow.MAIN
+    val hostWindow: TourHostWindow = TourHostWindow.MAIN,
+    val celebrate: Boolean = false
 )
 
 private val TourStops = listOf(
@@ -116,6 +118,31 @@ private val TourStops = listOf(
         title = "刷新日程与课程",
         body = "由于风控策略，作业与课程同步需要手动刷新，默认只抓取未完成的作业，您可以在日程设置内打开**全量抓取**。",
         page = TourStopPage.XUEXIAOTONG
+    ),
+    TourStop(
+        targetId = "settings_appearance",
+        title = "外观与主题",
+        body = "可以在这里**修改自定义背景**、**主题方案**、**配色**和更多个性化设置。",
+        page = TourStopPage.SETTINGS
+    ),
+    TourStop(
+        targetId = "settings_notifications",
+        title = "通知提醒",
+        body = "这里可以设置**电费预警**，及时提醒寝室电费。同时可以设置作业截止、课程上课提醒。",
+        page = TourStopPage.SETTINGS
+    ),
+    TourStop(
+        targetId = "settings_feedback",
+        title = "问题反馈",
+        body = "若有问题，请在此联系我们。",
+        page = TourStopPage.SETTINGS
+    ),
+    TourStop(
+        targetId = "",
+        title = "恭喜你完成导览！",
+        body = "现在让安大通陪伴您的每一天校园生活吧！",
+        page = TourStopPage.CURRENT,
+        celebrate = true
     )
 )
 
@@ -174,6 +201,7 @@ internal fun HomeTourHost(
     onOpenHome: () -> Unit,
     onOpenSchedule: () -> Unit,
     onOpenXuexiaotongSchedule: () -> Unit,
+    onOpenSettings: () -> Unit,
     onDialogOverlayChanged: (GuidedTourDialogOverlayState?) -> Unit
 ) {
     val context = LocalContext.current
@@ -235,9 +263,14 @@ internal fun HomeTourHost(
             TourStopPage.HOME -> onOpenHome()
             TourStopPage.SCHEDULE -> onOpenSchedule()
             TourStopPage.XUEXIAOTONG -> onOpenXuexiaotongSchedule()
+            TourStopPage.SETTINGS -> onOpenSettings()
             // 停在上一步的页面（如课表），不必先切回主页
             TourStopPage.CURRENT, null -> Unit
         }
+        // 长页面：目标会把自己滚进可视区
+        stops.getOrNull(index)?.targetId
+            ?.takeIf { it.isNotBlank() }
+            ?.let(TourScrollRequest::request)
     }
     LaunchedEffect(visible, index, XuexiaotongDockState.tab) {
         val gated = stops.getOrNull(index)?.gate == TourGate.DOCK_TOGGLE
@@ -345,6 +378,7 @@ internal fun HomeTourHost(
         index = index,
         targetBounds = targetBounds,
         allowHighlightedInteraction = current?.targetClickable == true || dockGate,
+        celebrate = current?.celebrate == true,
         nextEnabled = gateSatisfied,
         hint = hint,
         hintBelow = hintBelow,
