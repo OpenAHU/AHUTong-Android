@@ -160,7 +160,7 @@ fun AboutScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(
                         text = "隐私政策",
                         style = MaterialTheme.typography.bodySmall,
@@ -168,20 +168,10 @@ fun AboutScreen(
                         modifier = Modifier.clickable(onClick = onOpenPrivacy)
                     )
                     Text(
-                        text = "·",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
                         text = "开源许可",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable(onClick = onOpenLicense)
-                    )
-                    Text(
-                        text = "·",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "开源仓库",
@@ -202,7 +192,7 @@ fun AboutScreen(
                     )
                 }
                 Text(
-                    text = "GPL-3.0 · Copyright © ${LocalDate.now().year} OpenAHU",
+                    text = "GPL-3.0 Copyright © ${LocalDate.now().year} OpenAHU",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
