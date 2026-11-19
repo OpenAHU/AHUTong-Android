@@ -192,7 +192,7 @@ fun AboutScreen(
                     )
                 }
                 Text(
-                    text = "GPL-3.0 Copyright © ${LocalDate.now().year} OpenAHU",
+                    text = "GPL-3.0   Copyright © ${LocalDate.now().year} OpenAHU",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
