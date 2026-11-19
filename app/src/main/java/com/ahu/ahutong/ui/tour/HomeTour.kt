@@ -22,7 +22,7 @@ import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongDockState
 import com.ahu.ahutong.ui.screen.xuexiaotong.XuexiaotongTourState
 import android.content.Context
 
-private enum class TourStopPage { HOME, SCHEDULE, XUEXIAOTONG }
+private enum class TourStopPage { HOME, SCHEDULE, XUEXIAOTONG, CURRENT }
 
 private enum class TourGate { NONE, DOCK_TOGGLE, WORK_DETAIL_OPEN }
 
@@ -80,7 +80,7 @@ private val TourStops = listOf(
         targetId = "nav_xuexiaotong",
         title = "日程与课程",
         body = "学习通作业按日历排列展示、学习通课程任务点完成情况。重复点击以切换两个子页。",
-        page = TourStopPage.HOME,
+        page = TourStopPage.CURRENT,
         gate = TourGate.DOCK_TOGGLE
     ),
     TourStop(
@@ -219,7 +219,8 @@ internal fun HomeTourHost(
             TourStopPage.HOME -> onOpenHome()
             TourStopPage.SCHEDULE -> onOpenSchedule()
             TourStopPage.XUEXIAOTONG -> onOpenXuexiaotongSchedule()
-            null -> Unit
+            // 停在上一步的页面（如课表），不必先切回主页
+            TourStopPage.CURRENT, null -> Unit
         }
     }
     LaunchedEffect(visible, index, XuexiaotongDockState.tab) {
