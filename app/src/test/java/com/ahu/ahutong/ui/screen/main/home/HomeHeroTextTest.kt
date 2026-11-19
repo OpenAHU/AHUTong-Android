@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.main.home
 
+import com.ahu.ahutong.core.storage.HomeHeroSlot
 import com.ahu.ahutong.data.model.Course
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -43,12 +44,26 @@ class HomeHeroTextTest {
         assertEquals("距考试结束还有 1小时15分钟", hero.subtitle)
     }
 
-    @Test fun earlierExamWinsOverTheNextCourse() {
+    @Test fun nextCourseOutranksTheNextExamByDefault() {
         val hero = resolveHomeHeroText(
             todayCourses = listOf(course("大学物理", "08:00-09:35")),
             todayExams = listOf(exam("高等数学", 7 * 60 + 30, 9 * 60)),
             currentMinutes = 7 * 60,
             isInSemester = true
+        )
+        assertEquals("下节课是 大学物理", hero.headline)
+    }
+
+    @Test fun movingTheExamAboveTheCourseFlipsTheWinner() {
+        val hero = resolveHomeHeroText(
+            todayCourses = listOf(course("大学物理", "08:00-09:35")),
+            todayExams = listOf(exam("高等数学", 7 * 60 + 30, 9 * 60)),
+            currentMinutes = 7 * 60,
+            isInSemester = true,
+            priority = listOf(
+                HomeHeroSlot.NEXT_EXAM,
+                HomeHeroSlot.NEXT_COURSE
+            )
         )
         assertEquals("下一场考试是 高等数学", hero.headline)
         assertEquals("还有 30分钟，在 博学北楼A101", hero.subtitle)
@@ -132,7 +147,7 @@ class HomeHeroTextTest {
         assertEquals(HomeHeroTarget.XUEXIAOTONG_SCHEDULE, hero.target)
     }
 
-    @Test fun nextCourseSoonerThanTheAssignmentWins() {
+    @Test fun assignmentOutranksAnEarlierCourseByDefault() {
         val hero = resolveHomeHeroText(
             todayCourses = listOf(course("大学物理", "10:30-12:00")),
             todayExams = emptyList(),
@@ -140,6 +155,22 @@ class HomeHeroTextTest {
             isInSemester = true,
             assignments = listOf(assignment(endTs = at(14, 0))),
             nowMillis = at(10, 0)
+        )
+        assertEquals("最近的作业\n还有4小时整截止", hero.headline)
+    }
+
+    @Test fun movingTheCourseAboveTheAssignmentFlipsTheWinner() {
+        val hero = resolveHomeHeroText(
+            todayCourses = listOf(course("大学物理", "10:30-12:00")),
+            todayExams = emptyList(),
+            currentMinutes = 10 * 60,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(14, 0))),
+            nowMillis = at(10, 0),
+            priority = listOf(
+                HomeHeroSlot.NEXT_COURSE,
+                HomeHeroSlot.ASSIGNMENT
+            )
         )
         assertEquals("下节课是 大学物理", hero.headline)
         assertEquals("还有 30分钟，在 博学北楼", hero.subtitle)
@@ -193,7 +224,7 @@ class HomeHeroTextTest {
         assertEquals("最近的作业\n还有1小时整截止", hero.headline)
     }
 
-    @Test fun nextExamSoonerThanTheAssignmentWins() {
+    @Test fun assignmentOutranksAnEarlierExamByDefault() {
         val hero = resolveHomeHeroText(
             todayCourses = emptyList(),
             todayExams = listOf(exam("高等数学", 10 * 60 + 30, 12 * 60)),
@@ -202,7 +233,23 @@ class HomeHeroTextTest {
             assignments = listOf(assignment(endTs = at(11, 0))),
             nowMillis = at(10, 0)
         )
-        assertEquals("下一场考试是 高等数学", hero.headline)
+        assertEquals("最近的作业\n还有1小时整截止", hero.headline)
+    }
+
+    @Test fun customOrderCanDemoteTheOngoingExam() {
+        val hero = resolveHomeHeroText(
+            todayCourses = emptyList(),
+            todayExams = listOf(exam("高等数学", 8 * 60, 10 * 60)),
+            currentMinutes = 8 * 60 + 30,
+            isInSemester = true,
+            assignments = listOf(assignment(endTs = at(9, 0))),
+            nowMillis = at(8, 30),
+            priority = listOf(
+                HomeHeroSlot.ASSIGNMENT,
+                HomeHeroSlot.ONGOING_EXAM
+            )
+        )
+        assertEquals("最近的作业\n还有30分钟截止", hero.headline)
     }
 
     @Test fun tomorrowAssignmentStillShowsWhenTodayIsOver() {

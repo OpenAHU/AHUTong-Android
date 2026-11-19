@@ -70,6 +70,7 @@ fun Preferences(
     onOpenThemeLab: () -> Unit = {},
     onOpenThemeColors: () -> Unit = {},
     onOpenElectricityAlertSettings: () -> Unit = {},
+    onOpenHeroPriority: () -> Unit = {},
     undergraduateEnabled: Boolean = true
 ) {
     val viewModel: PreferencesViewModel = hiltViewModel()
@@ -205,6 +206,18 @@ fun Preferences(
                     backdrop = backdrop,
                     showDivider = false,
                     onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+            }
+
+            if (section == PreferencesSection.HOME) SettingsSection(
+                title = "主页卡片",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsActionRow(
+                    title = "上屏优先级",
+                    onClick = onOpenHeroPriority,
+                    showDivider = false
                 )
             }
 

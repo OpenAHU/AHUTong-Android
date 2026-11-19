@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ahu.ahutong.core.storage.HomeHeroSlot
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.tourTarget
@@ -66,6 +67,7 @@ internal fun AtAGlance(
     todayExams: List<HomeExam> = emptyList(),
     assignments: List<HomeAssignment> = emptyList(),
     nowMillis: Long = 0L,
+    priority: List<HomeHeroSlot> = HomeHeroSlot.DEFAULT_ORDER,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     // 主页排版全主题统一为 Radiant 方案（currentDateText/trailingContent 由曜光头部承担）
@@ -78,6 +80,7 @@ internal fun AtAGlance(
         todayExams = todayExams,
         assignments = assignments,
         nowMillis = nowMillis,
+        priority = priority,
         enabled = enabled
     )
 }
@@ -93,10 +96,11 @@ private fun RadiantAtAGlance(
     todayExams: List<HomeExam>,
     assignments: List<HomeAssignment>,
     nowMillis: Long,
+    priority: List<HomeHeroSlot>,
     enabled: Boolean
 ) {
     val hero = resolveHomeHeroText(
-        todayCourses, todayExams, currentMinutes, isInSemester, assignments, nowMillis
+        todayCourses, todayExams, currentMinutes, isInSemester, assignments, nowMillis, priority
     )
     val headline = hero.headline
     val subtitle = hero.subtitle
@@ -144,10 +148,9 @@ private fun RadiantAtAGlance(
 }
 
 /**
- * 考试、上课、作业共用同一条时间线：
- * 先看"正在进行"（考试优先于课），否则取最近的未来时间点——
- * 作业截止、下节课开始、下一场考试开始，谁先到上谁；同一分钟时截止优先。
- * 已逾期未交的作业不上屏。
+ * 考试、上课、作业共用一条用户可排序的上屏顺序：
+ * 按 [priority] 逐项取第一个"存在"的候选，命中即上屏；顺序是绝对的，不再比较时间先后。
+ * 已逾期未交的作业不参与候选。
  */
 internal fun resolveHomeHeroText(
     todayCourses: List<Course>,
@@ -155,7 +158,8 @@ internal fun resolveHomeHeroText(
     currentMinutes: Int,
     isInSemester: Boolean,
     assignments: List<HomeAssignment> = emptyList(),
-    nowMillis: Long = 0L
+    nowMillis: Long = 0L,
+    priority: List<HomeHeroSlot> = HomeHeroSlot.DEFAULT_ORDER
 ): HomeHeroText {
     val ongoingExam = todayExams.firstOrNull {
         currentMinutes >= it.startMinutes && currentMinutes < it.endMinutes
@@ -174,64 +178,65 @@ internal fun resolveHomeHeroText(
         .filter { it.endTs > nowMillis }
         .minByOrNull { it.endTs }
 
-    val assignmentMinutes = nearestAssignment?.let {
-        currentMinutes + minutesUntil(it.endTs, nowMillis)
-    }
-    val courseStart = nextCourse?.second
-    val examStart = nextExam?.startMinutes
-    val assignmentWins = assignmentMinutes != null &&
-        (courseStart == null || assignmentMinutes <= courseStart) &&
-        (examStart == null || assignmentMinutes <= examStart)
-    val courseWins = !assignmentWins && courseStart != null &&
-        (examStart == null || courseStart <= examStart)
-    val urgentAssignment = nearestAssignment?.takeIf { assignmentWins }
-    val upcomingCourse = nextCourse?.takeIf { courseWins }
-
-    return when {
-        ongoingExam != null -> HomeHeroText(
-            headline = "正在考试 · ${ongoingExam.name}",
-            subtitle = "距考试结束还有 ${formatCourseDuration(ongoingExam.endMinutes - currentMinutes)}"
-        )
-
-        currentCourse != null -> HomeHeroText(
-            headline = "正在上课 · ${currentCourse.name}",
-            subtitle = "距下课还有 ${
-                formatCourseDuration(
-                    ScheduleSectionTimes.getCourseTimeRangeInMinutes(currentCourse).last - currentMinutes
+    for (slot in HomeHeroSlot.normalize(priority)) {
+        val text = when (slot) {
+            HomeHeroSlot.ONGOING_EXAM -> ongoingExam?.let {
+                HomeHeroText(
+                    headline = "正在考试 · ${it.name}",
+                    subtitle = "距考试结束还有 ${formatCourseDuration(it.endMinutes - currentMinutes)}"
                 )
-            }"
-        )
+            }
 
-        urgentAssignment != null -> {
-            val remaining = minutesUntil(urgentAssignment.endTs, nowMillis)
-            HomeHeroText(
-                headline = "最近的作业\n还有${formatCourseDuration(remaining)}截止",
-                subtitle = buildString {
-                    if (urgentAssignment.courseName.isNotBlank()) {
-                        append(urgentAssignment.courseName)
-                        append("的作业")
-                        append(" · ")
-                    }
-                    append(formatDeadline(urgentAssignment.endTs, nowMillis))
-                },
-                target = HomeHeroTarget.XUEXIAOTONG_SCHEDULE
-            )
+            HomeHeroSlot.ONGOING_COURSE -> currentCourse?.let {
+                HomeHeroText(
+                    headline = "正在上课 · ${it.name}",
+                    subtitle = "距下课还有 ${
+                        formatCourseDuration(
+                            ScheduleSectionTimes.getCourseTimeRangeInMinutes(it).last - currentMinutes
+                        )
+                    }"
+                )
+            }
+
+            HomeHeroSlot.ASSIGNMENT -> nearestAssignment?.let {
+                HomeHeroText(
+                    headline = "最近的作业\n还有${formatCourseDuration(minutesUntil(it.endTs, nowMillis))}截止",
+                    subtitle = buildString {
+                        if (it.courseName.isNotBlank()) {
+                            append(it.courseName)
+                            append("的作业")
+                            append(" · ")
+                        }
+                        append(formatDeadline(it.endTs, nowMillis))
+                    },
+                    target = HomeHeroTarget.XUEXIAOTONG_SCHEDULE
+                )
+            }
+
+            HomeHeroSlot.NEXT_COURSE -> nextCourse?.let { (course, start) ->
+                HomeHeroText(
+                    headline = "下节课是 ${course.name}",
+                    subtitle = "还有 ${formatCourseDuration(start - currentMinutes)}，" +
+                        "在 ${course.location}"
+                )
+            }
+
+            HomeHeroSlot.NEXT_EXAM -> nextExam?.let {
+                HomeHeroText(
+                    headline = "下一场考试是 ${it.name}",
+                    subtitle = "还有 ${formatCourseDuration(it.startMinutes - currentMinutes)}" +
+                        it.location.takeIf { location -> location.isNotBlank() }
+                            ?.let { location -> "，在 $location" }.orEmpty()
+                )
+            }
         }
+        if (text != null) return text
+    }
 
-        upcomingCourse != null -> HomeHeroText(
-            headline = "下节课是 ${upcomingCourse.first.name}",
-            subtitle = "还有 ${formatCourseDuration(upcomingCourse.second - currentMinutes)}，" +
-                "在 ${upcomingCourse.first.location}"
-        )
-
-        nextExam != null -> HomeHeroText(
-            headline = "下一场考试是 ${nextExam.name}",
-            subtitle = "还有 ${formatCourseDuration(nextExam.startMinutes - currentMinutes)}" +
-                nextExam.location.takeIf { it.isNotBlank() }?.let { "，在 $it" }.orEmpty()
-        )
-
-        !isInSemester -> HomeHeroText(headline = "假期中", subtitle = "准备您自己的安排吧")
-        else -> HomeHeroText(headline = "今日空闲", subtitle = "今天暂无课程安排")
+    return if (!isInSemester) {
+        HomeHeroText(headline = "假期中", subtitle = "准备您自己的安排吧")
+    } else {
+        HomeHeroText(headline = "今日空闲", subtitle = "今天暂无课程安排")
     }
 }
 

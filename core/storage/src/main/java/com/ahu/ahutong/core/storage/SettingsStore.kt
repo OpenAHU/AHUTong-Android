@@ -58,6 +58,12 @@ interface SettingsStore {
     val showQRCode: Flow<Boolean>
     suspend fun setShowQRCode(value: Boolean)
 
+    /** 主页 Hero 的上屏优先级（完整、已归一化），默认即内置顺序。 */
+    val homeHeroPriority: Flow<List<HomeHeroSlot>>
+        get() = kotlinx.coroutines.flow.flowOf(HomeHeroSlot.DEFAULT_ORDER)
+
+    suspend fun setHomeHeroPriority(value: List<HomeHeroSlot>) {}
+
     val isShowAllCourse: Flow<Boolean>
     suspend fun setIsShowAllCourse(value: Boolean)
 

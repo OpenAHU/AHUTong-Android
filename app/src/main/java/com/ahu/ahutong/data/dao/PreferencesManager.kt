@@ -14,6 +14,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import com.ahu.ahutong.core.storage.PaymentKeyboardSetting
 import com.ahu.ahutong.core.storage.CourseReminderSettings
+import com.ahu.ahutong.core.storage.HomeHeroSlot
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.core.storage.StartupThemePreferences
 import com.ahu.ahutong.core.storage.fallbackToDefaultOnReadFailure
@@ -30,6 +31,7 @@ import javax.inject.Inject
 
 object PreferencesKeys {
     val SHOW_QR_CODE = booleanPreferencesKey("show_qr_code")
+    val HOME_HERO_PRIORITY = stringPreferencesKey("home_hero_priority")
     val IS_SHOW_ALL_COURSE = booleanPreferencesKey("is_show_all_course")
     val USE_LIQUID_GLASS = booleanPreferencesKey("use_liquid_glass")
     val UI_THEME = stringPreferencesKey("ui_theme")
@@ -415,6 +417,21 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
     override suspend fun setShowQRCode(value: Boolean) {
         editPreferences { prefs ->
             prefs[PreferencesKeys.SHOW_QR_CODE] = value
+        }
+    }
+
+    override val homeHeroPriority: Flow<List<HomeHeroSlot>> = preferences { prefs ->
+        val stored = prefs[PreferencesKeys.HOME_HERO_PRIORITY]
+            ?.split(',')
+            ?.mapNotNull { name -> HomeHeroSlot.entries.firstOrNull { it.name == name } }
+            .orEmpty()
+        HomeHeroSlot.normalize(stored)
+    }
+
+    override suspend fun setHomeHeroPriority(value: List<HomeHeroSlot>) {
+        editPreferences { prefs ->
+            prefs[PreferencesKeys.HOME_HERO_PRIORITY] =
+                HomeHeroSlot.normalize(value).joinToString(",") { it.name }
         }
     }
 

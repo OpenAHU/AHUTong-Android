@@ -118,6 +118,7 @@ import com.ahu.ahutong.ui.screen.settings.Preferences
 import com.ahu.ahutong.ui.screen.settings.PreferencesSection
 import com.ahu.ahutong.ui.screen.settings.ThemeLab
 import com.ahu.ahutong.ui.screen.settings.ThemeColorSettings
+import com.ahu.ahutong.ui.screen.settings.HeroPrioritySettings
 import com.ahu.ahutong.ui.screen.setup.Info
 import com.ahu.ahutong.ui.screen.setup.Login
 import com.ahu.ahutong.ui.screen.setup.canCancelLogin
@@ -932,9 +933,16 @@ fun Main(
                         onOpenElectricityAlertSettings = {
                             navController.navigate("settings__electricity_alert")
                         },
+                        onOpenHeroPriority = {
+                            navController.navigate("settings__hero_priority")
+                        },
                         undergraduateEnabled = undergraduateEnabled
                     )
                 }
+            }
+
+            animatedComposable("settings__hero_priority") {
+                HeroPrioritySettings(onBack = { navController.popBackStack() })
             }
 
             animatedComposable("settings__ai") {

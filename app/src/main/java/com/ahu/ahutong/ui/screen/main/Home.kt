@@ -199,6 +199,7 @@ internal fun Home(
     }
     val noticeAccountId = accountId
     val heroAssignments by heroViewModel.assignments.collectAsState()
+    val heroPriority by heroViewModel.heroPriority.collectAsState()
     LaunchedEffect(isActive, noticeAccountId) {
         if (isActive) heroViewModel.refresh()
     }
@@ -620,6 +621,7 @@ internal fun Home(
                     todayExams = todayExams,
                     assignments = heroAssignments,
                     nowMillis = currentTime.toInstant().toEpochMilli(),
+                    priority = heroPriority,
                     trailingContent = trailingContent
                 )
             }

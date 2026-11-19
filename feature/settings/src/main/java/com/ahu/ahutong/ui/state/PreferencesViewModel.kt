@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.ahu.ahutong.core.common.CourseReminderControl
 import com.ahu.ahutong.core.common.UserNoticeHolder
+import com.ahu.ahutong.core.storage.HomeHeroSlot
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.data.repository.RepositoryAccelerationSource
 import com.ahu.ahutong.data.repository.RepositoryIndex
@@ -101,6 +102,9 @@ class PreferencesViewModel @Inject constructor(
 
     private val _showQRCode = MutableStateFlow(false)
     val showQRCode: StateFlow<Boolean> = _showQRCode.asStateFlow()
+
+    private val _heroPriority = MutableStateFlow(HomeHeroSlot.DEFAULT_ORDER)
+    val heroPriority: StateFlow<List<HomeHeroSlot>> = _heroPriority.asStateFlow()
 
     private val _isShowAllCourse = MutableStateFlow(false)
     val isShowAllCourse: StateFlow<Boolean> = _isShowAllCourse.asStateFlow()
@@ -209,6 +213,11 @@ class PreferencesViewModel @Inject constructor(
         viewModelScope.launch {
             settings.showQRCode.collect {
                 _showQRCode.value = it
+            }
+        }
+        viewModelScope.launch {
+            settings.homeHeroPriority.collect {
+                _heroPriority.value = HomeHeroSlot.normalize(it)
             }
         }
         viewModelScope.launch {
@@ -348,6 +357,12 @@ class PreferencesViewModel @Inject constructor(
             settings.setShowQRCode(value)
             behavior.reportCommittedMutation(MutationId.HOME_DEFAULT_QR_CHANGED, oldValue, value)
         }
+    }
+
+    fun setHeroPriority(value: List<HomeHeroSlot>) {
+        val normalized = HomeHeroSlot.normalize(value)
+        _heroPriority.value = normalized
+        writeSetting { settings.setHomeHeroPriority(normalized) }
     }
 
     fun setIsShowAllCourse(value: Boolean) {
