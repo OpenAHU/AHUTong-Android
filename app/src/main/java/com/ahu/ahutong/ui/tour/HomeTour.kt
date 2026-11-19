@@ -54,13 +54,13 @@ private val TourStops = listOf(
     TourStop(
         targetId = "home_hero",
         title = "任务速览",
-        body = "提醒即将开始的考试和课程、即将截止的作业。",
+        body = "提醒即将开始的考试和课程、**即将截止的作业**。",
         page = TourStopPage.HOME
     ),
     TourStop(
         targetId = "home_campus",
         title = "校园卡",
-        body = "点击即展开付款二维码。",
+        body = "点击即展开**付款二维码**。",
         page = TourStopPage.HOME,
         targetClickable = true
     ),
@@ -73,13 +73,13 @@ private val TourStops = listOf(
     TourStop(
         targetId = "schedule_settings",
         title = "课表设置",
-        body = "可以在此设置是否显示周末以及自定义课程。",
+        body = "可以在此设置是否**显示周末**以及**自定义课程**。",
         page = TourStopPage.SCHEDULE
     ),
     TourStop(
         targetId = "nav_xuexiaotong",
         title = "日程与课程",
-        body = "学习通作业按日历排列展示、学习通课程任务点完成情况。重复点击以切换两个子页。",
+        body = "**学习通作业**按日历排列展示、学习通**课程任务点**完成情况。重复点击以切换两个子页。",
         page = TourStopPage.CURRENT,
         gate = TourGate.DOCK_TOGGLE
     ),
@@ -94,21 +94,21 @@ private val TourStops = listOf(
     TourStop(
         targetId = "work_jump_btn",
         title = "跳转学习通",
-        body = "正式作业点这里，会用学习通自己的登录态打开同一页，可以直接作答。",
+        body = "**跳转到学习通**打开该作业，可以快捷提交。",
         page = TourStopPage.XUEXIAOTONG,
         hostWindow = TourHostWindow.WORK_DIALOG
     ),
     TourStop(
         targetId = "work_questions_btn",
         title = "查看题目",
-        body = "只读打开题目页，不进详情也能快速看题，不会改动作业状态。",
+        body = "**只读查看题目**，适合快速阅览作业量。",
         page = TourStopPage.XUEXIAOTONG,
         hostWindow = TourHostWindow.WORK_DIALOG
     ),
     TourStop(
         targetId = "xuexiaotong_refresh",
         title = "刷新日程与课程",
-        body = "由于风控策略，作业与课程同步需要手动刷新，默认只抓取未完成的作业，您可以在日程设置内打开全量抓取。",
+        body = "由于风控策略，作业与课程同步需要手动刷新，默认只抓取未完成的作业，您可以在日程设置内打开**全量抓取**。",
         page = TourStopPage.XUEXIAOTONG
     )
 )
