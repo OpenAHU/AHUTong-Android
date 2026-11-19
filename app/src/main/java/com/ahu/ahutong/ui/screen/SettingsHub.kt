@@ -63,11 +63,7 @@ fun SettingsHub(
         onNavigateToEarlyAccess = { navController.navigate("settings__early_access") },
         earlyAccessSummary = earlyAccessSummary(earlyAccess),
         onNavigateToDebug = { navController.navigate("debug") },
-        onNavigateToLicense = { navController.navigate("settings__license") },
-        onNavigateToPrivacyPolicy = { navController.navigate("settings__privacy_policy") },
-        onNavigateToContributors = { navController.navigate("settings__contributors") },
-        onNavigateToFeedback = { navController.navigate(FEEDBACK_ROUTE) },
-        onDataCleared = { navController.navigate("login") { popUpTo(0) } },
+        onNavigateToAbout = { navController.navigate("settings__about") },
         onCheckUpdate = mainViewModel::checkApkUpdateManually,
         accountName = SessionStore.currentUser()?.name,
         scheduleSummary = if (AHUCache.canUseUndergraduateAcademics()) {
@@ -77,9 +73,7 @@ fun SettingsHub(
         },
         debugBuild = BuildConfig.DEBUG,
         appName = stringResource(R.string.app_name),
-        appIcon = painterResource(R.mipmap.ic_launcher_foreground),
-        licenseTitle = stringResource(R.string.license),
-        contributorsTitle = stringResource(R.string.contributors)
+        appIcon = painterResource(R.mipmap.ic_launcher_foreground)
     )
     if (showAccounts) {
         SavedAccountsDialog(

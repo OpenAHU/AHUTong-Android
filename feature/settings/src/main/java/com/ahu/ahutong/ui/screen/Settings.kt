@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Feedback
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PeopleOutline
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Science
@@ -101,26 +102,16 @@ fun Settings(
     onNavigateToEarlyAccess: () -> Unit,
     earlyAccessSummary: String,
     onNavigateToDebug: () -> Unit,
-    onNavigateToLicense: () -> Unit,
-    onNavigateToPrivacyPolicy: () -> Unit = {},
-    onNavigateToContributors: () -> Unit,
-    onNavigateToFeedback: () -> Unit,
-    onDataCleared: () -> Unit,
+    onNavigateToAbout: () -> Unit,
     onCheckUpdate: ((String) -> Unit) -> Unit,
     accountName: String?,
     scheduleSummary: String,
     debugBuild: Boolean,
     appName: String,
     appIcon: Painter,
-    licenseTitle: String,
-    contributorsTitle: String,
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current as ComponentActivity
-    val scope = rememberCoroutineScope()
-    var isClearDataDialogShown by rememberSaveable { mutableStateOf(false) }
-    var isUpdateLogDialogShown by rememberSaveable { mutableStateOf(false) }
-    var updateLog by remember { mutableStateOf("") }
     val tip = settingsViewModel.tip
     var appCardTapCount by remember { mutableIntStateOf(0) }
     var lastAppCardTap by remember { mutableLongStateOf(0L) }
@@ -132,7 +123,6 @@ fun Settings(
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             settingsViewModel.tip = null
         }
-        updateLog = settingsViewModel.changelog()
     }
 
     val onAppCardClick: () -> Unit = if (debugBuild) {
@@ -295,102 +285,18 @@ fun Settings(
         }
 
         SettingsSection(
-            title = "关于与支持",
+            title = "关于",
             modifier = Modifier.padding(horizontal = 16.dp),
             backdrop = backdrop
         ) {
             SettingsActionRow(
-                title = stringResource(id = R.string.mine_tv_feedback),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Edit
-                    isRadiant -> null
-                    else -> Icons.Outlined.Feedback
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_topic) else null,
-                onClick = onNavigateToFeedback
-            )
-            SettingsActionRow(
-                title = stringResource(id = R.string.update_intro),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Info
-                    isRadiant -> null
-                    else -> Icons.AutoMirrored.Outlined.Article
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_log) else null,
-                onClick = { isUpdateLogDialogShown = true }
-            )
-            SettingsActionRow(
-                title = contributorsTitle,
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Personal
-                    isRadiant -> null
-                    else -> Icons.Outlined.PeopleOutline
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_peoples) else null,
-                onClick = onNavigateToContributors
-            )
-            SettingsActionRow(
-                title = licenseTitle,
-                leadingIcon = Icons.Outlined.Description,
-                onClick = onNavigateToLicense
-            )
-            SettingsActionRow(
-                title = "隐私政策",
-                leadingIcon = Icons.Outlined.PrivacyTip,
-                onClick = onNavigateToPrivacyPolicy
-            )
-            SettingsActionRow(
-                title = stringResource(id = R.string.setting_clear),
-                leadingIcon = when {
-                    useMiuixIcons -> MiuixIcons.Useful.Delete
-                    isRadiant -> null
-                    else -> Icons.Outlined.ClearAll
-                },
-                leadingPainter = if (isRadiant) painterResource(R.drawable.ic_clear) else null,
-                destructive = true,
+                title = "关于与支持",
+                subtitle = "版本、更新、官网与法务信息",
+                leadingIcon = Icons.Outlined.Info,
                 showDivider = false,
-                onClick = { isClearDataDialogShown = true }
+                onClick = onNavigateToAbout
             )
-            }
         }
     }
-
-    if (isClearDataDialogShown) {
-        SettingsConfirmationDialog(
-            title = "清除所有数据？",
-            message = "已保存账号、登录状态、课表及本机设置将被永久清除。",
-            confirmLabel = "清除",
-            destructive = true,
-            onConfirm = {
-                isClearDataDialogShown = false
-                scope.launch {
-                    settingsViewModel.clearAllData()
-                    Toast.makeText(context, "已清除所有数据", Toast.LENGTH_SHORT).show()
-                    onDataCleared()
-                }
-            },
-            onDismiss = { isClearDataDialogShown = false }
-        )
-    }
-
-    if (isUpdateLogDialogShown) {
-        AppDialog(
-            title = stringResource(id = R.string.update_intro),
-            onDismiss = { isUpdateLogDialogShown = false },
-            contentScrollable = true,
-            actions = listOf(
-                AppDialogAction(
-                    "完成",
-                    onClick = { isUpdateLogDialogShown = false },
-                    style = AppDialogActionStyle.Primary
-                )
-            ),
-            content = {
-                Text(
-                    text = updateLog,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        )
-    }
+}
 }

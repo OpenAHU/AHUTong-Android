@@ -326,7 +326,7 @@ fun SettingsHeroCard(
 
 @Composable
 fun SettingsSection(
-    title: String,
+    title: String?,
     modifier: Modifier = Modifier,
     backdrop: Backdrop? = null,
     content: @Composable ColumnScope.() -> Unit
@@ -341,10 +341,12 @@ fun SettingsSection(
         Column(modifier = modifier.fillMaxWidth()) {
             // Miuix SmallTitle 默认 28dp 水平内边距是按 12dp 页边距设计的；这里页面已有 16dp 卡片外边距，
             // 用 20dp 与行内容左缘（及其他主题的分区标题）对齐
-            MiuixSmallTitle(
-                text = title,
-                insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-            )
+            if (!title.isNullOrBlank()) {
+                MiuixSmallTitle(
+                    text = title!!,
+                    insideMargin = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                )
+            }
             MiuixCard(
                 modifier = Modifier.fillMaxWidth().then(
                     if (wallpaperEnabled) Modifier.appWallpaperFrostedSurface(
@@ -367,17 +369,19 @@ fun SettingsSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(if (isRadiant) 8.dp else 6.dp)
     ) {
-        Text(
-            text = title,
-            modifier = Modifier.padding(horizontal = 20.dp),
-            color = if (isLiquid) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.primary
-            },
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
+        if (!title.isNullOrBlank()) {
+            Text(
+                text = title!!,
+                modifier = Modifier.padding(horizontal = 20.dp),
+                color = if (isLiquid) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()

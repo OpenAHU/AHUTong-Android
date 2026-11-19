@@ -108,7 +108,9 @@ import com.ahu.ahutong.ui.screen.settings.PrivacyPolicyHubScreen
 import com.ahu.ahutong.ui.screen.settings.PrivacyPolicyScreen
 import com.ahu.ahutong.ui.screen.settings.License
 import com.ahu.ahutong.R
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import com.ahu.ahutong.ui.screen.settings.AboutScreen
 import com.ahu.ahutong.ui.screen.settings.AiSettings
 import com.ahu.ahutong.ui.screen.settings.OfficialTrialScreen
 import com.ahu.ahutong.ui.screen.settings.Preferences
@@ -159,6 +161,7 @@ import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.feedback.FEEDBACK_ROUTE
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
 import com.ahu.ahutong.feedback.feedbackDestinations
 
@@ -829,6 +832,22 @@ fun Main(
                 ProfileScreen(
                     scheduleViewModel = scheduleViewModel,
                     onBack = { navController.popBackStack() }
+                )
+            }
+            animatedComposable("settings__about") {
+                AboutScreen(
+                    appName = stringResource(R.string.app_name),
+                    appIcon = painterResource(R.mipmap.ic_launcher_foreground),
+                    updateAvailable = updateInfo != null,
+                    onBack = { navController.popBackStack() },
+                    onCheckUpdate = mainViewModel::checkApkUpdateManually,
+                    onOpenFeedback = { navController.navigate(FEEDBACK_ROUTE) },
+                    onOpenContributors = { navController.navigate("settings__contributors") },
+                    onOpenLicense = { navController.navigate("settings__license") },
+                    onOpenPrivacy = { navController.navigate("settings__privacy_policy") },
+                    onDataCleared = {
+                        navController.navigate("login") { popUpTo(0) }
+                    }
                 )
             }
             animatedComposable("settings__early_access") {
