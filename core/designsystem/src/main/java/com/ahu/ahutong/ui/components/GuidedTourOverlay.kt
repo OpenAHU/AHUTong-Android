@@ -303,7 +303,7 @@ private fun GuidedTourOverlayBody(
                     ConfettiPiece(
                         fromLeft = fromLeft,
                         angle = baseAngle + (random.nextFloat() - 0.5f) * 0.84f,
-                        speed = 0.80f + random.nextFloat() * 0.55f,
+                        speed = 0.62f + random.nextFloat() * 0.45f,
                         originY = 0.55f + random.nextFloat() * 0.15f,
                         spin = (random.nextFloat() * 2f - 1f) * 720f,
                         flipFrequency = 5f + random.nextFloat() * 7f,
