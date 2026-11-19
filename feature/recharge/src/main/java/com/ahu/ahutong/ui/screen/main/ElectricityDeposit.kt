@@ -48,6 +48,11 @@ import com.ahu.ahutong.data.model.RoomSelectionInfo
 import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.ui.component.SecurePaymentPasswordDialog
 import com.ahu.ahutong.ui.components.AppSectionCard
+import com.ahu.ahutong.ui.components.SettingsActionRow
+import com.ahu.ahutong.ui.components.SettingsBackdropContainer
+import com.ahu.ahutong.ui.components.SettingsPageLayout
+import com.ahu.ahutong.ui.components.SettingsSection
+import com.ahu.ahutong.ui.components.SettingsToggleRow
 import com.ahu.ahutong.ui.components.AppCard
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
@@ -73,6 +78,7 @@ import kotlinx.coroutines.delay
 fun ElectricityDeposit(
     onBack: () -> Unit,
     onOpenRecentRooms: () -> Unit,
+    onOpenAlertSettings: () -> Unit,
     viewModel: ElectricityDepositViewModel = hiltViewModel(),
     initialSelection: RoomSelectionInfo? = null,
     onInitialSelectionConsumed: () -> Unit = {}
@@ -244,6 +250,14 @@ fun ElectricityDeposit(
     AppPageScaffold(
         title = "电控缴费",
         onBack = onBack,
+        actions = listOf(
+            TrailingAction(
+                icon = if (alertConfiguration.enabled) Icons.Outlined.NotificationsActive
+                    else Icons.Outlined.NotificationsNone,
+                contentDescription = "电费预警设置",
+                onClick = onOpenAlertSettings
+            )
+        ),
         modifier = Modifier.fillMaxSize(),
         bottomPadding = 48.dp,
         content = pageContent
@@ -373,6 +387,14 @@ fun ElectricityAlertSettings(
             actions = listOf(
                 AppDialogAction("取消", { editingRoom = null }),
                 AppDialogAction(
+                    label = "移除",
+                    style = AppDialogActionStyle.Danger,
+                    onClick = {
+                        viewModel.removeAlertRoom(roomToEdit)
+                        editingRoom = null
+                    }
+                ),
+                AppDialogAction(
                     label = "保存",
                     onClick = {
                         thresholdDays?.let { viewModel.updateAlertThreshold(roomToEdit, it) }
@@ -401,104 +423,97 @@ fun ElectricityAlertSettings(
         }
     }
 
-    AppPageScaffold(
-        title = "电费预警",
-        onBack = onBack,
-        modifier = Modifier.fillMaxSize(),
-        bottomPadding = 48.dp,
-        content = {
-            AppSectionCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+    val alreadyAdded = currentRoom != null && configuration.rooms.any { it.key == currentRoom.key }
+    SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
+        SettingsPageLayout(
+            title = "电费预警",
+            onBack = onBack,
+            backdrop = backdrop
+        ) {
+            SettingsSection(
+                title = null,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsToggleRow(
+                    title = "余额不足提醒",
+                    selected = configuration.enabled,
+                    onSelectedChange = viewModel::setAlertEnabled,
+                    backdrop = backdrop,
+                    showDivider = false
+                )
+            }
+
+            if (errorMessage != null) {
+                SettingsSection(
+                    title = null,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    backdrop = backdrop
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("余额不足提醒", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "登录后检查，每天最多提醒一次",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    AppToggle(
-                        checked = configuration.enabled,
-                        onCheckedChange = viewModel::setAlertEnabled,
-                        contentDescription = "启用电费预警"
+                    SettingsActionRow(
+                        title = "电控信息加载失败",
+                        subtitle = errorMessage,
+                        destructive = true,
+                        showChevron = false,
+                        showDivider = false,
+                        onClick = viewModel::retry
                     )
                 }
             }
 
-            if (errorMessage != null) {
-                AppStateCard.InlineError(
-                    horizontalInset = 0.dp,
-                    title = "电控信息加载失败",
-                    message = errorMessage.orEmpty(),
-                    retryLabel = "重新加载",
-                    onRetry = viewModel::retry
-                )
+            SettingsSection(
+                title = "选择房间",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                ElectricityRoomSelectors(viewModel = viewModel)
             }
-            ElectricityRoomSelectors(viewModel)
 
-            val alreadyAdded = currentRoom != null && configuration.rooms.any { it.key == currentRoom.key }
-            AppSectionCard {
-                Text("当前房间", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    currentRoom?.label ?: "尚未选择房间",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            SettingsSection(
+                title = "当前房间",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsActionRow(
+                    title = "当前房间",
+                    value = currentRoom?.label ?: "尚未选择",
+                    showChevron = false,
+                    onClick = {}
                 )
-                AppButton(
-                    onClick = { viewModel.addCurrentAlertRoom() },
-                    modifier = Modifier.fillMaxWidth(),
-                    variant = AppButtonVariant.Secondary,
-                    enabled = currentRoom != null && !isLoading && !alreadyAdded
-                ) {
-                    Text(if (alreadyAdded) "当前房间已添加" else "添加当前房间")
-                }
-                Text(
-                    "在本页选择房间后添加，可为多个房间分别设置提醒天数。默认 3 天。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            if (configuration.rooms.isEmpty()) {
-                AppStateCard.Empty(message = "尚未设置预警房间")
-            }
-            configuration.rooms.forEach { room ->
-                AppSectionCard {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            room.label,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        IconButton(onClick = { viewModel.removeAlertRoom(room) }) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = "移除预警 ${room.label}",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                SettingsActionRow(
+                    title = if (alreadyAdded) "当前房间已添加" else "添加当前房间",
+                    showChevron = false,
+                    showDivider = false,
+                    onClick = {
+                        if (currentRoom != null && !isLoading && !alreadyAdded) {
+                            viewModel.addCurrentAlertRoom()
                         }
                     }
-                    AppButton(
-                        onClick = {
-                            threshold = room.thresholdDays.toString()
-                            editingRoom = room
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = AppButtonVariant.Secondary
-                    ) {
-                        Text("剩余不足 ${room.thresholdDays} 天时提醒 · 修改")
+                )
+            }
+
+            if (configuration.rooms.isNotEmpty()) {
+                SettingsSection(
+                    title = "已添加房间",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    backdrop = backdrop
+                ) {
+                    configuration.rooms.forEachIndexed { index, room ->
+                        SettingsActionRow(
+                            title = room.label,
+                            value = "剩余不足 ${room.thresholdDays} 天",
+                            showChevron = false,
+                            showDivider = index < configuration.rooms.lastIndex,
+                            onClick = {
+                                threshold = room.thresholdDays.toString()
+                                editingRoom = room
+                            }
+                        )
                     }
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -591,12 +606,9 @@ private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
             loading = loadingSelector == ElectricitySelectorLevel.Room
         )
     }
-    AppSectionCard(
-        // 分组选择行自带 16dp 水平内边距，与相邻卡片文字左缘对齐，这里只留竖向留白
-        contentPadding = PaddingValues(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-        content = selectorContent
-    )
+    Column(Modifier.fillMaxWidth()) {
+        selectorContent()
+    }
 }
 
 @Composable

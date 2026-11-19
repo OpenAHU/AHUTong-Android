@@ -162,6 +162,7 @@ object AppActionCatalog {
         "info" to AppActionId.OPEN_INFO,
         "electricity_recent_rooms" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "electricity_alert_settings" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
+        "settings__electricity_alert" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "xuexiaotong" to AppActionId.VIEW_SCHOOL_CALENDAR,
         "widgets" to AppActionId.OPEN_TOOLS,
         // 聚合相机：新路由名，旧 "scan" 保留兼容
@@ -247,7 +248,7 @@ object AppActionCatalog {
         "home", "setup", "login", "info", "profile", "schedule", "tools", "school_calendar", "grade",
         "phone_book", "exam", "evaluation", "free_classroom", "lost_found", "weather",
         "repository", "repository/{path}", "repository_downloads", "repository_settings", "settings",
-        "settings__license", "settings__contributors", "settings__about", "settings__plugins", "preferences", "preferences/{section}", "electricity_pay",
+        "settings__license", "settings__contributors", "settings__about", "settings__plugins", "settings__electricity_alert", "preferences", "preferences/{section}", "electricity_pay",
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "onboarding", "campus_notices", "student_mail", "program_completion", "identity_code",

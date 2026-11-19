@@ -930,7 +930,7 @@ fun Main(
                         onOpenThemeLab = { navController.navigate("settings__theme_lab") },
                         onOpenThemeColors = { navController.navigate("settings__theme_color") },
                         onOpenElectricityAlertSettings = {
-                            navController.navigate("electricity_alert_settings")
+                            navController.navigate("settings__electricity_alert")
                         },
                         undergraduateEnabled = undergraduateEnabled
                     )
@@ -963,18 +963,30 @@ fun Main(
                 ElectricityDeposit(
                     onBack = { navController.popBackStack() },
                     onOpenRecentRooms = { navController.navigate("electricity_recent_rooms") },
+                    onOpenAlertSettings = {
+                        navController.navigate("settings__electricity_alert")
+                    },
                     initialSelection = electricityRechargeSelection,
                     onInitialSelectionConsumed = electricityAlertViewModel::selectionConsumed
                 )
             }
 
-            animatedComposable("electricity_alert_settings") {
+            animatedComposable("settings__electricity_alert") {
                 // Scope the selector to this entry; configuring alerts must not change the pay page.
                 val settingsViewModel: ElectricityDepositViewModel = hiltViewModel()
                 ElectricityAlertSettings(
                     onBack = { navController.popBackStack() },
                     viewModel = settingsViewModel
                 )
+            }
+            animatedComposable("electricity_alert_settings") {
+                // 旧深链：统一落到三级设置页
+                LaunchedEffect(Unit) {
+                    navController.navigate("settings__electricity_alert") {
+                        popUpTo("electricity_alert_settings") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             }
 
             animatedComposable("electricity_recent_rooms") { backStackEntry ->

@@ -68,7 +68,7 @@ class PreferencesViewModelTest {
         repository: FakeRepositoryIndex = FakeRepositoryIndex()
     ) = PreferencesViewModel(
         store, personalization, reminders, repository, behavior,
-        chaoxingStore, chaoxingReminders, FakeElectricityAlertSettings()
+        chaoxingStore, chaoxingReminders
     )
 
     @Test
@@ -445,17 +445,4 @@ private class FakeChaoxingReminders : com.ahu.ahutong.data.xuexiaotong.ChaoxingR
         rescheduleCount++
     }
     override fun sendTest() = Unit
-}
-
-private class FakeElectricityAlertSettings :
-    com.ahu.ahutong.core.storage.ElectricityAlertSettings {
-    private val state = kotlinx.coroutines.flow.MutableStateFlow(
-        com.ahu.ahutong.data.model.ElectricityAlertConfiguration()
-    )
-    override val configuration = state
-    override suspend fun setEnabled(enabled: Boolean) {
-        state.value = state.value.copy(enabled = enabled)
-    }
-    override suspend fun saveRoom(room: com.ahu.ahutong.data.model.ElectricityAlertRoom) = Unit
-    override suspend fun removeRoom(key: String) = Unit
 }

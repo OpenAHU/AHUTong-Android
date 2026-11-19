@@ -106,7 +106,6 @@ fun Preferences(
     val courseReminderLiveCountdownEnabled by
         viewModel.courseReminderLiveCountdownEnabled.collectAsState()
     val xuexiaotongRemind by viewModel.xuexiaotongRemind.collectAsState()
-    val electricityAlertConfig by viewModel.electricityAlertConfiguration.collectAsState()
     val bootstrapContributionStatus by viewModel.bootstrapContributionStatus.collectAsState()
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -317,15 +316,8 @@ fun Preferences(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
-                SettingsToggleRow(
-                    title = "余额不足提醒",
-                    selected = electricityAlertConfig.enabled,
-                    onSelectedChange = viewModel::setElectricityAlertEnabled,
-                    backdrop = backdrop,
-                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                )
                 SettingsActionRow(
-                    title = "管理房间与阈值",
+                    title = "电费预警",
                     showDivider = false,
                     onClick = onOpenElectricityAlertSettings
                 )
