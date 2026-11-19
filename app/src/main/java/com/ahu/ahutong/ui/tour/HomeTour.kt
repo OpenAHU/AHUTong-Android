@@ -48,7 +48,7 @@ private val TourStops = listOf(
     TourStop(
         targetId = "home_camera",
         title = "智慧视觉",
-        body = "扫一扫：支持扫描美团单车和学习通签到QR，一步跳转。\n笔记相机：智能识别在上的课程，归档笔记。",
+        body = "扫一扫：支持扫描**美团单车**和**学习通签到**QR，一步跳转。\n笔记相机：智能识别在上的课程，归档笔记。",
         page = TourStopPage.HOME
     ),
     TourStop(

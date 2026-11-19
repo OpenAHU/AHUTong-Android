@@ -52,7 +52,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -353,7 +356,10 @@ private fun GuidedTourOverlayBody(
                         )
                     }
                     Text(
-                        text = step.body,
+                        text = emphasizeTourBody(
+                            step.body,
+                            MaterialTheme.colorScheme.primary
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         lineHeight = 22.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -429,3 +435,26 @@ data class GuidedTourDialogOverlayState(
 
 val LocalGuidedTourDialogOverlay =
     androidx.compose.runtime.staticCompositionLocalOf<GuidedTourDialogOverlayState?> { null }
+
+/** 导览文案里的 **重点** 标记：半粗 + 主题色，其余保持正文样式。 */
+private fun emphasizeTourBody(text: String, accent: androidx.compose.ui.graphics.Color) =
+    buildAnnotatedString {
+        var cursor = 0
+        while (cursor < text.length) {
+            val start = text.indexOf("**", cursor)
+            if (start < 0) {
+                append(text.substring(cursor))
+                break
+            }
+            append(text.substring(cursor, start))
+            val end = text.indexOf("**", start + 2)
+            if (end < 0) {
+                append(text.substring(start))
+                break
+            }
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = accent)) {
+                append(text.substring(start + 2, end))
+            }
+            cursor = end + 2
+        }
+    }
