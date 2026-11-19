@@ -137,10 +137,12 @@ fun PluginManagerSection(backdrop: Backdrop) {
                     onCheckedChange = null
                 )
             }
-            HorizontalDivider(
-                modifier = Modifier.padding(start = 20.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-            )
+            if (devMode) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 20.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                )
+            }
         }
         if (devMode) {
             runtimePlugins.forEach { (id, manifest) ->
