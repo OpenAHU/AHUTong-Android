@@ -78,6 +78,7 @@ class DeveloperViewModel @Inject constructor(
     }
 
     private val displayNames = mapOf(
+        "Kaltsit-cell" to "zirui.xu（24级）",
         "MuxYang" to "MuxYang（25级）",
         "InChange-Jiang" to "InChange-Jiang（25级）"
     )
