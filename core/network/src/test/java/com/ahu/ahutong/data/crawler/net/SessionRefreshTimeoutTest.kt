@@ -227,6 +227,27 @@ class SessionRefreshTimeoutTest {
 
         assertFalse(retried)
         assertEquals(1, attempts)
+        assertTrue(SessionRefreshCoordinator.isRejectionConfirmed(generation))
+    }
+
+    @Test
+    fun aSingleRejectionIsNotConfirmationUntilTheCooldownRound() = runBlocking {
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        val start = System.currentTimeMillis()
+
+        SessionRefreshCoordinator.refreshIfNeeded(generation, nowMillis = { start }) {
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+        assertFalse(SessionRefreshCoordinator.isRejectionConfirmed(generation))
+
+        SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            rejectedCooldownMillis = SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS,
+            nowMillis = { start + SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1 }
+        ) {
+            SessionRefreshCoordinator.RefreshOutcome.REJECTED
+        }
+        assertTrue(SessionRefreshCoordinator.isRejectionConfirmed(generation))
     }
 
     @Test

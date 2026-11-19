@@ -23,7 +23,8 @@ object SessionRefreshCoordinator {
      *   （[TRANSIENT_COOLDOWN_MS]），窗外第一个请求获准再试——旧实现（0492acc 之前）
      *   正是靠"下个请求再试"自愈的，永久封禁会把一次校园网抖动变成强制重新登录；
      * - [REJECTED]：调用方只观察到一次拒绝。冷却窗后允许一次重探，
-     *   再被拒绝才封禁到下一次真实登录（[onAuthenticated]）；
+     *   再被拒绝才封禁到下一次真实登录（[onAuthenticated]）；单次拒绝**不是**判过期的证据，
+     *   会话层必须用 [isRejectionConfirmed] 判断是否已跨轮确认；
      * - [CREDENTIALS_REJECTED]：确认本机没有凭据，或调用方已在本轮有界恢复中确认
      *   连续拒绝。直接停止自动尝试，避免协调器再次开放密码重试。
      */
@@ -204,6 +205,22 @@ object SessionRefreshCoordinator {
         scope: Scope = Scope.ACADEMIC
     ): FailureKind? = stateMutex.withLock {
         if (currentGeneration(scope) == observedGeneration) failures[scope]?.kind else null
+    }
+
+    /**
+     * 是否已经**跨轮确认**了凭据被拒（ADR 0002 的"连续两次明确拒绝"）。
+     *
+     * 单轮拒绝只记 [FailureKind.REJECTED] + 一次冷却；冷却窗内的 false 只是"暂时不放行"，
+     * 不是证据。会话层必须用这个谓词决定是否宣告过期，否则"一次拒绝 + 一个并发 401"
+     * 就能把用户踢回登录页——那正是随机掉登录的主要放大器。
+     */
+    suspend fun isRejectionConfirmed(
+        observedGeneration: Long,
+        scope: Scope = Scope.ACADEMIC
+    ): Boolean = stateMutex.withLock {
+        if (currentGeneration(scope) != observedGeneration) return@withLock false
+        val failure = failures[scope] ?: return@withLock false
+        failure.kind == FailureKind.REJECTED && failure.attempts >= MAX_REJECTED_ATTEMPTS
     }
 
     /** 单次续期的总预算：一次完整登录的合理上限，超了就不再等（ADR 0002）。 */

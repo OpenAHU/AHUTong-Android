@@ -239,14 +239,23 @@ class AhuSessionContractTest {
     }
 
     @Test
-    fun `a rejected persisted session requires login after cold start`() = runTest {
-        val subject = session(
+    fun `a rejected persisted session requires login only after confirmation across rounds`() = runTest {
+        var clock = 1_000_000L
+        val subject = RepositoryAhuSession(
             login = FakeSessionSignIn(AhuResult.Failure(AhuError.Unauthorized("密码错误"))),
             credentials = FakeCredentialVault("stored-secret"),
-            account = FakeSessionAccount(user)
+            account = FakeSessionAccount(user),
+            residue = FakeSessionResidue(),
+            now = { clock }
         )
+        val generation = SessionRefreshCoordinator.currentGeneration()
 
-        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+        // 冷启动也遵守"连续两次明确拒绝"：一次拒绝不踢人，等冷却窗外的第二轮确认。
+        assertFalse(subject.ensureFresh(generation))
+        assertFalse(SessionRefreshCoordinator.isRejectionConfirmed(generation))
+
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertFalse(subject.ensureFresh(generation))
 
         assertEquals(AhuSessionState.Status.Expired, subject.state.value)
     }
@@ -428,13 +437,36 @@ class SessionExpiryHookContractTest {
     }
 
     @Test
-    fun `an explicit credential rejection moves the current session state to expired`() = runBlocking {
+    fun `a single credential rejection alone does not expire the session`() = runBlocking {
         val hook = RepositorySessionExpiryHook(FakeAhuSession())
         AhuSessionState.markAuthenticated()
         val generation = SessionRefreshCoordinator.currentGeneration()
         SessionRefreshCoordinator.refreshIfNeeded(generation) {
             SessionRefreshCoordinator.RefreshOutcome.REJECTED
         }
+
+        hook.onExpired(generation)
+
+        // 一次拒绝只是"疑似"：冷却窗内并发 401 触发的 onExpired 不能把它当成证据。
+        assertEquals(AhuSessionState.Status.Authenticated, AhuSessionState.status.value)
+    }
+
+    @Test
+    fun `a rejection confirmed across rounds expires the session`() = runBlocking {
+        val hook = RepositorySessionExpiryHook(FakeAhuSession())
+        AhuSessionState.markAuthenticated()
+        val generation = SessionRefreshCoordinator.currentGeneration()
+        val t0 = 1_000_000L
+        SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = { t0 }
+        ) { SessionRefreshCoordinator.RefreshOutcome.REJECTED }
+        SessionRefreshCoordinator.refreshIfNeeded(
+            generation,
+            rejectedCooldownMillis = 30_000L,
+            nowMillis = { t0 + 31_000L }
+        ) { SessionRefreshCoordinator.RefreshOutcome.REJECTED }
 
         hook.onExpired(generation)
 

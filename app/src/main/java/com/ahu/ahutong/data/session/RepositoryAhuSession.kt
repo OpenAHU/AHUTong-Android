@@ -29,7 +29,8 @@ class RepositoryAhuSession(
     private val account: SessionAccount,
     private val residue: SessionResidue,
     private val refreshLogin: SessionSignIn = login,
-    private val refreshScope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC
+    private val refreshScope: SessionRefreshCoordinator.Scope = SessionRefreshCoordinator.Scope.ACADEMIC,
+    private val now: () -> Long = System::currentTimeMillis
 ) : AhuSession {
 
     override val state: StateFlow<AhuSessionState.Status> = AhuSessionState.status
@@ -79,32 +80,32 @@ class RepositoryAhuSession(
     private suspend fun refresh(observedGeneration: Long): Boolean {
         val refreshed = SessionRefreshCoordinator.refreshIfNeeded(
             observedGeneration,
+            nowMillis = now,
             scope = refreshScope
         ) { refreshWithRetry() }
         // 续期成功即回到已认证：协调器只负责并发与代号，登录态的写入留在会话层。
+        val hasAccount = hasRecoverableAccount()
         if (refreshed) {
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration + 1, refreshScope) {
                 // A restarted process begins Anonymous even when its account was persisted.
                 if (canChangeGlobalStatus &&
-                    (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
-                        account.currentUser() != null)
+                    (AhuSessionState.status.value != AhuSessionState.Status.Anonymous || hasAccount)
                 ) {
                     AhuSessionState.markAuthenticated()
                 }
             }
         } else {
-            // failureKindOf 和 commitIfCurrent 共用非可重入锁，先读取失败类型再提交状态。
-            val rejected = SessionRefreshCoordinator.failureKindOf(observedGeneration, refreshScope) ==
-                SessionRefreshCoordinator.FailureKind.REJECTED
+            // 只有**跨轮确认**过的拒绝才宣告过期（ADR 0002：连续两次明确拒绝）。
+            // 冷却窗内协调器返回 false，上一次的失败记录仍然是 REJECTED；
+            // 若只看 failureKindOf，"一次拒绝 + 一个并发 401"就能把用户踢出去。
+            val confirmed = SessionRefreshCoordinator.isRejectionConfirmed(observedGeneration, refreshScope)
             SessionRefreshCoordinator.commitIfCurrent(observedGeneration, refreshScope) {
                 // 手动登录可能已经推进代号；旧失败无权覆盖那个新会话。
-                // 只有凭据被明确拒绝（REJECTED）才宣告过期、触发重新登录引导；
-                // 瞬时失败（网络抖动/超时）保持静默——冷却窗外下个请求会自动再试，
-                // 这是 0492acc 之前旧实现的自愈体验，不该退化成「抖一下就逼用户重登」。
-                if (rejected && canChangeGlobalStatus &&
-                    (AhuSessionState.status.value != AhuSessionState.Status.Anonymous ||
-                        account.currentUser() != null)
+                // 瞬时失败（网络抖动/超时/存储不可用）保持静默——冷却窗外下个请求会自动再试。
+                if (confirmed && canChangeGlobalStatus &&
+                    (AhuSessionState.status.value != AhuSessionState.Status.Anonymous || hasAccount)
                 ) {
+                    FeedbackDiagnostics.recordRuntime("会话判定过期：连续两轮被校方拒绝")
                     AhuSessionState.markExpired()
                 }
             }
@@ -112,9 +113,15 @@ class RepositoryAhuSession(
         return refreshed
     }
 
+    private fun hasRecoverableAccount(): Boolean = try {
+        account.currentUser() != null
+    } catch (_: SecureStorageUnavailableException) {
+        // 读不出来不等于有账号：不能凭一次读取失败把匿名/过期状态改写成已认证。
+        false
+    }
+
     /** Runs inside the coordinator's service lock and its single 30-second budget. */
     private suspend fun refreshWithRetry(): SessionRefreshCoordinator.RefreshOutcome {
-        var consecutiveRejections = 0
         for (attempt in 0..RETRY_DELAYS_MS.size) {
             val loginResult = try {
                 val user = account.currentUser()
@@ -126,7 +133,6 @@ class RepositoryAhuSession(
                 refreshLogin.signIn(user.xh.toString(), password, preferNative = false)
             } catch (_: SecureStorageUnavailableException) {
                 // An unreadable Keystore is not evidence that a credential is absent or wrong.
-                consecutiveRejections = 0
                 if (attempt == RETRY_DELAYS_MS.size) break
                 delay(RETRY_DELAYS_MS[attempt])
                 continue
@@ -139,17 +145,16 @@ class RepositoryAhuSession(
             val error = loginResult.errorOrNull()
             Log.w(TAG, "Session refresh did not succeed (${error?.javaClass?.simpleName})")
             if (error is AhuError.Unauthorized) {
-                consecutiveRejections++
-                if (consecutiveRejections >= 2) {
-                    return SessionRefreshCoordinator.RefreshOutcome.CREDENTIALS_REJECTED
-                }
-            } else {
-                consecutiveRejections = 0
-                // Human verification, WAF and protocol changes need user/server action.
-                // Retrying those would only submit the same password unnecessarily.
-                if (!error.isRetryableRefreshFailure()) {
-                    return SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
-                }
+                // 一次拒绝只是"疑似"：同一轮里立刻再提交一次密码，只会把一次
+                // OCR/风控/校方抖动放大成"连续两次被拒"从而当场判死。
+                // 真正的确认交给协调器跨轮完成（冷却窗 30s 之外的第二次拒绝）。
+                FeedbackDiagnostics.recordRuntime("自动续期被校方拒绝：${error.message}")
+                return SessionRefreshCoordinator.RefreshOutcome.REJECTED
+            }
+            // Human verification, WAF and protocol changes need user/server action.
+            // Retrying those would only submit the same password unnecessarily.
+            if (!error.isRetryableRefreshFailure()) {
+                return SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
             }
             if (attempt < RETRY_DELAYS_MS.size) delay(RETRY_DELAYS_MS[attempt])
         }

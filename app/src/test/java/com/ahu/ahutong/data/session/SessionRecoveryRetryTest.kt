@@ -42,24 +42,80 @@ class SessionRecoveryRetryTest {
         residue = FakeSessionResidue()
     )
 
+    private fun sessionWithClock(
+        clock: () -> Long,
+        login: suspend () -> AhuResult<LoginOutcome>
+    ) = RepositoryAhuSession(
+        login = SessionSignIn { _, _, _ -> login() },
+        credentials = FakeCredentialVault("fixture-only"),
+        account = FakeSessionAccount(user),
+        residue = FakeSessionResidue(),
+        now = clock
+    )
+
     @Test
-    fun `a single credential rejection is confirmed before publishing expiry`() = runTest {
+    fun `a single credential rejection is not published as expiry`() = runTest {
         var calls = 0
-        val subject = session { if (calls++ == 0) rejected else success }
-        assertTrue(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
+        val subject = session { calls++; rejected }
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+
+        // 同一轮内不再连打第二次密码：一次拒绝只是"疑似"，等冷却窗外再确认。
+        assertEquals(1, calls)
+        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+        assertEquals(SessionRefreshCoordinator.FailureKind.REJECTED,
+            SessionRefreshCoordinator.failureKindOf(generation))
+        assertFalse(SessionRefreshCoordinator.isRejectionConfirmed(generation))
+    }
+
+    @Test
+    fun `two rejections confirmed across the cooldown expire the session`() = runTest {
+        var clock = 1_000_000L
+        var calls = 0
+        val subject = sessionWithClock({ clock }) { calls++; rejected }
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertFalse(subject.ensureFresh(generation))
+
+        assertEquals(2, calls)
+        assertEquals(AhuSessionState.Status.Expired, subject.state.value)
+    }
+
+    @Test
+    fun `a rejection healed by the next round keeps the session`() = runTest {
+        var clock = 1_000_000L
+        var calls = 0
+        val subject = sessionWithClock({ clock }) { if (calls++ == 0) rejected else success }
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertTrue(subject.ensureFresh(generation))
+
         assertEquals(2, calls)
         assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
+        assertEquals(generation + 1, SessionRefreshCoordinator.currentGeneration())
     }
 
     @Test
     fun `an inconclusive network failure after rejection does not require login`() = runTest {
+        var clock = 1_000_000L
         var calls = 0
-        val subject = session {
+        val subject = sessionWithClock({ clock }) {
             if (calls++ == 0) rejected else AhuResult.Failure(AhuError.Network)
         }
         val generation = SessionRefreshCoordinator.currentGeneration()
+
         assertFalse(subject.ensureFresh(generation))
-        assertEquals(3, calls)
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertFalse(subject.ensureFresh(generation))
+
+        assertEquals(4, calls)
         assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
         assertEquals(SessionRefreshCoordinator.FailureKind.TRANSIENT,
             SessionRefreshCoordinator.failureKindOf(generation))
@@ -103,22 +159,44 @@ class SessionRecoveryRetryTest {
 
     @Test
     fun `transport failures between rejections cannot confirm a bad password`() = runTest {
+        var clock = 1_000_000L
         var calls = 0
-        val subject = session {
-            if (++calls == 2) AhuResult.Failure(AhuError.Network) else rejected
+        val subject = sessionWithClock({ clock }) {
+            when (calls++) {
+                // 第二轮整轮都是传输失败（三次尝试全部 Network），整体判为 TRANSIENT。
+                1, 2, 3 -> AhuResult.Failure(AhuError.Network)
+                else -> rejected
+            }
         }
-        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
-        assertEquals(3, calls)
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertFalse(subject.ensureFresh(generation))
+        clock += SessionRefreshCoordinator.TRANSIENT_COOLDOWN_MS + 1
+        assertFalse(subject.ensureFresh(generation))
+
+        // 两次拒绝之间夹了一次传输失败，说明不了密码被拒。
+        assertFalse(SessionRefreshCoordinator.isRejectionConfirmed(generation))
         assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
     }
 
     @Test
-    fun `two consecutive credential rejections require login without a third attempt`() = runTest {
+    fun `a confirmed rejection stops automatic recovery until the next sign in`() = runTest {
+        var clock = 1_000_000L
         var calls = 0
-        val subject = session { calls++; rejected }
-        assertFalse(subject.ensureFresh(SessionRefreshCoordinator.currentGeneration()))
-        assertEquals(2, calls)
+        val subject = sessionWithClock({ clock }) { calls++; rejected }
+        val generation = SessionRefreshCoordinator.currentGeneration()
+
+        assertFalse(subject.ensureFresh(generation))
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertFalse(subject.ensureFresh(generation))
         assertEquals(AhuSessionState.Status.Expired, subject.state.value)
+
+        // 判死后不再自动尝试续期，避免把校方风控打成死循环。
+        clock += SessionRefreshCoordinator.REJECTED_RETRY_DELAY_MS + 1
+        assertFalse(subject.ensureFresh(generation))
+        assertEquals(2, calls)
     }
 
     @Test
@@ -158,37 +236,21 @@ class SessionRecoveryRetryTest {
     }
 
     @Test
-    fun `concurrent callers wait for the same confirmation without early expiry`() = runTest {
+    fun `concurrent callers during a rejection cooldown fail fast without expiry`() = runTest {
         var calls = 0
-        val confirming = CompletableDeferred<Unit>()
-        val release = CompletableDeferred<Unit>()
-        val subject = session {
-            if (++calls == 1) rejected else {
-                confirming.complete(Unit)
-                release.await()
-                success
-            }
-        }
+        val subject = session { calls++; rejected }
         val generation = SessionRefreshCoordinator.currentGeneration()
+
         val first = async { subject.ensureFresh(generation) }
-        testScheduler.advanceTimeBy(500)
         runCurrent()
         val second = async { subject.ensureFresh(generation) }
         runCurrent()
-        val firstStillPending = !first.isCompleted
-        val secondStillPending = !second.isCompleted
-        val statusDuringConfirmation = subject.state.value
-        release.complete(Unit)
-        val firstResult = first.await()
-        val secondResult = second.await()
-        assertTrue(confirming.isCompleted)
-        assertTrue(firstStillPending)
-        assertTrue(secondStillPending)
-        assertEquals(AhuSessionState.Status.Authenticated, statusDuringConfirmation)
-        assertTrue(firstResult)
-        assertTrue(secondResult)
-        assertEquals(2, calls)
-        assertEquals(generation + 1, SessionRefreshCoordinator.currentGeneration())
+
+        assertFalse(first.await())
+        assertFalse(second.await())
+        // 冷却窗内的并发调用者不重复提交密码，也不把一次拒绝升级成过期。
+        assertEquals(1, calls)
+        assertEquals(AhuSessionState.Status.Authenticated, subject.state.value)
     }
 
     @Test

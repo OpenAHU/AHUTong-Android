@@ -23,9 +23,9 @@ class RepositorySessionExpiryHook(
         if (scope != SessionRefreshCoordinator.Scope.ACADEMIC) return
         // The authenticator also reports exhausted retries and transient failures.
         // Neither proves the user's stored credential was rejected.
-        if (SessionRefreshCoordinator.failureKindOf(observedGeneration, scope) !=
-            SessionRefreshCoordinator.FailureKind.REJECTED
-        ) return
+        // Only a rejection confirmed across rounds (ADR 0002: two explicit rejections)
+        // may move the session to Expired; a single rejection is retried after its cooldown.
+        if (!SessionRefreshCoordinator.isRejectionConfirmed(observedGeneration, scope)) return
         SessionRefreshCoordinator.commitIfCurrent(observedGeneration, scope) {
             if (AhuSessionState.status.value != AhuSessionState.Status.Anonymous) {
                 AhuSessionState.markExpired()
