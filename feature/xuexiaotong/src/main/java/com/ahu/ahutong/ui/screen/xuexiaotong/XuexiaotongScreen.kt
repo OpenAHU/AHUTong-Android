@@ -9,7 +9,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
-import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -39,7 +39,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.ahu.ahutong.ui.haptics.HapticIconButton as IconButton
 import androidx.compose.material3.MaterialTheme
@@ -665,79 +664,56 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
         )
     }
 
-    // 底部抽屉菜单（统一 AppModalBottomSheet，主题原生宿主）
+    // 底部抽屉菜单（与课表设置抽屉同一套行式布局）
     if (sideMenuOpen) {
+        val maxSheetHeight =
+            androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.8f
         AppModalBottomSheet(
             title = "学习通日历",
-            onDismissRequest = { sideMenuOpen = false }
+            onDismissRequest = { sideMenuOpen = false },
+            modifier = Modifier.heightIn(max = maxSheetHeight)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
-                    .padding(24.dp)
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    "作业日历 · 课程进度",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                XxtSettingSwitchRow(
+                    title = "查看已完成作业",
+                    selected = showDone,
+                    onSelect = { viewModel.toggleShowDone() }
                 )
-                Spacer(Modifier.height(20.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                Spacer(Modifier.height(8.dp))
-                BottomSheetSwitchItem("查看已完成作业", showDone) { viewModel.toggleShowDone() }
-                BottomSheetSwitchItem("查看无任务点课程", showEmptyCourses) { viewModel.toggleShowEmptyCourses() }
-                BottomSheetSwitchItem("已完成任务置灰", doneGray) { viewModel.toggleDoneGray() }
-                BottomSheetSwitchItem("全量抓取", fullSyncEnabled) {
-                    viewModel.setFullSyncEnabled(!fullSyncEnabled)
-                }
-                Text(
-                    "开启后每次刷新都会重抓已完成作业的详情，耗时更长",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
+                XxtSettingSwitchRow(
+                    title = "查看无任务点课程",
+                    selected = showEmptyCourses,
+                    onSelect = { viewModel.toggleShowEmptyCourses() }
                 )
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
-                        .clickable { sideMenuOpen = false; showClearConfirm = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("清空自建日程", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
-                }
+                XxtSettingSwitchRow(
+                    title = "已完成任务置灰",
+                    selected = doneGray,
+                    onSelect = { viewModel.toggleDoneGray() }
+                )
+                XxtSettingSwitchRow(
+                    title = "全量抓取",
+                    description = "开启后每次刷新都会重抓已完成作业的详情，耗时更长",
+                    selected = fullSyncEnabled,
+                    onSelect = { viewModel.setFullSyncEnabled(it) }
+                )
                 Spacer(Modifier.height(8.dp))
-                // 未登录时禁用置灰，登录后才可退出
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (loggedIn) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
-                        )
-                        .then(
-                            if (loggedIn) {
-                                Modifier.clickable { viewModel.logout(); sideMenuOpen = false }
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "退出学习通登录",
-                        fontSize = 13.sp,
-                        color = if (loggedIn) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                XxtSettingActionRow(
+                    title = "清空自建日程",
+                    onClick = { sideMenuOpen = false; showClearConfirm = true }
+                )
+                // 未登录时置灰不可点
+                XxtSettingActionRow(
+                    title = "退出学习通登录",
+                    enabled = loggedIn,
+                    danger = true,
+                    onClick = { viewModel.logout(); sideMenuOpen = false }
+                )
                 Spacer(Modifier.height(8.dp))
             }
         }
@@ -745,24 +721,73 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
 }
 
 @Composable
-private fun BottomSheetSwitchItem(label: String, checked: Boolean, onToggle: () -> Unit) {
-    // 行统一接管点击（含无障碍 role=Switch），开关本体只展示状态。
+private fun XxtSettingSwitchRow(
+    title: String,
+    description: String? = null,
+    selected: Boolean,
+    onSelect: (Boolean) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                role = androidx.compose.ui.semantics.Role.Switch,
-                onValueChange = { onToggle() }
-            )
-            .padding(vertical = 7.dp),
+            .clip(SmoothRoundedCornerShape(12.dp))
+            .clickable { onSelect(!selected) }
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, modifier = Modifier.weight(1f), fontSize = 14.sp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            description?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
         AppToggle(
-            checked = checked,
-            onCheckedChange = null,
-            contentDescription = label
+            checked = selected,
+            onCheckedChange = onSelect,
+            modifier = Modifier.padding(start = 16.dp),
+            contentDescription = title
+        )
+    }
+}
+
+@Composable
+private fun XxtSettingActionRow(
+    title: String,
+    enabled: Boolean = true,
+    danger: Boolean = false,
+    onClick: () -> Unit
+) {
+    val color = when {
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        danger -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(SmoothRoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodyLarge,
+            color = color
         )
     }
 }
