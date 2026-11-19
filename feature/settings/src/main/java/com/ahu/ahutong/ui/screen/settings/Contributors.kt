@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -32,8 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ahu.ahutong.ui.components.AppDialog
@@ -72,7 +76,7 @@ fun Contributors(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
-                // 收起时头像重叠成堆，点一下缓动摊开成一排；摊开后点某个头像看详情
+                // 收起时头像重叠成堆、右侧标历史开发者；点一下原地缓动摊成一排并显示小名
                 val gap by animateDpAsState(
                     targetValue = if (seniorsExpanded) 8.dp else (-14).dp,
                     animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
@@ -87,20 +91,49 @@ fun Contributors(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     developerViewModel.seniors.forEach { senior ->
-                        AsyncImage(
-                            model = senior.avatar,
-                            contentDescription = senior.name,
+                        Column(
                             modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .border(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.surfaceContainer,
-                                    CircleShape
+                                .width(44.dp)
+                                .clickable {
+                                    if (seniorsExpanded) {
+                                        selectedSenior = senior
+                                    } else {
+                                        seniorsExpanded = true
+                                    }
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            AsyncImage(
+                                model = senior.avatar,
+                                contentDescription = senior.name,
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.surfaceContainer,
+                                        CircleShape
+                                    )
+                            )
+                            AnimatedVisibility(visible = seniorsExpanded) {
+                                Text(
+                                    text = senior.shortName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 3.dp)
                                 )
-                                .clickable(enabled = seniorsExpanded) {
-                                    selectedSenior = senior
-                                }
+                            }
+                        }
+                    }
+                    if (!seniorsExpanded) {
+                        Text(
+                            text = "5位历史开发者",
+                            modifier = Modifier.padding(start = 6.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

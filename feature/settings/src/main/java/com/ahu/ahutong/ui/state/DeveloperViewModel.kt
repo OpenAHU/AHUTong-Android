@@ -25,6 +25,10 @@ class DeveloperViewModel @Inject constructor(
         val avatar: String
             get() = "https://q1.qlogo.cn/g?b=qq&nk=$qq&s=640"
 
+        /** 摊开时空间有限：去掉年级后缀与占位空格。 */
+        val shortName: String
+            get() = name.substringBefore('（').replace(" ", "")
+
         fun openQq(context: Context) {
             try {
                 context.startActivity(
