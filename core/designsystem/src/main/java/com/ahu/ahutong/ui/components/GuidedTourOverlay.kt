@@ -303,7 +303,7 @@ private fun GuidedTourOverlayBody(
                     ConfettiPiece(
                         fromLeft = fromLeft,
                         angle = baseAngle + (random.nextFloat() - 0.5f) * 0.84f,
-                        speed = 0.62f + random.nextFloat() * 0.45f,
+                        speed = 0.80f + random.nextFloat() * 0.55f,
                         originY = 0.55f + random.nextFloat() * 0.15f,
                         spin = (random.nextFloat() * 2f - 1f) * 720f,
                         flipFrequency = 5f + random.nextFloat() * 7f,
@@ -328,8 +328,8 @@ private fun GuidedTourOverlayBody(
                         Color(0xFFFF8FAB)
                     )
                     val elapsed = progress * 3.4f
-                    val drag = 2.8f
-                    val gravity = size.height * 1.05f
+                    val drag = 2.6f
+                    val gravity = size.height * 1.5f
                     pieces.forEach { piece ->
                         val t = elapsed - piece.delaySeconds
                         if (t <= 0f) return@forEach
@@ -341,7 +341,8 @@ private fun GuidedTourOverlayBody(
                         val decay = kotlin.math.exp(-drag * t)
                         val travel = (1f - decay) / drag
                         val x = x0 + vx0 * travel
-                        val y = y0 + (vy0 + gravity / drag) * travel - (gravity / drag) * t
+                        // 重力向下：终速 = g/k，故用 (vy0 - g/k)·travel + (g/k)·t
+                        val y = y0 + (vy0 - gravity / drag) * travel + (gravity / drag) * t
                         if (y > size.height * 1.15f || x < -size.width * 0.1f || x > size.width * 1.1f) {
                             return@forEach
                         }
