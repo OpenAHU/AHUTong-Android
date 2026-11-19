@@ -284,98 +284,6 @@ private fun GuidedTourOverlayBody(
             }
         }
 
-        // 收尾卡片：两侧各喷一次纸花（物理参考 canvas-confetti），落完即止
-        if (celebrate) {
-            val burst = remember { Animatable(0f) }
-            LaunchedEffect(Unit) {
-                burst.snapTo(0f)
-                burst.animateTo(1f, tween(durationMillis = 3_400, easing = LinearEasing))
-            }
-            val random = remember { kotlin.random.Random(20261120) }
-            val pieces = remember {
-                List(160) { index ->
-                    val fromLeft = index % 2 == 0
-                    val baseAngle = if (fromLeft) {
-                        -Math.PI.toFloat() / 2f + 0.42f
-                    } else {
-                        -Math.PI.toFloat() / 2f - 0.42f
-                    }
-                    ConfettiPiece(
-                        fromLeft = fromLeft,
-                        angle = baseAngle + (random.nextFloat() - 0.5f) * 0.84f,
-                        speed = 0.62f + random.nextFloat() * 0.45f,
-                        originY = 0.55f + random.nextFloat() * 0.15f,
-                        spin = (random.nextFloat() * 2f - 1f) * 720f,
-                        flipFrequency = 5f + random.nextFloat() * 7f,
-                        flipPhase = random.nextFloat() * 6.28f,
-                        widthDp = 5f + random.nextFloat() * 5f,
-                        heightDp = 9f + random.nextFloat() * 9f,
-                        colorIndex = random.nextInt(6),
-                        delaySeconds = random.nextFloat() * 0.16f,
-                        round = random.nextFloat() < 0.2f
-                    )
-                }
-            }
-            val progress = burst.value
-            if (progress > 0f) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val palette = listOf(
-                        Color(0xFFEF476F),
-                        Color(0xFFFFD166),
-                        Color(0xFF06D6A0),
-                        Color(0xFF118AB2),
-                        Color(0xFFB388EB),
-                        Color(0xFFFF8FAB)
-                    )
-                    val elapsed = progress * 3.4f
-                    val drag = 2.6f
-                    val gravity = size.height * 1.5f
-                    pieces.forEach { piece ->
-                        val t = elapsed - piece.delaySeconds
-                        if (t <= 0f) return@forEach
-                        val x0 = if (piece.fromLeft) -4.dp.toPx() else size.width + 4.dp.toPx()
-                        val y0 = size.height * piece.originY
-                        val speedPx = size.height * piece.speed
-                        val vx0 = kotlin.math.cos(piece.angle) * speedPx
-                        val vy0 = kotlin.math.sin(piece.angle) * speedPx
-                        val decay = kotlin.math.exp(-drag * t)
-                        val travel = (1f - decay) / drag
-                        val x = x0 + vx0 * travel
-                        // 重力向下：终速 = g/k，故用 (vy0 - g/k)·travel + (g/k)·t
-                        val y = y0 + (vy0 - gravity / drag) * travel + (gravity / drag) * t
-                        if (y > size.height * 1.15f || x < -size.width * 0.1f || x > size.width * 1.1f) {
-                            return@forEach
-                        }
-                        val alpha = ((1f - progress) / 0.22f).coerceIn(0f, 1f)
-                        if (alpha <= 0f) return@forEach
-                        val w = piece.widthDp.dp.toPx()
-                        val h = piece.heightDp.dp.toPx()
-                        rotate(degrees = piece.spin * t, pivot = Offset(x, y)) {
-                            val flip = 0.25f + 0.75f * kotlin.math.abs(
-                                kotlin.math.cos(piece.flipFrequency * t + piece.flipPhase)
-                            )
-                            scale(scaleX = flip, scaleY = 1f, pivot = Offset(x, y)) {
-                                if (piece.round) {
-                                    drawCircle(
-                                        color = palette[piece.colorIndex].copy(alpha = alpha),
-                                        radius = w * 0.6f,
-                                        center = Offset(x, y)
-                                    )
-                                } else {
-                                    drawRoundRect(
-                                        color = palette[piece.colorIndex].copy(alpha = alpha),
-                                        topLeft = Offset(x - w / 2f, y - h / 2f),
-                                        size = Size(w, h),
-                                        cornerRadius = CornerRadius(1.5.dp.toPx())
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         var hintSize by remember { mutableStateOf(IntSize.Zero) }
         val hintFloat by rememberInfiniteTransition(label = "tourHintFloat").animateFloat(
             initialValue = -5f,
@@ -512,6 +420,99 @@ private fun GuidedTourOverlayBody(
                 }
             }
         }
+
+        // 收尾卡片：两侧各喷一次纸花（物理参考 canvas-confetti），落完即止
+        if (celebrate) {
+            val burst = remember { Animatable(0f) }
+            LaunchedEffect(Unit) {
+                burst.snapTo(0f)
+                burst.animateTo(1f, tween(durationMillis = 3_400, easing = LinearEasing))
+            }
+            val random = remember { kotlin.random.Random(20261120) }
+            val pieces = remember {
+                List(160) { index ->
+                    val fromLeft = index % 2 == 0
+                    val baseAngle = if (fromLeft) {
+                        -Math.PI.toFloat() / 2f + 0.42f
+                    } else {
+                        -Math.PI.toFloat() / 2f - 0.42f
+                    }
+                    ConfettiPiece(
+                        fromLeft = fromLeft,
+                        angle = baseAngle + (random.nextFloat() - 0.5f) * 0.84f,
+                        speed = 0.95f + random.nextFloat() * 0.55f,
+                        originY = 0.55f + random.nextFloat() * 0.15f,
+                        spin = (random.nextFloat() * 2f - 1f) * 720f,
+                        flipFrequency = 5f + random.nextFloat() * 7f,
+                        flipPhase = random.nextFloat() * 6.28f,
+                        widthDp = 5f + random.nextFloat() * 5f,
+                        heightDp = 9f + random.nextFloat() * 9f,
+                        colorIndex = random.nextInt(6),
+                        delaySeconds = random.nextFloat() * 0.16f,
+                        round = random.nextFloat() < 0.2f
+                    )
+                }
+            }
+            val progress = burst.value
+            if (progress > 0f) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val palette = listOf(
+                        Color(0xFFEF476F),
+                        Color(0xFFFFD166),
+                        Color(0xFF06D6A0),
+                        Color(0xFF118AB2),
+                        Color(0xFFB388EB),
+                        Color(0xFFFF8FAB)
+                    )
+                    val elapsed = progress * 3.4f
+                    val drag = 2.6f
+                    val gravity = size.height * 1.5f
+                    pieces.forEach { piece ->
+                        val t = elapsed - piece.delaySeconds
+                        if (t <= 0f) return@forEach
+                        val x0 = if (piece.fromLeft) -4.dp.toPx() else size.width + 4.dp.toPx()
+                        val y0 = size.height * piece.originY
+                        val speedPx = size.height * piece.speed
+                        val vx0 = kotlin.math.cos(piece.angle) * speedPx
+                        val vy0 = kotlin.math.sin(piece.angle) * speedPx
+                        val decay = kotlin.math.exp(-drag * t)
+                        val travel = (1f - decay) / drag
+                        val x = x0 + vx0 * travel
+                        // 重力向下：终速 = g/k，故用 (vy0 - g/k)·travel + (g/k)·t
+                        val y = y0 + (vy0 - gravity / drag) * travel + (gravity / drag) * t
+                        if (y > size.height * 1.15f || x < -size.width * 0.1f || x > size.width * 1.1f) {
+                            return@forEach
+                        }
+                        val alpha = ((1f - progress) / 0.22f).coerceIn(0f, 1f)
+                        if (alpha <= 0f) return@forEach
+                        val w = piece.widthDp.dp.toPx()
+                        val h = piece.heightDp.dp.toPx()
+                        rotate(degrees = piece.spin * t, pivot = Offset(x, y)) {
+                            val flip = 0.25f + 0.75f * kotlin.math.abs(
+                                kotlin.math.cos(piece.flipFrequency * t + piece.flipPhase)
+                            )
+                            scale(scaleX = flip, scaleY = 1f, pivot = Offset(x, y)) {
+                                if (piece.round) {
+                                    drawCircle(
+                                        color = palette[piece.colorIndex].copy(alpha = alpha),
+                                        radius = w * 0.6f,
+                                        center = Offset(x, y)
+                                    )
+                                } else {
+                                    drawRoundRect(
+                                        color = palette[piece.colorIndex].copy(alpha = alpha),
+                                        topLeft = Offset(x - w / 2f, y - h / 2f),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(1.5.dp.toPx())
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }
 
