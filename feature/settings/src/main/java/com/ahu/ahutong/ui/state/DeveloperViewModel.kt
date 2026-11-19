@@ -83,7 +83,15 @@ class DeveloperViewModel @Inject constructor(
         "InChange-Jiang" to "InChange-Jiang（25级）"
     )
 
+    private val qqByLogin = mapOf(
+        "Kaltsit-cell" to "1793838025",
+        "MuxYang" to "32142587",
+        "InChange-Jiang" to "2719904894"
+    )
+
     fun displayName(login: String): String = displayNames[login] ?: login
+
+    fun qqOf(login: String): String? = qqByLogin[login]
 
     /** 未展开时的概述：提交数、最近活跃日期、涉及的领域。 */
     fun summary(author: ActiveAuthor): String {

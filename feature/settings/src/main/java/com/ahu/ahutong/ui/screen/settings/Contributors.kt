@@ -8,6 +8,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.ahu.ahutong.ui.components.AppDialog
@@ -75,22 +82,30 @@ fun Contributors(
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         var seniorArea by remember { mutableStateOf(Rect.Zero) }
         var rootOrigin by remember { mutableStateOf(Offset.Zero) }
+        val authorHeaderAreas = remember { mutableStateMapOf<String, Rect>() }
+        var authorTapUntil by remember { mutableLongStateOf(0L) }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onGloballyPositioned { rootOrigin = it.localToWindow(Offset.Zero) }
-                // 摊开后点页面上任何非头像区域都收回堆叠（含别的卡片）
-                .pointerInput(seniorsExpanded) {
-                    if (!seniorsExpanded) return@pointerInput
+                // 摊开后点页面上任何非头像区域都收回堆叠；提交列表同理，只留作者行可点
+                .pointerInput(seniorsExpanded, expandedAuthors) {
+                    if (!seniorsExpanded && expandedAuthors.isEmpty()) return@pointerInput
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent(PointerEventPass.Final)
                             if (event.type == PointerEventType.Release) {
                                 val windowPosition = event.changes.firstOrNull()
                                     ?.position
-                                    ?.let { rootOrigin + it }
-                                if (windowPosition != null && !seniorArea.contains(windowPosition)) {
+                                    ?.let { rootOrigin + it } ?: continue
+                                if (seniorsExpanded && !seniorArea.contains(windowPosition)) {
                                     seniorsExpanded = false
+                                }
+                                if (expandedAuthors.isNotEmpty() &&
+                                    System.currentTimeMillis() >= authorTapUntil &&
+                                    authorHeaderAreas.values.none { it.contains(windowPosition) }
+                                ) {
+                                    expandedAuthors = emptySet()
                                 }
                             }
                         }
@@ -225,12 +240,22 @@ fun Contributors(
                                 summary = developerViewModel.summary(author),
                                 expanded = author.login in expandedAuthors,
                                 onToggle = {
+                                    authorTapUntil = System.currentTimeMillis() + 250
                                     expandedAuthors = if (author.login in expandedAuthors) {
                                         expandedAuthors - author.login
                                     } else {
                                         expandedAuthors + author.login
                                     }
                                 },
+                                onContact = {
+                                    val qq = developerViewModel.qqOf(author.login)
+                                    if (qq != null) {
+                                        openQq(context, qq)
+                                    } else {
+                                        openUrl(context, "https://github.com/${author.login}")
+                                    }
+                                },
+                                onHeaderBounds = { authorHeaderAreas[author.login] = it },
                                 onOpenCommit = { openUrl(context, it.url) }
                             )
                             if (index != state.authors.lastIndex) {
@@ -286,12 +311,15 @@ private fun ActiveAuthorRow(
     summary: String,
     expanded: Boolean,
     onToggle: () -> Unit,
+    onContact: () -> Unit,
+    onHeaderBounds: (Rect) -> Unit,
     onOpenCommit: (CommitRecord) -> Unit
 ) {
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .onGloballyPositioned { onHeaderBounds(it.boundsInWindow()) }
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -320,26 +348,42 @@ private fun ActiveAuthorRow(
                 )
             }
         }
-        if (expanded) {
-            author.commits.forEach { commit ->
-                Column(
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                Text(
+                    text = "联系我",
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenCommit(commit) }
-                        .padding(start = 78.dp, end = 20.dp, top = 4.dp, bottom = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        text = commit.title,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = "${commit.shortSha} ${commit.dateCst.take(10)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        .padding(start = 78.dp, top = 2.dp, bottom = 6.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onContact)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                author.commits.forEach { commit ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenCommit(commit) }
+                            .padding(start = 78.dp, end = 20.dp, top = 4.dp, bottom = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = commit.title,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${commit.shortSha} ${commit.dateCst.take(10)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -360,5 +404,18 @@ private fun openUrl(context: Context, url: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }.onFailure {
         Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun openQq(context: Context, qq: String) {
+    runCatching {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                "mqqapi://card/show_pslcard?&uin=$qq".toUri()
+            ).apply { flags = Intent.FLAG_ACTIVITY_CLEAR_TOP }
+        )
+    }.onFailure {
+        Toast.makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT).show()
     }
 }
