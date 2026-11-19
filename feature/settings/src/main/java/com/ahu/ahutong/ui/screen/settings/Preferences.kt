@@ -214,6 +214,18 @@ fun Preferences(
             }
 
             if (section == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
+                title = "电费预警",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsActionRow(
+                    title = "电费预警",
+                    showDivider = false,
+                    onClick = onOpenElectricityAlertSettings
+                )
+            }
+
+            if (section == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
                 title = "通知",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
@@ -314,18 +326,6 @@ fun Preferences(
                         onClick = viewModel::sendXuexiaotongTestNotification
                     )
                 }
-            }
-
-            if (section == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
-                title = "电费预警",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop
-            ) {
-                SettingsActionRow(
-                    title = "电费预警",
-                    showDivider = false,
-                    onClick = onOpenElectricityAlertSettings
-                )
             }
 
             if (section == PreferencesSection.INTELLIGENCE) SettingsSection(
