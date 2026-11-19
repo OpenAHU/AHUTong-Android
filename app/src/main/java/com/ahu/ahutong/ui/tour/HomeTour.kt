@@ -157,6 +157,16 @@ internal object HomeTourState {
     }
 }
 
+/** 研究生账号没有课表设置入口，也没有学习通主路由，这几步都不该出现。 */
+private val GraduateUnavailableTargets = setOf(
+    "schedule_settings",
+    "nav_xuexiaotong",
+    "tour_work_card",
+    "work_jump_btn",
+    "work_questions_btn",
+    "xuexiaotong_refresh"
+)
+
 @Composable
 internal fun HomeTourHost(
     currentRoute: String?,
@@ -171,7 +181,7 @@ internal fun HomeTourHost(
         if (undergraduateEnabled) {
             TourStops
         } else {
-            TourStops.filterNot { it.targetId == "schedule_settings" }
+            TourStops.filterNot { it.targetId in GraduateUnavailableTargets }
         }
     }
     var visible by remember { mutableStateOf(false) }
