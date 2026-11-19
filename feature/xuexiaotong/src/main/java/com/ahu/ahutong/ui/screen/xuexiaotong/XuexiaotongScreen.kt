@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -731,7 +732,12 @@ private fun XxtSettingSwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(SmoothRoundedCornerShape(12.dp))
-            .clickable { onSelect(!selected) }
+            // 整行接管点击，开关本体只展示状态：两处同时可点会让同一次点击翻转两次而看起来没反应
+            .toggleable(
+                value = selected,
+                role = androidx.compose.ui.semantics.Role.Switch,
+                onValueChange = onSelect
+            )
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -756,7 +762,7 @@ private fun XxtSettingSwitchRow(
         }
         AppToggle(
             checked = selected,
-            onCheckedChange = onSelect,
+            onCheckedChange = null,
             modifier = Modifier.padding(start = 16.dp),
             contentDescription = title
         )
