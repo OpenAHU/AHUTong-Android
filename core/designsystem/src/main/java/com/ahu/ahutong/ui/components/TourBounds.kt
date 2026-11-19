@@ -1,10 +1,6 @@
 package com.ahu.ahutong.ui.components
 
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -53,16 +49,4 @@ fun Modifier.tourTarget(id: String): Modifier = composed {
         onDispose { TourBounds.forget(id) }
     }
     onGloballyPositioned { TourBounds.report(id, it.boundsInWindow()) }
-}
-
-/** 先把目标滚进可视区（系统保证至少露出来），再由页面按需做居中修正。 */
-fun Modifier.tourBringIntoView(id: String): Modifier = composed {
-    val requester = remember { BringIntoViewRequester() }
-    val signal = TourScrollRequest.signal
-    LaunchedEffect(signal) {
-        if (TourScrollRequest.targetId == id) {
-            runCatching { requester.bringIntoView() }
-        }
-    }
-    bringIntoViewRequester(requester)
 }

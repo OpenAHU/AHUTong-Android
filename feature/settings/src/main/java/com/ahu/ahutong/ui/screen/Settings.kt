@@ -85,7 +85,6 @@ import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.tourTarget
-import com.ahu.ahutong.ui.components.tourBringIntoView
 import com.ahu.ahutong.ui.components.TourBounds
 import com.ahu.ahutong.ui.components.TourScrollRequest
 import com.ahu.ahutong.ui.components.isRadiantUi
@@ -290,15 +289,15 @@ fun Settings(
                     attempts += 1
                 }
                 var target = rect ?: return@collectLatest
-                // 等系统的 bringIntoView 动画落定，再做居中修正
-                delay(420)
+                // 等切步的聚焦形变结束再开始滚动，二者不再互相追赶
+                delay(360)
                 target = TourBounds.get(targetId) ?: target
                 repeat(2) { attempt ->
                     val delta = (target.top + target.bottom) / 2f - screenHeightPx / 2f
                     if (kotlin.math.abs(delta) <= 8f) return@collectLatest
                     pageScrollState.animateScrollBy(
                         delta,
-                        tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                        tween(durationMillis = 360, easing = FastOutSlowInEasing)
                     )
                     // 滚动后重新取一次，处理被边界夹住的情况
                     target = TourBounds.get(targetId) ?: return@collectLatest
@@ -431,8 +430,7 @@ fun Settings(
             SettingsActionRow(
                 title = "外观与主题",
                 modifier = Modifier
-                    .tourTarget("settings_appearance")
-                    .tourBringIntoView("settings_appearance"),
+                    .tourTarget("settings_appearance"),
                 leadingPainter = painterResource(R.drawable.ic_palette),
                 onClick = onOpenAppearance
             )
@@ -444,8 +442,7 @@ fun Settings(
             SettingsActionRow(
                 title = "通知提醒",
                 modifier = Modifier
-                    .tourTarget("settings_notifications")
-                    .tourBringIntoView("settings_notifications"),
+                    .tourTarget("settings_notifications"),
                 leadingPainter = painterResource(R.drawable.ic_remind),
                 showDivider = false,
                 onClick = onOpenNotifications
@@ -475,8 +472,7 @@ fun Settings(
             SettingsActionRow(
                 title = "问题反馈",
                 modifier = Modifier
-                    .tourTarget("settings_feedback")
-                    .tourBringIntoView("settings_feedback"),
+                    .tourTarget("settings_feedback"),
                 leadingPainter = painterResource(R.drawable.ic_feedback),
                 onClick = onOpenFeedback
             )

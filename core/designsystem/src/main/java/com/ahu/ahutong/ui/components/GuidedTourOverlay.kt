@@ -303,8 +303,8 @@ private fun GuidedTourOverlayBody(
                     ConfettiPiece(
                         fromLeft = fromLeft,
                         angle = baseAngle + (random.nextFloat() - 0.5f) * 0.84f,
-                        speed = 0.95f + random.nextFloat() * 0.95f,
-                        originY = 0.42f + random.nextFloat() * 0.18f,
+                        speed = 0.62f + random.nextFloat() * 0.45f,
+                        originY = 0.55f + random.nextFloat() * 0.15f,
                         spin = (random.nextFloat() * 2f - 1f) * 720f,
                         flipFrequency = 5f + random.nextFloat() * 7f,
                         flipPhase = random.nextFloat() * 6.28f,
@@ -328,8 +328,8 @@ private fun GuidedTourOverlayBody(
                         Color(0xFFFF8FAB)
                     )
                     val elapsed = progress * 3.4f
-                    val drag = 1.7f
-                    val gravity = size.height * 1.45f
+                    val drag = 2.8f
+                    val gravity = size.height * 1.05f
                     pieces.forEach { piece ->
                         val t = elapsed - piece.delaySeconds
                         if (t <= 0f) return@forEach
