@@ -1,29 +1,31 @@
 package com.ahu.ahutong.ui.plugin
 
+import android.content.Context
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ahu.ahutong.R
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,45 +37,80 @@ private fun capabilityLabel(raw: String): String = when (raw.trim().uppercase())
     else -> raw
 }
 
-/** 「全部小工具」标题栏的快捷安装入口；仅在插件开关已开启时显示。 */
-@Composable
-fun PluginQuickInstallButton(
-    modifier: Modifier = Modifier,
-    onInstalled: () -> Unit = {}
+/**
+ * 「全部小工具」标题栏快捷安装入口的状态。
+ * 按钮本身交给标题栏的 actions 渲染，这里只管选包、确认与安装。
+ */
+@Stable
+class PluginQuickInstallState internal constructor(
+    private val context: Context,
+    private val scope: CoroutineScope,
+    private val onInstalled: () -> Unit
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var candidate by remember { mutableStateOf<AhupCandidate?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    var candidate by mutableStateOf<AhupCandidate?>(null)
+        internal set
+    var busy by mutableStateOf(false)
+        internal set
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    internal var launchPicker: () -> Unit = {}
+
+    fun pick() {
+        if (!busy) launchPicker()
+    }
+
+    internal fun onPicked(uri: Uri?) {
+        if (uri == null) return
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { AhupInstaller.inspect(context, uri) } }
                 .onSuccess { candidate = it }
                 .onFailure {
-                    Toast.makeText(
-                        context,
-                        it.message ?: "无法读取插件包",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, it.message ?: "无法读取插件包", Toast.LENGTH_SHORT).show()
                 }
         }
     }
 
-    IconButton(
-        onClick = { picker.launch(arrayOf("*/*")) },
-        modifier = modifier,
-        enabled = !busy
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_plugin),
-            contentDescription = "安装插件",
-            tint = MaterialTheme.colorScheme.onSurface
-        )
+    internal fun dismiss() {
+        if (!busy) candidate = null
     }
 
-    candidate?.let { c ->
+    internal fun install() {
+        val c = candidate ?: return
+        if (busy || c.signerChanged) return
+        busy = true
+        scope.launch {
+            runCatching {
+                PluginRegistry.update(context) { AhupInstaller.install(context, c) }
+            }.onSuccess {
+                Toast.makeText(context, "插件已安装", Toast.LENGTH_SHORT).show()
+                onInstalled()
+            }.onFailure {
+                Toast.makeText(context, it.message ?: "插件安装失败", Toast.LENGTH_SHORT).show()
+            }
+            busy = false
+            candidate = null
+        }
+    }
+}
+
+@Composable
+fun rememberPluginQuickInstallState(onInstalled: () -> Unit = {}): PluginQuickInstallState {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val currentOnInstalled = rememberUpdatedState(onInstalled)
+    val state = remember(context, scope) {
+        PluginQuickInstallState(context, scope) { currentOnInstalled.value() }
+    }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        state.onPicked(uri)
+    }
+    SideEffect { state.launchPicker = { picker.launch(arrayOf("*/*")) } }
+    return state
+}
+
+@Composable
+fun PluginQuickInstallDialogs(state: PluginQuickInstallState) {
+    state.candidate?.let { c ->
+        val busy = state.busy
         val signatureText = when (c.signatureStatus) {
             AhupInstaller.SignatureStatus.TRUSTED -> "✅ 该插件由官方开发"
             AhupInstaller.SignatureStatus.KNOWN ->
@@ -86,40 +123,19 @@ fun PluginQuickInstallButton(
         val installBlocked = c.signerChanged
         AppDialog(
             title = "安装插件",
-            onDismiss = { if (!busy) candidate = null },
+            onDismiss = state::dismiss,
             subtitle = "${c.manifest.title} v${c.manifest.version}",
             actions = listOf(
                 AppDialogAction(
                     label = "取消",
-                    onClick = { if (!busy) candidate = null },
+                    onClick = state::dismiss,
                     style = AppDialogActionStyle.Neutral,
                     enabled = !busy
                 ),
                 AppDialogAction(
                     label = if (installBlocked) "请先卸载旧版本" else if (busy) "安装中…" else "安装",
                     enabled = !installBlocked && !busy,
-                    onClick = {
-                        if (busy || installBlocked) return@AppDialogAction
-                        busy = true
-                        scope.launch {
-                            runCatching {
-                                PluginRegistry.update(context) {
-                                    AhupInstaller.install(context, c)
-                                }
-                            }.onSuccess {
-                                Toast.makeText(context, "插件已安装", Toast.LENGTH_SHORT).show()
-                                onInstalled()
-                            }.onFailure {
-                                Toast.makeText(
-                                    context,
-                                    it.message ?: "插件安装失败",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            busy = false
-                            candidate = null
-                        }
-                    },
+                    onClick = state::install,
                     style = if (c.signatureStatus == AhupInstaller.SignatureStatus.INVALID ||
                         installBlocked
                     ) {

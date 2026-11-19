@@ -18,12 +18,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.ahu.ahutong.R
 import com.ahu.ahutong.ui.components.AppPageScaffold
+import com.ahu.ahutong.ui.components.TrailingAction
 import com.ahu.ahutong.ui.plugin.AhupGate
-import com.ahu.ahutong.ui.plugin.PluginQuickInstallButton
+import com.ahu.ahutong.ui.plugin.PluginQuickInstallDialogs
 import com.ahu.ahutong.ui.plugin.PluginRegistry
+import com.ahu.ahutong.ui.plugin.rememberPluginQuickInstallState
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetSpec
 import com.ahu.ahutong.ui.screen.main.home.WidgetCategory
@@ -59,6 +63,7 @@ fun MoreWidgetsScreen(
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var showPluginQuickInstall by remember { mutableStateOf(AhupGate.isDevMode(context)) }
+    val quickInstall = rememberPluginQuickInstallState()
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
@@ -73,10 +78,16 @@ fun MoreWidgetsScreen(
         title = "全部小工具",
         onBack = { navController.popBackStack() },
         bottomPadding = 48.dp,
-        trailingContent = if (showPluginQuickInstall) {
-            { PluginQuickInstallButton() }
+        actions = if (showPluginQuickInstall) {
+            listOf(
+                TrailingAction(
+                    painter = painterResource(R.drawable.ic_plugin),
+                    contentDescription = "安装插件",
+                    onClick = quickInstall::pick
+                )
+            )
         } else {
-            null
+            emptyList()
         },
         content = {
             // 水平内边距由壳统一提供，页面内容不再自带
@@ -95,6 +106,7 @@ fun MoreWidgetsScreen(
             }
         }
     )
+    PluginQuickInstallDialogs(quickInstall)
 }
 
 /** 自适应网格行：列数按可用宽度现算，残行保持普通列宽、左对齐。 */
