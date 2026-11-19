@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Update
+import androidx.compose.material.icons.rounded.Search
 import com.ahu.ahutong.ui.haptics.HapticAlertDialog as AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,6 +73,7 @@ import com.ahu.ahutong.ui.components.SettingsHeroCard
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.SettingsPageLayout
+import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
@@ -119,6 +121,123 @@ fun Settings(
     var lastAppCardTap by remember { mutableLongStateOf(0L) }
     val useMiuixIcons = LocalAppUiTheme.current == AppUiTheme.MIUIX
     val isRadiant = isRadiantUi
+    var showSettingsSearch by remember { mutableStateOf(false) }
+
+    val searchEntries = buildList {
+        add(
+            SettingsSearchEntry(
+                title = "AI 设置",
+                keywords = listOf("AI", "智能", "模型", "大模型", "试用", "密钥", "API", "对话", "助手"),
+                open = onOpenAiSettings
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "主页设置",
+                keywords = listOf("主页", "校园卡", "付款码", "二维码", "上屏", "优先级", "排序", "主标题", "hero", "卡片"),
+                open = onOpenCampusCard
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "智能体验",
+                keywords = listOf("个性化", "推荐", "预测", "学习", "行为", "猜你想用"),
+                open = onOpenIntelligence
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "插件与安装",
+                keywords = listOf("插件", "安装", "ahup", "扩展", "卸载"),
+                open = onNavigateToPlugins
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "外观与主题",
+                keywords = listOf("主题", "深色", "夜间", "浅色", "颜色", "字体", "字号", "玻璃", "圆角", "外观"),
+                open = onOpenAppearance
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "数据与隐私",
+                keywords = listOf("隐私", "权限", "安全键盘", "密码", "数据", "清除", "缓存", "训练", "必吃榜", "上传", "学习记录"),
+                open = onOpenDataPrivacy
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "通知与提醒",
+                keywords = listOf("通知", "提醒", "推送", "课前", "作业提醒", "电费", "预警"),
+                open = onOpenNotifications
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = stringResource(id = R.string.check_update),
+                keywords = listOf("更新", "升级", "版本", "新版本"),
+                open = {
+                    onCheckUpdate { message ->
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "抢先体验",
+                keywords = listOf("抢先", "内测", "beta", "体验"),
+                open = onNavigateToEarlyAccess
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "反馈",
+                keywords = listOf("反馈", "意见", "建议", "问题", "bug", "报错"),
+                open = onOpenFeedback
+            )
+        )
+        add(
+            SettingsSearchEntry(
+                title = "关于安大通",
+                keywords = listOf("关于", "版本", "官网", "贡献者", "开源", "许可", "隐私政策"),
+                open = onNavigateToAbout
+            )
+        )
+        if (accountName != null) {
+            add(
+                SettingsSearchEntry(
+                    title = "个人信息",
+                    keywords = listOf("个人信息", "资料", "学籍", "账号"),
+                    open = onNavigateToProfile
+                )
+            )
+            add(
+                SettingsSearchEntry(
+                    title = "重新登录",
+                    keywords = listOf("登录", "退出", "重登", "密码"),
+                    open = onNavigateToLogin
+                )
+            )
+            add(
+                SettingsSearchEntry(
+                    title = "切换账号",
+                    keywords = listOf("切换", "换号", "多账号"),
+                    open = onSwitchAccount
+                )
+            )
+        }
+        if (debugBuild) {
+            add(
+                SettingsSearchEntry(
+                    title = "开发者选项",
+                    keywords = listOf("开发者", "debug", "调试"),
+                    open = onNavigateToDebug
+                )
+            )
+        }
+    }
 
     LaunchedEffect(tip) {
         tip?.let {
@@ -144,7 +263,15 @@ fun Settings(
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         SettingsPageLayout(
             title = stringResource(id = R.string.setting),
-            backdrop = backdrop
+            backdrop = backdrop,
+            actions = {
+                AppHeaderIconButton(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = "搜索设置",
+                    onClick = { showSettingsSearch = true },
+                    backdrop = backdrop
+                )
+            }
         ) {
         val isLiquid = LocalIsLiquidGlassEnabled.current
         val heroContentColor = if (isLiquid) {
@@ -293,6 +420,13 @@ fun Settings(
                 leadingPainter = painterResource(R.drawable.ic_info),
                 showDivider = false,
                 onClick = onNavigateToAbout
+            )
+        }
+
+        if (showSettingsSearch) {
+            SettingsSearchSheet(
+                entries = searchEntries,
+                onDismiss = { showSettingsSearch = false }
             )
         }
     }

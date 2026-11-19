@@ -184,6 +184,7 @@ fun SettingsPageLayout(
     scrollState: ScrollState = rememberScrollState(),
     scrollEnabled: Boolean = true,
     bottomPadding: androidx.compose.ui.unit.Dp = 112.dp,
+    actions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     val uiTheme = LocalAppUiTheme.current
@@ -196,7 +197,12 @@ fun SettingsPageLayout(
                 .padding(bottom = bottomPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            SettingsPageHeader(title = title, onBack = onBack, backdrop = backdrop)
+            SettingsPageHeader(
+                title = title,
+                onBack = onBack,
+                backdrop = backdrop,
+                actions = actions
+            )
             content()
         }
         return
@@ -218,7 +224,8 @@ fun SettingsPageLayout(
                     onBack?.let { callback ->
                         AppPageBackButton(onBack = callback)
                     }
-                }
+                },
+                actions = { actions() }
             )
         }
     ) { paddingValues ->
@@ -249,13 +256,15 @@ fun SettingsPageHeader(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
-    backdrop: Backdrop? = null
+    backdrop: Backdrop? = null,
+    actions: @Composable RowScope.() -> Unit = {}
 ) {
     AppPageHeader(
         title = title,
         modifier = modifier,
         onBack = onBack,
-        backdrop = backdrop
+        backdrop = backdrop,
+        actions = actions
     )
 }
 
