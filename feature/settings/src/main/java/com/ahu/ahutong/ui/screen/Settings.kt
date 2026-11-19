@@ -224,7 +224,7 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = "AHUTong Intelligence",
-                leadingIcon = Icons.Outlined.AutoAwesome,
+                leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
                 onClick = onOpenAiSettings
             )
             SettingsActionRow(
