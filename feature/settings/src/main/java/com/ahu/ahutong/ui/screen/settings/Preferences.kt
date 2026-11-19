@@ -70,7 +70,6 @@ fun Preferences(
     onOpenThemeLab: () -> Unit = {},
     onOpenThemeColors: () -> Unit = {},
     onOpenElectricityAlertSettings: () -> Unit = {},
-    onOpenHeroPriority: () -> Unit = {},
     undergraduateEnabled: Boolean = true
 ) {
     val viewModel: PreferencesViewModel = hiltViewModel()
@@ -86,6 +85,7 @@ fun Preferences(
     }
 
     val showQRCode by viewModel.showQRCode.collectAsState()
+    val heroPriority by viewModel.heroPriority.collectAsState()
     val personalizationEnabled by viewModel.personalizationEnabled.collectAsState()
     val canteenUploadConsent by viewModel.canteenUploadConsent.collectAsState()
     val predictivePrefetchEnabled by viewModel.predictivePrefetchEnabled.collectAsState()
@@ -188,12 +188,12 @@ fun Preferences(
             )
 
             if (section == PreferencesSection.HOME) SettingsSection(
-                title = "主页设置",
+                title = "校园卡显示",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
                 SettingsToggleRow(
-                    title = "主页默认显示付款码",
+                    title = "付款码常开",
                     selected = showQRCode,
                     onSelectedChange = viewModel::setShowQRCode,
                     backdrop = backdrop,
@@ -203,14 +203,13 @@ fun Preferences(
             }
 
             if (section == PreferencesSection.HOME) SettingsSection(
-                title = "主页卡片",
+                title = "主标题优先级",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
-                SettingsActionRow(
-                    title = "上屏优先级",
-                    onClick = onOpenHeroPriority,
-                    showDivider = false
+                HeroPriorityList(
+                    order = heroPriority,
+                    onCommit = viewModel::setHeroPriority
                 )
             }
 

@@ -23,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,14 +43,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.core.storage.HomeHeroSlot
-import com.ahu.ahutong.ui.components.SettingsBackdropContainer
-import com.ahu.ahutong.ui.components.SettingsPageLayout
-import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.settingsPrimaryTextStyle
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
-import com.ahu.ahutong.ui.state.PreferencesViewModel
 import kotlin.math.roundToInt
 
 private val HeroRowHeight = 64.dp
@@ -66,30 +60,7 @@ private fun HomeHeroSlot.label(): String = when (this) {
 
 /** 主页 Hero 的上屏优先级：拖动排列，顺序即绝对优先级。 */
 @Composable
-fun HeroPrioritySettings(
-    onBack: () -> Unit = {},
-    viewModel: PreferencesViewModel = hiltViewModel()
-) {
-    val priority by viewModel.heroPriority.collectAsState()
-
-    SettingsBackdropContainer(Modifier.fillMaxSize()) { backdrop ->
-        SettingsPageLayout(title = "上屏优先级", onBack = onBack, backdrop = backdrop) {
-            SettingsSection(
-                title = "显示顺序",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop
-            ) {
-                HeroPriorityList(
-                    order = priority,
-                    onCommit = viewModel::setHeroPriority
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeroPriorityList(
+internal fun HeroPriorityList(
     order: List<HomeHeroSlot>,
     onCommit: (List<HomeHeroSlot>) -> Unit
 ) {
