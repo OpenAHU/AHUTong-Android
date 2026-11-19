@@ -71,6 +71,19 @@ data class GuidedTourStep(
     val note: String? = null
 )
 
+/** 纸花参数：归一化速度与尺寸，绘制时按屏幕尺寸展开。 */
+private data class ConfettiPiece(
+    val fromLeft: Boolean,
+    val angle: Float,
+    val speedX: Float,
+    val speedY: Float,
+    val originY: Float,
+    val spin: Float,
+    val widthDp: Float,
+    val heightDp: Float,
+    val colorIndex: Int
+)
+
 /**
  * 全屏新手导览：暗幕 + 主题色镂空 + 贴着目标的说明卡。
  * 目标边界由 [TourBounds] 提供，滚动或切页后自动跟随。
@@ -267,49 +280,70 @@ private fun GuidedTourOverlayBody(
             }
         }
 
-        // 收尾卡片：两侧不断弹起的彩色纸花
+        // 收尾卡片：两侧各喷一次纸花，落完即止，不循环
         if (celebrate) {
-            val confetti = rememberInfiniteTransition(label = "tourConfetti")
-            val confettiProgress by confetti.animateFloat(
-                initialValue = 0f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(2200, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "tourConfettiProgress"
-            )
-            Canvas(Modifier.fillMaxSize()) {
-                val palette = listOf(
-                    Color(0xFFF26D6D),
-                    Color(0xFFF6B352),
-                    Color(0xFF66C2A5),
-                    Color(0xFF5AA9E6),
-                    Color(0xFFB984DB),
-                    Color(0xFFF28DB2)
-                )
-                val pieceW = 7.dp.toPx()
-                val pieceH = 12.dp.toPx()
-                repeat(18) { i ->
-                    val fromLeft = i % 2 == 0
-                    val t = (confettiProgress + i * 0.055f) % 1f
-                    val dir = if (fromLeft) 1f else -1f
-                    val originX = if (fromLeft) 0f else size.width
-                    val originY = size.height * (0.34f + (i % 5) * 0.05f)
-                    val x = originX + dir * size.width * 0.30f * t
-                    val y = originY + size.height * 0.30f * t * t - size.height * 0.18f * t
-                    val alpha = ((1f - t) / 0.25f).coerceIn(0f, 1f)
-                    if (alpha <= 0f) return@repeat
-                    rotate(
-                        degrees = 200f * t * if (fromLeft) 1f else -1f,
-                        pivot = Offset(x, y)
-                    ) {
-                        drawRoundRect(
-                            color = palette[i % palette.size].copy(alpha = alpha),
-                            topLeft = Offset(x - pieceW / 2f, y - pieceH / 2f),
-                            size = Size(pieceW, pieceH),
-                            cornerRadius = CornerRadius(2.dp.toPx())
-                        )
+            val burst = remember { Animatable(0f) }
+            LaunchedEffect(Unit) {
+                burst.snapTo(0f)
+                burst.animateTo(1f, tween(durationMillis = 2600, easing = LinearEasing))
+            }
+            val random = remember { kotlin.random.Random(20261120) }
+            val pieces = remember {
+                List(96) { index ->
+                    val fromLeft = index % 2 == 0
+                    ConfettiPiece(
+                        fromLeft = fromLeft,
+                        angle = random.nextFloat() * 0.9f + 0.05f,
+                        speedX = random.nextFloat() * 0.55f + 0.45f,
+                        speedY = random.nextFloat() * 0.40f + 0.35f,
+                        originY = random.nextFloat() * 0.18f + 0.40f,
+                        spin = (random.nextFloat() * 2f - 1f) * 540f,
+                        widthDp = random.nextFloat() * 4f + 5f,
+                        heightDp = random.nextFloat() * 6f + 10f,
+                        colorIndex = random.nextInt(6)
+                    )
+                }
+            }
+            val progress = burst.value
+            if (progress > 0f) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val palette = listOf(
+                        Color(0xFFF26D6D),
+                        Color(0xFFF6B352),
+                        Color(0xFF66C2A5),
+                        Color(0xFF5AA9E6),
+                        Color(0xFFB984DB),
+                        Color(0xFFF28DB2)
+                    )
+                    pieces.forEach { piece ->
+                        val t = progress
+                        // 前 0.1 秒集中出膛，后段靠重力下落
+                        val launch = ((t - piece.angle * 0.06f) / 0.94f).coerceIn(0f, 1f)
+                        if (launch <= 0f) return@forEach
+                        val dir = if (piece.fromLeft) 1f else -1f
+                        val originX = if (piece.fromLeft) 0f else size.width
+                        val vx = size.width * piece.speedX
+                        val vy = -size.height * piece.speedY
+                        val gravity = size.height * 1.35f
+                        val x = originX + dir * vx * launch
+                        val y = size.height * piece.originY + vy * launch + gravity * launch * launch
+                        if (y > size.height * 1.1f) return@forEach
+                        val alpha = if (launch < 0.65f) 1f else ((1f - launch) / 0.35f).coerceIn(0f, 1f)
+                        if (alpha <= 0f) return@forEach
+                        rotate(
+                            degrees = piece.spin * launch,
+                            pivot = Offset(x, y)
+                        ) {
+                            drawRoundRect(
+                                color = palette[piece.colorIndex].copy(alpha = alpha),
+                                topLeft = Offset(
+                                    x - piece.widthDp.dp.toPx() / 2f,
+                                    y - piece.heightDp.dp.toPx() / 2f
+                                ),
+                                size = Size(piece.widthDp.dp.toPx(), piece.heightDp.dp.toPx()),
+                                cornerRadius = CornerRadius(2.dp.toPx())
+                            )
+                        }
                     }
                 }
             }
