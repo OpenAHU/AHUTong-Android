@@ -8,11 +8,11 @@ class SettingsSearchTest {
     private val entries = listOf(
         SettingsSearchEntry("外观与主题", listOf("深色", "夜间"), open = {}),
         SettingsSearchEntry("通知与提醒", listOf("推送", "电费", "预警"), open = {}),
-        SettingsSearchEntry("插件与安装", listOf("扩展", "ahup"), open = {})
+        SettingsSearchEntry("插件装载", listOf("扩展", "ahup"), open = {})
     )
 
     @Test fun matchesTheTitle() {
-        assertEquals(listOf("插件与安装"), searchSettings(entries, "插件").map { it.title })
+        assertEquals(listOf("插件装载"), searchSettings(entries, "插件").map { it.title })
     }
 
     @Test fun matchesSynonymsFromTheKeywordList() {

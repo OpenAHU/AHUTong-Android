@@ -14,7 +14,7 @@ import com.ahu.ahutong.ui.plugin.PluginManagerSection
 fun PluginSettingsScreen(onBack: () -> Unit) {
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         SettingsPageLayout(
-            title = "插件与安装",
+            title = "插件装载",
             onBack = onBack,
             backdrop = backdrop
         ) {

@@ -147,7 +147,7 @@ fun Settings(
         )
         add(
             SettingsSearchEntry(
-                title = "插件与安装",
+                title = "插件装载",
                 keywords = listOf("插件", "安装", "ahup", "扩展", "卸载"),
                 open = onNavigateToPlugins
             )
@@ -369,7 +369,7 @@ fun Settings(
                 onClick = onOpenIntelligence
             )
             SettingsActionRow(
-                title = "插件与安装",
+                title = "插件装载",
                 leadingPainter = painterResource(R.drawable.ic_plugin),
                 showDivider = false,
                 onClick = onNavigateToPlugins
