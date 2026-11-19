@@ -436,7 +436,7 @@ data class GuidedTourDialogOverlayState(
 val LocalGuidedTourDialogOverlay =
     androidx.compose.runtime.staticCompositionLocalOf<GuidedTourDialogOverlayState?> { null }
 
-/** 导览文案里的 **重点** 标记：半粗 + 主题色，其余保持正文样式。 */
+/** 导览文案里的 **重点** 标记：加粗 + 主题色，其余保持正文样式。 */
 private fun emphasizeTourBody(text: String, accent: androidx.compose.ui.graphics.Color) =
     buildAnnotatedString {
         var cursor = 0
@@ -452,7 +452,7 @@ private fun emphasizeTourBody(text: String, accent: androidx.compose.ui.graphics
                 append(text.substring(start))
                 break
             }
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = accent)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = accent)) {
                 append(text.substring(start + 2, end))
             }
             cursor = end + 2
