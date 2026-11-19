@@ -647,6 +647,59 @@ fun SettingsToggleRow(
     }
 }
 
+/**
+ * 抽屉式设置面板里的开关行（课表设置、学习通日历设置共用）。
+ * 整行接管点击、开关本体只展示状态：玻璃主题下开关自带的点击检测与整行点击
+ * 会各触发一次，等于翻转两次而看起来没反应。
+ */
+@Composable
+fun AppSheetSwitchRow(
+    title: String,
+    selected: Boolean,
+    onSelect: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    description: String? = null
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(SmoothRoundedCornerShape(12.dp))
+            .toggleable(
+                value = selected,
+                role = Role.Switch,
+                onValueChange = onSelect
+            )
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            description?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+        AppToggle(
+            checked = selected,
+            onCheckedChange = null,
+            modifier = Modifier.padding(start = 16.dp),
+            contentDescription = title
+        )
+    }
+}
+
 @Composable
 fun SettingsSliderRow(
     title: String,

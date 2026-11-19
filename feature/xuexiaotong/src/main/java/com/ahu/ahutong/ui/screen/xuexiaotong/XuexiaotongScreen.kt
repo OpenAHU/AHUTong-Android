@@ -9,7 +9,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
-import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,7 +73,7 @@ import com.ahu.ahutong.data.xuexiaotong.CustomEvent
 import com.ahu.ahutong.data.xuexiaotong.Work
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
-import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.AppSheetSwitchRow
 import com.ahu.ahutong.ui.components.GlassBackdropContainer
 import com.ahu.ahutong.ui.components.headerScrim
 import com.ahu.ahutong.ui.components.tourTarget
@@ -682,22 +681,22 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                XxtSettingSwitchRow(
+                AppSheetSwitchRow(
                     title = "查看已完成作业",
                     selected = showDone,
                     onSelect = { viewModel.toggleShowDone() }
                 )
-                XxtSettingSwitchRow(
+                AppSheetSwitchRow(
                     title = "查看无任务点课程",
                     selected = showEmptyCourses,
                     onSelect = { viewModel.toggleShowEmptyCourses() }
                 )
-                XxtSettingSwitchRow(
+                AppSheetSwitchRow(
                     title = "已完成任务置灰",
                     selected = doneGray,
                     onSelect = { viewModel.toggleDoneGray() }
                 )
-                XxtSettingSwitchRow(
+                AppSheetSwitchRow(
                     title = "全量抓取",
                     description = "开启后每次刷新都会重抓已完成作业的详情，耗时更长",
                     selected = fullSyncEnabled,
@@ -718,54 +717,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                 Spacer(Modifier.height(8.dp))
             }
         }
-    }
-}
-
-@Composable
-private fun XxtSettingSwitchRow(
-    title: String,
-    description: String? = null,
-    selected: Boolean,
-    onSelect: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(SmoothRoundedCornerShape(12.dp))
-            // 整行接管点击，开关本体只展示状态：两处同时可点会让同一次点击翻转两次而看起来没反应
-            .toggleable(
-                value = selected,
-                role = androidx.compose.ui.semantics.Role.Switch,
-                onValueChange = onSelect
-            )
-            .padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = title,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            description?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-        AppToggle(
-            checked = selected,
-            onCheckedChange = null,
-            modifier = Modifier.padding(start = 16.dp),
-            contentDescription = title
-        )
     }
 }
 

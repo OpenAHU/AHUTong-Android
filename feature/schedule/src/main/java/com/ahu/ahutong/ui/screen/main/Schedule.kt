@@ -114,7 +114,7 @@ import com.ahu.ahutong.data.schedule.scheduleWeekDates
 import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.tourTarget
-import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.AppSheetSwitchRow
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -1009,7 +1009,7 @@ fun Schedule(
             },
             showSemesterBrowser = !isGraduate,
             extraSettings = {
-                ScheduleSettingRow(
+                AppSheetSwitchRow(
                     title = "同步到系统日历",
                     description = if (isGraduate) "同步本周及接下来两周的课程，提前 15 分钟提醒"
                     else "同步本周及接下来两周的课程，提前 15 分钟提醒。未结束的考试提前 30 分钟提醒",
@@ -1444,25 +1444,25 @@ private fun ScheduleSettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 extraSettings()
-                ScheduleSettingRow(
+                AppSheetSwitchRow(
                     title = "显示周六",
                     description = "关闭后隐藏周六课程，剩余天自动均分宽度",
                     selected = showSaturday,
                     onSelect = onShowSaturdayChange
                 )
-                ScheduleSettingRow(
+                AppSheetSwitchRow(
                     title = "显示周日",
                     description = "关闭后隐藏周日课程，剩余天自动均分宽度",
                     selected = showSunday,
                     onSelect = onShowSundayChange
                 )
-                ScheduleSettingRow(
+                AppSheetSwitchRow(
                     title = "显示当前时间线",
                     description = "在课表上标记现在的时间，直观显示当前课程进度",
                     selected = showNowTimeline,
                     onSelect = onShowNowTimelineChange
                 )
-                ScheduleSettingRow(
+                AppSheetSwitchRow(
                     title = "总览课表",
                     description = "显示全部周次的课程，重叠课程会平分同一块时间区域",
                     selected = isOverviewSchedule,
@@ -1506,49 +1506,6 @@ private fun ScheduleSettingsDialog(
         }
     }
 
-
-    @Composable
-    private fun ScheduleSettingRow(
-        title: String,
-        description: String? = null,
-        selected: Boolean,
-        onSelect: (Boolean) -> Unit
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(SmoothRoundedCornerShape(12.dp))
-                .clickable { onSelect(!selected) }
-                .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                description?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-            AppToggle(
-                checked = selected,
-                onCheckedChange = onSelect,
-                modifier = Modifier.padding(start = 16.dp),
-                contentDescription = title
-            )
-        }
-    }
 
     @Composable
     private fun ScheduleSettingEntryRow(
