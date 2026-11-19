@@ -52,7 +52,6 @@ fun AboutScreen(
     appName: String,
     appIcon: Painter,
     onBack: () -> Unit,
-    onOpenFeedback: () -> Unit,
     onOpenContributors: () -> Unit,
     onOpenLicense: () -> Unit,
     onOpenPrivacy: () -> Unit,
@@ -71,7 +70,7 @@ fun AboutScreen(
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         SettingsPageLayout(
-            title = "关于与支持",
+            title = "关于安大通",
             onBack = onBack,
             backdrop = backdrop
         ) {
@@ -124,11 +123,6 @@ fun AboutScreen(
                             Toast.makeText(context, "无法打开官网", Toast.LENGTH_SHORT).show()
                         }
                     }
-                )
-                SettingsActionRow(
-                    title = "反馈",
-                    leadingPainter = painterResource(R.drawable.ic_feedback),
-                    onClick = onOpenFeedback
                 )
                 SettingsActionRow(
                     title = "贡献者",

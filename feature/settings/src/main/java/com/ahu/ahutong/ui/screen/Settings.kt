@@ -104,6 +104,7 @@ fun Settings(
     earlyAccessSummary: String,
     onNavigateToDebug: () -> Unit,
     onNavigateToAbout: () -> Unit,
+    onOpenFeedback: () -> Unit,
     onCheckUpdate: ((String) -> Unit) -> Unit,
     accountName: String?,
     scheduleSummary: String,
@@ -283,7 +284,12 @@ fun Settings(
             backdrop = backdrop
         ) {
             SettingsActionRow(
-                title = "关于与支持",
+                title = "反馈",
+                leadingPainter = painterResource(R.drawable.ic_feedback),
+                onClick = onOpenFeedback
+            )
+            SettingsActionRow(
+                title = "关于安大通",
                 leadingPainter = painterResource(R.drawable.ic_info),
                 showDivider = false,
                 onClick = onNavigateToAbout

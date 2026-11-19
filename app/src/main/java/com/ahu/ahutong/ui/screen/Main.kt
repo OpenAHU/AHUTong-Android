@@ -163,7 +163,6 @@ import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
-import com.ahu.ahutong.feedback.FEEDBACK_ROUTE
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
 import com.ahu.ahutong.feedback.feedbackDestinations
 
@@ -844,7 +843,6 @@ fun Main(
                     appName = stringResource(R.string.app_name),
                     appIcon = painterResource(R.mipmap.ic_launcher_foreground),
                     onBack = { navController.popBackStack() },
-                    onOpenFeedback = { navController.navigate(FEEDBACK_ROUTE) },
                     onOpenContributors = { navController.navigate("settings__contributors") },
                     onOpenLicense = { navController.navigate("settings__license") },
                     onOpenPrivacy = { navController.navigate("settings__privacy_policy") },

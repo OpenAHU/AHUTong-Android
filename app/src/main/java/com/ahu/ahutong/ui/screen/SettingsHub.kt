@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.ahu.ahutong.MainActivity
 import com.ahu.ahutong.feedback.FEEDBACK_ROUTE
+import com.ahu.ahutong.feedback.FEEDBACK_ROUTE
 import com.ahu.ahutong.data.session.SavedAccounts
 import com.ahu.ahutong.ui.screen.setup.SavedAccountsDialog
 import androidx.compose.ui.res.painterResource
@@ -65,6 +66,7 @@ fun SettingsHub(
         earlyAccessSummary = earlyAccessSummary(earlyAccess),
         onNavigateToDebug = { navController.navigate("debug") },
         onNavigateToAbout = { navController.navigate("settings__about") },
+        onOpenFeedback = { navController.navigate(FEEDBACK_ROUTE) },
         onCheckUpdate = mainViewModel::checkApkUpdateManually,
         accountName = SessionStore.currentUser()?.name,
         scheduleSummary = if (AHUCache.canUseUndergraduateAcademics()) {
