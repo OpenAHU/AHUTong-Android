@@ -40,6 +40,12 @@ private data class TourStop(
 
 private val TourStops = listOf(
     TourStop(
+        targetId = "",
+        title = "你好！",
+        body = "让我们带你快速上手安大通。",
+        page = TourStopPage.HOME
+    ),
+    TourStop(
         targetId = "home_ai",
         title = "AHUTong Intelligence",
         body = "安大通原生智能体，通过自然语言把你的需求拆解并执行。目前已支持查询空闲教室、作业辅导等30+能力。",
