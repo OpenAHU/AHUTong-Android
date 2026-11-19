@@ -3,7 +3,9 @@ package com.ahu.ahutong.di
 import com.ahu.ahutong.core.storage.SettingsStore
 import com.ahu.ahutong.core.storage.PaymentKeyboardSetting
 import com.ahu.ahutong.core.storage.CourseReminderSettings
+import com.ahu.ahutong.data.commits.AhuCommitStatsSource
 import com.ahu.ahutong.data.dao.PreferencesManager
+import com.ahu.ahutong.ui.state.CommitStatsSource
 import com.ahu.ahutong.personalization.settings.BehaviorPredictionSettings
 import com.ahu.ahutong.personalization.settings.PersonalizationSettings
 import com.ahu.ahutong.ui.state.AndroidAppUpdateGateway
@@ -30,6 +32,13 @@ abstract class SettingsWiringModule {
     @Binds
     @Singleton
     abstract fun bindSettingsStore(implementation: PreferencesManager): SettingsStore
+
+    /** 贡献名单只读公开的提交统计；HTTP 细节留在 :app。 */
+    @Binds
+    @Singleton
+    abstract fun bindCommitStatsSource(
+        implementation: AhuCommitStatsSource
+    ): CommitStatsSource
 
     /** 付费页只问"用内置键盘吗"：同一条设置，两种问法。 */
     @Binds

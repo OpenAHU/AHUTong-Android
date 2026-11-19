@@ -2,75 +2,103 @@ package com.ahu.ahutong.ui.state
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
-import androidx.lifecycle.ViewModel
 import androidx.core.net.toUri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
- *
- * @Author: Sink
- * @Date: 2021/7/31-下午8:40
- * @Email: 468766131@qq.com
+ * 贡献名单：前辈（21/22 级）来自本地名单；活跃开发者的概述来自公开的提交统计。
  */
-class DeveloperViewModel : ViewModel() {
-    interface CardInfo {
-        val name: String
-        val desc: String
-        val qq: String
-        val img: String
-        val onclick: (Context) -> Unit
-    }
+@HiltViewModel
+class DeveloperViewModel @Inject constructor(
+    private val commitStats: CommitStatsSource
+) : ViewModel() {
 
-    class Developer(override val name: String, override val desc: String, override val qq: String) :
-        CardInfo {
-
-        override val img: String
+    class Senior(val name: String, val desc: String, val qq: String) {
+        val avatar: String
             get() = "https://q1.qlogo.cn/g?b=qq&nk=$qq&s=640"
-        override val onclick: (Context) -> Unit
-            get() = { context ->
-                try {
-                    context.startActivity(
-                        Intent(
-                            Intent.ACTION_VIEW,
-                            "mqqapi://card/show_pslcard?&uin=$qq".toUri()
-                        ).apply {
-                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        }
-                    )
-                } catch (e: Exception) {
-                    Toast.makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT).show()
-                }
+
+        fun openQq(context: Context) {
+            try {
+                context.startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        "mqqapi://card/show_pslcard?&uin=$qq".toUri()
+                    ).apply {
+                        flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                )
+            } catch (e: Exception) {
+                Toast.makeText(context, "请安装 QQ 或 Tim", Toast.LENGTH_SHORT).show()
             }
+        }
     }
 
-    class Partner(override val name: String, override val desc: String) : CardInfo {
-        override val qq: String = ""
-        override val img: String = ""
-        override val onclick: (Context) -> Unit
-            get() = { context ->
-                Toast.makeText(context, "请联系任意一位小伙伴", Toast.LENGTH_SHORT).show()
-            }
+    sealed interface CommitState {
+        data object Loading : CommitState
+        data class Ready(val authors: List<ActiveAuthor>) : CommitState
+        data object Failed : CommitState
     }
 
-    val developers by lazy {
-        listOf(
-            Developer("高玉灿（20级）", "架构规划、页面设计、爬虫", "468766131"),
-            Developer("谭哲昊（21级）", "架构规划、小组件", "330771794"),
-            Developer("王学雷（22级）", "页面设计、交互设计、新技术探索", "257314409"),
-            Developer("徐健灿（22级）", "爬虫、交互设计", "3148336396"),
-            Developer("王    钰（22级）", "架构规划、爬虫", "605606366"),
-            Developer("zirui.xu（24级）", "功能维护、开发", "1793838025"),
-            Developer("MuxYang（25级）", "充值系统维护、MiuixUI 开发", "32142587"),
-            Developer("InChange-Jiang（25级）", "学习通日历开发、RadiantUI 开发", "2719904894"),
-        )
+    val seniors: List<Senior> = listOf(
+        Senior("高玉灿（20级）", "架构规划、页面设计、爬虫", "468766131"),
+        Senior("谭哲昊（21级）", "架构规划、小组件", "330771794"),
+        Senior("王学雷（22级）", "页面设计、交互设计、新技术探索", "257314409"),
+        Senior("徐健灿（22级）", "爬虫、交互设计", "3148336396"),
+        Senior("王    钰（22级）", "架构规划、爬虫", "605606366")
+    )
+
+    private val _commits = MutableStateFlow<CommitState>(CommitState.Loading)
+    val commits: StateFlow<CommitState> = _commits.asStateFlow()
+
+    init {
+        refreshCommits()
     }
-    val partners by lazy {
-        listOf(
-            Partner(
-                "Hello~",
-                "We are waiting for you!\nGet connection with us now!\nClick me for more info!",
-            ),
-        )
+
+    fun refreshCommits() {
+        _commits.value = CommitState.Loading
+        viewModelScope.launch {
+            _commits.value = runCatching { commitStats.load() }
+                .fold(
+                    onSuccess = { CommitState.Ready(it) },
+                    onFailure = { CommitState.Failed }
+                )
+        }
+    }
+
+    private val displayNames = mapOf(
+        "MuxYang" to "MuxYang（25级）",
+        "InChange-Jiang" to "InChange-Jiang（25级）"
+    )
+
+    fun displayName(login: String): String = displayNames[login] ?: login
+
+    /** 未展开时的概述：提交数、最近活跃日期、涉及的领域。 */
+    fun summary(author: ActiveAuthor): String {
+        val latest = author.commits.firstOrNull()?.dateCst?.take(10)
+        val scopes = author.commits.mapNotNull { commitScope(it.title) }
+            .distinct()
+            .take(2)
+        return buildString {
+            append("近 ${author.commits.size} 次提交")
+            latest?.let { append("，最近 $it") }
+            if (scopes.isNotEmpty()) {
+                append("，主要涉及 ")
+                append(scopes.joinToString("、"))
+            }
+        }
+    }
+
+    private fun commitScope(title: String): String? {
+        val head = title.substringBefore(':')
+        val scope = head.substringAfter('(', "").substringBefore(')')
+        return scope.takeIf { it.isNotBlank() } ?: head.takeIf { it.isNotBlank() }
     }
 }
