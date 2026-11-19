@@ -64,6 +64,9 @@ interface SettingsStore {
 
     suspend fun setHomeHeroPriority(value: List<HomeHeroSlot>) {}
 
+    /** 同步快照：用于页面首帧直接取到已保存的顺序，避免先按默认顺序渲染再跳变。 */
+    fun homeHeroPrioritySnapshot(): List<HomeHeroSlot>? = null
+
     val isShowAllCourse: Flow<Boolean>
     suspend fun setIsShowAllCourse(value: Boolean)
 

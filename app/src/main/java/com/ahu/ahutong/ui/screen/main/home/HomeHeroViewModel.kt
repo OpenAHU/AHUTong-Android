@@ -36,7 +36,11 @@ internal class HomeHeroViewModel @Inject constructor(
     /** 用户可拖动调整的 Hero 上屏顺序。 */
     val heroPriority: StateFlow<List<HomeHeroSlot>> = settings.homeHeroPriority
         .map { HomeHeroSlot.normalize(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeHeroSlot.DEFAULT_ORDER)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            settings.homeHeroPrioritySnapshot() ?: HomeHeroSlot.DEFAULT_ORDER
+        )
 
     init {
         viewModelScope.launch {

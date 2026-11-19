@@ -29,6 +29,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+private const val HOME_HERO_PRIORITY_MIRROR_KEY = "home_hero_priority"
+
 object PreferencesKeys {
     val SHOW_QR_CODE = booleanPreferencesKey("show_qr_code")
     val HOME_HERO_PRIORITY = stringPreferencesKey("home_hero_priority")
@@ -89,6 +91,11 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
 
     private val startupThemeMirror by lazy {
         context.getSharedPreferences("startup_theme_mirror", Context.MODE_PRIVATE)
+    }
+
+    /** 少数设置需要"首帧就正确"的同步读，DataStore 给不了，这里留一份轻量镜像。 */
+    private val settingsMirror by lazy {
+        context.getSharedPreferences("settings_mirror", Context.MODE_PRIVATE)
     }
 
     /**
@@ -160,6 +167,7 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
     override suspend fun clearAll() {
         editPreferences { preferences -> preferences.clear() }
         updateStartupThemeMirror { clear() }
+        withContext(Dispatchers.IO) { settingsMirror.edit().clear().commit() }
     }
 
     /** 镜像只避免启动闪色；权威值在 DataStore，因此两次失败后记录并安全回退即可。 */
@@ -429,11 +437,26 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
     }
 
     override suspend fun setHomeHeroPriority(value: List<HomeHeroSlot>) {
+        val normalized = HomeHeroSlot.normalize(value)
         editPreferences { prefs ->
             prefs[PreferencesKeys.HOME_HERO_PRIORITY] =
-                HomeHeroSlot.normalize(value).joinToString(",") { it.name }
+                normalized.joinToString(",") { it.name }
+        }
+        // 同步镜像：页面首帧与 DataStore 首次发射之间不留"默认顺序"的闪变
+        withContext(Dispatchers.IO) {
+            settingsMirror.edit()
+                .putString(HOME_HERO_PRIORITY_MIRROR_KEY, normalized.joinToString(",") { it.name })
+                .commit()
         }
     }
+
+    override fun homeHeroPrioritySnapshot(): List<HomeHeroSlot>? = runCatching {
+        settingsMirror.getString(HOME_HERO_PRIORITY_MIRROR_KEY, null)
+            ?.split(',')
+            ?.mapNotNull { name -> HomeHeroSlot.entries.firstOrNull { it.name == name } }
+            ?.takeIf { it.isNotEmpty() }
+            ?.let(HomeHeroSlot::normalize)
+    }.getOrNull()
 
     override val isShowAllCourse: Flow<Boolean> = preferences { prefs ->
         prefs[PreferencesKeys.IS_SHOW_ALL_COURSE] ?: false

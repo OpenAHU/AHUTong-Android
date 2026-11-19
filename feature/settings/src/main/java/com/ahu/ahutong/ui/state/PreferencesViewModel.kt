@@ -103,7 +103,9 @@ class PreferencesViewModel @Inject constructor(
     private val _showQRCode = MutableStateFlow(false)
     val showQRCode: StateFlow<Boolean> = _showQRCode.asStateFlow()
 
-    private val _heroPriority = MutableStateFlow(HomeHeroSlot.DEFAULT_ORDER)
+    private val _heroPriority = MutableStateFlow(
+        settings.homeHeroPrioritySnapshot() ?: HomeHeroSlot.DEFAULT_ORDER
+    )
     val heroPriority: StateFlow<List<HomeHeroSlot>> = _heroPriority.asStateFlow()
 
     private val _isShowAllCourse = MutableStateFlow(false)
