@@ -37,6 +37,8 @@ import androidx.compose.material3.Text
 import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.rememberScrollState
@@ -274,22 +276,30 @@ fun Settings(
     val screenHeightPx = with(LocalDensity.current) {
         LocalConfiguration.current.screenHeightDp.dp.toPx()
     }
-    LaunchedEffect(TourScrollRequest.signal) {
-        val targetId = TourScrollRequest.targetId ?: return@LaunchedEffect
-        if (!targetId.startsWith("settings_")) return@LaunchedEffect
-        var target = TourBounds.get(targetId)
-        if (target == null) {
-            delay(120)
-            target = TourBounds.get(targetId)
-        }
-        val rect = target ?: return@LaunchedEffect
-        val delta = (rect.top + rect.bottom) / 2f - screenHeightPx / 2f
-        if (kotlin.math.abs(delta) > 8f) {
-            pageScrollState.animateScrollBy(
-                delta,
-                tween(durationMillis = 320, easing = FastOutSlowInEasing)
-            )
-        }
+    LaunchedEffect(Unit) {
+        snapshotFlow { TourScrollRequest.signal to TourScrollRequest.targetId }
+            .collectLatest { (_, targetId) ->
+                if (targetId == null || !targetId.startsWith("settings_")) return@collectLatest
+                // 目标可能还没完成首次布局：等到坐标出现为止
+                var rect: androidx.compose.ui.geometry.Rect? = null
+                var attempts = 0
+                while (rect == null && attempts < 20) {
+                    delay(50)
+                    rect = TourBounds.get(targetId)
+                    attempts += 1
+                }
+                var target = rect ?: return@collectLatest
+                repeat(2) { attempt ->
+                    val delta = (target.top + target.bottom) / 2f - screenHeightPx / 2f
+                    if (kotlin.math.abs(delta) <= 8f) return@collectLatest
+                    pageScrollState.animateScrollBy(
+                        delta,
+                        tween(durationMillis = 320, easing = FastOutSlowInEasing)
+                    )
+                    // 滚动后重新取一次，处理被边界夹住的情况
+                    target = TourBounds.get(targetId) ?: return@collectLatest
+                }
+            }
     }
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->

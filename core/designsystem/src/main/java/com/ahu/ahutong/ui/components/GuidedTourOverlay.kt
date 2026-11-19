@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -71,17 +72,20 @@ data class GuidedTourStep(
     val note: String? = null
 )
 
-/** 纸花参数：归一化速度与尺寸，绘制时按屏幕尺寸展开。 */
+/** 纸花参数：参考 canvas-confetti 的物理模型，绘制时按屏幕尺寸展开。 */
 private data class ConfettiPiece(
     val fromLeft: Boolean,
     val angle: Float,
-    val speedX: Float,
-    val speedY: Float,
+    val speed: Float,
     val originY: Float,
     val spin: Float,
+    val flipFrequency: Float,
+    val flipPhase: Float,
     val widthDp: Float,
     val heightDp: Float,
-    val colorIndex: Int
+    val colorIndex: Int,
+    val delaySeconds: Float,
+    val round: Boolean
 )
 
 /**
@@ -280,27 +284,35 @@ private fun GuidedTourOverlayBody(
             }
         }
 
-        // 收尾卡片：两侧各喷一次纸花，落完即止，不循环
+        // 收尾卡片：两侧各喷一次纸花（物理参考 canvas-confetti），落完即止
         if (celebrate) {
             val burst = remember { Animatable(0f) }
             LaunchedEffect(Unit) {
                 burst.snapTo(0f)
-                burst.animateTo(1f, tween(durationMillis = 2600, easing = LinearEasing))
+                burst.animateTo(1f, tween(durationMillis = 3_400, easing = LinearEasing))
             }
             val random = remember { kotlin.random.Random(20261120) }
             val pieces = remember {
-                List(96) { index ->
+                List(160) { index ->
                     val fromLeft = index % 2 == 0
+                    val baseAngle = if (fromLeft) {
+                        -Math.PI.toFloat() / 2f + 0.42f
+                    } else {
+                        -Math.PI.toFloat() / 2f - 0.42f
+                    }
                     ConfettiPiece(
                         fromLeft = fromLeft,
-                        angle = random.nextFloat() * 0.9f + 0.05f,
-                        speedX = random.nextFloat() * 0.55f + 0.45f,
-                        speedY = random.nextFloat() * 0.40f + 0.35f,
-                        originY = random.nextFloat() * 0.18f + 0.40f,
-                        spin = (random.nextFloat() * 2f - 1f) * 540f,
-                        widthDp = random.nextFloat() * 4f + 5f,
-                        heightDp = random.nextFloat() * 6f + 10f,
-                        colorIndex = random.nextInt(6)
+                        angle = baseAngle + (random.nextFloat() - 0.5f) * 0.84f,
+                        speed = 0.95f + random.nextFloat() * 0.95f,
+                        originY = 0.42f + random.nextFloat() * 0.18f,
+                        spin = (random.nextFloat() * 2f - 1f) * 720f,
+                        flipFrequency = 5f + random.nextFloat() * 7f,
+                        flipPhase = random.nextFloat() * 6.28f,
+                        widthDp = 5f + random.nextFloat() * 5f,
+                        heightDp = 9f + random.nextFloat() * 9f,
+                        colorIndex = random.nextInt(6),
+                        delaySeconds = random.nextFloat() * 0.16f,
+                        round = random.nextFloat() < 0.2f
                     )
                 }
             }
@@ -308,41 +320,55 @@ private fun GuidedTourOverlayBody(
             if (progress > 0f) {
                 Canvas(Modifier.fillMaxSize()) {
                     val palette = listOf(
-                        Color(0xFFF26D6D),
-                        Color(0xFFF6B352),
-                        Color(0xFF66C2A5),
-                        Color(0xFF5AA9E6),
-                        Color(0xFFB984DB),
-                        Color(0xFFF28DB2)
+                        Color(0xFFEF476F),
+                        Color(0xFFFFD166),
+                        Color(0xFF06D6A0),
+                        Color(0xFF118AB2),
+                        Color(0xFFB388EB),
+                        Color(0xFFFF8FAB)
                     )
+                    val elapsed = progress * 3.4f
+                    val drag = 1.7f
+                    val gravity = size.height * 1.45f
                     pieces.forEach { piece ->
-                        val t = progress
-                        // 前 0.1 秒集中出膛，后段靠重力下落
-                        val launch = ((t - piece.angle * 0.06f) / 0.94f).coerceIn(0f, 1f)
-                        if (launch <= 0f) return@forEach
-                        val dir = if (piece.fromLeft) 1f else -1f
-                        val originX = if (piece.fromLeft) 0f else size.width
-                        val vx = size.width * piece.speedX
-                        val vy = -size.height * piece.speedY
-                        val gravity = size.height * 1.35f
-                        val x = originX + dir * vx * launch
-                        val y = size.height * piece.originY + vy * launch + gravity * launch * launch
-                        if (y > size.height * 1.1f) return@forEach
-                        val alpha = if (launch < 0.65f) 1f else ((1f - launch) / 0.35f).coerceIn(0f, 1f)
+                        val t = elapsed - piece.delaySeconds
+                        if (t <= 0f) return@forEach
+                        val x0 = if (piece.fromLeft) -4.dp.toPx() else size.width + 4.dp.toPx()
+                        val y0 = size.height * piece.originY
+                        val speedPx = size.height * piece.speed
+                        val vx0 = kotlin.math.cos(piece.angle) * speedPx
+                        val vy0 = kotlin.math.sin(piece.angle) * speedPx
+                        val decay = kotlin.math.exp(-drag * t)
+                        val travel = (1f - decay) / drag
+                        val x = x0 + vx0 * travel
+                        val y = y0 + (vy0 + gravity / drag) * travel - (gravity / drag) * t
+                        if (y > size.height * 1.15f || x < -size.width * 0.1f || x > size.width * 1.1f) {
+                            return@forEach
+                        }
+                        val alpha = ((1f - progress) / 0.22f).coerceIn(0f, 1f)
                         if (alpha <= 0f) return@forEach
-                        rotate(
-                            degrees = piece.spin * launch,
-                            pivot = Offset(x, y)
-                        ) {
-                            drawRoundRect(
-                                color = palette[piece.colorIndex].copy(alpha = alpha),
-                                topLeft = Offset(
-                                    x - piece.widthDp.dp.toPx() / 2f,
-                                    y - piece.heightDp.dp.toPx() / 2f
-                                ),
-                                size = Size(piece.widthDp.dp.toPx(), piece.heightDp.dp.toPx()),
-                                cornerRadius = CornerRadius(2.dp.toPx())
+                        val w = piece.widthDp.dp.toPx()
+                        val h = piece.heightDp.dp.toPx()
+                        rotate(degrees = piece.spin * t, pivot = Offset(x, y)) {
+                            val flip = 0.25f + 0.75f * kotlin.math.abs(
+                                kotlin.math.cos(piece.flipFrequency * t + piece.flipPhase)
                             )
+                            scale(scaleX = flip, scaleY = 1f, pivot = Offset(x, y)) {
+                                if (piece.round) {
+                                    drawCircle(
+                                        color = palette[piece.colorIndex].copy(alpha = alpha),
+                                        radius = w * 0.6f,
+                                        center = Offset(x, y)
+                                    )
+                                } else {
+                                    drawRoundRect(
+                                        color = palette[piece.colorIndex].copy(alpha = alpha),
+                                        topLeft = Offset(x - w / 2f, y - h / 2f),
+                                        size = Size(w, h),
+                                        cornerRadius = CornerRadius(1.5.dp.toPx())
+                                    )
+                                }
+                            }
                         }
                     }
                 }
