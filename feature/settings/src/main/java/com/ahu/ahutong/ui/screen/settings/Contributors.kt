@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +33,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -64,6 +72,30 @@ fun Contributors(
     var expandedAuthors by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
+        var seniorArea by remember { mutableStateOf(Rect.Zero) }
+        var rootOrigin by remember { mutableStateOf(Offset.Zero) }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { rootOrigin = it.localToWindow(Offset.Zero) }
+                // 摊开后点页面上任何非头像区域都收回堆叠（含别的卡片）
+                .pointerInput(seniorsExpanded) {
+                    if (!seniorsExpanded) return@pointerInput
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Final)
+                            if (event.type == PointerEventType.Release) {
+                                val windowPosition = event.changes.firstOrNull()
+                                    ?.position
+                                    ?.let { rootOrigin + it }
+                                if (windowPosition != null && !seniorArea.contains(windowPosition)) {
+                                    seniorsExpanded = false
+                                }
+                            }
+                        }
+                    }
+                }
+        ) {
         SettingsPageLayout(
             title = title,
             onBack = onBack,
@@ -85,6 +117,7 @@ fun Contributors(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onGloballyPositioned { seniorArea = it.boundsInWindow() }
                         .clickable { seniorsExpanded = !seniorsExpanded }
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(gap),
@@ -127,14 +160,6 @@ fun Contributors(
                                 )
                             }
                         }
-                    }
-                    if (!seniorsExpanded) {
-                        Text(
-                            text = "5位历史开发者",
-                            modifier = Modifier.padding(start = 6.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }
@@ -208,6 +233,7 @@ fun Contributors(
                     }
                 }
             }
+        }
         }
     }
 
