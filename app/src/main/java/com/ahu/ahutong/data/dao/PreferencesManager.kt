@@ -26,6 +26,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -434,6 +435,13 @@ class PreferencesManager @Inject constructor(@param:ApplicationContext private v
             ?.mapNotNull { name -> HomeHeroSlot.entries.firstOrNull { it.name == name } }
             .orEmpty()
         HomeHeroSlot.normalize(stored)
+    }.onEach(::mirrorHeroPriority)
+
+    /** 升级前只有 DataStore 里存过顺序：首次读到就补写镜像，之后页面首帧不再闪。 */
+    private fun mirrorHeroPriority(value: List<HomeHeroSlot>) {
+        val encoded = value.joinToString(",") { it.name }
+        if (settingsMirror.getString(HOME_HERO_PRIORITY_MIRROR_KEY, null) == encoded) return
+        settingsMirror.edit().putString(HOME_HERO_PRIORITY_MIRROR_KEY, encoded).apply()
     }
 
     override suspend fun setHomeHeroPriority(value: List<HomeHeroSlot>) {
