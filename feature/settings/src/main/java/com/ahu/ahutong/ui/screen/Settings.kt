@@ -218,22 +218,22 @@ fun Settings(
             backdrop = backdrop
         ) {
             SettingsActionRow(
-                title = "AHUTong Intelligence",
+                title = "AI 设置",
                 leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
                 onClick = onOpenAiSettings
             )
             SettingsActionRow(
-                title = "校园卡",
-                leadingPainter = painterResource(R.drawable.ic_bank_card),
+                title = "主页设置",
+                leadingPainter = painterResource(R.drawable.ic_home),
                 onClick = onOpenCampusCard
             )
             SettingsActionRow(
-                title = "通知",
-                leadingPainter = painterResource(R.drawable.ic_remind),
-                onClick = onOpenNotifications
+                title = "智能体验",
+                leadingPainter = painterResource(R.drawable.ic_brain),
+                onClick = onOpenIntelligence
             )
             SettingsActionRow(
-                title = "插件",
+                title = "插件与安装",
                 leadingPainter = painterResource(R.drawable.ic_plugin),
                 showDivider = false,
                 onClick = onNavigateToPlugins
@@ -251,15 +251,23 @@ fun Settings(
                 onClick = onOpenAppearance
             )
             SettingsActionRow(
-                title = "智能体验",
-                leadingPainter = painterResource(R.drawable.ic_brain),
-                onClick = onOpenIntelligence
-            )
-            SettingsActionRow(
                 title = "数据与隐私",
                 leadingPainter = painterResource(R.drawable.ic_shield),
                 onClick = onOpenDataPrivacy
             )
+            SettingsActionRow(
+                title = "通知与提醒",
+                leadingPainter = painterResource(R.drawable.ic_remind),
+                showDivider = false,
+                onClick = onOpenNotifications
+            )
+        }
+
+        SettingsSection(
+            title = "关于与支持",
+            modifier = Modifier.padding(horizontal = 16.dp),
+            backdrop = backdrop
+        ) {
             SettingsActionRow(
                 title = stringResource(id = R.string.check_update),
                 leadingPainter = painterResource(R.drawable.ic_refresh),
@@ -273,16 +281,8 @@ fun Settings(
                 title = "抢先体验",
                 value = earlyAccessSummary,
                 leadingPainter = painterResource(R.drawable.ic_experiment),
-                showDivider = false,
                 onClick = onNavigateToEarlyAccess
             )
-        }
-
-        SettingsSection(
-            title = "关于",
-            modifier = Modifier.padding(horizontal = 16.dp),
-            backdrop = backdrop
-        ) {
             SettingsActionRow(
                 title = "反馈",
                 leadingPainter = painterResource(R.drawable.ic_feedback),

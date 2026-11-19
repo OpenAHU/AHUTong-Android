@@ -52,7 +52,7 @@ enum class PreferencesSection(
     val subtitle: String,
 ) {
     APPEARANCE("appearance", "外观与主题", "主题套装、深色模式、主题色、背景与触感"),
-    HOME("home", "校园卡与主页", "付款码、安全键盘与充值"),
+    HOME("home", "主页设置", "付款码与主页卡片"),
     NOTIFICATIONS("notifications", "通知提醒", "课前提醒、准时权限与岛卡"),
     INTELLIGENCE("intelligence", "智能体验", "快捷建议、预加载与本地学习"),
     DATA("data", "数据与隐私", "本地记录、必吃榜共建与训练数据");
@@ -188,7 +188,7 @@ fun Preferences(
             )
 
             if (section == PreferencesSection.HOME) SettingsSection(
-                title = "校园卡与主页",
+                title = "主页设置",
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
@@ -196,13 +196,6 @@ fun Preferences(
                     title = "主页默认显示付款码",
                     selected = showQRCode,
                     onSelectedChange = viewModel::setShowQRCode,
-                    backdrop = backdrop,
-                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                )
-                SettingsToggleRow(
-                    title = "使用内置安全密码键盘",
-                    selected = useBuiltInSecurePasswordKeyboard,
-                    onSelectedChange = viewModel::setUseBuiltInSecurePasswordKeyboard,
                     backdrop = backdrop,
                     showDivider = false,
                     onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
@@ -427,6 +420,13 @@ fun Preferences(
                         onClick = { showDeleteTrainingContribution = true }
                     )
                 }
+                SettingsToggleRow(
+                    title = "使用内置安全密码键盘",
+                    selected = useBuiltInSecurePasswordKeyboard,
+                    onSelectedChange = viewModel::setUseBuiltInSecurePasswordKeyboard,
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
                 SettingsActionRow(
                     title = "清除本地学习记录",
                     destructive = true,
