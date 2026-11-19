@@ -179,6 +179,18 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
             XuexiaotongTourState.closeWorkDetailRequested = false
         }
     }
+    LaunchedEffect(XuexiaotongTourState.openWorkDetailRequested, shownWorks) {
+        if (XuexiaotongTourState.openWorkDetailRequested) {
+            XuexiaotongTourState.openWorkDetailRequested = false
+            val cal = Calendar.getInstance()
+            val year = cal.get(Calendar.YEAR)
+            val month = cal.get(Calendar.MONTH)
+            selectedWork = shownWorks.firstOrNull { work ->
+                val c = Calendar.getInstance().apply { timeInMillis = work.endTs ?: 0L }
+                c.get(Calendar.YEAR) == year && c.get(Calendar.MONTH) == month
+            } ?: shownWorks.firstOrNull()
+        }
+    }
     var webViewWork by remember { mutableStateOf<Work?>(null) }
     var showAddEvent by remember { mutableStateOf(false) }
     var pendingDeleteEvent by remember { mutableStateOf<Work?>(null) }

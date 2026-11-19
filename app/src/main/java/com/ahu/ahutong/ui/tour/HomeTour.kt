@@ -230,26 +230,43 @@ internal fun HomeTourHost(
     }
 
     var previousHostWindow by remember { mutableStateOf<TourHostWindow?>(null) }
+    var detailOpenedThisStep by remember { mutableStateOf(false) }
+    var detailMustCloseFirst by remember { mutableStateOf(false) }
     LaunchedEffect(visible, index) {
         if (!visible) {
             previousHostWindow = null
+            detailOpenedThisStep = false
             return@LaunchedEffect
         }
-        val hostWindow = stops.getOrNull(index)?.hostWindow
+        val stop = stops.getOrNull(index)
+        val hostWindow = stop?.hostWindow
         if (previousHostWindow == TourHostWindow.WORK_DIALOG &&
             hostWindow != TourHostWindow.WORK_DIALOG
         ) {
             XuexiaotongTourState.closeWorkDetailRequested = true
         }
         previousHostWindow = hostWindow
+        detailOpenedThisStep = false
+        detailMustCloseFirst = stop?.gate == TourGate.WORK_DETAIL_OPEN &&
+            XuexiaotongTourState.workDetailOpen
+        // 回到弹窗内的步骤（如 11 → 10）时，若弹窗已关需要重新打开
+        if (hostWindow == TourHostWindow.WORK_DIALOG && !XuexiaotongTourState.workDetailOpen) {
+            XuexiaotongTourState.openWorkDetailRequested = true
+        }
     }
-    // 打开作业详情后自动进入弹窗内的两步
+    // 打开作业详情后自动进入弹窗内的两步；只认本步内新打开的事件，避免旧状态立刻顶回去
     LaunchedEffect(visible, index, XuexiaotongTourState.workDetailOpen) {
         val stop = stops.getOrNull(index) ?: return@LaunchedEffect
-        if (visible && stop.gate == TourGate.WORK_DETAIL_OPEN &&
-            XuexiaotongTourState.workDetailOpen && index < stops.lastIndex
-        ) {
-            index += 1
+        if (!visible || stop.gate != TourGate.WORK_DETAIL_OPEN) return@LaunchedEffect
+        if (!XuexiaotongTourState.workDetailOpen) {
+            detailOpenedThisStep = false
+            detailMustCloseFirst = false
+            return@LaunchedEffect
+        }
+        if (detailMustCloseFirst) return@LaunchedEffect
+        if (!detailOpenedThisStep) {
+            detailOpenedThisStep = true
+            if (index < stops.lastIndex) index += 1
         }
     }
 
