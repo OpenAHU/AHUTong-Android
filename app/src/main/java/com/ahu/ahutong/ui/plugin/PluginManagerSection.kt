@@ -27,13 +27,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.ahu.ahutong.ui.components.AppButton
-import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
-import com.ahu.ahutong.ui.components.AppSectionCard
-import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.SettingsActionRow
+import com.ahu.ahutong.ui.components.SettingsSection
+import com.ahu.ahutong.ui.components.SettingsToggleRow
+import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +55,7 @@ private fun capabilityLabel(raw: String): String = when (raw.trim().uppercase())
  * → 之后安装只弹插件自己的说明 + 顶部一句红色风险提醒。
  */
 @Composable
-fun PluginManagerSection() {
+fun PluginManagerSection(backdrop: Backdrop) {
     val context = LocalContext.current
     var devMode by remember { mutableStateOf(AhupGate.isDevMode(context)) }
     var showEnableDisclaimer by remember { mutableStateOf(false) }
@@ -98,110 +98,69 @@ fun PluginManagerSection() {
         }
     }
 
-    AppSectionCard(modifier = Modifier) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                "插件",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            // 开发者总开关：点开关本体或整行都先弹确认弹窗，确认后才真正改变状态
-            // （与偏好设置「贡献通用模型训练数据」同一交互模式；此前空 onCheckedChange
-            // 会导致三套 UI 下点开关本体无效或视觉跳变但状态不变）
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = devMode,
-                        role = Role.Switch,
-                        onValueChange = { wantOn ->
-                            if (wantOn) showEnableDisclaimer = true
-                            else showDisableConfirm = true
+    SettingsSection(
+        title = null,
+        backdrop = backdrop
+    ) {
+        SettingsToggleRow(
+            title = "允许安装插件",
+            subtitle = if (devMode) "已开启" else null,
+            selected = devMode,
+            backdrop = backdrop,
+            onSelectedChange = { wantOn ->
+                if (wantOn) showEnableDisclaimer = true else showDisableConfirm = true
+            }
+        )
+        if (devMode) {
+            runtimePlugins.forEach { (id, manifest) ->
+                SettingsActionRow(
+                    title = manifest?.title ?: id,
+                    subtitle = "v${manifest?.version ?: "?"} · ${manifest?.author ?: "未知"}",
+                    value = "卸载",
+                    showChevron = false,
+                    onClick = {
+                        runPluginOperation {
+                            PluginRegistry.update(context) {
+                                AhupInstaller.uninstall(context, id)
+                                cleanupPluginData(context, id)
+                            }
+                            listTick++
                         }
-                    ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "开发者选项：允许安装插件",
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Text(
-                        if (devMode) "已开启（关闭将卸载全部插件）" else "默认关闭",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                AppToggle(
-                    checked = devMode,
-                    // null = 开关本体仅展示，点击交给整行 toggleable——与 SettingsToggleRow
-                    // 同一模式；此前空 lambda 在三套 UI 下分别表现为点开关无效/视觉跳变
-                    onCheckedChange = null
+                    }
                 )
             }
-
-            if (devMode) {
-                runtimePlugins.forEach { (id, manifest) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(manifest?.title ?: id, fontWeight = FontWeight.Medium)
-                            Text(
-                                "v${manifest?.version ?: "?"} · ${manifest?.author ?: "未知"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        AppButton(
-                            onClick = {
-                                runPluginOperation {
-                                    PluginRegistry.update(context) {
-                                        AhupInstaller.uninstall(context, id)
-                                        cleanupPluginData(context, id)
-                                    }
-                                    listTick++
-                                }
-                            },
-                            variant = AppButtonVariant.Secondary
-                        ) { Text("卸载") }
-                    }
-                }
-                // 装载失败的插件直接亮错误（本机日志不可见时的排障通道）
-                RuntimePluginLoader.lastErrors.forEach { err ->
-                    Text(
-                        "装载失败：$err",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                if (runtimePlugins.isEmpty()) {
-                    Text(
-                        "尚未安装插件",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                AppButton(
-                    onClick = { picker.launch(arrayOf("*/*")) },
-                    variant = AppButtonVariant.Primary,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("安装插件包（.ahup）") }
-
-                error?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+            RuntimePluginLoader.lastErrors.forEach { err ->
+                SettingsActionRow(
+                    title = "装载失败",
+                    subtitle = err,
+                    destructive = true,
+                    showChevron = false,
+                    onClick = {}
+                )
+            }
+            if (runtimePlugins.isEmpty()) {
+                SettingsActionRow(
+                    title = "尚未安装插件",
+                    showChevron = false,
+                    onClick = {}
+                )
+            }
+            SettingsActionRow(
+                title = "安装插件包",
+                value = ".ahup",
+                showChevron = false,
+                showDivider = error == null,
+                onClick = { picker.launch(arrayOf("*/*")) }
+            )
+            error?.let {
+                SettingsActionRow(
+                    title = "操作失败",
+                    subtitle = it,
+                    destructive = true,
+                    showChevron = false,
+                    showDivider = false,
+                    onClick = {}
+                )
             }
         }
     }

@@ -13,11 +13,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ahu.ahutong.ui.components.AppPageScaffold
+import com.ahu.ahutong.ui.plugin.AhupGate
+import com.ahu.ahutong.ui.plugin.PluginQuickInstallButton
 import com.ahu.ahutong.ui.plugin.PluginRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetRegistry
 import com.ahu.ahutong.ui.screen.main.home.HomeWidgetSpec
@@ -51,10 +56,28 @@ fun MoreWidgetsScreen(
         }
     }
 
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var showPluginQuickInstall by remember { mutableStateOf(AhupGate.isDevMode(context)) }
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                showPluginQuickInstall = AhupGate.isDevMode(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     AppPageScaffold(
         title = "全部小工具",
         onBack = { navController.popBackStack() },
         bottomPadding = 48.dp,
+        trailingContent = if (showPluginQuickInstall) {
+            { PluginQuickInstallButton() }
+        } else {
+            null
+        },
         content = {
             // 水平内边距由壳统一提供，页面内容不再自带
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(RowGap)) {

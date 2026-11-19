@@ -19,7 +19,7 @@ fun PluginSettingsScreen(onBack: () -> Unit) {
             backdrop = backdrop
         ) {
             Box(Modifier.padding(horizontal = 16.dp)) {
-                PluginManagerSection()
+                PluginManagerSection(backdrop = backdrop)
             }
         }
     }
