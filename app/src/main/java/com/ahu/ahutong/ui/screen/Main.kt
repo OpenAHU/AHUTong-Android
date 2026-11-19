@@ -847,6 +847,17 @@ fun Main(
                     onOpenPrivacy = { navController.navigate("settings__privacy_policy") },
                     onDataCleared = {
                         navController.navigate("login") { popUpTo(0) }
+                    },
+                    onReplayTour = if (BuildConfig.DEBUG) {
+                        {
+                            HomeTourState.requestReplay()
+                            navController.navigate("home") {
+                                popUpTo("home") { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    } else {
+                        null
                     }
                 )
             }
@@ -1052,8 +1063,7 @@ fun Main(
                                 popUpTo("debug") { inclusive = true }
                                 launchSingleTop = true
                             }
-                        },
-                        onReplayTour = { HomeTourState.requestReplay() }
+                        }
                     )
                 }
             }

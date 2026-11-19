@@ -82,7 +82,6 @@ fun Debug(
     discoveryViewModel: DiscoveryViewModel = viewModel(),
     onGrayStateChanged: () -> Unit = {},
     onReplayOnboarding: (() -> Unit)? = null,
-    onReplayTour: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -232,20 +231,6 @@ fun Debug(
                         OnboardingState.startReplay()
                         onReplayOnboarding()
                     }
-                )
-            }
-        }
-
-        if (onReplayTour != null) {
-            DebugSection(
-                title = "新手导览",
-                subtitle = "聚光灯介绍主页与学习通常用控件，完成后不再自动出现",
-                cardColor = cardColor
-            ) {
-                DebugActionRow(
-                    title = "重播新手导览",
-                    subtitle = "从主页 AI 键开始，共 11 步",
-                    onClick = onReplayTour
                 )
             }
         }

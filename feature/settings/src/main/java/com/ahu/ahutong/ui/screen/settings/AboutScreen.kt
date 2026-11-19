@@ -56,6 +56,7 @@ fun AboutScreen(
     onOpenLicense: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onDataCleared: () -> Unit,
+    onReplayTour: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -139,6 +140,13 @@ fun AboutScreen(
                     leadingPainter = painterResource(R.drawable.ic_peoples),
                     onClick = onOpenContributors
                 )
+                onReplayTour?.let { replay ->
+                    SettingsActionRow(
+                        title = "重播新手导览",
+                        leadingPainter = painterResource(R.drawable.ic_refresh),
+                        onClick = replay
+                    )
+                }
                 SettingsActionRow(
                     title = "清除所有数据",
                     leadingPainter = painterResource(R.drawable.ic_delete),

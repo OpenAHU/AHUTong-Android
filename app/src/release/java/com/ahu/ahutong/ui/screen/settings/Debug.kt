@@ -11,6 +11,5 @@ fun Debug(
     discoveryViewModel: DiscoveryViewModel,
     onGrayStateChanged: () -> Unit = {},
     onReplayOnboarding: (() -> Unit)? = null,
-    onReplayTour: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null
 ) = Unit
