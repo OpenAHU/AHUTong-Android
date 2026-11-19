@@ -53,6 +53,10 @@ fun WorkDetailDialog(
 
     AppDialog(
         title = work.title,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        ),
         onDismiss = onDismiss,
         subtitle = if (isCustom) "自定义日程" else work.courseName,
         titleFontWeight = null,

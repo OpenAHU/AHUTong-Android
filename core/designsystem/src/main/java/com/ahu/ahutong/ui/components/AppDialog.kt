@@ -27,9 +27,11 @@ import androidx.compose.material3.Text
 import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -335,26 +337,37 @@ private fun RadiantDialog(
                 }
             }
         }
-        if (tourOverlay != null) {
+        if (!windowProperties.usePlatformDefaultWidth) {
+            // 全屏容器固定，卡片位置与尺寸不随导览层出现与否变化
             Box(Modifier.fillMaxSize()) {
+                if (tourOverlay == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.32f))
+                            .clickable(onClick = onDismiss)
+                    )
+                }
                 card(
                     Modifier
                         .align(Alignment.Center)
                         .padding(24.dp)
                         .widthIn(max = 360.dp)
                 )
-                GuidedTourOverlay(
-                    visible = true,
-                    steps = tourOverlay.steps,
-                    index = tourOverlay.index,
-                    targetBounds = tourOverlay.targetBounds,
-                    onNext = tourOverlay.onNext,
-                    onPrevious = tourOverlay.onPrevious,
-                    onSkip = tourOverlay.onSkip,
-                    nextEnabled = tourOverlay.nextEnabled,
-                    hint = tourOverlay.hint,
-                    hintBelow = tourOverlay.hintBelow
-                )
+                if (tourOverlay != null) {
+                    GuidedTourOverlay(
+                        visible = true,
+                        steps = tourOverlay.steps,
+                        index = tourOverlay.index,
+                        targetBounds = tourOverlay.targetBounds,
+                        onNext = tourOverlay.onNext,
+                        onPrevious = tourOverlay.onPrevious,
+                        onSkip = tourOverlay.onSkip,
+                        nextEnabled = tourOverlay.nextEnabled,
+                        hint = tourOverlay.hint,
+                        hintBelow = tourOverlay.hintBelow
+                    )
+                }
             }
         } else {
             card(modifier)
