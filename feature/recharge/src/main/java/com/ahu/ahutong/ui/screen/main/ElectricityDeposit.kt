@@ -466,7 +466,7 @@ fun ElectricityAlertSettings(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
-                ElectricityRoomSelectors(viewModel = viewModel)
+                ElectricityRoomSelectorsContent(viewModel = viewModel)
             }
 
             SettingsSection(
@@ -517,7 +517,7 @@ fun ElectricityAlertSettings(
 }
 
 @Composable
-private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
+private fun ElectricityRoomSelectorsContent(viewModel: ElectricityDepositViewModel) {
     val selectedController by viewModel.selectedController.collectAsState()
     val campusList by viewModel.campusList.collectAsState()
     val selectedCampus by viewModel.selectedCampus.collectAsState()
@@ -609,6 +609,16 @@ private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
     Column(Modifier.fillMaxWidth()) {
         selectorContent()
     }
+}
+
+/** 缴费页原样：选择器包在原有卡片里，设置页使用无卡片的 [ElectricityRoomSelectorsContent]。 */
+@Composable
+private fun ElectricityRoomSelectors(viewModel: ElectricityDepositViewModel) {
+    AppSectionCard(
+        contentPadding = PaddingValues(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        content = { ElectricityRoomSelectorsContent(viewModel) }
+    )
 }
 
 @Composable
