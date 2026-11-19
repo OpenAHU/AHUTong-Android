@@ -1002,7 +1002,7 @@ fun Main(
 
             animatedComposable("xuexiaotong") { entry ->
                 PrimaryNavigationDestination(entry) {
-                    XuexiaotongScreen()
+                    XuexiaotongScreen(tourDemo = HomeTourState.running)
                 }
             }
 

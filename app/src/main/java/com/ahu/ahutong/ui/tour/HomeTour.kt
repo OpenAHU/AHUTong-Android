@@ -78,6 +78,13 @@ private val TourStops = listOf(
         gate = TourGate.DOCK_TOGGLE
     ),
     TourStop(
+        targetId = "tour_work_card",
+        title = "作业详情",
+        body = "点开一条作业查看状态和起止时间；正式作业还能跳转学习通或查看题目。",
+        page = TourStopPage.XUEXIAOTONG,
+        targetClickable = true
+    ),
+    TourStop(
         targetId = "xuexiaotong_refresh",
         title = "刷新日程与课程",
         body = "由于风控策略，作业与课程同步需要手动刷新，默认只抓取未完成的作业，您可以在日程设置内打开全量抓取。",

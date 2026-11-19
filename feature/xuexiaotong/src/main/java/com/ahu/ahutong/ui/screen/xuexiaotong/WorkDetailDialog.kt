@@ -45,7 +45,8 @@ fun WorkDetailDialog(
     onToggleDone: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onViewQuestions: (() -> Unit)? = null,
-    onOpenInChaoxing: (() -> Unit)? = null
+    onOpenInChaoxing: (() -> Unit)? = null,
+    actionsEnabled: Boolean = true
 ) {
     val isCustom = work.workId.startsWith("event_")
 
@@ -86,7 +87,8 @@ fun WorkDetailDialog(
                         AppDialogAction(
                             label = "跳转学习通",
                             onClick = it,
-                            style = AppDialogActionStyle.Neutral
+                            style = AppDialogActionStyle.Neutral,
+                            enabled = actionsEnabled
                         )
                     )
                 }
@@ -96,7 +98,8 @@ fun WorkDetailDialog(
                         AppDialogAction(
                             label = "查看题目",
                             onClick = it,
-                            style = AppDialogActionStyle.Primary
+                            style = AppDialogActionStyle.Primary,
+                            enabled = actionsEnabled
                         )
                     )
                 }

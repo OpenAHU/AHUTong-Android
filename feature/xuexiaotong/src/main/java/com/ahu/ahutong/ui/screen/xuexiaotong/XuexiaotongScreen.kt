@@ -101,12 +101,22 @@ import com.ahu.ahutong.core.designsystem.R as DesignSystemR
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun XuexiaotongScreen() {
+fun XuexiaotongScreen(tourDemo: Boolean = false) {
     val viewModel: XuexiaotongViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 
     val loggedIn by viewModel.loggedIn.collectAsState()
     val works by viewModel.works.collectAsState()
     val progress by viewModel.progress.collectAsState()
+    // 导览演示：整段导览期间都用内存样例渲染，不混入真实数据、不写入存储、不参与提醒与 AI
+    val demoWorks = remember(tourDemo) {
+        if (tourDemo) demoTourWorks() else emptyList()
+    }
+    val demoProgress = remember(tourDemo) {
+        if (tourDemo) demoTourProgress() else emptyList()
+    }
+    val shownWorks = if (tourDemo) demoWorks else works
+    val shownProgress = if (tourDemo) demoProgress else progress
+    val tourWorkId = if (tourDemo) demoWorks.firstOrNull()?.workId else null
     val syncing by viewModel.syncing.collectAsState()
     val syncMsg by viewModel.syncProgress.collectAsState()
     val courseSyncing by viewModel.courseSyncing.collectAsState()
@@ -282,7 +292,7 @@ fun XuexiaotongScreen() {
                                         strokeWidth = 2.dp
                                     )
                                 }
-                            } else if (!loggedIn) {
+                            } else if (!loggedIn && !tourDemo) {
                                 IconButton(
                                     modifier = Modifier.size(38.dp),
                                     onClick = { showLogin = true }
@@ -298,8 +308,10 @@ fun XuexiaotongScreen() {
                                 IconButton(
                                     modifier = Modifier.size(38.dp).tourTarget("xuexiaotong_refresh"),
                                     onClick = {
-                                        if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
-                                        else viewModel.syncWorks()
+                                        if (!tourDemo) {
+                                            if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
+                                            else viewModel.syncWorks()
+                                        }
                                     }
                                 ) {
                                     Icon(
@@ -333,8 +345,9 @@ fun XuexiaotongScreen() {
                         when (t) {
                             XuexiaotongSubTab.SCHEDULE -> {
                                 ScheduleTab(
-                                    works = works,
+                                    works = shownWorks,
                                     customEvents = customEvents,
+                                    tourTargetWorkId = tourWorkId,
                                     syncing = syncing,
                                     syncMsg = syncMsg,
                                     showDone = showDone,
@@ -358,7 +371,7 @@ fun XuexiaotongScreen() {
                             }
                             XuexiaotongSubTab.COURSE -> {
                                 CourseTab(
-                                    progress = progress,
+                                    progress = shownProgress,
                                     syncing = courseSyncing,
                                     syncMsg = courseSyncMsg,
                                     showEmptyCourses = showEmptyCourses,
@@ -459,7 +472,7 @@ fun XuexiaotongScreen() {
                                     strokeWidth = 2.dp
                                 )
                             }
-                        } else if (!loggedIn) {
+                        } else if (!loggedIn && !tourDemo) {
                             // 未登录：右上角按钮切换为「登录」（占位图标，待替换正式图）
                             IconButton(onClick = { showLogin = true }) {
                                 Icon(
@@ -472,8 +485,10 @@ fun XuexiaotongScreen() {
                             IconButton(
                                 modifier = Modifier.tourTarget("xuexiaotong_refresh"),
                                 onClick = {
-                                    if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
-                                    else viewModel.syncWorks()
+                                    if (!tourDemo) {
+                                        if (tab == XuexiaotongSubTab.COURSE) viewModel.syncCourseProgress()
+                                        else viewModel.syncWorks()
+                                    }
                                 }
                             ) {
                                 Icon(
@@ -504,8 +519,9 @@ fun XuexiaotongScreen() {
                         when (t) {
                             XuexiaotongSubTab.SCHEDULE -> {
                                 ScheduleTab(
-                                    works = works,
+                                    works = shownWorks,
                                     customEvents = customEvents,
+                                    tourTargetWorkId = tourWorkId,
                                     syncing = syncing,
                                     syncMsg = syncMsg,
                                     showDone = showDone,
@@ -527,7 +543,7 @@ fun XuexiaotongScreen() {
                             }
                             XuexiaotongSubTab.COURSE -> {
                                 CourseTab(
-                                    progress = progress,
+                                    progress = shownProgress,
                                     syncing = courseSyncing,
                                     syncMsg = courseSyncMsg,
                                     showEmptyCourses = showEmptyCourses,
@@ -545,9 +561,11 @@ fun XuexiaotongScreen() {
 
     // 任务详情弹窗
     selectedWork?.let { work ->
+        val isDemoWork = work.workId.startsWith("demo_")
         WorkDetailDialog(
             work = work,
             onDismiss = { selectedWork = null },
+            actionsEnabled = !isDemoWork,
             onToggleDone = if (work.workId.startsWith("event_")) {
                 {
                     viewModel.toggleCustomEventDone(work.workId.removePrefix("event_"))
@@ -765,6 +783,7 @@ private fun ScheduleTab(
     month: Int,
     onChangeMonth: (Int) -> Unit,
     onWorkClick: (Work) -> Unit,
+    tourTargetWorkId: String? = null,
     isRadiant: Boolean = false,
     pageBackdrop: Backdrop? = null,
     headerTopPadding: Dp = 102.dp,
@@ -811,6 +830,7 @@ private fun ScheduleTab(
                     month = month,
                     onChangeMonth = onChangeMonth,
                     onWorkClick = onWorkClick,
+                    tourTargetWorkId = tourTargetWorkId,
                     loggedIn = loggedIn,
                     onLogin = onLogin
                 )
@@ -886,7 +906,13 @@ private fun ScheduleTab(
                     }
                     Column {
                         model.rows.forEachIndexed { ri, row ->
-                            MonthRowView(row = row, isShade = ri % 2 == 1, doneGray = doneGray, onWorkClick = onWorkClick)
+                            MonthRowView(
+                        row = row,
+                        isShade = ri % 2 == 1,
+                        doneGray = doneGray,
+                        onWorkClick = onWorkClick,
+                        tourTargetWorkId = tourTargetWorkId
+                    )
                         }
                         if (model.noWorks) {
                             Row(
@@ -939,6 +965,7 @@ private fun ScheduleCalendarContent(
     month: Int,
     onChangeMonth: (Int) -> Unit,
     onWorkClick: (Work) -> Unit,
+    tourTargetWorkId: String? = null,
     loggedIn: Boolean = true,
     onLogin: () -> Unit = {}
 ) {
@@ -1001,7 +1028,13 @@ private fun ScheduleCalendarContent(
             }
             Column {
                 model.rows.forEachIndexed { ri, row ->
-                    MonthRowView(row = row, isShade = ri % 2 == 1, doneGray = doneGray, onWorkClick = onWorkClick)
+                    MonthRowView(
+                        row = row,
+                        isShade = ri % 2 == 1,
+                        doneGray = doneGray,
+                        onWorkClick = onWorkClick,
+                        tourTargetWorkId = tourTargetWorkId
+                    )
                 }
                 if (model.noWorks) {
                     if (loggedIn) {
@@ -1065,7 +1098,8 @@ private fun MonthRowView(
     row: com.ahu.ahutong.ui.screen.xuexiaotong.CalendarRow,
     isShade: Boolean,
     doneGray: Boolean,
-    onWorkClick: (Work) -> Unit
+    onWorkClick: (Work) -> Unit,
+    tourTargetWorkId: String? = null
 ) {
     val cellBg = if (isShade) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f) else Color.Transparent
 
@@ -1111,7 +1145,12 @@ private fun MonthRowView(
                     .padding(top = 2.dp)
             ) {
                 row.blocks.forEach { b ->
-                    WorkBlockView(b, doneGray, onWorkClick)
+                    WorkBlockView(
+                        b = b,
+                        doneGray = doneGray,
+                        onWorkClick = onWorkClick,
+                        isTourTarget = b.work.workId == tourTargetWorkId
+                    )
                 }
             }
         } else {
@@ -1124,7 +1163,8 @@ private fun MonthRowView(
 private fun WorkBlockView(
     b: com.ahu.ahutong.ui.screen.xuexiaotong.CalendarBlock,
     doneGray: Boolean,
-    onWorkClick: (Work) -> Unit
+    onWorkClick: (Work) -> Unit,
+    isTourTarget: Boolean = false
 ) {
     val cellPct = 100f / 7f
     val leftPct = b.colStart * cellPct
@@ -1158,7 +1198,10 @@ private fun WorkBlockView(
                 .padding(horizontal = 1.dp)
                 .height(CalendarModel.BLOCK_H.dp)
                 .background(finalBg, RoundedCornerShape(6.dp))
-                                .clickable { onWorkClick(b.work) },
+                .then(
+                    if (isTourTarget) Modifier.tourTarget("tour_work_card") else Modifier
+                )
+                .clickable { onWorkClick(b.work) },
             contentAlignment = Alignment.CenterStart
         ) {
             Row(
@@ -1450,4 +1493,62 @@ private fun openWorkInChaoxingApp(context: android.content.Context, work: Work) 
             context, "未安装学习通 App", android.widget.Toast.LENGTH_SHORT
         ).show()
     }
+}
+
+/** 导览演示数据：仅用于界面渲染，不写入存储，也不参与提醒与 AI。 */
+private fun demoTourWorks(): List<Work> {
+    val base = Calendar.getInstance()
+    fun dayAt(day: Int, hour: Int): Long = (base.clone() as Calendar).apply {
+        set(Calendar.DAY_OF_MONTH, day)
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    return listOf(
+        Work(
+            workId = "demo_1",
+            courseId = "demo_c1",
+            courseName = "高等数学",
+            title = "第三章课后作业",
+            status = "未交",
+            detailUrl = "https://mooc1.chaoxing.com/",
+            startTs = dayAt(5, 8),
+            endTs = dayAt(5, 23),
+            colorBg = "#FFE8E0",
+            colorText = "#C05621"
+        ),
+        Work(
+            workId = "demo_2",
+            courseId = "demo_c2",
+            courseName = "大学物理",
+            title = "实验报告",
+            status = "未交",
+            detailUrl = "https://mooc1.chaoxing.com/",
+            startTs = dayAt(12, 8),
+            endTs = dayAt(12, 23),
+            colorBg = "#E0F4F9",
+            colorText = "#1E6FA3"
+        ),
+        Work(
+            workId = "demo_3",
+            courseId = "demo_c3",
+            courseName = "大学英语",
+            title = "章节测验",
+            status = "已完成",
+            detailUrl = "https://mooc1.chaoxing.com/",
+            startTs = dayAt(19, 8),
+            endTs = dayAt(19, 23),
+            colorBg = "#E9E4FD",
+            colorText = "#5B45A8"
+        )
+    )
+}
+
+private fun demoTourProgress(): List<CourseProgress> {
+    val now = System.currentTimeMillis()
+    return listOf(
+        CourseProgress("demo_c1", "demo", "demo", "高等数学", 18, 30, 60, now),
+        CourseProgress("demo_c2", "demo", "demo", "大学物理", 9, 20, 45, now)
+    )
 }
