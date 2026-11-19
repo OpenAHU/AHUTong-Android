@@ -1,7 +1,9 @@
 package com.ahu.ahutong.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -81,7 +83,44 @@ fun GuidedTourOverlay(
     hint: String? = null,
     hintBelow: Boolean = false,
 ) {
-    if (!visible || steps.isEmpty()) return
+    if (steps.isEmpty()) return
+    val transition = remember {
+        MutableTransitionState(false).apply { targetState = visible }
+    }
+    LaunchedEffect(visible) { transition.targetState = visible }
+    AnimatedVisibility(
+        visibleState = transition,
+        enter = fadeIn(tween(200)),
+        exit = fadeOut(tween(200))
+    ) {
+        GuidedTourOverlayBody(
+            steps = steps,
+            index = index,
+            targetBounds = targetBounds,
+            onNext = onNext,
+            onPrevious = onPrevious,
+            onSkip = onSkip,
+            allowHighlightedInteraction = allowHighlightedInteraction,
+            nextEnabled = nextEnabled,
+            hint = hint,
+            hintBelow = hintBelow
+        )
+    }
+}
+
+@Composable
+private fun GuidedTourOverlayBody(
+    steps: List<GuidedTourStep>,
+    index: Int,
+    targetBounds: Rect?,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onSkip: () -> Unit,
+    allowHighlightedInteraction: Boolean,
+    nextEnabled: Boolean,
+    hint: String?,
+    hintBelow: Boolean
+) {
     val safeIndex = index.coerceIn(0, steps.lastIndex)
     val primary = MaterialTheme.colorScheme.primary
 
