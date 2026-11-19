@@ -128,7 +128,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
     val doneGray by viewModel.doneGray.collectAsState()
     val showEmptyCourses by viewModel.showEmptyCourses.collectAsState()
     val fullSyncEnabled by viewModel.fullSyncEnabled.collectAsState()
-    val remindSetting by viewModel.remindSetting.collectAsState()
 
     // 未登录也可直接使用日历（自建日程本地可用），仅登录/同步需进独立登录页
     var showLogin by remember { mutableStateOf(false) }
@@ -195,7 +194,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
     var showAddEvent by remember { mutableStateOf(false) }
     var pendingDeleteEvent by remember { mutableStateOf<Work?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
-    var showRemindDialog by remember { mutableStateOf(false) }
     val today = Calendar.getInstance()
     var year by remember { mutableIntStateOf(today.get(Calendar.YEAR)) }
     var month by remember { mutableIntStateOf(today.get(Calendar.MONTH) + 1) }
@@ -667,16 +665,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
         )
     }
 
-    // 通知设置弹窗
-    if (showRemindDialog) {
-        RemindDialog(
-            setting = remindSetting,
-            onSave = { viewModel.saveRemind(it) },
-            onDismiss = { showRemindDialog = false },
-            onTest = { viewModel.sendTestNotification() }
-        )
-    }
-
     // 底部抽屉菜单（统一 AppModalBottomSheet，主题原生宿主）
     if (sideMenuOpen) {
         AppModalBottomSheet(
@@ -709,17 +697,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
                 )
-                Spacer(Modifier.height(8.dp))
-                // 通知设置
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { sideMenuOpen = false; showRemindDialog = true }
-                        .padding(vertical = 7.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text("通知设置", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 Spacer(Modifier.height(12.dp))

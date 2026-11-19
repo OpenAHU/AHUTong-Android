@@ -10,6 +10,9 @@ import com.ahu.ahutong.data.repository.RepositoryAccelerationSource
 import com.ahu.ahutong.data.repository.RepositoryIndex
 import com.ahu.ahutong.data.repository.RepositorySourceHealth
 import com.ahu.ahutong.data.repository.resolveRepositoryAccelerationSourceId
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders
+import com.ahu.ahutong.data.xuexiaotong.ChaoxingStore
+import com.ahu.ahutong.data.xuexiaotong.RemindSetting
 import com.ahu.ahutong.data.model.DEFAULT_THEME_COLOR
 import com.ahu.ahutong.data.model.AppThemeMode
 import com.ahu.ahutong.data.model.AppUiTheme
@@ -48,8 +51,30 @@ class PreferencesViewModel @Inject constructor(
     private val personalization: PersonalizationSettings,
     private val reminders: CourseReminderControl,
     private val repository: RepositoryIndex,
-    private val behavior: BehaviorRecorder
+    private val behavior: BehaviorRecorder,
+    private val chaoxingStore: ChaoxingStore,
+    private val chaoxingReminders: ChaoxingReminders
 ) : ViewModel() {
+
+    private val _xuexiaotongRemind = MutableStateFlow(chaoxingStore.remindSetting())
+    val xuexiaotongRemind: StateFlow<RemindSetting> = _xuexiaotongRemind.asStateFlow()
+
+    fun setXuexiaotongRemindEnabled(enabled: Boolean) = updateXuexiaotongRemind { it.copy(enabled = enabled) }
+
+    fun setXuexiaotongRemindLeadMinutes(minutes: Int) =
+        updateXuexiaotongRemind { it.copy(leadMinutes = minutes) }
+
+    fun setXuexiaotongRemindOnlyTodo(value: Boolean) =
+        updateXuexiaotongRemind { it.copy(onlyTodo = value) }
+
+    fun sendXuexiaotongTestNotification() = chaoxingReminders.sendTest()
+
+    private fun updateXuexiaotongRemind(block: (RemindSetting) -> RemindSetting) {
+        val next = block(_xuexiaotongRemind.value)
+        chaoxingStore.saveRemindSetting(next)
+        _xuexiaotongRemind.value = next
+        chaoxingReminders.rescheduleAll()
+    }
 
     private val startupThemePreferences = settings.getStartupThemePreferences()
 

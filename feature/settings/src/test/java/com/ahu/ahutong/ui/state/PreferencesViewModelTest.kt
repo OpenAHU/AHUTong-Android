@@ -59,11 +59,17 @@ class PreferencesViewModelTest {
     private val reminders = FakeCourseReminderControl()
     private val behavior = FakeBehaviorRecorder()
 
+    private val chaoxingStore = FakeChaoxingStore()
+    private val chaoxingReminders = FakeChaoxingReminders()
+
     private fun viewModel(
         store: SettingsStore = FakeSettingsStore(),
         personalization: FakePersonalizationSettings = FakePersonalizationSettings(),
         repository: FakeRepositoryIndex = FakeRepositoryIndex()
-    ) = PreferencesViewModel(store, personalization, reminders, repository, behavior)
+    ) = PreferencesViewModel(
+        store, personalization, reminders, repository, behavior,
+        chaoxingStore, chaoxingReminders
+    )
 
     @Test
     fun `beta haptics are off by default and persist independently of the theme`() {
@@ -405,4 +411,38 @@ class PreferencesViewModelTest {
         assertEquals("UI_STYLE_CHANGED", behavior.reports.single().coarseValueBucket)
     }
 
+}
+
+private class FakeChaoxingStore : com.ahu.ahutong.data.xuexiaotong.ChaoxingStore {
+    var remind: com.ahu.ahutong.data.xuexiaotong.RemindSetting =
+        com.ahu.ahutong.data.xuexiaotong.RemindSetting()
+
+    override fun works() = emptyList<com.ahu.ahutong.data.xuexiaotong.Work>()
+    override fun courses() = emptyList<com.ahu.ahutong.data.xuexiaotong.Course>()
+    override fun courseProgress() = emptyList<com.ahu.ahutong.data.xuexiaotong.CourseProgress>()
+    override fun lastSync() = 0L
+    override fun remindSetting() = remind
+    override fun customEvents() = emptyList<com.ahu.ahutong.data.xuexiaotong.CustomEvent>()
+    override fun showDone() = false
+    override fun doneGray() = false
+    override fun showEmptyCourses() = false
+    override fun saveShowDone(value: Boolean) = Unit
+    override fun saveDoneGray(value: Boolean) = Unit
+    override fun saveShowEmptyCourses(value: Boolean) = Unit
+    override fun saveLastSync(at: Long) = Unit
+    override fun saveRemindSetting(setting: com.ahu.ahutong.data.xuexiaotong.RemindSetting) {
+        remind = setting
+    }
+    override fun saveCustomEvents(events: List<com.ahu.ahutong.data.xuexiaotong.CustomEvent>) = Unit
+    override fun clearLoginData() = Unit
+}
+
+private class FakeChaoxingReminders : com.ahu.ahutong.data.xuexiaotong.ChaoxingReminders {
+    var rescheduleCount = 0
+    override fun cancelAll() = Unit
+    override fun scheduleAll() = Unit
+    override fun rescheduleAll() {
+        rescheduleCount++
+    }
+    override fun sendTest() = Unit
 }

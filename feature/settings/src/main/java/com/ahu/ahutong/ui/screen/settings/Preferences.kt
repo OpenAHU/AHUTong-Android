@@ -104,6 +104,7 @@ fun Preferences(
     }
     val courseReminderLiveCountdownEnabled by
         viewModel.courseReminderLiveCountdownEnabled.collectAsState()
+    val xuexiaotongRemind by viewModel.xuexiaotongRemind.collectAsState()
     val bootstrapContributionStatus by viewModel.bootstrapContributionStatus.collectAsState()
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -134,6 +135,36 @@ fun Preferences(
             }
         } else {
             viewModel.setCourseReminderEnabled(true)
+        }
+    }
+
+    val xuexiaotongPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        isRequestingPermission = false
+        if (granted) {
+            viewModel.setXuexiaotongRemindEnabled(true)
+        } else {
+            Toast.makeText(context, "未授予通知权限，无法开启作业提醒", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val requestXuexiaotongReminder: (Boolean) -> Unit = { enabled ->
+        if (!enabled) {
+            viewModel.setXuexiaotongRemindEnabled(false)
+        } else if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            if (!isRequestingPermission) {
+                isRequestingPermission = true
+                xuexiaotongPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            viewModel.setXuexiaotongRemindEnabled(true)
         }
     }
 
@@ -236,6 +267,47 @@ fun Preferences(
                         }
                     }
                 )
+            }
+
+            if (section == PreferencesSection.NOTIFICATIONS && undergraduateEnabled) SettingsSection(
+                title = "学习通作业提醒",
+                modifier = Modifier.padding(horizontal = 16.dp),
+                backdrop = backdrop
+            ) {
+                SettingsToggleRow(
+                    title = "作业提醒",
+                    selected = xuexiaotongRemind.enabled,
+                    onSelectedChange = requestXuexiaotongReminder,
+                    backdrop = backdrop,
+                    showDivider = xuexiaotongRemind.enabled,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
+                if (xuexiaotongRemind.enabled) {
+                    SettingsSelectRow(
+                        title = "提前提醒",
+                        selected = xuexiaotongRemind.leadMinutes,
+                        choices = listOf(
+                            SettingsChoice(0, "截止时"),
+                            SettingsChoice(60, "提前1小时"),
+                            SettingsChoice(360, "提前6小时"),
+                            SettingsChoice(720, "提前12小时"),
+                            SettingsChoice(1440, "提前1天")
+                        ),
+                        onSelected = viewModel::setXuexiaotongRemindLeadMinutes
+                    )
+                    SettingsToggleRow(
+                        title = "仅提醒未完成作业",
+                        selected = xuexiaotongRemind.onlyTodo,
+                        onSelectedChange = viewModel::setXuexiaotongRemindOnlyTodo,
+                        backdrop = backdrop,
+                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                    )
+                    SettingsActionRow(
+                        title = "发送测试通知",
+                        showDivider = false,
+                        onClick = viewModel::sendXuexiaotongTestNotification
+                    )
+                }
             }
 
             if (section == PreferencesSection.INTELLIGENCE) SettingsSection(

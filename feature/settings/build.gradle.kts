@@ -41,6 +41,7 @@ dependencies {
     implementation(project(":core:storage"))
     implementation(project(":core:designsystem"))
     implementation(project(":data:personalization"))
+    implementation(project(":data:chaoxing"))
     implementation(project(":data:repository-index"))
 
     implementation(libs.androidx.core.ktx)
