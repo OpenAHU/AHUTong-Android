@@ -193,14 +193,7 @@ fun Settings(
                 )
                 SettingsActionRow(
                     title = "重新登录",
-                    leadingIcon = if (useMiuixIcons) {
-                        MiuixIcons.Useful.Personal
-                    } else if (isRadiant) {
-                        null
-                    } else {
-                        Icons.AutoMirrored.Outlined.Login
-                    },
-                    leadingPainter = if (isRadiant) painterResource(R.drawable.ic_logout) else null,
+                    leadingPainter = painterResource(R.drawable.ic_logout),
                     onClick = onNavigateToLogin
                 )
                 SettingsActionRow(
@@ -229,12 +222,12 @@ fun Settings(
             )
             SettingsActionRow(
                 title = "校园卡",
-                leadingIcon = Icons.Outlined.CreditCard,
+                leadingPainter = painterResource(R.drawable.ic_bank_card),
                 onClick = onOpenCampusCard
             )
             SettingsActionRow(
                 title = "通知",
-                leadingIcon = Icons.Outlined.Notifications,
+                leadingPainter = painterResource(R.drawable.ic_remind),
                 showDivider = false,
                 onClick = onOpenNotifications
             )
@@ -247,22 +240,22 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = "外观与主题",
-                leadingIcon = Icons.Outlined.Palette,
+                leadingPainter = painterResource(R.drawable.ic_palette),
                 onClick = onOpenAppearance
             )
             SettingsActionRow(
                 title = "智能体验",
-                leadingIcon = Icons.Outlined.AutoAwesome,
+                leadingPainter = painterResource(R.drawable.ic_brain),
                 onClick = onOpenIntelligence
             )
             SettingsActionRow(
                 title = "数据与隐私",
-                leadingIcon = Icons.Outlined.Shield,
+                leadingPainter = painterResource(R.drawable.ic_shield),
                 onClick = onOpenDataPrivacy
             )
             SettingsActionRow(
                 title = stringResource(id = R.string.check_update),
-                leadingIcon = Icons.Outlined.Update,
+                leadingPainter = painterResource(R.drawable.ic_refresh),
                 onClick = {
                     onCheckUpdate { message ->
                         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -272,7 +265,7 @@ fun Settings(
             SettingsActionRow(
                 title = "抢先体验",
                 value = earlyAccessSummary,
-                leadingIcon = Icons.Outlined.Science,
+                leadingPainter = painterResource(R.drawable.ic_experiment),
                 showDivider = false,
                 onClick = onNavigateToEarlyAccess
             )
@@ -285,7 +278,7 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = "关于与支持",
-                leadingIcon = Icons.Outlined.Info,
+                leadingPainter = painterResource(R.drawable.ic_info),
                 showDivider = false,
                 onClick = onNavigateToAbout
             )
