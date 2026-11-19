@@ -669,7 +669,7 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
         val maxSheetHeight =
             androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.8f
         AppModalBottomSheet(
-            title = "学习通日历",
+            title = "学习通日历设置",
             onDismissRequest = { sideMenuOpen = false },
             modifier = Modifier.heightIn(max = maxSheetHeight)
         ) {
