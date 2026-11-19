@@ -4,20 +4,18 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,7 +47,6 @@ import com.ahu.ahutong.ui.state.ActiveAuthor
 import com.ahu.ahutong.ui.state.CommitRecord
 import com.ahu.ahutong.ui.state.DeveloperViewModel
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Contributors(
     title: String,
@@ -76,85 +72,36 @@ fun Contributors(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 backdrop = backdrop
             ) {
-                if (!seniorsExpanded) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { seniorsExpanded = true }
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        developerViewModel.seniors.forEachIndexed { index, senior ->
-                            AsyncImage(
-                                model = senior.avatar,
-                                contentDescription = senior.name,
-                                modifier = Modifier
-                                    .offset(x = (-14 * index).dp)
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .border(
-                                        2.dp,
-                                        MaterialTheme.colorScheme.surfaceContainer,
-                                        CircleShape
-                                    )
-                            )
-                        }
-                        Text(
-                            text = "${developerViewModel.seniors.size} 位前辈",
-                            modifier = Modifier.padding(start = 12.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            developerViewModel.seniors.forEach { senior ->
-                                Column(
-                                    modifier = Modifier
-                                        .width(88.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .clickable { selectedSenior = senior }
-                                        .padding(vertical = 8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    AsyncImage(
-                                        model = senior.avatar,
-                                        contentDescription = senior.name,
-                                        modifier = Modifier
-                                            .size(56.dp)
-                                            .clip(CircleShape)
-                                    )
-                                    Text(
-                                        text = senior.name,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                        Row(
+                // 收起时头像重叠成堆，点一下缓动摊开成一排；摊开后点某个头像看详情
+                val gap by animateDpAsState(
+                    targetValue = if (seniorsExpanded) 8.dp else (-14).dp,
+                    animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+                    label = "senior-avatar-gap"
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { seniorsExpanded = !seniorsExpanded }
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    developerViewModel.seniors.forEach { senior ->
+                        AsyncImage(
+                            model = senior.avatar,
+                            contentDescription = senior.name,
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            Text(
-                                text = "收起",
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .clickable { seniorsExpanded = false }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .border(
+                                    2.dp,
+                                    MaterialTheme.colorScheme.surfaceContainer,
+                                    CircleShape
+                                )
+                                .clickable(enabled = seniorsExpanded) {
+                                    selectedSenior = senior
+                                }
+                        )
                     }
                 }
             }
