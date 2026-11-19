@@ -51,10 +51,10 @@ import kotlin.math.roundToInt
 private val HeroRowHeight = 64.dp
 
 private fun HomeHeroSlot.label(): String = when (this) {
-    HomeHeroSlot.ONGOING_EXAM -> "正在考试"
-    HomeHeroSlot.ONGOING_COURSE -> "正在上课"
-    HomeHeroSlot.ASSIGNMENT -> "离截止最近的作业"
-    HomeHeroSlot.NEXT_COURSE -> "下节课"
+    HomeHeroSlot.ONGOING_EXAM -> "正在进行的考试"
+    HomeHeroSlot.ONGOING_COURSE -> "正在进行的课程"
+    HomeHeroSlot.ASSIGNMENT -> "最近截止的作业"
+    HomeHeroSlot.NEXT_COURSE -> "下一节课"
     HomeHeroSlot.NEXT_EXAM -> "下一场考试"
 }
 
