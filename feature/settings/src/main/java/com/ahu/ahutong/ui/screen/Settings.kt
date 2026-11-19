@@ -168,7 +168,7 @@ fun Settings(
         )
         add(
             SettingsSearchEntry(
-                title = "通知与提醒",
+                title = "通知提醒",
                 keywords = listOf("通知", "提醒", "推送", "课前", "作业提醒", "电费", "预警"),
                 open = onOpenNotifications
             )
@@ -193,7 +193,7 @@ fun Settings(
         )
         add(
             SettingsSearchEntry(
-                title = "反馈",
+                title = "问题反馈",
                 keywords = listOf("反馈", "意见", "建议", "问题", "bug", "报错"),
                 open = onOpenFeedback
             )
@@ -201,7 +201,7 @@ fun Settings(
         add(
             SettingsSearchEntry(
                 title = "关于安大通",
-                keywords = listOf("关于", "版本", "官网", "贡献者", "开源", "许可", "隐私政策"),
+                keywords = listOf("关于", "版本", "官网", "贡献者", "贡献名单", "开源", "许可", "隐私政策"),
                 open = onNavigateToAbout
             )
         )
@@ -392,7 +392,7 @@ fun Settings(
                 onClick = onOpenDataPrivacy
             )
             SettingsActionRow(
-                title = "通知与提醒",
+                title = "通知提醒",
                 leadingPainter = painterResource(R.drawable.ic_remind),
                 showDivider = false,
                 onClick = onOpenNotifications
@@ -420,7 +420,7 @@ fun Settings(
                 onClick = onNavigateToEarlyAccess
             )
             SettingsActionRow(
-                title = "反馈",
+                title = "问题反馈",
                 leadingPainter = painterResource(R.drawable.ic_feedback),
                 onClick = onOpenFeedback
             )

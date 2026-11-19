@@ -125,7 +125,7 @@ fun AboutScreen(
                     }
                 )
                 SettingsActionRow(
-                    title = "贡献者",
+                    title = "贡献名单",
                     leadingPainter = painterResource(R.drawable.ic_peoples),
                     onClick = onOpenContributors
                 )
