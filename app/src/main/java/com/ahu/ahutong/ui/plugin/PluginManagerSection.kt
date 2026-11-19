@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.ahu.ahutong.ui.components.AppDialog
 import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
+import com.ahu.ahutong.ui.components.AppToggle
 import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.components.SettingsToggleRow
@@ -102,15 +105,43 @@ fun PluginManagerSection(backdrop: Backdrop) {
         title = null,
         backdrop = backdrop
     ) {
-        SettingsToggleRow(
-            title = "允许安装插件",
-            subtitle = if (devMode) "已开启" else null,
-            selected = devMode,
-            backdrop = backdrop,
-            onSelectedChange = { wantOn ->
-                if (wantOn) showEnableDisclaimer = true else showDisableConfirm = true
+        // 开关本体只展示状态，整行点击先走确认流程；devMode 只在确认后改变
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = devMode,
+                        role = Role.Switch,
+                        onValueChange = { wantOn ->
+                            if (wantOn) showEnableDisclaimer = true else showDisableConfirm = true
+                        }
+                    )
+                    .heightIn(min = 68.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("允许安装插件", fontWeight = FontWeight.Medium)
+                    if (devMode) {
+                        Text(
+                            "已开启",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                AppToggle(
+                    checked = devMode,
+                    onCheckedChange = null
+                )
             }
-        )
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 20.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+            )
+        }
         if (devMode) {
             runtimePlugins.forEach { (id, manifest) ->
                 SettingsActionRow(
