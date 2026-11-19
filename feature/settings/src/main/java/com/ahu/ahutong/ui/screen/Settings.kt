@@ -36,6 +36,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import com.ahu.ahutong.ui.haptics.HapticTextButton as TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalWindowInfo
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,8 +81,9 @@ import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.SettingsSection
-import com.ahu.ahutong.ui.components.tourBringIntoView
 import com.ahu.ahutong.ui.components.tourTarget
+import com.ahu.ahutong.ui.components.TourBounds
+import com.ahu.ahutong.ui.components.TourScrollRequest
 import com.ahu.ahutong.ui.components.isRadiantUi
 import com.ahu.ahutong.ui.shape.SmoothRoundedCornerShape
 import com.ahu.ahutong.ui.theme.LiquidGlassSurfaceLevel
@@ -386,8 +393,7 @@ fun Settings(
             SettingsActionRow(
                 title = "外观与主题",
                 modifier = Modifier
-                    .tourTarget("settings_appearance")
-                    .tourBringIntoView("settings_appearance"),
+                    .tourTarget("settings_appearance"),
                 leadingPainter = painterResource(R.drawable.ic_palette),
                 onClick = onOpenAppearance
             )
@@ -399,8 +405,7 @@ fun Settings(
             SettingsActionRow(
                 title = "通知提醒",
                 modifier = Modifier
-                    .tourTarget("settings_notifications")
-                    .tourBringIntoView("settings_notifications"),
+                    .tourTarget("settings_notifications"),
                 leadingPainter = painterResource(R.drawable.ic_remind),
                 showDivider = false,
                 onClick = onOpenNotifications
@@ -430,8 +435,7 @@ fun Settings(
             SettingsActionRow(
                 title = "问题反馈",
                 modifier = Modifier
-                    .tourTarget("settings_feedback")
-                    .tourBringIntoView("settings_feedback"),
+                    .tourTarget("settings_feedback"),
                 leadingPainter = painterResource(R.drawable.ic_feedback),
                 onClick = onOpenFeedback
             )
