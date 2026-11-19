@@ -84,7 +84,7 @@ import com.ahu.ahutong.ui.components.LocalAppUiTheme
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.AppHeaderIconButton
 import com.ahu.ahutong.ui.components.SettingsSection
-import com.ahu.ahutong.ui.components.tourTarget
+import com.ahu.ahutong.ui.components.tourCenterIntoView
 import com.ahu.ahutong.ui.components.TourBounds
 import com.ahu.ahutong.ui.components.TourScrollRequest
 import com.ahu.ahutong.ui.components.isRadiantUi
@@ -272,39 +272,6 @@ fun Settings(
         {}
     }
 
-    val pageScrollState = rememberScrollState()
-    val screenHeightPx = with(LocalDensity.current) {
-        LocalConfiguration.current.screenHeightDp.dp.toPx()
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { TourScrollRequest.signal to TourScrollRequest.targetId }
-            .collectLatest { (_, targetId) ->
-                if (targetId == null || !targetId.startsWith("settings_")) return@collectLatest
-                // 目标可能还没完成首次布局：等到坐标出现为止
-                var rect: androidx.compose.ui.geometry.Rect? = null
-                var attempts = 0
-                while (rect == null && attempts < 20) {
-                    delay(50)
-                    rect = TourBounds.get(targetId)
-                    attempts += 1
-                }
-                var target = rect ?: return@collectLatest
-                // 等切步的聚焦形变结束再开始滚动，二者不再互相追赶
-                delay(360)
-                target = TourBounds.get(targetId) ?: target
-                repeat(2) { attempt ->
-                    val delta = (target.top + target.bottom) / 2f - screenHeightPx / 2f
-                    if (kotlin.math.abs(delta) <= 8f) return@collectLatest
-                    pageScrollState.animateScrollBy(
-                        delta,
-                        tween(durationMillis = 360, easing = FastOutSlowInEasing)
-                    )
-                    // 滚动后重新取一次，处理被边界夹住的情况
-                    target = TourBounds.get(targetId) ?: return@collectLatest
-                }
-            }
-    }
-
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         if (showSettingsSearch) {
             androidx.activity.compose.BackHandler { showSettingsSearch = false }
@@ -317,7 +284,6 @@ fun Settings(
         }
         SettingsPageLayout(
             title = stringResource(id = R.string.setting),
-            scrollState = pageScrollState,
             backdrop = backdrop,
             actions = {
                 AppHeaderIconButton(
@@ -430,7 +396,7 @@ fun Settings(
             SettingsActionRow(
                 title = "外观与主题",
                 modifier = Modifier
-                    .tourTarget("settings_appearance"),
+                    .tourCenterIntoView("settings_appearance"),
                 leadingPainter = painterResource(R.drawable.ic_palette),
                 onClick = onOpenAppearance
             )
@@ -442,7 +408,7 @@ fun Settings(
             SettingsActionRow(
                 title = "通知提醒",
                 modifier = Modifier
-                    .tourTarget("settings_notifications"),
+                    .tourCenterIntoView("settings_notifications"),
                 leadingPainter = painterResource(R.drawable.ic_remind),
                 showDivider = false,
                 onClick = onOpenNotifications
@@ -472,7 +438,7 @@ fun Settings(
             SettingsActionRow(
                 title = "问题反馈",
                 modifier = Modifier
-                    .tourTarget("settings_feedback"),
+                    .tourCenterIntoView("settings_feedback"),
                 leadingPainter = painterResource(R.drawable.ic_feedback),
                 onClick = onOpenFeedback
             )
