@@ -167,11 +167,6 @@ fun AiSettings(
             ) {
                 SettingsToggleRow(
                     title = "开启 AI 服务",
-                    subtitle = if (serviceEnabled) {
-                        "主页显示 AHUTong Intelligence 入口"
-                    } else {
-                        "主页隐藏 AI 入口，已打开的 AI 层会关闭"
-                    },
                     selected = serviceEnabled,
                     backdrop = backdrop,
                     showDivider = false,
@@ -221,7 +216,6 @@ fun AiSettings(
                 }
                 SettingsActionRow(
                     title = "添加模型",
-                    subtitle = "支持任意 OpenAI 兼容接口；首个添加的模型默认使用",
                     leadingIcon = Icons.Outlined.Add,
                     showChevron = false,
                     showDivider = false,
@@ -237,7 +231,6 @@ fun AiSettings(
                 ) {
                     SettingsToggleRow(
                         title = "允许联网搜索",
-                        subtitle = "需要实时信息时通过 DeepSeek 官方搜索获取网页结果",
                         selected = searchEnabled,
                         backdrop = backdrop,
                         showDivider = false,

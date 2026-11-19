@@ -224,19 +224,16 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = "AHUTong Intelligence",
-                subtitle = "模型、思考强度与联网搜索",
                 leadingIcon = Icons.Outlined.AutoAwesome,
                 onClick = onOpenAiSettings
             )
             SettingsActionRow(
                 title = "校园卡",
-                subtitle = "付款码、安全键盘与充值",
                 leadingIcon = Icons.Outlined.CreditCard,
                 onClick = onOpenCampusCard
             )
             SettingsActionRow(
                 title = "通知",
-                subtitle = "课程提醒与岛卡权限",
                 leadingIcon = Icons.Outlined.Notifications,
                 showDivider = false,
                 onClick = onOpenNotifications
@@ -250,19 +247,16 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = "外观与主题",
-                subtitle = "主题套装、主题色、背景与触感",
                 leadingIcon = Icons.Outlined.Palette,
                 onClick = onOpenAppearance
             )
             SettingsActionRow(
                 title = "智能体验",
-                subtitle = "快捷建议与预测预加载",
                 leadingIcon = Icons.Outlined.AutoAwesome,
                 onClick = onOpenIntelligence
             )
             SettingsActionRow(
                 title = "数据与隐私",
-                subtitle = "本地记录、必吃榜与训练数据",
                 leadingIcon = Icons.Outlined.Shield,
                 onClick = onOpenDataPrivacy
             )
@@ -291,7 +285,6 @@ fun Settings(
         ) {
             SettingsActionRow(
                 title = "关于与支持",
-                subtitle = "版本、更新、官网与法务信息",
                 leadingIcon = Icons.Outlined.Info,
                 showDivider = false,
                 onClick = onNavigateToAbout

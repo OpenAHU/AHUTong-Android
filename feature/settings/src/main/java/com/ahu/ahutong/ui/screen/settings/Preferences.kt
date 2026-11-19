@@ -168,7 +168,6 @@ fun Preferences(
                 )
                 SettingsToggleRow(
                     title = "使用内置安全密码键盘",
-                    subtitle = "关闭后使用系统密码键盘",
                     selected = useBuiltInSecurePasswordKeyboard,
                     onSelectedChange = viewModel::setUseBuiltInSecurePasswordKeyboard,
                     backdrop = backdrop,
@@ -184,7 +183,6 @@ fun Preferences(
             ) {
                 SettingsToggleRow(
                     title = "课前提醒",
-                    subtitle = "上课前 10 分钟提醒下一节课",
                     selected = courseReminderEnabled,
                     onSelectedChange = requestCourseReminder,
                     backdrop = backdrop,
@@ -248,7 +246,6 @@ fun Preferences(
                 personalizationEnabled?.let { enabled ->
                     SettingsToggleRow(
                         title = "显示快捷建议",
-                        subtitle = "根据本机使用习惯显示常用入口",
                         selected = enabled,
                         onSelectedChange = viewModel::setPersonalizationEnabled,
                         backdrop = backdrop,
@@ -260,7 +257,6 @@ fun Preferences(
                 if (predictiveEnabled != null && wifiOnly != null) {
                     SettingsToggleRow(
                         title = "提前加载预测内容",
-                        subtitle = "预测下一步并预加载只读内容",
                         selected = predictiveEnabled,
                         onSelectedChange = viewModel::setPredictivePrefetchEnabled,
                         backdrop = backdrop,

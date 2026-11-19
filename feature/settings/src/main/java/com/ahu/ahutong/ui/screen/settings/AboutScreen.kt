@@ -167,7 +167,6 @@ fun AboutScreen(
                 )
                 SettingsActionRow(
                     title = "清除所有数据",
-                    subtitle = "已保存账号、登录状态、课表及本机设置",
                     leadingIcon = Icons.Outlined.DeleteForever,
                     destructive = true,
                     showDivider = false,
