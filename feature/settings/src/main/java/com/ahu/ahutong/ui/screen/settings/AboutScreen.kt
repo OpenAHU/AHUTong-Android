@@ -89,11 +89,21 @@ fun AboutScreen(
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color.White)
                 )
-                Text(
-                    text = appName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = appName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "AHUTong，安大人的生活利器",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             SettingsSection(
@@ -168,9 +178,31 @@ fun AboutScreen(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable(onClick = onOpenLicense)
                     )
+                    Text(
+                        text = "·",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "开源仓库",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://github.com/OpenAHU/AHUTong-Android")
+                                    )
+                                )
+                            }.onFailure {
+                                Toast.makeText(context, "无法打开开源仓库", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
                 }
                 Text(
-                    text = "Copyright © ${LocalDate.now().year} OpenAHU",
+                    text = "GPL-3.0 · Copyright © ${LocalDate.now().year} OpenAHU",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
