@@ -62,6 +62,9 @@ class DeveloperViewModel @Inject constructor(
     private val _commits = MutableStateFlow<CommitState>(CommitState.Loading)
     val commits: StateFlow<CommitState> = _commits.asStateFlow()
 
+    /** 展示顺序：先固定已知登录名的先后，未知的保持接口顺序排在后面。 */
+    private val authorOrder = listOf("Kaltsit-cell", "MuxYang", "InChange-Jiang")
+
     init {
         refreshCommits()
     }
@@ -71,7 +74,9 @@ class DeveloperViewModel @Inject constructor(
         viewModelScope.launch {
             _commits.value = runCatching { commitStats.load() }
                 .fold(
-                    onSuccess = { CommitState.Ready(it) },
+                    onSuccess = { authors ->
+                        CommitState.Ready(authors.sortedBy { authorOrder.indexOf(it.login).let { i -> if (i < 0) Int.MAX_VALUE else i } })
+                    },
                     onFailure = { CommitState.Failed }
                 )
         }
