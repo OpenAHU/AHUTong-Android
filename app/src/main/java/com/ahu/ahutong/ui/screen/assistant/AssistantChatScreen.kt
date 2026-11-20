@@ -456,6 +456,9 @@ fun AssistantChatScreen(
                     exit = fadeOut(tween(180)),
                 ) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val subtitle = remember(AssistantChatState.currentSessionId) {
+                            ASSISTANT_EMPTY_SUBTITLES.random()
+                        }
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -463,14 +466,22 @@ fun AssistantChatScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             EmotionBall(
-                                modifier = Modifier.size(148.dp),
+                                modifier = Modifier.size(120.dp),
                                 sessionKey = AssistantChatState.currentSessionId,
                             )
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(16.dp))
                             Text(
-                                text = "你好，今天需要我帮你做什么呢",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                                text = "你好，我是AHUTong Intelligence",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
                                 textAlign = TextAlign.Center,
                             )
                         }
@@ -1872,4 +1883,12 @@ private const val TRIAL_MODEL_LIMIT_NOTICE =
 
 private const val MAX_ROUTE_LINKS = 3
 private const val ASSISTANT_NAME = "AHUTong Intelligence"
+
+private val ASSISTANT_EMPTY_SUBTITLES = listOf(
+    "今天有什么要帮忙的？",
+    "今天在安大的生活有什么事情交给我？",
+    "今天心情怎么样？",
+    "需要我帮你做什么吗？",
+    "可以安排我帮你干活哟～",
+)
 private const val DELTA_FLUSH_INTERVAL_MS = 33L
