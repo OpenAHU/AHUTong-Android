@@ -7,10 +7,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.abs
@@ -231,6 +234,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     private var startMs = 0L
     private var lastMs = 0L
     private var dtSec = 1f / 60f
+    private var clockSec = 0f
 
     private var def: BallEmotion? = null
     private var prevPose: Pose? = null
@@ -365,6 +369,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         }
         dtSec = ((nowMs - lastMs) / 1000f).coerceIn(0.001f, 0.05f)
         lastMs = nowMs
+        clockSec = (nowMs - startMs) / 1000f
         if (tour.size > 1 && nowMs >= nextTourAt) {
             tourIndex = (tourIndex + 1) % tour.size
             setEmotion(tour[tourIndex], nowMs, initial = false)
@@ -640,27 +645,106 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 scale(pose.body.scale, pose.body.scale, Offset.Zero)
                 translate(-HEAD_C, -HEAD_C)
             }) {
-                drawPath(bodyPath, brush = bodyBrush(pose.body.color))
+                drawGlow()
+                drawBody()
                 drawEye(pose.left, ringCur[0])
                 drawEye(pose.right, ringCur[1])
             }
         }
     }
 
-    private fun bodyBrush(color: Int): Brush {
-        val center = Offset(
-            bodyMinX + (bodyMaxX - bodyMinX) * 0.38f,
-            bodyMinY + (bodyMaxY - bodyMinY) * 0.32f,
-        )
-        val radius = max(bodyMaxX - bodyMinX, bodyMaxY - bodyMinY) * 0.75f
-        return Brush.radialGradient(
-            colorStops = arrayOf(
-                0f to Color(shade(color, 0.22f)),
-                0.62f to Color(color),
-                1f to Color(shade(color, -0.05f)),
+    /** 彩色流光球身：轻薄半透明渐变 + 缓慢流动的高光带 + 外侧柔光。 */
+    private fun DrawScope.drawGlow() {
+        val hue = (clockSec * 9f) % 360f
+        val center = Offset((bodyMinX + bodyMaxX) / 2f, (bodyMinY + bodyMaxY) / 2f)
+        val radius = (bodyMaxX - bodyMinX) / 2f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.6f to Color.Transparent,
+                    0.82f to Color.hsv(hue, 0.55f, 1f, 0.14f),
+                    1f to Color.Transparent,
+                ),
+                center = center,
+                radius = radius * 1.38f,
             ),
+            radius = radius * 1.38f,
             center = center,
-            radius = radius,
+        )
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.55f to Color.Transparent,
+                    0.85f to Color.hsv((hue + 130f) % 360f, 0.5f, 1f, 0.1f),
+                    1f to Color.Transparent,
+                ),
+                center = center,
+                radius = radius * 1.62f,
+            ),
+            radius = radius * 1.62f,
+            center = center,
+        )
+    }
+
+    private fun DrawScope.drawBody() {
+        val hue = (clockSec * 9f) % 360f
+        val angle = clockSec * 0.12f
+        val centerX = (bodyMinX + bodyMaxX) / 2f
+        val centerY = (bodyMinY + bodyMaxY) / 2f
+        val radius = (bodyMaxX - bodyMinX) / 2f
+        val dx = cos(angle) * radius
+        val dy = sin(angle) * radius
+        drawPath(
+            path = bodyPath,
+            brush = Brush.linearGradient(
+                colorStops = arrayOf(
+                    0f to Color.hsv(hue, 0.4f, 1f, 0.84f),
+                    0.35f to Color.hsv((hue + 48f) % 360f, 0.52f, 1f, 0.9f),
+                    0.7f to Color.hsv((hue + 105f) % 360f, 0.46f, 1f, 0.86f),
+                    1f to Color.hsv((hue + 158f) % 360f, 0.4f, 1f, 0.84f),
+                ),
+                start = Offset(centerX - dx, centerY - dy),
+                end = Offset(centerX + dx, centerY + dy),
+            ),
+        )
+        clipPath(bodyPath) {
+            // 左上高光，保住一点点球体的体积感
+            val highlightCenter = Offset(centerX - radius * 0.36f, centerY - radius * 0.4f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to Color.White.copy(alpha = 0.5f),
+                        1f to Color.Transparent,
+                    ),
+                    center = highlightCenter,
+                    radius = radius * 0.82f,
+                ),
+                radius = radius * 0.82f,
+                center = highlightCenter,
+            )
+            // 斜向流动的高光带，约 6 秒扫过一遍
+            val sweep = (clockSec * 0.16f) % 1f
+            val bandX = -80f + sweep * 360f
+            drawRect(
+                brush = Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.42f to Color.Transparent,
+                        0.5f to Color.White.copy(alpha = 0.22f),
+                        0.58f to Color.Transparent,
+                        1f to Color.Transparent,
+                    ),
+                    start = Offset(bandX - 150f, -15f),
+                    end = Offset(bandX + 150f, 244f),
+                ),
+                topLeft = Offset(-15f, -15f),
+                size = androidx.compose.ui.geometry.Size(VIEW_BOX, VIEW_BOX),
+            )
+        }
+        drawPath(
+            path = bodyPath,
+            color = Color.White.copy(alpha = 0.5f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.4f),
         )
     }
 
@@ -791,16 +875,6 @@ private fun lerpColor(a: Int, b: Int, t: Float): Int {
     val g = (ag + (bg - ag) * t).toInt().coerceIn(0, 255)
     val blue = (ab + (bb - ab) * t).toInt().coerceIn(0, 255)
     return (0xFF shl 24) or (r shl 16) or (g shl 8) or blue
-}
-
-private fun shade(color: Int, amount: Float): Int {
-    val r = (color shr 16) and 0xFF
-    val g = (color shr 8) and 0xFF
-    val b = color and 0xFF
-    val target = if (amount < 0) 0 else 255
-    val a = abs(amount)
-    fun mix(v: Int) = (v + (target - v) * a).toInt().coerceIn(0, 255)
-    return (0xFF shl 24) or (mix(r) shl 16) or (mix(g) shl 8) or mix(b)
 }
 
 private fun easeInOutCubic(t: Float): Float =
