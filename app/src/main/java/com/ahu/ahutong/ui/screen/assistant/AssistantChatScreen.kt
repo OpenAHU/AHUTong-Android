@@ -305,19 +305,37 @@ fun AssistantChatScreen(
                 Modifier
                     .fillMaxSize()
                     .pointerInput(panelWidth) {
+                        // 最近 120ms 的平均速度：用于轻扫开合
+                        var windowStart = 0L
+                        var windowDx = 0f
                         detectHorizontalDragGestures(
-                            onDragStart = { drawerDragging = true },
+                            onDragStart = {
+                                drawerDragging = true
+                                windowStart = System.nanoTime()
+                                windowDx = 0f
+                            },
                             onHorizontalDrag = { change, dragAmount ->
                                 change.consume()
                                 drawerProgress = (drawerProgress + dragAmount / panelWidth)
                                     .coerceIn(0f, 1f)
+                                val now = System.nanoTime()
+                                windowDx += dragAmount
+                                if (now - windowStart > 120_000_000L) {
+                                    windowStart = now
+                                    windowDx = 0f
+                                }
                             },
                             onDragEnd = {
                                 drawerDragging = false
-                                if (drawerProgress > 0.35f) {
-                                    AssistantChatState.openHistory()
-                                } else {
-                                    AssistantChatState.closeHistory()
+                                val elapsed = (System.nanoTime() - windowStart)
+                                    .coerceAtLeast(1L)
+                                val velocity = windowDx * 1_000_000_000f / elapsed
+                                val fling = with(density) { 350.dp.toPx() }
+                                when {
+                                    velocity > fling -> AssistantChatState.openHistory()
+                                    velocity < -fling -> AssistantChatState.closeHistory()
+                                    drawerProgress > 0.35f -> AssistantChatState.openHistory()
+                                    else -> AssistantChatState.closeHistory()
                                 }
                             },
                             onDragCancel = {
