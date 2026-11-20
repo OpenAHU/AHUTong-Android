@@ -8,14 +8,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.random.Random
@@ -39,7 +36,7 @@ internal fun BirthdayFireworks(modifier: Modifier = Modifier) {
                     ((nanos - lastNanos) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
                 }
                 lastNanos = nanos
-                state.step(dt, density)
+                state.step(dt * 0.5f, density)
                 tick.intValue++
             }
         }
@@ -165,19 +162,6 @@ private class FireworksState {
     fun draw(scope: DrawScope) {
         width = scope.size.width
         height = scope.size.height
-        val radius = max(width, height) * 0.75f
-        scope.drawRect(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0f to Color(0xFF241633),
-                    0.55f to Color(0xFF120B1F),
-                    1f to Color(0xFF05030A),
-                ),
-                center = Offset(width * 0.5f, height * 0.45f),
-                radius = radius,
-            ),
-            size = Size(width, height),
-        )
 
         for (rocket in rockets) {
             for ((index, point) in rocket.trail.withIndex()) {

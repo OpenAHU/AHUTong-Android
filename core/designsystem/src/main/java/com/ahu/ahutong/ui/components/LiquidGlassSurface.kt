@@ -121,8 +121,7 @@ fun LiquidGlassAppHost(
     val appTheme = LocalAppUiTheme.current
     val appBackground = LocalAppBackground.current
     val ambientBackground = LocalAmbientBackground.current
-    val capturesAmbientBackdrop = tokens.quality.supportsBackdrop ||
-        appBackground != null || ambientBackground != null
+    val capturesAmbientBackdrop = tokens.quality.supportsBackdrop || appBackground != null
     val capturesContentBackdrop = tokens.quality.supportsBackdrop
     val ambientBackdrop: Backdrop = if (capturesAmbientBackdrop) ambientLayer else emptyBackdrop()
     val contentBackdrop: Backdrop = if (capturesContentBackdrop) contentLayer else emptyBackdrop()
@@ -133,7 +132,11 @@ fun LiquidGlassAppHost(
     }
 
     Box(modifier = modifier.background(background)) {
-        if (tokens.enabled || appBackground != null || ambientBackground != null) {
+        // 应用级动态背景不进 ambient 采样层：每帧重绘的粒子会拖垮玻璃层的捕获。
+        if (ambientBackground != null) {
+            Box(Modifier.matchParentSize()) { ambientBackground() }
+        }
+        if (tokens.enabled || appBackground != null) {
             val primary = tokens.ambientPrimary.compositeOver(background)
             val secondary = tokens.ambientSecondary.compositeOver(background)
             Box(
@@ -150,11 +153,7 @@ fun LiquidGlassAppHost(
                         ) else Modifier
                     )
             ) {
-                if (ambientBackground != null) {
-                    ambientBackground()
-                } else {
-                    appBackground?.let { AppBackgroundLayer(it) }
-                }
+                appBackground?.let { AppBackgroundLayer(it) }
             }
         }
 
