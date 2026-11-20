@@ -163,6 +163,7 @@ internal fun renderScheduleShareImage(
     canvas.drawLine(PADDING, 1712f, IMAGE_WIDTH - PADDING, 1712f, dividerPaint)
 
     val logoSize = 90f
+    val qrSize = 112f
     val footerTop = IMAGE_HEIGHT - PADDING - logoSize
     logo?.let {
         // 前景图自带一圈透明安全区：先裁掉，再按最长边缩放到与二维码同尺寸
@@ -191,25 +192,20 @@ internal fun renderScheduleShareImage(
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
     val brandX = if (logo != null) PADDING + logoSize + 24f else PADDING
-    val baseline = footerTop + logoSize * 0.66f
-    val brandName = appName(context)
-    canvas.drawText(brandName, brandX, baseline, appNamePaint)
+    // 品牌名与标语分两行，整体与左侧 logo 垂直居中
+    val nameBaseline = footerTop + logoSize * 0.46f
+    canvas.drawText(appName(context), brandX, nameBaseline, appNamePaint)
     val sloganPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = secondaryColor
         textSize = 28f
     }
-    canvas.drawText(
-        "安大人的生活利器",
-        brandX + appNamePaint.measureText(brandName) + 16f,
-        baseline,
-        sloganPaint
-    )
+    canvas.drawText("安大人的生活利器", brandX, nameBaseline + 38f, sloganPaint)
 
     drawQr(
         canvas,
-        IMAGE_WIDTH - PADDING - logoSize,
-        footerTop,
-        logoSize,
+        IMAGE_WIDTH - PADDING - qrSize,
+        footerTop + (logoSize - qrSize) / 2f,
+        qrSize,
         if (luminance(background) > 0.5f) Color.BLACK else Color.WHITE
     )
     return bitmap
