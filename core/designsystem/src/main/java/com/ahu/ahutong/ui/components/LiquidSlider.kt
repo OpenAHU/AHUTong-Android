@@ -187,6 +187,7 @@ fun LiquidSlider(
 
             Box(
                 Modifier
+                    .align(if (isLtr) Alignment.CenterStart else Alignment.CenterEnd)
                     .clip(ContinuousCapsule)
                     .background(accentColor)
                     .height(6f.dp)
