@@ -2,6 +2,15 @@ package com.ahu.ahutong.ui.plugin
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.HorizontalDivider
+import com.ahu.ahutong.ui.haptics.hapticToggleable as toggleable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.settingsPrimaryTextStyle
+import com.ahu.ahutong.ui.components.settingsSecondaryTextStyle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,7 +37,6 @@ import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppDialogActionStyle
 import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.SettingsSection
-import com.ahu.ahutong.ui.components.SettingsToggleRow
 import com.kyant.backdrop.Backdrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
@@ -98,16 +106,55 @@ fun PluginManagerSection(backdrop: Backdrop) {
         title = "插件",
         backdrop = backdrop
     ) {
-        // 开关本体只展示状态，点按先走确认流程；devMode 只在确认后改变
-        SettingsToggleRow(
-            title = "允许安装插件",
-            subtitle = if (devMode) "已开启" else null,
-            selected = devMode,
-            onSelectedChange = { wantOn ->
-                if (wantOn) showEnableDisclaimer = true else showDisableConfirm = true
-            },
-            backdrop = backdrop
-        )
+        // 开关本体只展示状态：点击整行先走确认流程，devMode 只在确认后改变。
+        // 不能直接用可交互开关，否则点下去会先亮/灭再被确认结果打回，观感是"开关坏了"。
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = devMode,
+                        role = Role.Switch,
+                        onValueChange = { wantOn ->
+                            if (wantOn) showEnableDisclaimer = true else showDisableConfirm = true
+                        }
+                    )
+                    .heightIn(min = 68.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "允许安装插件",
+                        style = settingsPrimaryTextStyle(),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (devMode) {
+                        Text(
+                            text = "已开启",
+                            style = settingsSecondaryTextStyle(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                AppToggle(
+                    checked = devMode,
+                    onCheckedChange = null,
+                    contentDescription = "允许安装插件"
+                )
+            }
+            if (devMode) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 20.dp),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
         if (devMode) {
             runtimePlugins.forEach { (id, manifest) ->
                 SettingsActionRow(
