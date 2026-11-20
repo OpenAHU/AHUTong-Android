@@ -311,7 +311,9 @@ fun Modifier.appLiquidGlassSurface(
 @Composable
 fun Modifier.appLiquidGlassSceneBackground(fallbackColor: Color): Modifier {
     return background(
-        if (LocalAppBackground.current != null) Color.Transparent else when (LocalAppUiTheme.current) {
+        if (LocalAppBackground.current != null || LocalAmbientBackground.current != null) {
+            Color.Transparent
+        } else when (LocalAppUiTheme.current) {
             AppUiTheme.MIUIX -> MiuixTheme.colorScheme.surface
             AppUiTheme.MATERIAL -> fallbackColor
             AppUiTheme.LIQUID_GLASS, AppUiTheme.RADIANT -> if (LocalLiquidGlassTokens.current.enabled) {

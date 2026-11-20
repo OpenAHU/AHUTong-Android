@@ -115,7 +115,8 @@ fun GlassBackdropContainer(
     content: @Composable BoxScope.(Backdrop) -> Unit
 ) {
     val appBackground = LocalAppBackground.current
-    if (appBackground != null) {
+    if (appBackground != null || LocalAmbientBackground.current != null) {
+        // 应用级背景（壁纸 / 节日动效）已经在宿主底层铺好，这里不再盖不透明底色。
         Box(modifier = modifier) {
             content(LocalLiquidGlassAmbientBackdrop.current)
         }
