@@ -156,7 +156,7 @@ fun AiSettings(
 
     SettingsBackdropContainer(modifier = Modifier.fillMaxSize()) { backdrop ->
         SettingsPageLayout(
-            title = "AI 设置",
+            title = "AI 与智能体验",
             onBack = onBack,
             backdrop = backdrop,
         ) {
@@ -242,9 +242,9 @@ fun AiSettings(
                 }
             }
 
-            if (customProfiles.isNotEmpty()) {
-                IntelligenceSettingsSection(backdrop = backdrop)
+            IntelligenceSettingsSection(backdrop = backdrop)
 
+            if (customProfiles.isNotEmpty()) {
                 SettingsSection(
                     title = "维护",
                     modifier = Modifier.padding(horizontal = 16.dp),
