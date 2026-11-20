@@ -648,7 +648,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             translate(15f * scale, 15f * scale)
             scale(scale, scale, Offset.Zero)
         }) {
-            drawGroundShadow()
+            if (!calm) drawGroundShadow()
             withTransform({
                 translate(HEAD_C + pose.body.x, HEAD_C + pose.body.y)
                 rotate(pose.body.rotate, Offset.Zero)
