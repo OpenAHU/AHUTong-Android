@@ -86,6 +86,7 @@ class AppActionCatalogTest {
             "student_mail" to AppActionId.OPEN_STUDENT_MAIL,
             "program_completion" to AppActionId.VIEW_PROGRAM_COMPLETION,
             "identity_code" to AppActionId.OPEN_IDENTITY_CODE,
+            "pdd_identity_code" to AppActionId.OPEN_PDD_IDENTITY_CODE,
             "plugin/{pluginId}" to AppActionId.OPEN_PLUGIN,
             "settings__early_access" to AppActionId.OPEN_EARLY_ACCESS,
             "settings__privacy_policy" to AppActionId.OPEN_PRIVACY_POLICY,
