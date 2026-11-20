@@ -48,6 +48,10 @@ internal data class BodyPatch(
     val scale: Float? = null,
     val rotate: Float? = null,
     val breathe: Float? = null,
+    val zzz: Float? = null,
+    val orbit: Float? = null,
+    val ribbons: Float? = null,
+    val confetti: Float? = null,
     val color: Int? = null,
 )
 
@@ -108,7 +112,7 @@ internal fun EmotionBall(
     /** 落在标题栏里时保持安静：不弹跳、不做待机小动作。 */
     calm: Boolean = false,
 ) {
-    val tour = remember(sessionKey) { EmotionBallData.emotions.shuffled().take(TOUR_SIZE) }
+    val tour = remember(sessionKey) { EmotionBallData.emotions.shuffled() }
     val engine = remember(tour) { EmotionBallEngine(tour) }
     LaunchedEffect(engine, calm) { engine.calm = calm }
     val frameTick = remember { mutableIntStateOf(0) }
@@ -127,7 +131,6 @@ internal fun EmotionBall(
     }
 }
 
-private const val TOUR_SIZE = 4
 private const val TOUR_INTERVAL_MS = 4200L
 
 private const val VIEW_BOX = 259f
@@ -141,10 +144,17 @@ private class BodyPose {
     var rotate = 0f
     var color = DEFAULT_BODY_COLOR
     var breathe = 0.01f
+    var zzz = 0f
+    var orbit = 0f
+    var ribbons = 0f
+    var confetti = 0f
+    var yaw = 0f
 
     fun clone() = BodyPose().also {
         it.x = x; it.y = y; it.scale = scale; it.rotate = rotate
         it.color = color; it.breathe = breathe
+        it.zzz = zzz; it.orbit = orbit; it.ribbons = ribbons; it.confetti = confetti
+        it.yaw = yaw
     }
 
     fun apply(patch: BodyPatch?) {
@@ -154,6 +164,10 @@ private class BodyPose {
         patch.scale?.let { scale = it }
         patch.rotate?.let { rotate = it }
         patch.breathe?.let { breathe = it }
+        patch.zzz?.let { zzz = it }
+        patch.orbit?.let { orbit = it }
+        patch.ribbons?.let { ribbons = it }
+        patch.confetti?.let { confetti = it }
         patch.color?.let { color = it }
     }
 }
@@ -197,6 +211,9 @@ private class Pose {
     fun clone() = Pose().also {
         it.body.x = body.x; it.body.y = body.y; it.body.scale = body.scale
         it.body.rotate = body.rotate; it.body.color = body.color; it.body.breathe = body.breathe
+        it.body.zzz = body.zzz; it.body.orbit = body.orbit
+        it.body.ribbons = body.ribbons; it.body.confetti = body.confetti
+        it.body.yaw = body.yaw
         copyEye(left, it.left)
         copyEye(right, it.right)
     }
@@ -217,6 +234,53 @@ private class Spring(var x: Float, var v: Float = 0f, var target: Float = x) {
             v = 0f
         }
     }
+}
+
+private class Plane(val tilt: Float, val roll: Float)
+
+private class TrailPoint(val x: Float, val y: Float, val z: Float, val l: Float)
+
+private class Trail(
+    var lam: Float,
+    var lamVel: Float,
+    val tilt: Float,
+    val roll: Float,
+    var rad: Float,
+    val radVel: Float,
+    val follow: Float,
+    var carry: Float,
+    val arc: Float,
+    val width: Float,
+    val hueBase: Float,
+    val hueSpan: Float,
+    val hueVel: Float,
+    val orbitMode: Boolean,
+) {
+    var life = 0f
+    var retract = 0f
+    var alpha = 0f
+    val hist = ArrayDeque<TrailPoint>()
+    var backPath: Path? = null
+    var frontPath: Path? = null
+    var colors: List<Color> = emptyList()
+    var start = Offset.Zero
+    var end = Offset.Zero
+}
+
+private class Confetti(
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    var vy: Float,
+    val maxLife: Float,
+    val size: Float,
+    val round: Boolean,
+    val color: Color,
+    val stretch: Float,
+    var rotation: Float,
+    val rotationSpeed: Float,
+) {
+    var life = 0f
 }
 
 private sealed interface SeqResult {
@@ -243,6 +307,18 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     private var lastMs = 0L
     private var dtSec = 1f / 60f
     private var clockSec = 0f
+
+    private var spin: Spring? = null
+    private val planes = mutableListOf<Plane>()
+    private var planeG = 4
+    private var baseHue = 0f
+    private var spawnIdx = 0
+    private val spawnAt = ArrayDeque<Long>()
+    private var wasFast = false
+    private var prevYaw = 0f
+    private var orbitNextAt = 0L
+    private val trails = mutableListOf<Trail>()
+    private val confetti = mutableListOf<Confetti>()
 
     private var def: BallEmotion? = null
     private var prevPose: Pose? = null
@@ -384,6 +460,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             nextTourAt = nowMs + TOUR_INTERVAL_MS
         }
         currentPose = compose(nowMs, 0)
+        updateEffects(nowMs, currentPose.body.yaw)
     }
 
     private fun setEmotion(emotion: BallEmotion, now: Long, initial: Boolean) {
@@ -406,6 +483,12 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             now + rand(it[0].toFloat(), it[1].toFloat()).toLong()
         } ?: Long.MAX_VALUE
         anticNext = now + rand(2500f, 5000f).toLong()
+        if (!calm) {
+            // 进入表情时的一次性事件：自旋甩彩带 / 撒花
+            val fx = basePose(emotion).body
+            if (fx.ribbons > 0f) startSpin(if (fx.ribbons >= 1f) 2 else 1)
+            if (fx.confetti > 0f) burstConfetti()
+        }
         if (initial) {
             ringSpring.x = 1f
             ringSpring.v = 0f
@@ -481,7 +564,11 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
 
         if (!calm && emotion.antics && now >= anticNext) {
             val pick = random.nextFloat()
-            if (pick < 0.8f) bounceAt = now else blinkNow(now)
+            when {
+                pick < 0.45f -> startSpin(1)
+                pick < 0.8f -> bounceAt = now
+                else -> blinkNow(now)
+            }
             anticNext = now + rand(9000f, 18000f).toLong()
         }
 
@@ -490,7 +577,12 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         repeat(steps) {
             ringSpring.step(ringSpeed, 1f, sub)
             openSpring.step(26f, 1f, sub)
+            spin?.let { sp ->
+                sp.step(6.2f, 1f, sub)
+                if (abs(sp.target - sp.x) < 0.01f && abs(sp.v) < 0.05f) spin = null
+            }
         }
+        pose.body.yaw = spin?.x ?: 0f
 
         ringCur = if (ringSpring.x < 0.999f || abs(ringSpring.v) > 0.001f) {
             val s = ringSpring.x.coerceIn(0f, 1.35f)
@@ -649,6 +741,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             scale(scale, scale, Offset.Zero)
         }) {
             if (!calm) drawGroundShadow()
+            drawTrails(front = false)
             withTransform({
                 translate(HEAD_C + pose.body.x, HEAD_C + pose.body.y)
                 rotate(pose.body.rotate, Offset.Zero)
@@ -656,8 +749,376 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 translate(-HEAD_C, -HEAD_C)
             }) {
                 drawBody()
-                drawEye(pose.left, ringCur[0])
-                drawEye(pose.right, ringCur[1])
+                drawEye(pose.left, ringCur[0], pose.body.yaw)
+                drawEye(pose.right, ringCur[1], pose.body.yaw)
+            }
+            drawTrails(front = true)
+            if (!calm) {
+                drawConfetti()
+                drawSleepZ(pose.body.zzz)
+            }
+        }
+    }
+
+    private fun updateEffects(now: Long, yaw: Float) {
+        val dt = dtSec
+        val dYaw = yaw - prevYaw
+        prevYaw = yaw
+        val velocity = if (dt > 0f) dYaw / dt else 0f
+        val fast = !calm && abs(velocity) >= 0.9f
+        val dir = if (velocity >= 0f) 1 else -1
+
+        if (fast && !wasFast) {
+            makePlanes()
+            spawnAt.clear()
+            for (q in 0 until planeG) spawnAt.addLast(now + (q * rand(55f, 105f)).toLong())
+        }
+        if (!fast) spawnAt.clear()
+        wasFast = fast
+        if (abs(velocity) >= 5f) {
+            while (spawnAt.isNotEmpty() && now >= spawnAt.first()) {
+                spawnAt.removeFirst()
+                spawnTrail(yaw - rand(0f, 0.18f) * dir)
+            }
+        }
+
+        val orbitWant = !calm && currentPose.body.orbit > 0f
+        if (orbitWant && now >= orbitNextAt) {
+            if (trails.count { it.orbitMode } < 2) {
+                spawnOrbit(trails.count { it.orbitMode })
+            }
+            orbitNextAt = now + 700
+        }
+        updateTrails(dt, fast, dir, dYaw, velocity, orbitWant)
+        updateConfetti(dt)
+    }
+
+    private fun startSpin(turns: Int) {
+        if (calm || spin != null) return
+        val direction = if (random.nextBoolean()) 1f else -1f
+        spin = Spring(0f, 0f, max(1, turns) * TAU * direction)
+    }
+
+    private fun makePlanes() {
+        planes.clear()
+        val count = if (random.nextFloat() < 0.45f) 2 else 3
+        val roll0 = rand(-0.9f, 0.9f)
+        for (index in 0 until count) {
+            planes.add(
+                Plane(
+                    tilt = rand(0.16f, 0.72f),
+                    roll = roll0 + index * (Math.PI.toFloat() / count) + rand(-0.15f, 0.15f),
+                )
+            )
+        }
+        planeG = random.nextInt(4, 7)
+        baseHue = rand(0f, 360f)
+        spawnIdx = 0
+    }
+
+    private fun spawnTrail(lam0: Float) {
+        if (trails.size > 8 || planes.isEmpty()) return
+        val plane = planes[spawnIdx % planes.size]
+        val tierStep = 38f / max(planeG - 1, 1)
+        val width = when {
+            planeG <= 3 -> rand(8f, 10.5f)
+            planeG == 4 -> rand(6.6f, 8.6f)
+            else -> rand(5.6f, 7.4f)
+        }
+        trails.add(
+            Trail(
+                lam = lam0,
+                lamVel = (if (random.nextBoolean()) 1f else -1f) * rand(0.5f, 1.1f),
+                tilt = plane.tilt + rand(-0.04f, 0.04f),
+                roll = plane.roll + rand(-0.05f, 0.05f),
+                rad = 116f + spawnIdx * tierStep + rand(-1.5f, 1.5f),
+                radVel = rand(0f, 2.5f),
+                follow = rand(0.74f, 0.94f),
+                carry = 0f,
+                arc = rand(2.2f, 3.4f),
+                width = width,
+                hueBase = baseHue + 360f * spawnIdx / max(planeG, 1) + rand(-14f, 14f),
+                hueSpan = rand(45f, 95f) * (if (random.nextBoolean()) 1f else -1f),
+                hueVel = rand(18f, 42f) * (if (random.nextBoolean()) 1f else -1f),
+                orbitMode = false,
+            )
+        )
+        spawnIdx++
+    }
+
+    private fun spawnOrbit(index: Int) {
+        if (trails.size > 8) return
+        trails.add(
+            Trail(
+                lam = rand(0f, TAU),
+                lamVel = (if (random.nextBoolean()) 1f else -1f) * rand(1.7f, 2.3f),
+                tilt = rand(0.1f, 0.22f),
+                roll = rand(-0.12f, 0.12f),
+                rad = 124f + index * 16f,
+                radVel = 0f,
+                follow = 0.8f,
+                carry = 0f,
+                arc = rand(2.4f, 3.2f),
+                width = rand(5.5f, 7f),
+                hueBase = rand(0f, 360f),
+                hueSpan = rand(45f, 95f) * (if (random.nextBoolean()) 1f else -1f),
+                hueVel = rand(18f, 42f) * (if (random.nextBoolean()) 1f else -1f),
+                orbitMode = true,
+            )
+        )
+    }
+
+    private fun orbitPoint(trail: Trail, lam: Float): TrailPoint {
+        val hx = trail.rad * sin(lam)
+        val hy = -trail.rad * cos(lam) * sin(trail.tilt)
+        val ca = cos(trail.roll)
+        val sa = sin(trail.roll)
+        return TrailPoint(
+            x = HEAD_C + hx * ca - hy * sa,
+            y = HEAD_C + hx * sa + hy * ca,
+            z = cos(lam) * cos(trail.tilt),
+            l = lam,
+        )
+    }
+
+    private fun updateTrails(
+        dt: Float,
+        fast: Boolean,
+        dir: Int,
+        dYaw: Float,
+        velocity: Float,
+        orbitWant: Boolean,
+    ) {
+        for (index in trails.indices.reversed()) {
+            val trail = trails[index]
+            trail.life += dt
+            val retract = if (trail.orbitMode) !orbitWant else (!fast || trail.life > 5f)
+            trail.retract = (trail.retract + (if (retract) dt / 0.5f else -dt / 0.35f))
+                .coerceIn(0f, 1f)
+            if (retract && trail.retract >= 1f) {
+                trails.removeAt(index)
+                continue
+            }
+            if (trail.orbitMode) {
+                trail.lam += trail.lamVel * dt + dYaw * trail.follow
+            } else if (fast) {
+                trail.carry = velocity * trail.follow
+                trail.lam += dYaw * trail.follow + trail.lamVel * dt
+            } else {
+                trail.lam += (trail.carry + trail.lamVel) * dt
+                trail.carry *= kotlin.math.exp(-2.6f * dt)
+                trail.lamVel *= kotlin.math.exp(-2.6f * dt)
+            }
+            trail.rad += trail.radVel * dt
+
+            val last = trail.hist.lastOrNull()?.l ?: (trail.lam - 0.001f * dir)
+            val dl = trail.lam - last
+            val steps = min(ceil(abs(dl) / 0.09f).toInt(), 24)
+            for (s in 1..steps) {
+                trail.hist.addLast(orbitPoint(trail, last + dl * s / steps))
+            }
+            if (trail.hist.isEmpty()) trail.hist.addLast(orbitPoint(trail, trail.lam))
+
+            val span = trail.arc * (1f - trail.retract * trail.retract * (3f - 2f * trail.retract))
+            while (trail.hist.size > 2 && abs(trail.lam - trail.hist.first().l) > span) {
+                trail.hist.removeFirst()
+            }
+            val over = trail.hist.first().let { abs(trail.lam - it.l) - span }
+            if (trail.hist.size >= 2 && over > 0f) {
+                val first = trail.hist.removeFirst()
+                val trimmed = first.l + (if (trail.lam - first.l >= 0f) 1f else -1f) * over
+                trail.hist.addFirst(orbitPoint(trail, trimmed))
+            }
+            while (trail.hist.size > 48) trail.hist.removeFirst()
+
+            val zHead = cos(trail.lam) * cos(trail.tilt)
+            val pz = 0.72f + 0.28f * zHead.coerceIn(0f, 1f)
+            var grow = min(trail.life / 0.34f, 1f)
+            grow = grow * grow * (3f - 2f * grow)
+            val width = trail.width * pz * 1.7f * grow *
+                (1f - 0.72f * trail.retract * trail.retract)
+            trail.alpha = min(trail.life / 0.26f, 1f)
+            val points = trail.hist.toList()
+            val built = buildTrailPaths(points, width)
+            trail.backPath = built.first
+            trail.frontPath = built.second
+            if (points.size >= 2) {
+                trail.start = Offset(points.first().x, points.first().y)
+                trail.end = Offset(points.last().x, points.last().y)
+            }
+            val hue = trail.hueBase + trail.hueVel * trail.life
+            trail.colors = (0..3).map { i ->
+                val frac = i / 3f
+                Color.hsv(
+                    ((hue + frac * trail.hueSpan) % 360f + 360f) % 360f,
+                    0.55f,
+                    0.95f,
+                    alpha = 0.9f,
+                )
+            }
+        }
+    }
+
+    private fun buildTrailPaths(points: List<TrailPoint>, width: Float): Pair<Path?, Path?> {
+        val count = points.size
+        if (count < 2 || width < 0.5f) return null to null
+        val nx = FloatArray(count)
+        val ny = FloatArray(count)
+        for (e in 0 until count) {
+            val p0 = points[if (e > 0) e - 1 else 0]
+            val p1 = points[if (e < count - 1) e + 1 else count - 1]
+            var dx = p1.x - p0.x
+            var dy = p1.y - p0.y
+            val length = sqrt(dx * dx + dy * dy).takeIf { it > 0.0001f } ?: 1f
+            dx /= length
+            dy /= length
+            val d = width * (0.5f + (e.toFloat() / (count - 1)) * 0.5f) / 2f
+            nx[e] = -dy * d
+            ny[e] = dx * d
+        }
+
+        fun segment(a: Int, b: Int): Path {
+            val path = Path()
+            path.moveTo(points[a].x + nx[a], points[a].y + ny[a])
+            for (k in a + 1..b) path.lineTo(points[k].x + nx[k], points[k].y + ny[k])
+            for (k in b downTo a) path.lineTo(points[k].x - nx[k], points[k].y - ny[k])
+            path.close()
+            return path
+        }
+
+        var back: Path? = null
+        var front: Path? = null
+        var index = 0
+        while (index < count) {
+            val isFront = points[index].z >= 0f
+            var end = index
+            while (end + 1 < count && (points[end + 1].z >= 0f) == isFront) end++
+            val a = max(index - 1, 0)
+            val b = min(end + 1, count - 1)
+            if (b > a) {
+                val segmentPath = segment(a, b)
+                if (isFront) {
+                    if (front == null) front = segmentPath else front.addPath(segmentPath)
+                } else {
+                    if (back == null) back = segmentPath else back.addPath(segmentPath)
+                }
+            }
+            index = end + 1
+        }
+        return back to front
+    }
+
+    private fun DrawScope.drawTrails(front: Boolean) {
+        for (trail in trails) {
+            val path = if (front) trail.frontPath else trail.backPath
+            if (path == null || trail.colors.size < 2 || trail.alpha <= 0f) continue
+            drawPath(
+                path = path,
+                brush = Brush.linearGradient(
+                    colors = trail.colors,
+                    start = trail.start,
+                    end = trail.end,
+                ),
+                alpha = trail.alpha,
+            )
+        }
+    }
+
+    private fun burstConfetti() {
+        if (calm) return
+        val count = 20
+        for (i in 0 until count) {
+            if (confetti.size >= 60) break
+            val angle = (i.toFloat() / count) * TAU + rand(-0.35f, 0.35f)
+            val speed = rand(170f, 360f)
+            confetti.add(
+                Confetti(
+                    x = HEAD_C + cos(angle) * rand(96f, 116f),
+                    y = HEAD_C + sin(angle) * rand(96f, 116f),
+                    vx = cos(angle) * speed,
+                    vy = sin(angle) * speed - rand(20f, 75f),
+                    maxLife = rand(0.45f, 0.85f),
+                    size = rand(3.5f, 8f),
+                    round = random.nextFloat() < 0.3f,
+                    color = CONFETTI_COLORS[random.nextInt(CONFETTI_COLORS.size)],
+                    stretch = if (random.nextFloat() < 0.7f) 1.9f else 1f,
+                    rotation = rand(0f, 360f),
+                    rotationSpeed = rand(-260f, 260f),
+                )
+            )
+        }
+    }
+
+    private fun updateConfetti(dt: Float) {
+        for (index in confetti.indices.reversed()) {
+            val piece = confetti[index]
+            piece.life += dt
+            if (piece.life >= piece.maxLife) {
+                confetti.removeAt(index)
+                continue
+            }
+            piece.x += piece.vx * dt
+            piece.y += piece.vy * dt
+            val drag = 0.94f.pow(60f * dt)
+            piece.vx *= drag
+            piece.vy = piece.vy * drag + 40f * dt
+            piece.rotation += piece.rotationSpeed * dt
+        }
+    }
+
+    private fun DrawScope.drawConfetti() {
+        for (piece in confetti) {
+            val u = (piece.life / piece.maxLife).coerceIn(0f, 1f)
+            val fade = if (u < 0.1f) u / 0.1f else (1f - (u - 0.1f) / 0.9f).pow(1.7f)
+            val size = (piece.size * (1f - 0.4f * u)).coerceAtLeast(0.5f)
+            withTransform({
+                translate(piece.x, piece.y)
+                rotate(piece.rotation, Offset.Zero)
+                scale(size, size * piece.stretch, Offset.Zero)
+            }) {
+                if (piece.round) {
+                    drawCircle(piece.color.copy(alpha = fade), radius = 0.5f)
+                } else {
+                    drawRect(
+                        color = piece.color.copy(alpha = fade),
+                        topLeft = Offset(-0.5f, -0.5f),
+                        size = Size(1f, 1f),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun DrawScope.drawSleepZ(zzz: Float) {
+        if (zzz <= 0.01f) return
+        for (z in 0 until 3) {
+            val progress = ((clockSec * 0.33f + z / 3f) % 1f)
+            val alpha = (
+                (if (progress < 0.18f) progress / 0.18f else 1f - (progress - 0.18f) / 0.82f) *
+                    0.8f * zzz
+                ).coerceIn(0f, 1f)
+            if (alpha <= 0.01f) continue
+            val size = (12f + progress * 11f) * 0.8f
+            val centerX = 180f + progress * 34f + 4f * sin(progress * 9f)
+            val centerY = 48f - progress * 42f
+            val half = size / 2f
+            val rotation = -10f + progress * 14f
+            val strokeWidth = size * 0.16f
+            withTransform({
+                translate(centerX, centerY)
+                rotate(rotation, Offset.Zero)
+            }) {
+                val path = Path().apply {
+                    moveTo(-half, -half)
+                    lineTo(half, -half)
+                    lineTo(-half, half)
+                    lineTo(half, half)
+                }
+                drawPath(
+                    path = path,
+                    color = Color(0xFFA8A296).copy(alpha = alpha),
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                )
             }
         }
     }
@@ -833,7 +1294,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         }
     }
 
-    private fun DrawScope.drawEye(pose: EyePose, ring: FloatArray) {
+    private fun DrawScope.drawEye(pose: EyePose, ring: FloatArray, yaw: Float) {
         val base = centroid(ring)
         val open = pose.open.coerceIn(0.02f, 2.4f)
         val sy = (pose.scaleY * open).coerceIn(0.02f, 2.4f)
@@ -845,10 +1306,10 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         val centerX = (sil[0] + sil[1]) / 2f
         val halfWidth = max((sil[1] - sil[0]) / 2f, 12f)
         val ox = (base.x - HEAD_C) + pose.x + pose.lookX
-        val theta = (ox / halfWidth).coerceIn(-1.15f, 1.15f)
-        val cosTheta = cos(theta)
+        val total = (ox / halfWidth).coerceIn(-1.15f, 1.15f) + yaw
+        val cosTheta = cos(total)
         if (cosTheta <= 0.02f) return
-        val eyeX = centerX + halfWidth * sin(theta) * 0.985f
+        val eyeX = centerX + halfWidth * sin(total) * 0.985f
         val dyN = (eyeY - HEAD_C) / 130f
         val fy = sqrt(1f - dyN * dyN * 0.22f)
         val path = ringPath(ring)
@@ -869,6 +1330,14 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         const val TAU = Math.PI.toFloat() * 2f
         val BOUNCE_SEGS = listOf(48f to 0.5f, 28f to 0.382f, 14f to 0.27f, 6f to 0.177f)
         val BOUNCE_TOTAL = BOUNCE_SEGS.sumOf { it.second.toDouble() }.toFloat()
+        val CONFETTI_COLORS = listOf(
+            Color(0xFFF9705C),
+            Color(0xFF5B95F0),
+            Color(0xFF3FBE86),
+            Color(0xFFF5B13F),
+            Color(0xFF9A72EE),
+            Color(0xFF35C3BD),
+        )
     }
 }
 
@@ -909,6 +1378,11 @@ private fun lerpPose(a: Pose, b: Pose, t: Float): Pose {
     out.body.rotate = lerp(a.body.rotate, b.body.rotate, t)
     out.body.color = lerpColor(a.body.color, b.body.color, t)
     out.body.breathe = lerp(a.body.breathe, b.body.breathe, t)
+    out.body.zzz = lerp(a.body.zzz, b.body.zzz, t)
+    out.body.orbit = lerp(a.body.orbit, b.body.orbit, t)
+    out.body.ribbons = lerp(a.body.ribbons, b.body.ribbons, t)
+    out.body.confetti = lerp(a.body.confetti, b.body.confetti, t)
+    out.body.yaw = lerp(a.body.yaw, b.body.yaw, t)
     lerpEye(a.left, b.left, out.left, t)
     lerpEye(a.right, b.right, out.right, t)
     return out

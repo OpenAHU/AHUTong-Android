@@ -117,8 +117,34 @@ internal object EmotionBallData {
         )
     )
 
-    /** 空对话页巡演用的表情（都无彩带 / 撒花依赖）。 */
+    /** 全部 32 个表情，空对话页的巡演池。 */
     val emotions: List<BallEmotion> = listOf(
+        BallEmotion(
+            id = "00",
+            name = "睡眠",
+            transition = 900L,
+            gaze = false,
+            pool = intArrayOf(13, 22, 4),
+            poolMs = longArrayOf(6000L, 10000L),
+            poolSpeed = 6f,
+            openness = 0.08f,
+            antics = false,
+            baseBody = BodyPatch(y = 4f, rotate = -2f, breathe = 0.018f, zzz = 1f, color = 0xFFEEEBE4.toInt()),
+            baseBoth = EyePatch(y = 4f, lookY = 2f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "y", amp = 1.2f, period = 3600f))
+        ),
+        BallEmotion(
+            id = "01",
+            name = "唤醒",
+            transition = 320L,
+            gaze = true,
+            pool = intArrayOf(13),
+            poolMs = longArrayOf(800L, 800L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, bothEyes = EyePatch(y = 4f, open = 0.1f)), Frame(at = 420L, leftEye = EyePatch(y = 2f, open = 0.55f), rightEye = EyePatch(y = 4f, open = 0.12f)), Frame(at = 820L, bothEyes = EyePatch(y = 3f, open = 0.3f)), Frame(at = 1400L, bothEyes = EyePatch(y = -2f, scaleX = 1.12f, scaleY = 1.12f, open = 1f)), Frame(at = 2100L, bothEyes = EyePatch(y = 0f, open = 1f))), SeqSettle(next = "02"))
+        ),
         BallEmotion(
             id = "02",
             name = "待机放空",
@@ -149,6 +175,61 @@ internal object EmotionBallData {
             anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookX", amp = 2.4f, period = 2800f))
         ),
         BallEmotion(
+            id = "04",
+            name = "发呆",
+            transition = 800L,
+            gaze = true,
+            pool = intArrayOf(4, 22, 0),
+            poolMs = longArrayOf(3500L, 6000L),
+            blinkMs = longArrayOf(4000L, 8000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = true,
+            baseBody = BodyPatch(rotate = -3f, breathe = 0.008f),
+            baseLeft = EyePatch(lookX = -4f, lookY = 2f),
+            baseRight = EyePatch(lookX = 5f, lookY = -1f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookX", amp = 3f, period = 6800f))
+        ),
+        BallEmotion(
+            id = "05",
+            name = "加载苏醒",
+            transition = 480L,
+            gaze = true,
+            pool = intArrayOf(0, 8),
+            poolMs = longArrayOf(6000L, 10000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            anims = listOf(Anim(type = "blink", target = "left", prop = "open", interval = 1600f, dur = 700f), Anim(type = "blink", target = "right", prop = "open", interval = 1600f, dur = 700f, phaseMs = 800f), Anim(type = "pulse", target = "eyes", prop = "scale", amp = 0.04f, period = 1600f))
+        ),
+        BallEmotion(
+            id = "06",
+            name = "休眠",
+            transition = 1200L,
+            gaze = false,
+            pool = intArrayOf(4, 22, 13),
+            poolMs = longArrayOf(4000L, 8000L),
+            poolSpeed = 6f,
+            openness = 0.4f,
+            antics = false,
+            baseBody = BodyPatch(y = 6f, scale = 0.98f, rotate = -1f, breathe = 0.005f, color = 0xFFEBE8E1.toInt()),
+            baseBoth = EyePatch(y = 5f)
+        ),
+        BallEmotion(
+            id = "07",
+            name = "抖动唤醒",
+            transition = 220L,
+            gaze = true,
+            pool = intArrayOf(13),
+            poolMs = longArrayOf(800L, 800L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(breathe = 0.004f),
+            anims = listOf(Anim(type = "jitter", target = "body", prop = "x", amp = 4.5f, speed = 10f, decay = 1600f), Anim(type = "jitter", target = "body", prop = "rotate", amp = 3f, speed = 8f, decay = 1600f)),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, bothEyes = EyePatch(open = 0.1f)), Frame(at = 380L, leftEye = EyePatch(open = 0.4f), rightEye = EyePatch(open = 0.12f)), Frame(at = 900L, bothEyes = EyePatch(y = 1f, open = 0.7f)), Frame(at = 1600L, bothEyes = EyePatch(y = -1f, scaleX = 1.08f, scaleY = 1.08f, open = 1f))), SeqSettle(next = "02"))
+        ),
+        BallEmotion(
             id = "10",
             name = "开心",
             transition = 380L,
@@ -162,6 +243,52 @@ internal object EmotionBallData {
             baseBody = BodyPatch(y = -3f, breathe = 0.014f, color = 0xFFF6EFE4.toInt()),
             baseBoth = EyePatch(y = -3f),
             anims = listOf(Anim(type = "glance", target = "eyes", prop = "lookY", amp = 6f, period = 3000f), Anim(type = "sine", target = "body", prop = "y", amp = 2.2f, period = 1400f))
+        ),
+        BallEmotion(
+            id = "11",
+            name = "疑惑",
+            transition = 420L,
+            gaze = true,
+            pool = intArrayOf(14, 5, 8),
+            poolMs = longArrayOf(2200L, 3800L),
+            blinkMs = longArrayOf(2800L, 5500L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(rotate = -8f, breathe = 0.008f),
+            baseLeft = EyePatch(y = -4f, scaleX = 1.1f, scaleY = 1.1f),
+            baseRight = EyePatch(y = 3f, scaleX = 0.9f, scaleY = 0.9f, lookX = 3f),
+            anims = listOf(Anim(type = "sine", target = "body", prop = "rotate", amp = 1.4f, period = 3200f))
+        ),
+        BallEmotion(
+            id = "12",
+            name = "失落",
+            transition = 820L,
+            gaze = true,
+            pool = intArrayOf(4, 13, 22),
+            poolMs = longArrayOf(4000L, 7000L),
+            blinkMs = longArrayOf(4000L, 8000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(y = 5f, rotate = -4f, breathe = 0.007f, color = 0xFFEDEAE3.toInt()),
+            baseBoth = EyePatch(y = 8f, scaleX = 0.88f, scaleY = 0.88f, lookY = 4f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "y", amp = 1.6f, period = 3600f))
+        ),
+        BallEmotion(
+            id = "13",
+            name = "惊讶",
+            transition = 180L,
+            gaze = true,
+            pool = intArrayOf(3, 21),
+            poolMs = longArrayOf(2500L, 4000L),
+            blinkMs = longArrayOf(1800L, 3500L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(y = -4f, scale = 1.03f, breathe = 0.006f),
+            baseBoth = EyePatch(y = -2f, scaleX = 1.14f, scaleY = 1.14f, lookY = -2f),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, bothEyes = EyePatch(scaleX = 0.92f, scaleY = 0.92f)), Frame(at = 150L, body = BodyPatch(y = -7f, scale = 1.05f), bothEyes = EyePatch(y = -4f, scaleX = 1.45f, scaleY = 1.45f)), Frame(at = 420L, bothEyes = EyePatch(y = -3f, scaleX = 1.22f, scaleY = 1.22f))), SeqSettle(kind = "base"))
         ),
         BallEmotion(
             id = "14",
@@ -180,6 +307,64 @@ internal object EmotionBallData {
             sequence = BallSequence(frames = listOf(Frame(at = 0L, body = BodyPatch(color = 0xFFF3F0EA.toInt())), Frame(at = 1500L, body = BodyPatch(color = 0xFFF4D3D0.toInt()))), SeqSettle(kind = "hold"))
         ),
         BallEmotion(
+            id = "15",
+            name = "疲惫",
+            transition = 900L,
+            gaze = true,
+            pool = intArrayOf(4, 22, 13),
+            poolMs = longArrayOf(4000L, 8000L),
+            poolSpeed = 6f,
+            openness = 0.55f,
+            antics = false,
+            baseBody = BodyPatch(y = 4f, rotate = -3f, breathe = 0.016f, color = 0xFFEFECE5.toInt()),
+            baseBoth = EyePatch(y = 5f, lookY = 3f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "open", amp = 0.06f, period = 3400f))
+        ),
+        BallEmotion(
+            id = "16",
+            name = "专注",
+            transition = 320L,
+            gaze = true,
+            pool = intArrayOf(7, 16, 11, 10),
+            poolMs = longArrayOf(1800L, 3200L),
+            blinkMs = longArrayOf(2800L, 5500L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(breathe = 0.004f),
+            baseLeft = EyePatch(x = 4f),
+            baseRight = EyePatch(x = -4f)
+        ),
+        BallEmotion(
+            id = "17",
+            name = "慌张",
+            transition = 200L,
+            gaze = true,
+            pool = intArrayOf(3, 21),
+            poolMs = longArrayOf(900L, 1800L),
+            blinkMs = longArrayOf(1200L, 3000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(breathe = 0.006f),
+            anims = listOf(Anim(type = "jitter", target = "eyes", prop = "lookX", amp = 6f, speed = 11f), Anim(type = "jitter", target = "eyes", prop = "lookY", amp = 4f, speed = 9f), Anim(type = "jitter", target = "body", prop = "x", amp = 1.6f, speed = 8f))
+        ),
+        BallEmotion(
+            id = "18",
+            name = "无奈",
+            transition = 560L,
+            gaze = true,
+            pool = intArrayOf(14, 5, 23),
+            poolMs = longArrayOf(2600L, 4500L),
+            blinkMs = longArrayOf(4500L, 8000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(y = 2f, rotate = 10f, breathe = 0.01f),
+            baseBoth = EyePatch(lookX = 7f, lookY = -8f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookY", amp = 1.6f, period = 3000f), Anim(type = "sine", target = "body", prop = "y", amp = 1.2f, period = 3000f))
+        ),
+        BallEmotion(
             id = "19",
             name = "满意",
             transition = 580L,
@@ -194,6 +379,52 @@ internal object EmotionBallData {
             anims = listOf(Anim(type = "sine", target = "eyes", prop = "y", amp = 5f, period = 1050f), Anim(type = "sine", target = "body", prop = "y", amp = 1.6f, period = 1050f, phase = 0.6f))
         ),
         BallEmotion(
+            id = "20",
+            name = "困惑",
+            transition = 480L,
+            gaze = true,
+            pool = intArrayOf(14, 5, 8),
+            poolMs = longArrayOf(2200L, 3800L),
+            blinkMs = longArrayOf(2800L, 5500L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(rotate = -5f, breathe = 0.008f),
+            baseLeft = EyePatch(y = -3f, scaleX = 1.16f, scaleY = 1.16f, lookX = -3f),
+            baseRight = EyePatch(y = 4f, scaleX = 0.8f, scaleY = 0.8f, lookX = 5f),
+            anims = listOf(Anim(type = "sine", target = "left", prop = "lookX", amp = 2.5f, period = 3200f), Anim(type = "sine", target = "right", prop = "lookX", amp = 2.5f, period = 3200f, phase = 1.6f))
+        ),
+        BallEmotion(
+            id = "21",
+            name = "生气",
+            transition = 260L,
+            gaze = true,
+            pool = intArrayOf(7, 16),
+            poolMs = longArrayOf(2200L, 3800L),
+            blinkMs = longArrayOf(3500L, 7000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(y = 1f, breathe = 0.004f, color = 0xFFE4574A.toInt()),
+            anims = listOf(Anim(type = "jitter", target = "body", prop = "x", amp = 1.1f, speed = 7f)),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, body = BodyPatch(color = 0xFFF3F0EA.toInt())), Frame(at = 250L, body = BodyPatch(color = 0xFFE4574A.toInt()))), SeqSettle(kind = "hold"))
+        ),
+        BallEmotion(
+            id = "30",
+            name = "思考中",
+            transition = 480L,
+            gaze = true,
+            pool = intArrayOf(8, 16, 14, 17, 5),
+            poolMs = longArrayOf(2000L, 3600L),
+            blinkMs = longArrayOf(3500L, 7000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(rotate = -3f, breathe = 0.01f, orbit = 1f),
+            baseBoth = EyePatch(y = -2f, lookY = -6f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookX", amp = 9f, period = 2600f))
+        ),
+        BallEmotion(
             id = "31",
             name = "接收任务",
             transition = 220L,
@@ -205,6 +436,51 @@ internal object EmotionBallData {
             antics = false,
             baseBody = BodyPatch(breathe = 0.008f),
             sequence = BallSequence(frames = listOf(Frame(at = 0L), Frame(at = 100L, bothEyes = EyePatch(open = 0.1f)), Frame(at = 280L, body = BodyPatch(y = -3f), bothEyes = EyePatch(y = -2f, scaleX = 1.12f, scaleY = 1.12f, open = 1f)), Frame(at = 700L, bothEyes = EyePatch(open = 1f))), SeqSettle(kind = "base"))
+        ),
+        BallEmotion(
+            id = "32",
+            name = "处理中忙碌",
+            transition = 360L,
+            gaze = true,
+            pool = intArrayOf(7, 16, 11, 10),
+            poolMs = longArrayOf(1800L, 3200L),
+            blinkMs = longArrayOf(2800L, 5500L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(breathe = 0.008f),
+            anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookX", amp = 6f, period = 1200f), Anim(type = "sine", target = "eyes", prop = "lookY", amp = 4f, period = 900f, phase = 0.8f))
+        ),
+        BallEmotion(
+            id = "33",
+            name = "任务完成",
+            transition = 240L,
+            gaze = true,
+            pool = intArrayOf(2, 8, 17),
+            poolMs = longArrayOf(1400L, 2600L),
+            blinkMs = longArrayOf(2200L, 4500L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(ribbons = 1f, confetti = 0.95f),
+            baseBoth = EyePatch(y = -3f),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, body = BodyPatch(y = 0f)), Frame(at = 300L, body = BodyPatch(y = -6f), bothEyes = EyePatch(y = -5f, scaleX = 1.1f, scaleY = 1.1f)), Frame(at = 700L, body = BodyPatch(y = -2f), bothEyes = EyePatch(y = -4f, scaleX = 1.05f, scaleY = 1.05f)), Frame(at = 1100L, body = BodyPatch(y = 0f))), SeqSettle(kind = "base"))
+        ),
+        BallEmotion(
+            id = "34",
+            name = "出错",
+            transition = 220L,
+            gaze = true,
+            pool = intArrayOf(3, 21),
+            poolMs = longArrayOf(2000L, 3600L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(rotate = -6f, color = 0xFFE25B5B.toInt()),
+            baseLeft = EyePatch(y = -3f, rotate = -6f),
+            baseRight = EyePatch(y = 4f, rotate = 8f),
+            anims = listOf(Anim(type = "jitter", target = "eyes", prop = "lookX", amp = 1.4f, speed = 8f, decay = 800f)),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, body = BodyPatch(rotate = -6f, color = 0xFFE25B5B.toInt())), Frame(at = 170L, body = BodyPatch(rotate = -4f, color = 0xFFF6F3EC.toInt())), Frame(at = 340L, body = BodyPatch(rotate = -7f, color = 0xFFE25B5B.toInt())), Frame(at = 510L, body = BodyPatch(rotate = -5f, color = 0xFFF6F3EC.toInt())), Frame(at = 700L, body = BodyPatch(rotate = -6f, color = 0xFFDE5555.toInt()))), SeqSettle(kind = "hold"))
         ),
         BallEmotion(
             id = "35",
@@ -221,6 +497,18 @@ internal object EmotionBallData {
             anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookY", amp = 6f, period = 2200f))
         ),
         BallEmotion(
+            id = "36",
+            name = "联网加载",
+            transition = 380L,
+            gaze = true,
+            pool = intArrayOf(0, 8),
+            poolMs = longArrayOf(6000L, 10000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            anims = listOf(Anim(type = "blink", target = "left", prop = "open", interval = 1200f, dur = 380f), Anim(type = "blink", target = "right", prop = "open", interval = 1200f, dur = 380f, phaseMs = 600f), Anim(type = "sine", target = "eyes", prop = "lookX", amp = 2f, period = 2400f))
+        ),
+        BallEmotion(
             id = "37",
             name = "复述回忆",
             transition = 780L,
@@ -235,6 +523,21 @@ internal object EmotionBallData {
             anims = listOf(Anim(type = "sine", target = "eyes", prop = "lookY", amp = 2.4f, period = 4000f))
         ),
         BallEmotion(
+            id = "38",
+            name = "拒绝/受限",
+            transition = 380L,
+            gaze = true,
+            pool = intArrayOf(14, 5, 23),
+            poolMs = longArrayOf(2600L, 4500L),
+            blinkMs = longArrayOf(4500L, 8000L),
+            poolSpeed = 6f,
+            openness = 0.6f,
+            antics = false,
+            baseBody = BodyPatch(y = 2f, rotate = -2f, color = 0xFFEFE8E4.toInt()),
+            baseBoth = EyePatch(y = 2f, lookY = 3f),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L, body = BodyPatch(x = 0f)), Frame(at = 130L, body = BodyPatch(x = -9f, rotate = -6f)), Frame(at = 300L, body = BodyPatch(x = 8f, rotate = 2f)), Frame(at = 470L, body = BodyPatch(x = -6f, rotate = -5f)), Frame(at = 630L, body = BodyPatch(x = 4f, rotate = 0f)), Frame(at = 800L, body = BodyPatch(x = 0f, rotate = -2f))), SeqSettle(kind = "base"))
+        ),
+        BallEmotion(
             id = "39",
             name = "输出回复",
             transition = 360L,
@@ -247,6 +550,33 @@ internal object EmotionBallData {
             baseBody = BodyPatch(breathe = 0.008f),
             baseBoth = EyePatch(y = -2f),
             anims = listOf(Anim(type = "pulse", target = "eyes", prop = "scale", amp = 0.1f, period = 680f), Anim(type = "sine", target = "body", prop = "y", amp = 1.2f, period = 680f))
+        ),
+        BallEmotion(
+            id = "40",
+            name = "检索资料",
+            transition = 320L,
+            gaze = true,
+            pool = intArrayOf(15, 9, 3, 20, 12, 18),
+            poolMs = longArrayOf(1000L, 1800L),
+            blinkMs = longArrayOf(1600L, 4000L),
+            poolSpeed = 10f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(breathe = 0.006f),
+            anims = listOf(Anim(type = "scan", target = "eyes", prop = "lookX", amp = 11f, period = 700f))
+        ),
+        BallEmotion(
+            id = "41",
+            name = "停止终止",
+            transition = 280L,
+            gaze = false,
+            pool = intArrayOf(13, 22),
+            poolMs = longArrayOf(6000L, 9000L),
+            poolSpeed = 6f,
+            openness = 1f,
+            antics = false,
+            baseBody = BodyPatch(y = 3f, breathe = 0.004f, color = 0xFFEBE8E2.toInt()),
+            sequence = BallSequence(frames = listOf(Frame(at = 0L), Frame(at = 1500L, body = BodyPatch(y = 4f, scale = 0.97f), bothEyes = EyePatch(y = 3f, scaleX = 0.6f, scaleY = 0.6f, open = 0.35f))), SeqSettle(kind = "hold"))
         )
     )
 }
