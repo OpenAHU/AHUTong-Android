@@ -46,8 +46,19 @@ object TourScrollRequest {
     var signal by mutableIntStateOf(0)
         private set
 
+    /** 导览进行中才允许目标自动滚动；结束后清掉，避免之后进页面再次触发。 */
+    var active by mutableStateOf(false)
+        private set
+
     fun request(id: String) {
+        active = true
         targetId = id
+        signal += 1
+    }
+
+    fun clear() {
+        active = false
+        targetId = null
         signal += 1
     }
 }
@@ -73,7 +84,9 @@ fun Modifier.tourCenterIntoView(id: String): Modifier = composed {
     var rowSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
     val signal = TourScrollRequest.signal
     LaunchedEffect(signal) {
-        if (TourScrollRequest.targetId != id) return@LaunchedEffect
+        if (!TourScrollRequest.active || TourScrollRequest.targetId != id) {
+            return@LaunchedEffect
+        }
         kotlinx.coroutines.delay(360)
         val height = rowSize.height.toFloat()
         if (height <= 0f) return@LaunchedEffect

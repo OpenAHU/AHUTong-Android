@@ -234,6 +234,7 @@ internal fun HomeTourHost(
         visible = false
         HomeTourState.running = false
         XuexiaotongTourState.closeWorkDetailRequested = true
+        TourScrollRequest.clear()
         HomeTourState.markSeen(context)
     }
 
