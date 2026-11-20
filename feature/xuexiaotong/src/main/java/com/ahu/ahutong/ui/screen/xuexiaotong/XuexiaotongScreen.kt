@@ -288,17 +288,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                                     )
                                 }
                             }
-                            IconButton(
-                                modifier = Modifier.size(38.dp),
-                                onClick = { sideMenuOpen = true }
-                            ) {
-                                Icon(
-                                    painter = painterResource(DesignSystemR.drawable.ic_config),
-                                    contentDescription = "菜单",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(17.dp)
-                                )
-                            }
                             val isSyncingBtn = if (tab == XuexiaotongSubTab.COURSE) courseSyncing else syncing
                             if (isSyncingBtn) {
                                 Box(
@@ -339,6 +328,17 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                                         modifier = Modifier.size(17.dp)
                                     )
                                 }
+                            }
+                            IconButton(
+                                modifier = Modifier.size(38.dp),
+                                onClick = { sideMenuOpen = true }
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_hamburger_button),
+                                    contentDescription = "更多",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(17.dp)
+                                )
                             }
                         }
                     }
@@ -472,13 +472,6 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                                 )
                             }
                         }
-                        IconButton(onClick = { sideMenuOpen = true }) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_hamburger_button),
-                                contentDescription = "更多",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
                         val isSyncingBtn = if (tab == XuexiaotongSubTab.COURSE) courseSyncing else syncing
                         if (isSyncingBtn) {
                             Box(
@@ -515,6 +508,13 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
+                        }
+                        IconButton(onClick = { sideMenuOpen = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_hamburger_button),
+                                contentDescription = "更多",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }

@@ -680,18 +680,6 @@ fun Schedule(
                     }
                 }
                 IconButton(
-                    modifier = Modifier
-                        .size(if (radiant) 38.dp else 48.dp)
-                        .tourTarget("schedule_settings"),
-                    onClick = { isSettingsVisible = true }
-                ) {
-                    Icon(
-                        painter = painterResource(com.ahu.ahutong.feature.schedule.R.drawable.ic_hamburger_button),
-                        contentDescription = "更多",
-                        modifier = Modifier.size(if (radiant) 17.dp else 20.dp)
-                    )
-                }
-                IconButton(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
                     onClick = {
                         if (isGraduate) {
@@ -721,6 +709,18 @@ fun Schedule(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+                IconButton(
+                    modifier = Modifier
+                        .size(if (radiant) 38.dp else 48.dp)
+                        .tourTarget("schedule_settings"),
+                    onClick = { isSettingsVisible = true }
+                ) {
+                    Icon(
+                        painter = painterResource(com.ahu.ahutong.feature.schedule.R.drawable.ic_hamburger_button),
+                        contentDescription = "更多",
+                        modifier = Modifier.size(if (radiant) 17.dp else 20.dp)
+                    )
                 }
             }
         }
