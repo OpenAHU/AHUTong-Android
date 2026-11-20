@@ -13,6 +13,8 @@ data class AssistantSessionSummary(
     val updatedAt: Long,
     val messageCount: Int,
     val pinned: Boolean = false,
+    /** 因范围外内容被终止：抽屉里标橙色警示。 */
+    val terminated: Boolean = false,
     /** 供搜索使用的正文（标题之外的对话内容），过大时截断。 */
     val searchText: String = "",
 )
@@ -166,6 +168,7 @@ internal class AssistantHistoryStore {
                     it.type == TYPE_USER || it.type == TYPE_ASSISTANT
                 },
                 pinned = session.pinned == true,
+                terminated = session.terminated == true,
                 searchText = session.items.orEmpty()
                     .mapNotNull { it.text }
                     .joinToString("\n")

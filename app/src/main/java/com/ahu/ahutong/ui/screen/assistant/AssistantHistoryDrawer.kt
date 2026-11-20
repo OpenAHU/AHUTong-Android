@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -317,7 +318,17 @@ private fun SessionRow(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                 color = if (selected) primary else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
             )
+            if (session.terminated) {
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Outlined.WarningAmber,
+                    contentDescription = "对话已被终止",
+                    tint = Color(0xFFF07B46),
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
         DropdownMenu(expanded = menuVisible, onDismissRequest = { menuVisible = false }) {
             DropdownMenuItem(
