@@ -104,10 +104,9 @@ internal fun AssistantHistoryDrawer(
     ).filter { it.second.isNotEmpty() }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val panelWidth = min(maxWidth.value * 0.8f, 326f).dp
         Surface(
             modifier = Modifier
-                .width(panelWidth)
+                .width(maxWidth)
                 .fillMaxHeight(),
             color = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),

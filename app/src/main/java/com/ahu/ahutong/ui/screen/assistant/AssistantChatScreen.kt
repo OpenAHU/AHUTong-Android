@@ -1,11 +1,14 @@
 package com.ahu.ahutong.ui.screen.assistant
 
+import kotlin.math.min
+
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -31,6 +34,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -94,6 +98,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -107,6 +112,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -117,6 +123,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -274,22 +281,48 @@ fun AssistantChatScreen(
         ) {
             val headerBg = MaterialTheme.colorScheme.background
             val headerBlurLayer = rememberLayerBackdrop()
-            val drawerSwipeThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
+            val panelWidth = min(
+                with(LocalDensity.current) {
+                    LocalConfiguration.current.screenWidthDp.dp.toPx() * 0.8f
+                },
+                with(LocalDensity.current) { 326.dp.toPx() }
+            )
+            var drawerProgress by remember { mutableFloatStateOf(0f) }
+            var drawerDragging by remember { mutableStateOf(false) }
+            LaunchedEffect(AssistantChatState.historyVisible, drawerDragging) {
+                if (!drawerDragging) {
+                    val target = if (AssistantChatState.historyVisible) 1f else 0f
+                    if (drawerProgress != target) {
+                        animate(
+                            initialValue = drawerProgress,
+                            targetValue = target,
+                            animationSpec = tween(240),
+                        ) { value, _ -> drawerProgress = value }
+                    }
+                }
+            }
             Box(
                 Modifier
                     .fillMaxSize()
-                    .pointerInput(AssistantChatState.historyVisible) {
-                        if (AssistantChatState.historyVisible) return@pointerInput
-                        var total = 0f
+                    .pointerInput(panelWidth) {
                         detectHorizontalDragGestures(
-                            onDragStart = { total = 0f },
-                            onHorizontalDrag = { _, dragAmount ->
-                                if (dragAmount > 0f) total += dragAmount
+                            onDragStart = { drawerDragging = true },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                drawerProgress = (drawerProgress + dragAmount / panelWidth)
+                                    .coerceIn(0f, 1f)
                             },
                             onDragEnd = {
-                                if (total > drawerSwipeThresholdPx) {
+                                drawerDragging = false
+                                if (drawerProgress > 0.35f) {
                                     AssistantChatState.openHistory()
+                                } else {
+                                    AssistantChatState.closeHistory()
                                 }
+                            },
+                            onDragCancel = {
+                                drawerDragging = false
+                                drawerProgress = if (AssistantChatState.historyVisible) 1f else 0f
                             },
                         )
                     }
@@ -481,35 +514,33 @@ fun AssistantChatScreen(
                     )
                 }
 
-                AnimatedVisibility(
-                    visible = AssistantChatState.historyVisible,
-                    enter = fadeIn(tween(160)),
-                    exit = fadeOut(tween(140)),
-                ) {
+                if (drawerProgress > 0.001f) {
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.35f))
+                            .background(Color.Black.copy(alpha = 0.35f * drawerProgress))
                             .clickable(onClick = AssistantChatState::closeHistory)
                     )
-                }
-                AnimatedVisibility(
-                    visible = AssistantChatState.historyVisible,
-                    enter = slideInHorizontally(
-                        animationSpec = tween(280, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f))
-                    ) { -it } + fadeIn(tween(160)),
-                    exit = slideOutHorizontally(tween(240)) { -it } + fadeOut(tween(140)),
-                ) {
-                    AssistantHistoryDrawer(
-                        sessions = AssistantChatState.sessions,
-                        currentSessionId = AssistantChatState.currentSessionId,
-                        onClose = AssistantChatState::closeHistory,
-                        onNewChat = AssistantChatState::startNewSession,
-                        onOpen = AssistantChatState::switchTo,
-                        onRename = AssistantChatState::renameSession,
-                        onTogglePin = AssistantChatState::togglePin,
-                        onDelete = AssistantChatState::deleteSession,
-                    )
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .fillMaxHeight()
+                            .width(with(LocalDensity.current) { panelWidth.toDp() })
+                            .graphicsLayer {
+                                translationX = -(1f - drawerProgress) * size.width
+                            }
+                    ) {
+                        AssistantHistoryDrawer(
+                            sessions = AssistantChatState.sessions,
+                            currentSessionId = AssistantChatState.currentSessionId,
+                            onClose = AssistantChatState::closeHistory,
+                            onNewChat = AssistantChatState::startNewSession,
+                            onOpen = AssistantChatState::switchTo,
+                            onRename = AssistantChatState::renameSession,
+                            onTogglePin = AssistantChatState::togglePin,
+                            onDelete = AssistantChatState::deleteSession,
+                        )
+                    }
                 }
             }
         }
