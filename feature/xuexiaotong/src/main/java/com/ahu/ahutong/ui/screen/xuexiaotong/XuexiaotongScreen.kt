@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
@@ -475,8 +474,8 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
                         }
                         IconButton(onClick = { sideMenuOpen = true }) {
                             Icon(
-                                Icons.Filled.Menu,
-                                contentDescription = "菜单",
+                                painter = painterResource(R.drawable.ic_hamburger_button),
+                                contentDescription = "更多",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -669,7 +668,7 @@ fun XuexiaotongScreen(tourDemo: Boolean = false) {
         val maxSheetHeight =
             androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp * 0.8f
         AppModalBottomSheet(
-            title = "智能日历设置",
+            title = "更多",
             onDismissRequest = { sideMenuOpen = false },
             modifier = Modifier.heightIn(max = maxSheetHeight)
         ) {

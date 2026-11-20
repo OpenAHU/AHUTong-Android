@@ -685,19 +685,11 @@ fun Schedule(
                         .tourTarget("schedule_settings"),
                     onClick = { isSettingsVisible = true }
                 ) {
-                    if (radiant) {
-                        Icon(
-                            painter = painterResource(DesignSystemR.drawable.ic_config),
-                            contentDescription = "课表设置",
-                            modifier = Modifier.size(17.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "课表设置",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Icon(
+                        painter = painterResource(com.ahu.ahutong.feature.schedule.R.drawable.ic_hamburger_button),
+                        contentDescription = "更多",
+                        modifier = Modifier.size(if (radiant) 17.dp else 20.dp)
+                    )
                 }
                 IconButton(
                     modifier = Modifier.size(if (radiant) 38.dp else 48.dp),
@@ -1542,7 +1534,7 @@ private fun ScheduleSettingsDialog(
     ) {
         val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.8f
         AppModalBottomSheet(
-            title = "课表设置",
+            title = "更多",
             onDismissRequest = onDismiss,
             modifier = Modifier.heightIn(max = maxSheetHeight)
         ) {
