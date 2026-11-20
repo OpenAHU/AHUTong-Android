@@ -615,7 +615,9 @@ fun SettingsToggleRow(
     subtitle: String? = null,
     enabled: Boolean = true,
     showDivider: Boolean = true,
-    onHorizontalDragActiveChange: (Boolean) -> Unit = {}
+    onHorizontalDragActiveChange: (Boolean) -> Unit = {},
+    /** 需要先弹确认框才生效时置 true：开关只展示状态，点击由整行接管，避免先翻转再被打回。 */
+    passiveSwitch: Boolean = false
 ) {
     // 行布局 = 设置族通用；开关控件走契约槽位（AppToggle → 主题实验室可逐槽混搭）。
     // The native control handles its own taps and drags; taps on the rest of the row use the same callback.
@@ -648,7 +650,7 @@ fun SettingsToggleRow(
             )
             AppToggle(
                 checked = selected,
-                onCheckedChange = onCheckedWithFeedback,
+                onCheckedChange = if (passiveSwitch) null else onCheckedWithFeedback,
                 enabled = enabled
             )
         }

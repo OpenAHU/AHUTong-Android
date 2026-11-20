@@ -380,7 +380,8 @@ fun Preferences(
                         else showDeleteTrainingContribution = true
                     },
                     backdrop = backdrop,
-                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange,
+                    passiveSwitch = true
                 )
                 if (bootstrapContributionStatus.enabled) {
                     SettingsActionRow(
