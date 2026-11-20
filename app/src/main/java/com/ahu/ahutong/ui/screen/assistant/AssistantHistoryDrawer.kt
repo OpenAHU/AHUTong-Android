@@ -83,7 +83,13 @@ internal fun AssistantHistoryDrawer(
 
     val filtered = remember(sessions, query) {
         val needle = query.trim()
-        if (needle.isEmpty()) sessions else sessions.filter { it.title.contains(needle, true) }
+        if (needle.isEmpty()) {
+            sessions
+        } else {
+            sessions.filter {
+                it.title.contains(needle, true) || it.searchText.contains(needle, true)
+            }
+        }
     }
     val pinned = filtered.filter { it.pinned }
     val unpinned = filtered.filterNot { it.pinned }

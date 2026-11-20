@@ -13,6 +13,8 @@ data class AssistantSessionSummary(
     val updatedAt: Long,
     val messageCount: Int,
     val pinned: Boolean = false,
+    /** 供搜索使用的正文（标题之外的对话内容），过大时截断。 */
+    val searchText: String = "",
 )
 
 /**
@@ -159,6 +161,10 @@ internal class AssistantHistoryStore {
                     it.type == TYPE_USER || it.type == TYPE_ASSISTANT
                 },
                 pinned = session.pinned == true,
+                searchText = session.items.orEmpty()
+                    .mapNotNull { it.text }
+                    .joinToString("\n")
+                    .take(20_000),
             )
         }
 

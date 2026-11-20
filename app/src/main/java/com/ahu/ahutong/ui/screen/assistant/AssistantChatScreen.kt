@@ -399,7 +399,7 @@ fun AssistantChatScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         AssistantHeaderIconButton(
@@ -407,10 +407,28 @@ fun AssistantChatScreen(
                             description = "历史对话",
                             onClick = AssistantChatState::openHistory,
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.weight(1f))
-                        Spacer(Modifier.width(8.dp))
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
+                        }
                         AssistantHeaderIconButton(
                             icon = R.drawable.ic_assistant_close,
                             description = "关闭",
