@@ -165,9 +165,25 @@ internal fun renderScheduleShareImage(
     val logoSize = 112f
     val footerTop = IMAGE_HEIGHT - PADDING - logoSize
     logo?.let {
-        val scaled = Bitmap.createScaledBitmap(it, logoSize.toInt(), logoSize.toInt(), true)
-        canvas.drawBitmap(scaled, PADDING, footerTop, null)
+        // 前景图自带一圈透明安全区：先裁掉，再按最长边缩放到与二维码同尺寸
+        val cropped = trimTransparent(it)
+        val scale = logoSize / max(cropped.width, cropped.height).coerceAtLeast(1)
+        val drawWidth = cropped.width * scale
+        val drawHeight = cropped.height * scale
+        val scaled = Bitmap.createScaledBitmap(
+            cropped,
+            drawWidth.toInt().coerceAtLeast(1),
+            drawHeight.toInt().coerceAtLeast(1),
+            true
+        )
+        canvas.drawBitmap(
+            scaled,
+            PADDING + (logoSize - drawWidth) / 2f,
+            footerTop + (logoSize - drawHeight) / 2f,
+            null
+        )
         scaled.recycle()
+        if (cropped !== it) cropped.recycle()
     }
     val appNamePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = titleColor
@@ -211,6 +227,29 @@ private fun drawQr(canvas: Canvas, left: Float, top: Float, size: Float, color: 
             }
         }
     }
+}
+
+private fun trimTransparent(source: Bitmap): Bitmap {
+    val width = source.width
+    val height = source.height
+    var minX = width
+    var minY = height
+    var maxX = -1
+    var maxY = -1
+    val row = IntArray(width)
+    for (y in 0 until height) {
+        source.getPixels(row, 0, width, 0, y, width, 1)
+        for (x in 0 until width) {
+            if (Color.alpha(row[x]) > 8) {
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+            }
+        }
+    }
+    if (maxX < 0 || minX >= maxX || minY >= maxY) return source
+    return Bitmap.createBitmap(source, minX, minY, maxX - minX + 1, maxY - minY + 1)
 }
 
 private fun weekdayLabel(day: Int): String = when (day) {
