@@ -652,35 +652,50 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     }
 
     /**
-     * 温润的流光球身：AI 光带六色调色板与白色混合后低透明度填充，
-     * 色带极慢地沿球体漂移，不做外发光。
+     * 温润的流光球身：底色是调色板与白色混合的薄雾，
+     * 球内的颜色来自几团缓慢游动的点光源，与对话页背景同一手法。
      */
     private fun DrawScope.drawBody() {
-        val phase = clockSec * 0.12f
-        val angle = clockSec * 0.05f
         val centerX = (bodyMinX + bodyMaxX) / 2f
         val centerY = (bodyMinY + bodyMaxY) / 2f
         val radius = (bodyMaxX - bodyMinX) / 2f
-        val dx = cos(angle) * radius
-        val dy = sin(angle) * radius
-        val stops = (0..3).map { i ->
-            mixWhite(paletteAt(phase + i * 1.4f), 0.45f).copy(alpha = 0.68f)
-        }
-        drawPath(
-            path = bodyPath,
-            brush = Brush.linearGradient(
-                colors = stops,
-                start = Offset(centerX - dx, centerY - dy),
-                end = Offset(centerX + dx, centerY + dy),
-            ),
-        )
+        val t = clockSec * (TAU / 28f)
+        val phase = clockSec * 0.08f
+        drawPath(bodyPath, mixWhite(paletteAt(phase), 0.7f).copy(alpha = 0.55f))
         clipPath(bodyPath) {
+            drawSoftBlob(
+                center = Offset(
+                    centerX + radius * 0.3f * sin(t),
+                    centerY - radius * 0.3f + radius * 0.18f * cos(t),
+                ),
+                color = mixWhite(paletteAt(phase + 0.4f), 0.45f),
+                radius = radius,
+                alpha = 0.3f,
+            )
+            drawSoftBlob(
+                center = Offset(
+                    centerX + radius * 0.55f + radius * 0.12f * cos(t + 1.3f),
+                    centerY + radius * 0.1f + radius * 0.2f * sin(t * 0.8f),
+                ),
+                color = mixWhite(paletteAt(phase + 2.1f), 0.45f),
+                radius = radius * 0.85f,
+                alpha = 0.26f,
+            )
+            drawSoftBlob(
+                center = Offset(
+                    centerX + radius * 0.12f * sin(t + 2.2f),
+                    centerY + radius * 0.55f + radius * 0.12f * cos(t * 0.6f),
+                ),
+                color = mixWhite(paletteAt(phase + 4f), 0.45f),
+                radius = radius * 0.9f,
+                alpha = 0.22f,
+            )
             // 左上一点点柔高光，保住球体的温润感
             val highlightCenter = Offset(centerX - radius * 0.34f, centerY - radius * 0.38f)
             drawCircle(
                 brush = Brush.radialGradient(
                     colorStops = arrayOf(
-                        0f to Color.White.copy(alpha = 0.3f),
+                        0f to Color.White.copy(alpha = 0.2f),
                         1f to Color.Transparent,
                     ),
                     center = highlightCenter,
@@ -690,6 +705,22 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 center = highlightCenter,
             )
         }
+    }
+
+    private fun DrawScope.drawSoftBlob(center: Offset, color: Color, radius: Float, alpha: Float) {
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0f to color.copy(alpha = alpha),
+                    0.55f to color.copy(alpha = alpha * 0.4f),
+                    1f to Color.Transparent,
+                ),
+                center = center,
+                radius = radius,
+            ),
+            radius = radius,
+            center = center,
+        )
     }
 
     private fun paletteAt(position: Float): Color {
