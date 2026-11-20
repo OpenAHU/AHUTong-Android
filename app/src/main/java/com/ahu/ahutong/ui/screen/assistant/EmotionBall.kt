@@ -655,7 +655,6 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 scale(pose.body.scale, pose.body.scale, Offset.Zero)
                 translate(-HEAD_C, -HEAD_C)
             }) {
-                drawBodyShadow()
                 drawBody()
                 drawEye(pose.left, ringCur[0])
                 drawEye(pose.right, ringCur[1])
@@ -701,6 +700,21 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 color = mixWhite(paletteAt(phase + 4f), 0.45f),
                 radius = radius * 0.9f,
                 alpha = 0.22f,
+            )
+            // 球内右下渐变阴影：靠近边缘悄悄压暗，托出球体体积
+            val innerCenter = Offset(centerX - radius * 0.22f, centerY - radius * 0.24f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.55f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.16f),
+                    ),
+                    center = innerCenter,
+                    radius = radius * 1.28f,
+                ),
+                radius = radius * 1.28f,
+                center = innerCenter,
             )
             // 左上一点点柔高光，保住球体的温润感
             val highlightCenter = Offset(centerX - radius * 0.34f, centerY - radius * 0.38f)
@@ -757,27 +771,6 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     }
 
     /** 球体外投影：往右下偏的渐变阴影，光从左上来，边缘只露右下的一弯。 */
-    private fun DrawScope.drawBodyShadow() {
-        val radius = (bodyMaxX - bodyMinX) / 2f
-        val center = Offset(
-            (bodyMinX + bodyMaxX) / 2f + radius * 0.07f,
-            (bodyMinY + bodyMaxY) / 2f + radius * 0.12f,
-        )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0f to Color.Black.copy(alpha = 0.2f),
-                    0.78f to Color.Black.copy(alpha = 0.11f),
-                    1f to Color.Transparent,
-                ),
-                center = center,
-                radius = radius * 1.12f,
-            ),
-            radius = radius * 1.12f,
-            center = center,
-        )
-    }
-
     private fun DrawScope.drawSoftBlob(center: Offset, color: Color, radius: Float, alpha: Float) {
         drawCircle(
             brush = Brush.radialGradient(
