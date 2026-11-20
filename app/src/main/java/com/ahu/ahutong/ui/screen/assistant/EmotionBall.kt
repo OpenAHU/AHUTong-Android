@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -124,7 +126,13 @@ internal fun EmotionBall(
             }
         }
     }
-    Canvas(modifier) {
+    val tapModifier = remember(engine, calm) {
+        if (calm) Modifier
+        else Modifier.pointerInput(engine) {
+            detectTapGestures { engine.onTap() }
+        }
+    }
+    Canvas(modifier.then(tapModifier)) {
         // 读取帧计数，让 Canvas 只在绘制阶段失效，不触发整页重组。
         frameTick.intValue
         engine.draw(this)
@@ -791,6 +799,12 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         }
         updateTrails(dt, fast, dir, dYaw, velocity, orbitWant)
         updateConfetti(dt)
+    }
+
+    /** 点一下小球：转一圈甩彩带（标题栏状态下不响应）。 */
+    fun onTap() {
+        if (calm) return
+        startSpin(1)
     }
 
     private fun startSpin(turns: Int) {
