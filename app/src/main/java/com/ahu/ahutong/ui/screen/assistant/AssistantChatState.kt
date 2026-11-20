@@ -176,6 +176,19 @@ object AssistantChatState {
         refreshSessions()
     }
 
+    fun renameSession(sessionId: String, title: String) {
+        ensureHistoryLoaded()
+        runCatching { historyStore.rename(sessionId, title) }
+        refreshSessions()
+    }
+
+    fun togglePin(sessionId: String) {
+        ensureHistoryLoaded()
+        val pinned = sessions.firstOrNull { it.id == sessionId }?.pinned == true
+        runCatching { historyStore.setPinned(sessionId, !pinned) }
+        refreshSessions()
+    }
+
     fun persist() {
         val id = currentSessionId ?: return
         runCatching { historyStore.save(id, _items.toList(), terminated) }

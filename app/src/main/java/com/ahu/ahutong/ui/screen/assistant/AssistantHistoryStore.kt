@@ -12,6 +12,7 @@ data class AssistantSessionSummary(
     val preview: String,
     val updatedAt: Long,
     val messageCount: Int,
+    val pinned: Boolean = false,
 )
 
 /**
@@ -64,6 +65,7 @@ internal class AssistantHistoryStore {
             updatedAt = System.currentTimeMillis(),
             items = stored,
             terminated = terminated.takeIf { it },
+            pinned = existing?.pinned,
         )
         val sessions = if (existing == null) {
             data.sessions.orEmpty() + session
@@ -78,6 +80,20 @@ internal class AssistantHistoryStore {
         val session = data.sessions.orEmpty().firstOrNull { it.id == id } ?: return@synchronized null
         write(data.copy(currentId = id))
         session.items.orEmpty().toChatItems()
+    }
+
+    fun rename(id: String, title: String) = synchronized(lock) {
+        val next = title.trim().take(40)
+        if (next.isBlank()) return@synchronized
+        val data = read()
+        val sessions = data.sessions.orEmpty().map { if (it.id == id) it.copy(title = next) else it }
+        write(data.copy(sessions = sessions))
+    }
+
+    fun setPinned(id: String, pinned: Boolean) = synchronized(lock) {
+        val data = read()
+        val sessions = data.sessions.orEmpty().map { if (it.id == id) it.copy(pinned = pinned) else it }
+        write(data.copy(sessions = sessions))
     }
 
     fun isTerminated(id: String): Boolean = synchronized(lock) {
@@ -130,7 +146,10 @@ internal class AssistantHistoryStore {
     }
 
     private fun List<AssistantHistorySession>.summaries(): List<AssistantSessionSummary> =
-        sortedByDescending { it.updatedAt }.map { session ->
+        sortedWith(
+            compareByDescending<AssistantHistorySession> { it.pinned == true }
+                .thenByDescending { it.updatedAt }
+        ).map { session ->
             AssistantSessionSummary(
                 id = session.id.orEmpty(),
                 title = session.title.orEmpty().ifBlank { DEFAULT_TITLE },
@@ -139,6 +158,7 @@ internal class AssistantHistoryStore {
                 messageCount = session.items.orEmpty().count {
                     it.type == TYPE_USER || it.type == TYPE_ASSISTANT
                 },
+                pinned = session.pinned == true,
             )
         }
 
@@ -217,6 +237,8 @@ internal data class AssistantHistorySession(
     val items: List<AssistantHistoryItem>? = emptyList(),
     /** 因范围外内容被终止的会话：回看时只读。 */
     val terminated: Boolean? = null,
+    /** 置顶：列表里始终排在前面。 */
+    val pinned: Boolean? = null,
 )
 
 internal data class AssistantHistoryItem(

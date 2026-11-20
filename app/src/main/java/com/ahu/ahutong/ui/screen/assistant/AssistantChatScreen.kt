@@ -456,17 +456,31 @@ fun AssistantChatScreen(
 
                 AnimatedVisibility(
                     visible = AssistantChatState.historyVisible,
+                    enter = fadeIn(tween(160)),
+                    exit = fadeOut(tween(140)),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .clickable(onClick = AssistantChatState::closeHistory)
+                    )
+                }
+                AnimatedVisibility(
+                    visible = AssistantChatState.historyVisible,
                     enter = slideInHorizontally(
                         animationSpec = tween(280, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f))
-                    ) { it } + fadeIn(tween(160)),
-                    exit = slideOutHorizontally(tween(240)) { it } + fadeOut(tween(140)),
+                    ) { -it } + fadeIn(tween(160)),
+                    exit = slideOutHorizontally(tween(240)) { -it } + fadeOut(tween(140)),
                 ) {
-                    AssistantHistoryPage(
+                    AssistantHistoryDrawer(
                         sessions = AssistantChatState.sessions,
                         currentSessionId = AssistantChatState.currentSessionId,
-                        onBack = AssistantChatState::closeHistory,
+                        onClose = AssistantChatState::closeHistory,
                         onNewChat = AssistantChatState::startNewSession,
                         onOpen = AssistantChatState::switchTo,
+                        onRename = AssistantChatState::renameSession,
+                        onTogglePin = AssistantChatState::togglePin,
                         onDelete = AssistantChatState::deleteSession,
                     )
                 }
