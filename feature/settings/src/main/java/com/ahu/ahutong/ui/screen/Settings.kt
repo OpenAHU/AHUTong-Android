@@ -138,8 +138,8 @@ fun Settings(
     val searchEntries = buildList {
         add(
             SettingsSearchEntry(
-                title = "AI 设置",
-                keywords = listOf("AI", "智能", "模型", "大模型", "试用", "密钥", "API", "对话", "助手"),
+                title = "AI 与智能体验",
+                keywords = listOf("AI", "智能", "模型", "大模型", "试用", "密钥", "API", "对话", "助手", "智能体验", "个性化", "推荐", "预测", "预加载"),
                 open = onOpenAiSettings
             )
         )
@@ -148,13 +148,6 @@ fun Settings(
                 title = "主页设置",
                 keywords = listOf("主页", "校园卡", "付款码", "二维码", "上屏", "优先级", "排序", "主标题", "hero", "卡片"),
                 open = onOpenCampusCard
-            )
-        )
-        add(
-            SettingsSearchEntry(
-                title = "智能体验",
-                keywords = listOf("个性化", "推荐", "预测", "学习", "行为", "猜你想用"),
-                open = onOpenIntelligence
             )
         )
         add(
@@ -361,12 +354,12 @@ fun Settings(
         }
 
         SettingsSection(
-            title = "服务",
+            title = "软件与服务",
             modifier = Modifier.padding(horizontal = 16.dp),
             backdrop = backdrop
         ) {
             SettingsActionRow(
-                title = "AI 设置",
+                title = "AI 与智能体验",
                 leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
                 onClick = onOpenAiSettings
             )
@@ -376,34 +369,16 @@ fun Settings(
                 onClick = onOpenCampusCard
             )
             SettingsActionRow(
-                title = "智能体验",
-                leadingPainter = painterResource(R.drawable.ic_brain),
-                onClick = onOpenIntelligence
-            )
-            SettingsActionRow(
                 title = "插件装载",
                 leadingPainter = painterResource(R.drawable.ic_plugin),
-                showDivider = false,
                 onClick = onNavigateToPlugins
             )
-        }
-
-        SettingsSection(
-            title = "通用",
-            modifier = Modifier.padding(horizontal = 16.dp),
-            backdrop = backdrop
-        ) {
             SettingsActionRow(
                 title = "外观与主题",
                 modifier = Modifier
                     .tourCenterIntoView("settings_appearance"),
                 leadingPainter = painterResource(R.drawable.ic_palette),
                 onClick = onOpenAppearance
-            )
-            SettingsActionRow(
-                title = "数据与隐私",
-                leadingPainter = painterResource(R.drawable.ic_shield),
-                onClick = onOpenDataPrivacy
             )
             SettingsActionRow(
                 title = "通知提醒",
@@ -441,6 +416,11 @@ fun Settings(
                     .tourCenterIntoView("settings_feedback"),
                 leadingPainter = painterResource(R.drawable.ic_feedback),
                 onClick = onOpenFeedback
+            )
+            SettingsActionRow(
+                title = "数据与隐私",
+                leadingPainter = painterResource(R.drawable.ic_shield),
+                onClick = onOpenDataPrivacy
             )
             SettingsActionRow(
                 title = "关于安大通",

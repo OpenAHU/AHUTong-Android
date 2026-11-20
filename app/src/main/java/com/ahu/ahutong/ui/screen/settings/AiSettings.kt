@@ -243,6 +243,8 @@ fun AiSettings(
             }
 
             if (customProfiles.isNotEmpty()) {
+                IntelligenceSettingsSection(backdrop = backdrop)
+
                 SettingsSection(
                     title = "维护",
                     modifier = Modifier.padding(horizontal = 16.dp),

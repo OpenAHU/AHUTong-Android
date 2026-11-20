@@ -328,40 +328,12 @@ fun Preferences(
                 }
             }
 
-            if (section == PreferencesSection.INTELLIGENCE) SettingsSection(
-                title = "智能体验",
-                modifier = Modifier.padding(horizontal = 16.dp),
-                backdrop = backdrop
-            ) {
-                personalizationEnabled?.let { enabled ->
-                    SettingsToggleRow(
-                        title = "显示快捷建议",
-                        selected = enabled,
-                        onSelectedChange = viewModel::setPersonalizationEnabled,
-                        backdrop = backdrop,
-                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                    )
-                }
-                val predictiveEnabled = predictivePrefetchEnabled
-                val wifiOnly = wifiOnlyPrefetch
-                if (predictiveEnabled != null && wifiOnly != null) {
-                    SettingsToggleRow(
-                        title = "提前加载预测内容",
-                        selected = predictiveEnabled,
-                        onSelectedChange = viewModel::setPredictivePrefetchEnabled,
-                        backdrop = backdrop,
-                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                    )
-                    SettingsToggleRow(
-                        title = "仅在 Wi-Fi 下预加载",
-                        selected = predictiveEnabled && wifiOnly,
-                        onSelectedChange = viewModel::setWifiOnlyPrefetch,
-                        backdrop = backdrop,
-                        enabled = predictiveEnabled,
-                        showDivider = false,
-                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                    )
-                }
+            if (section == PreferencesSection.INTELLIGENCE) {
+                IntelligenceSettingsSection(
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange,
+                    viewModel = viewModel
+                )
             }
 
             if (section == PreferencesSection.DATA) SettingsSection(
