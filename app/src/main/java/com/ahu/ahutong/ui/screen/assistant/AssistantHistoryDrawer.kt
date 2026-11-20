@@ -126,14 +126,14 @@ internal fun AssistantHistoryDrawer(
                         fontWeight = FontWeight.Bold,
                     )
                     AssistantHeaderIconButton(
-                        icon = com.ahu.ahutong.core.designsystem.R.drawable.ic_config,
-                        description = "AI 设置",
-                        onClick = onOpenSettings,
-                    )
-                    AssistantHeaderIconButton(
                         icon = R.drawable.ic_assistant_add,
                         description = "新对话",
                         onClick = onNewChat,
+                    )
+                    AssistantHeaderIconButton(
+                        icon = com.ahu.ahutong.core.designsystem.R.drawable.ic_config,
+                        description = "AI 设置",
+                        onClick = onOpenSettings,
                     )
                 }
                 SearchField(
