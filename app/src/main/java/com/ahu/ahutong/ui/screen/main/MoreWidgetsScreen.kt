@@ -34,7 +34,7 @@ import com.ahu.ahutong.ui.screen.main.home.WidgetCategory
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
 
-private val TileMinWidth = 150.dp
+private val TileMinWidth = 140.dp
 private val TileGap = 12.dp
 private val RowGap = 8.dp
 
