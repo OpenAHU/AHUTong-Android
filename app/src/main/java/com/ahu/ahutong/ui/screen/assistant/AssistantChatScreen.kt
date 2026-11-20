@@ -28,6 +28,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
@@ -454,11 +455,25 @@ fun AssistantChatScreen(
                     ),
                     exit = fadeOut(tween(180)),
                 ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        EmotionBall(
-                            modifier = Modifier.size(188.dp),
-                            sessionKey = AssistantChatState.currentSessionId,
-                        )
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = maxHeight * 0.16f, start = 32.dp, end = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            EmotionBall(
+                                modifier = Modifier.size(148.dp),
+                                sessionKey = AssistantChatState.currentSessionId,
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Text(
+                                text = "你好，今天需要我帮你做什么呢",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
                 }
