@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.cos
 import kotlin.math.pow
@@ -57,6 +58,15 @@ private class Rocket(
     val trail = ArrayDeque<Offset>()
 }
 
+private class ShockRing(
+    val x: Float,
+    val y: Float,
+    val color: Color,
+    val maxRadius: Float,
+) {
+    var progress = 0f
+}
+
 private class Spark(
     var x: Float,
     var y: Float,
@@ -72,6 +82,7 @@ private class FireworksState {
     private val random = Random(System.nanoTime())
     private val rockets = mutableListOf<Rocket>()
     private val sparks = mutableListOf<Spark>()
+    private val rings = mutableListOf<ShockRing>()
     private var width = 0f
     private var height = 0f
     private var launchTimer = 0f
@@ -98,6 +109,12 @@ private class FireworksState {
                 explode(rocket.x, rocket.y, rocket.color, density)
                 rockets.removeAt(index)
             }
+        }
+
+        for (index in rings.indices.reversed()) {
+            val ring = rings[index]
+            ring.progress += dt / 0.55f
+            if (ring.progress >= 1f) rings.removeAt(index)
         }
 
         for (index in sparks.indices.reversed()) {
@@ -144,16 +161,12 @@ private class FireworksState {
                 )
             )
         }
-        sparks.add(
-            Spark(
+        rings.add(
+            ShockRing(
                 x = x,
                 y = y,
-                vx = 0f,
-                vy = 0f,
-                life = 1f,
-                decay = 2.6f,
-                size = 26f * density,
-                color = Color.White,
+                color = color,
+                maxRadius = rand(80f, 130f) * density,
             )
         )
     }
@@ -171,6 +184,16 @@ private class FireworksState {
                     center = point,
                 )
             }
+        }
+
+        for (ring in rings) {
+            val progress = ring.progress.coerceIn(0f, 1f)
+            scope.drawCircle(
+                color = ring.color.copy(alpha = 0.26f * (1f - progress)),
+                radius = ring.maxRadius * progress,
+                center = Offset(ring.x, ring.y),
+                style = Stroke(width = (2.6f - 1.4f * progress) * scope.density),
+            )
         }
 
         for (spark in sparks) {
