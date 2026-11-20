@@ -233,14 +233,15 @@ private fun CardView(
                     .fillMaxHeight()
                     .padding(horizontal = 20.dp)
             ) {
+                val birthday = BirthdayMode.celebrating
                 Text(
-                    text = stringResource(id = R.string.card_money),
+                    text = if (birthday) "愿你的幸福指数" else stringResource(id = R.string.card_money),
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
                 Text(
-                    text = "¥ ${formatCampusCardBalance(balance)}",
+                    text = if (birthday) "∞" else "¥ ${formatCampusCardBalance(balance)}",
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
