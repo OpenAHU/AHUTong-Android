@@ -541,7 +541,14 @@ internal fun Home(
                 onClick = {
                     val configured = runCatching { AssistantModelConfigStore.load() }.getOrNull() != null
                     if (configured) {
-                        AssistantGlowState.visible = !AssistantGlowState.visible
+                        val next = !AssistantGlowState.visible
+                        if (next) {
+                            behaviorRuntime.recordActionIntentAsync(
+                                AppActionId.OPEN_AI_ASSISTANT,
+                                ActionSource.ORGANIC
+                            )
+                        }
+                        AssistantGlowState.visible = next
                     } else {
                         Toast.makeText(
                             context,

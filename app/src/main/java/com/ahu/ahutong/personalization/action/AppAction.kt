@@ -55,8 +55,8 @@ data class AppActionSpec(
 )
 
 object AppActionCatalog {
-    const val ACTION_CATALOG_VERSION = 1
-    const val OUTPUT_SCHEMA_VERSION = 1
+    const val ACTION_CATALOG_VERSION = 2
+    const val OUTPUT_SCHEMA_VERSION = 2
     const val OTHER_OUTPUT_ID = "OTHER"
     const val NONE_OUTPUT_ID = "NONE"
 
@@ -137,13 +137,13 @@ object AppActionCatalog {
         spec(AppActionId.ONBOARDING, ActionFamily.TECHNICAL, "onboarding", "首次引导", labelEligible = false, predictable = false, suggestible = false),
         // Complete route coverage without changing the learned output ABI or enabling new suggestions.
         spec(AppActionId.VIEW_CAMPUS_NOTICES, ActionFamily.CAMPUS_SERVICE, "campus_notices", "校园通知", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
-        spec(AppActionId.VIEW_CANTEEN_RANKING, ActionFamily.CAMPUS_SERVICE, "canteen_ranking", "安大必吃榜", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_CANTEEN_RANKING, ActionFamily.CAMPUS_SERVICE, "canteen_ranking", "安大必吃榜", sideEffect = SideEffect.READ_ONLY, suggestible = false),
         spec(AppActionId.VIEW_CANTEEN_FOOTPRINT, ActionFamily.CAMPUS_SERVICE, "canteen_footprint", "干饭足迹", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
-        spec(AppActionId.VIEW_ATTENDANCE, ActionFamily.CAMPUS_SERVICE, "attendance_records", "教务考勤", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_ATTENDANCE, ActionFamily.CAMPUS_SERVICE, "attendance_records", "教务考勤", sideEffect = SideEffect.READ_ONLY, suggestible = false),
         spec(AppActionId.OPEN_STUDENT_MAIL, ActionFamily.CAMPUS_SERVICE, "student_mail", "学生邮箱", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_PROGRAM_COMPLETION, ActionFamily.ACADEMIC, "program_completion", "培养方案", sideEffect = SideEffect.READ_ONLY, sensitivity = Sensitivity.ACADEMIC, labelEligible = false, predictable = false, suggestible = false),
-        spec(AppActionId.OPEN_IDENTITY_CODE, ActionFamily.CAMPUS_SERVICE, "identity_code", "淘身份码", sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
-        spec(AppActionId.OPEN_PDD_IDENTITY_CODE, ActionFamily.CAMPUS_SERVICE, "pdd_identity_code", "多身份码", sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.OPEN_IDENTITY_CODE, ActionFamily.CAMPUS_SERVICE, "identity_code", "淘身份码", sensitivity = Sensitivity.AUTHENTICATION, suggestible = false),
+        spec(AppActionId.OPEN_PDD_IDENTITY_CODE, ActionFamily.CAMPUS_SERVICE, "pdd_identity_code", "多身份码", sensitivity = Sensitivity.AUTHENTICATION, suggestible = false),
         spec(AppActionId.OPEN_PLUGIN, ActionFamily.TECHNICAL, "plugin/{pluginId}", "打开插件", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_EARLY_ACCESS, ActionFamily.SETTINGS, "settings__early_access", "抢先体验", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_PRIVACY_POLICY, ActionFamily.SETTINGS, "settings__privacy_policy", "隐私政策", labelEligible = false, predictable = false, suggestible = false),
@@ -154,7 +154,10 @@ object AppActionCatalog {
         spec(AppActionId.OPEN_AI_SETTINGS, ActionFamily.SETTINGS, "settings__ai", "AI 设置", labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.OPEN_SCANNER, ActionFamily.TECHNICAL, "scan", "扫一扫", sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_BILLING, ActionFamily.CAMPUS_SERVICE, "billing", "校园卡账单", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false),
-        spec(AppActionId.VIEW_BILLING_STATS, ActionFamily.CAMPUS_SERVICE, "billing_stats", "账单统计", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false)
+        spec(AppActionId.VIEW_BILLING_STATS, ActionFamily.CAMPUS_SERVICE, "billing_stats", "账单统计", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.FINANCIAL, labelEligible = false, predictable = false, suggestible = false),
+        // 新功能进入 next-action 训练：只训练不主动推荐
+        spec(AppActionId.VIEW_XUEXIAOTONG, ActionFamily.ACADEMIC, "xuexiaotong", "学习通日程", prefetch = PrefetchPolicy.NETWORK_READ_ONLY, sideEffect = SideEffect.READ_ONLY, sensitivity = Sensitivity.ACADEMIC, suggestible = false),
+        spec(AppActionId.OPEN_AI_ASSISTANT, ActionFamily.NAVIGATION, null, "AI 助手", sideEffect = SideEffect.READ_ONLY, suggestible = false)
     )
 
     private val specById = specs.associateBy(AppActionSpec::id)
@@ -164,7 +167,6 @@ object AppActionCatalog {
         "electricity_recent_rooms" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "electricity_alert_settings" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
         "settings__electricity_alert" to AppActionId.OPEN_ELECTRICITY_PAYMENT,
-        "xuexiaotong" to AppActionId.VIEW_SCHOOL_CALENDAR,
         "widgets" to AppActionId.OPEN_TOOLS,
         // 聚合相机：新路由名，旧 "scan" 保留兼容
         "camera" to AppActionId.OPEN_SCANNER,
@@ -184,6 +186,7 @@ object AppActionCatalog {
         AppActionId.SUBMIT_CMB_CARD_RECHARGE to setOf("card_balance_deposit", "cmb_card_recharge"),
         AppActionId.SUBMIT_NETWORK_RECHARGE to setOf("network_recharge"),
         AppActionId.EDIT_HOME to setOf("home"),
+        AppActionId.OPEN_AI_ASSISTANT to setOf("home"),
         AppActionId.MANUAL_REFRESH_SCHEDULE to setOf("schedule"),
         AppActionId.MANUAL_REFRESH_EXAM to setOf("exam"),
         AppActionId.MANUAL_REFRESH_GRADE to setOf("grade"),
@@ -238,7 +241,13 @@ object AppActionCatalog {
         AppActionId.RETRY_GRADE,
         AppActionId.RETRY_EXAM,
         AppActionId.RETRY_REPOSITORY,
-        AppActionId.OPEN_COURSE_DETAIL
+        AppActionId.OPEN_COURSE_DETAIL,
+        AppActionId.VIEW_CANTEEN_RANKING,
+        AppActionId.VIEW_ATTENDANCE,
+        AppActionId.OPEN_IDENTITY_CODE,
+        AppActionId.OPEN_PDD_IDENTITY_CODE,
+        AppActionId.VIEW_XUEXIAOTONG,
+        AppActionId.OPEN_AI_ASSISTANT
     )
 
     val outputIds: List<String> = frozenPredictableActions.map(AppActionId::stableId) +

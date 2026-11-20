@@ -5,7 +5,7 @@ import com.ahu.ahutong.personalization.action.AppActionId
 import com.ahu.ahutong.personalization.action.SideEffect
 
 object JourneyGoalCatalog {
-    const val OUTPUT_SCHEMA_VERSION = 1
+    const val OUTPUT_SCHEMA_VERSION = 2
     const val OTHER_OUTPUT_ID = "OTHER"
     const val NONE_OUTPUT_ID = "NONE"
 

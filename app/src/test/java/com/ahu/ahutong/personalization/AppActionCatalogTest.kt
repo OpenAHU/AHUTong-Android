@@ -54,7 +54,7 @@ class AppActionCatalogTest {
     }
 
     @Test
-    fun catalogPreservesTheEntireSchemaOneOutputAbi() {
+    fun catalogPreservesTheSchemaOneOutputAbiAndAppendsNewActions() {
         val schemaOneActions = """
             OPEN_HOME VIEW_SCHEDULE OPEN_TOOLS OPEN_SETTINGS VIEW_SCHOOL_CALENDAR VIEW_GRADES
             OPEN_PHONE_BOOK VIEW_EXAM_ROOM OPEN_EVALUATION FIND_FREE_CLASSROOM OPEN_LOST_FOUND
@@ -66,27 +66,32 @@ class AppActionCatalogTest {
             OPEN_INFO EDIT_HOME MANUAL_REFRESH_SCHEDULE MANUAL_REFRESH_EXAM MANUAL_REFRESH_GRADE
             MANUAL_REFRESH_REPOSITORY RETRY_GRADE RETRY_EXAM RETRY_REPOSITORY OPEN_COURSE_DETAIL
         """.trim().split(Regex("\\s+"))
-        assertEquals(schemaOneActions + listOf("OTHER", "NONE"), AppActionCatalog.outputIds)
-        assertEquals(1, AppActionCatalog.ACTION_CATALOG_VERSION)
-        assertEquals(1, AppActionCatalog.OUTPUT_SCHEMA_VERSION)
-        assertEquals(1, JourneyGoalCatalog.OUTPUT_SCHEMA_VERSION)
+        val addedActions = listOf(
+            "VIEW_CANTEEN_RANKING", "VIEW_ATTENDANCE", "OPEN_IDENTITY_CODE",
+            "OPEN_PDD_IDENTITY_CODE", "VIEW_XUEXIAOTONG", "OPEN_AI_ASSISTANT"
+        )
+        assertEquals(schemaOneActions + addedActions + listOf("OTHER", "NONE"), AppActionCatalog.outputIds)
+        assertEquals(2, AppActionCatalog.ACTION_CATALOG_VERSION)
+        assertEquals(2, AppActionCatalog.OUTPUT_SCHEMA_VERSION)
+        assertEquals(2, JourneyGoalCatalog.OUTPUT_SCHEMA_VERSION)
         val schemaOneJourneyExclusions = setOf(
             "OPEN_HOME", "OPEN_TOOLS", "OPEN_SETTINGS", "OPEN_PREFERENCES", "EDIT_HOME",
             "CONFIRM_BATHROOM_PAYMENT", "CONFIRM_ELECTRICITY_PAYMENT", "SUBMIT_CARD_RECHARGE",
             "SUBMIT_CMB_CARD_RECHARGE", "SUBMIT_NETWORK_RECHARGE"
         )
         val oldJourneyActions = schemaOneActions.filterNot { it in schemaOneJourneyExclusions }
-        assertEquals(oldJourneyActions + listOf("OTHER", "NONE"), JourneyGoalCatalog.outputIds)
+        val journeyIds = JourneyGoalCatalog.outputIds
+        assertEquals(oldJourneyActions, journeyIds.filter { it in oldJourneyActions })
+        assertTrue(addedActions.all { it in journeyIds })
+        assertEquals(oldJourneyActions.size + addedActions.size + 2, journeyIds.size)
     }
 
     @Test
-    fun newlyMappedRoutesKeepTheirPreviousNonLearningBehavior() {
+    fun remainingMappedRoutesKeepTheirPreviousNonLearningBehavior() {
         val actions = mapOf(
             "campus_notices" to AppActionId.VIEW_CAMPUS_NOTICES,
             "student_mail" to AppActionId.OPEN_STUDENT_MAIL,
             "program_completion" to AppActionId.VIEW_PROGRAM_COMPLETION,
-            "identity_code" to AppActionId.OPEN_IDENTITY_CODE,
-            "pdd_identity_code" to AppActionId.OPEN_PDD_IDENTITY_CODE,
             "plugin/{pluginId}" to AppActionId.OPEN_PLUGIN,
             "settings__early_access" to AppActionId.OPEN_EARLY_ACCESS,
             "settings__privacy_policy" to AppActionId.OPEN_PRIVACY_POLICY,
@@ -106,6 +111,37 @@ class AppActionCatalogTest {
             assertEquals(PrefetchPolicy.NONE, spec.prefetchPolicy, route)
             assertFalse(action.stableId in AppActionCatalog.outputIds, route)
         }
+    }
+
+    @Test
+    fun xuexiaotongRouteUsesItsOwnLearningAction() {
+        assertEquals(AppActionId.VIEW_XUEXIAOTONG, AppActionCatalog.actionForRoute("xuexiaotong"))
+        assertEquals(AppActionId.VIEW_SCHOOL_CALENDAR, AppActionCatalog.actionForRoute("school_calendar"))
+    }
+
+    @Test
+    fun newFeaturesAreLearningButNotSuggested() {
+        listOf(
+            AppActionId.VIEW_CANTEEN_RANKING to "canteen_ranking",
+            AppActionId.VIEW_ATTENDANCE to "attendance_records",
+            AppActionId.OPEN_IDENTITY_CODE to "identity_code",
+            AppActionId.OPEN_PDD_IDENTITY_CODE to "pdd_identity_code",
+            AppActionId.VIEW_XUEXIAOTONG to "xuexiaotong"
+        ).forEach { (action, route) ->
+            assertEquals(action, AppActionCatalog.actionForRoute(route), route)
+            val spec = AppActionCatalog.spec(action)
+            assertTrue(spec.labelEligible, route)
+            assertTrue(spec.predictable, route)
+            assertFalse(spec.suggestible, route)
+            assertTrue(action.stableId in AppActionCatalog.outputIds, route)
+        }
+        val ai = AppActionCatalog.spec(AppActionId.OPEN_AI_ASSISTANT)
+        assertTrue(ai.labelEligible)
+        assertTrue(ai.predictable)
+        assertFalse(ai.suggestible)
+        val aiIndex = AppActionCatalog.outputIndex.getValue(AppActionId.OPEN_AI_ASSISTANT.stableId)
+        assertTrue(AppActionCatalog.businessAvailability("home")[aiIndex])
+        assertFalse(AppActionCatalog.businessAvailability("schedule")[aiIndex])
     }
 
     @Test
