@@ -347,11 +347,16 @@ internal fun AssistantHeaderIconButton(
     @DrawableRes icon: Int,
     description: String,
     onClick: () -> Unit,
+    background: Boolean = false,
 ) {
     Box(
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
+            .background(
+                if (background) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                else Color.Transparent
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

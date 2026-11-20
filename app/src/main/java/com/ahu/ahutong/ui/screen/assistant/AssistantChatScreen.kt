@@ -406,6 +406,7 @@ fun AssistantChatScreen(
                             icon = R.drawable.ic_hamburger_button,
                             description = "历史对话",
                             onClick = AssistantChatState::openHistory,
+                            background = true,
                         )
                         Row(
                             modifier = Modifier.weight(1f),
@@ -436,6 +437,7 @@ fun AssistantChatScreen(
                                 AssistantChatState.close()
                                 AssistantGlowState.visible = false
                             },
+                            background = true,
                         )
                     }
                 }
