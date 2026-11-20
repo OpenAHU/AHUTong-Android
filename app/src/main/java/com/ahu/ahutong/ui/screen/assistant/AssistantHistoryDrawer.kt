@@ -73,6 +73,7 @@ internal fun AssistantHistoryDrawer(
     onClose: () -> Unit,
     onNewChat: () -> Unit,
     onOpen: (String) -> Unit,
+    onOpenSettings: () -> Unit,
     onRename: (String, String) -> Unit,
     onTogglePin: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -123,6 +124,11 @@ internal fun AssistantHistoryDrawer(
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
+                    )
+                    AssistantHeaderIconButton(
+                        icon = com.ahu.ahutong.core.designsystem.R.drawable.ic_config,
+                        description = "AI 设置",
+                        onClick = onOpenSettings,
                     )
                     AssistantHeaderIconButton(
                         icon = R.drawable.ic_assistant_add,

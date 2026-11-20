@@ -554,6 +554,7 @@ fun AssistantChatScreen(
                             onClose = AssistantChatState::closeHistory,
                             onNewChat = AssistantChatState::startNewSession,
                             onOpen = AssistantChatState::switchTo,
+                            onOpenSettings = { onOpenRoute("settings__ai") },
                             onRename = AssistantChatState::renameSession,
                             onTogglePin = AssistantChatState::togglePin,
                             onDelete = AssistantChatState::deleteSession,
