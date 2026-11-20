@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.core.storage.HomeHeroSlot
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
@@ -132,9 +133,10 @@ private fun RadiantAtAGlance(
             text = headline,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
-            fontSize = 30.sp,
+            // 手写字体视觉偏小，祝福态临时放大一档
+            fontSize = if (birthdayCelebrating) 38.sp else 30.sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = 34.sp,
+            lineHeight = if (birthdayCelebrating) 44.sp else 34.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.headlineLarge,
@@ -147,6 +149,8 @@ private fun RadiantAtAGlance(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyMedium,
+            fontSize = if (birthdayCelebrating) 16.sp else TextUnit.Unspecified,
+            lineHeight = if (birthdayCelebrating) 22.sp else TextUnit.Unspecified,
             fontFamily = if (birthdayCelebrating) BirthdayFontFamily else null
         )
     }
