@@ -7,14 +7,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.runtime.withFrameNanos
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -645,7 +644,6 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 scale(pose.body.scale, pose.body.scale, Offset.Zero)
                 translate(-HEAD_C, -HEAD_C)
             }) {
-                drawGlow()
                 drawBody()
                 drawEye(pose.left, ringCur[0])
                 drawEye(pose.right, ringCur[1])
@@ -653,98 +651,59 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         }
     }
 
-    /** 彩色流光球身：轻薄半透明渐变 + 缓慢流动的高光带 + 外侧柔光。 */
-    private fun DrawScope.drawGlow() {
-        val hue = (clockSec * 9f) % 360f
-        val center = Offset((bodyMinX + bodyMaxX) / 2f, (bodyMinY + bodyMaxY) / 2f)
-        val radius = (bodyMaxX - bodyMinX) / 2f
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.6f to Color.Transparent,
-                    0.82f to Color.hsv(hue, 0.55f, 1f, 0.14f),
-                    1f to Color.Transparent,
-                ),
-                center = center,
-                radius = radius * 1.38f,
-            ),
-            radius = radius * 1.38f,
-            center = center,
-        )
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.55f to Color.Transparent,
-                    0.85f to Color.hsv((hue + 130f) % 360f, 0.5f, 1f, 0.1f),
-                    1f to Color.Transparent,
-                ),
-                center = center,
-                radius = radius * 1.62f,
-            ),
-            radius = radius * 1.62f,
-            center = center,
-        )
-    }
-
+    /**
+     * 温润的流光球身：AI 光带六色调色板与白色混合后低透明度填充，
+     * 色带极慢地沿球体漂移，不做外发光。
+     */
     private fun DrawScope.drawBody() {
-        val hue = (clockSec * 9f) % 360f
-        val angle = clockSec * 0.12f
+        val phase = clockSec * 0.12f
+        val angle = clockSec * 0.05f
         val centerX = (bodyMinX + bodyMaxX) / 2f
         val centerY = (bodyMinY + bodyMaxY) / 2f
         val radius = (bodyMaxX - bodyMinX) / 2f
         val dx = cos(angle) * radius
         val dy = sin(angle) * radius
+        val stops = (0..3).map { i ->
+            mixWhite(paletteAt(phase + i * 1.4f), 0.45f).copy(alpha = 0.68f)
+        }
         drawPath(
             path = bodyPath,
             brush = Brush.linearGradient(
-                colorStops = arrayOf(
-                    0f to Color.hsv(hue, 0.4f, 1f, 0.84f),
-                    0.35f to Color.hsv((hue + 48f) % 360f, 0.52f, 1f, 0.9f),
-                    0.7f to Color.hsv((hue + 105f) % 360f, 0.46f, 1f, 0.86f),
-                    1f to Color.hsv((hue + 158f) % 360f, 0.4f, 1f, 0.84f),
-                ),
+                colors = stops,
                 start = Offset(centerX - dx, centerY - dy),
                 end = Offset(centerX + dx, centerY + dy),
             ),
         )
         clipPath(bodyPath) {
-            // 左上高光，保住一点点球体的体积感
-            val highlightCenter = Offset(centerX - radius * 0.36f, centerY - radius * 0.4f)
+            // 左上一点点柔高光，保住球体的温润感
+            val highlightCenter = Offset(centerX - radius * 0.34f, centerY - radius * 0.38f)
             drawCircle(
                 brush = Brush.radialGradient(
                     colorStops = arrayOf(
-                        0f to Color.White.copy(alpha = 0.5f),
+                        0f to Color.White.copy(alpha = 0.3f),
                         1f to Color.Transparent,
                     ),
                     center = highlightCenter,
-                    radius = radius * 0.82f,
+                    radius = radius * 0.9f,
                 ),
-                radius = radius * 0.82f,
+                radius = radius * 0.9f,
                 center = highlightCenter,
             )
-            // 斜向流动的高光带，约 6 秒扫过一遍
-            val sweep = (clockSec * 0.16f) % 1f
-            val bandX = -80f + sweep * 360f
-            drawRect(
-                brush = Brush.linearGradient(
-                    colorStops = arrayOf(
-                        0f to Color.Transparent,
-                        0.42f to Color.Transparent,
-                        0.5f to Color.White.copy(alpha = 0.22f),
-                        0.58f to Color.Transparent,
-                        1f to Color.Transparent,
-                    ),
-                    start = Offset(bandX - 150f, -15f),
-                    end = Offset(bandX + 150f, 244f),
-                ),
-                topLeft = Offset(-15f, -15f),
-                size = androidx.compose.ui.geometry.Size(VIEW_BOX, VIEW_BOX),
-            )
         }
-        drawPath(
-            path = bodyPath,
-            color = Color.White.copy(alpha = 0.5f),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.4f),
+    }
+
+    private fun paletteAt(position: Float): Color {
+        val colors = ASSISTANT_GLOW_COLORS
+        val count = colors.size
+        var p = position % count
+        if (p < 0f) p += count
+        val index = p.toInt()
+        return Color(
+            lerpColor(
+                colors[index].toArgb(),
+                colors[(index + 1) % count].toArgb(),
+                p - index,
+            )
         )
     }
 
@@ -862,6 +821,9 @@ private fun lerpEye(a: EyePose, b: EyePose, out: EyePose, t: Float) {
 }
 
 private fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
+
+private fun mixWhite(color: Color, amount: Float): Color =
+    Color(lerpColor(color.toArgb(), 0xFFFFFFFF.toInt(), amount))
 
 private fun lerpColor(a: Int, b: Int, t: Float): Int {
     if (a == b) return b
