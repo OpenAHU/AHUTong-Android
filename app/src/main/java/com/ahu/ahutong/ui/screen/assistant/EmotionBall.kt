@@ -720,8 +720,8 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         // 玻璃感边缘光：极细的一圈白，左上 / 右下各一段中间厚、两端收细的亮边
         drawPath(
             path = bodyPath,
-            color = Color.White.copy(alpha = 0.26f),
-            style = Stroke(width = 1f),
+            color = Color.White.copy(alpha = 0.34f),
+            style = Stroke(width = 1.7f),
         )
         val edgeRadius = radius * 0.99f
         val edgeCenter = Offset(centerX, centerY)
@@ -756,24 +756,24 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         }
     }
 
-    /** 球体外投影：贴着轮廓的一圈软阴影，略向下偏，把球从背景里托出来。 */
+    /** 球体外投影：往右下偏的渐变阴影，光从左上来，边缘只露右下的一弯。 */
     private fun DrawScope.drawBodyShadow() {
-        val center = Offset(
-            (bodyMinX + bodyMaxX) / 2f,
-            (bodyMinY + bodyMaxY) / 2f + 5f,
-        )
         val radius = (bodyMaxX - bodyMinX) / 2f
+        val center = Offset(
+            (bodyMinX + bodyMaxX) / 2f + radius * 0.07f,
+            (bodyMinY + bodyMaxY) / 2f + radius * 0.12f,
+        )
         drawCircle(
             brush = Brush.radialGradient(
                 colorStops = arrayOf(
-                    0.74f to Color.Black.copy(alpha = 0.13f),
-                    0.88f to Color.Black.copy(alpha = 0.06f),
+                    0f to Color.Black.copy(alpha = 0.2f),
+                    0.78f to Color.Black.copy(alpha = 0.11f),
                     1f to Color.Transparent,
                 ),
                 center = center,
-                radius = radius * 1.14f,
+                radius = radius * 1.12f,
             ),
-            radius = radius * 1.14f,
+            radius = radius * 1.12f,
             center = center,
         )
     }
