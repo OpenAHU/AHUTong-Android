@@ -305,6 +305,10 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     /** 标题栏状态：不做弹跳与待机小动作，保持安静。 */
     var calm = false
 
+    /** 标题栏里唯一允许放彩带的例外：任务完成。 */
+    private val fxAllowed: Boolean
+        get() = !calm || def?.id == "33"
+
     private val defs = EmotionBallData.emotions.associateBy { it.id }
     private val basePoses = mutableMapOf<String, Pose>()
     private val framePoses = mutableMapOf<String, List<Pair<Long, Pose>>>()
@@ -518,7 +522,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             now + rand(it[0].toFloat(), it[1].toFloat()).toLong()
         } ?: Long.MAX_VALUE
         anticNext = now + rand(2500f, 5000f).toLong()
-        if (!calm) {
+        if (fxAllowed) {
             // 进入表情时的一次性事件：自旋甩彩带 / 撒花
             val fx = basePose(emotion).body
             if (fx.ribbons > 0f) startSpin(if (fx.ribbons >= 1f) 2 else 1)
@@ -788,10 +792,8 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 drawEye(pose.right, ringCur[1], pose.body.yaw)
             }
             drawTrails(front = true)
-            if (!calm) {
-                drawConfetti()
-                drawSleepZ(pose.body.zzz)
-            }
+            drawConfetti()
+            if (!calm) drawSleepZ(pose.body.zzz)
         }
     }
 
@@ -800,7 +802,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         val dYaw = yaw - prevYaw
         prevYaw = yaw
         val velocity = if (dt > 0f) dYaw / dt else 0f
-        val fast = !calm && abs(velocity) >= 0.9f
+        val fast = fxAllowed && abs(velocity) >= 0.9f
         val dir = if (velocity >= 0f) 1 else -1
 
         if (fast && !wasFast) {
@@ -835,7 +837,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     }
 
     private fun startSpin(turns: Int) {
-        if (calm || spin != null) return
+        if (!fxAllowed || spin != null) return
         val direction = if (random.nextBoolean()) 1f else -1f
         spin = Spring(0f, 0f, max(1, turns) * TAU * direction)
     }
@@ -1066,7 +1068,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     }
 
     private fun burstConfetti() {
-        if (calm) return
+        if (!fxAllowed) return
         val count = 20
         for (i in 0 until count) {
             if (confetti.size >= 60) break
