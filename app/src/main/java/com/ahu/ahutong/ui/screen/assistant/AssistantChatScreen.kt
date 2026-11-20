@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen.assistant
 
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -42,6 +43,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -121,7 +123,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
@@ -136,6 +140,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ahu.ahutong.R
@@ -291,6 +296,7 @@ fun AssistantChatScreen(
             )
             var drawerProgress by remember { mutableFloatStateOf(0f) }
             var drawerDragging by remember { mutableStateOf(false) }
+            var headerBallCenter by remember { mutableStateOf<Offset?>(null) }
             LaunchedEffect(AssistantChatState.historyVisible, drawerDragging) {
                 if (!drawerDragging) {
                     val target = if (AssistantChatState.historyVisible) 1f else 0f
@@ -462,14 +468,13 @@ fun AssistantChatScreen(
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
-                                .padding(top = maxHeight * 0.16f, start = 32.dp, end = 32.dp),
+                                .padding(
+                                    top = maxHeight * 0.16f + 120.dp + 16.dp,
+                                    start = 32.dp,
+                                    end = 32.dp,
+                                ),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            EmotionBall(
-                                modifier = Modifier.size(120.dp),
-                                sessionKey = AssistantChatState.currentSessionId,
-                            )
-                            Spacer(Modifier.height(16.dp))
                             Text(
                                 text = "你好，我是AHUTong Intelligence",
                                 style = MaterialTheme.typography.titleMedium,
@@ -514,20 +519,18 @@ fun AssistantChatScreen(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // 标题栏左边留出小球的位置；小球由页面里的浮动层统一摆放，
+                            // 空对话页时它在页面中央，进入对话后缩小落到这里。
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp),
-                                )
-                            }
+                                    .onGloballyPositioned { coordinates ->
+                                        headerBallCenter = coordinates.positionInRoot() + Offset(
+                                            coordinates.size.width / 2f,
+                                            coordinates.size.height / 2f,
+                                        )
+                                    },
+                            )
                             Spacer(Modifier.width(8.dp))
                             Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
                         }
@@ -539,6 +542,53 @@ fun AssistantChatScreen(
                                 AssistantGlowState.visible = false
                             },
                             background = true,
+                        )
+                    }
+                }
+
+                // 小球浮动层：空对话页停在页面中上部，开始对话后缩到标题栏 logo 位。
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    headerBallCenter?.let { headerCenter ->
+                        val chatStarted = displayItems.isNotEmpty() ||
+                            AssistantChatState.terminated
+                        val progress by animateFloatAsState(
+                            targetValue = if (chatStarted) 1f else 0f,
+                            animationSpec = tween(
+                                420,
+                                easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f),
+                            ),
+                            label = "assistant-ball-move",
+                        )
+                        val contentTop = statusBarTop + 68.dp
+                        val contentBottom = bottomBarHeight + 32.dp
+                        val bigCenter = Offset(
+                            x = with(density) { maxWidth.toPx() / 2f },
+                            y = with(density) {
+                                (
+                                    contentTop +
+                                        (maxHeight - contentTop - contentBottom)
+                                            .coerceAtLeast(0.dp) * 0.16f +
+                                        60.dp
+                                    ).toPx()
+                            },
+                        )
+                        val ballSize = 120.dp + (28.dp - 120.dp) * progress
+                        val ballSizePx = with(density) { ballSize.toPx() }
+                        val ballCenter = Offset(
+                            x = bigCenter.x + (headerCenter.x - bigCenter.x) * progress,
+                            y = bigCenter.y + (headerCenter.y - bigCenter.y) * progress,
+                        )
+                        EmotionBall(
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        (ballCenter.x - ballSizePx / 2f).roundToInt(),
+                                        (ballCenter.y - ballSizePx / 2f).roundToInt(),
+                                    )
+                                }
+                                .size(ballSize),
+                            sessionKey = AssistantChatState.currentSessionId,
+                            calm = chatStarted,
                         )
                     }
                 }

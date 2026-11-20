@@ -102,9 +102,12 @@ internal data class BallEmotion(
 internal fun EmotionBall(
     modifier: Modifier = Modifier,
     sessionKey: Any? = null,
+    /** 落在标题栏里时保持安静：不弹跳、不做待机小动作。 */
+    calm: Boolean = false,
 ) {
     val tour = remember(sessionKey) { EmotionBallData.emotions.shuffled().take(TOUR_SIZE) }
     val engine = remember(tour) { EmotionBallEngine(tour) }
+    LaunchedEffect(engine, calm) { engine.calm = calm }
     val frameTick = remember { mutableIntStateOf(0) }
     LaunchedEffect(engine) {
         while (true) {
@@ -220,6 +223,9 @@ private sealed interface SeqResult {
 }
 
 private class EmotionBallEngine(tourSource: List<BallEmotion>) {
+
+    /** 标题栏状态：不做弹跳与待机小动作，保持安静。 */
+    var calm = false
 
     private val defs = EmotionBallData.emotions.associateBy { it.id }
     private val basePoses = mutableMapOf<String, Pose>()
@@ -447,7 +453,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         if (breathe != 0f) {
             val phase = ((now - startMs) / 1000f) * (Math.PI.toFloat() * 2f) / 3.6f
             pose.body.scale += breathe * sin(phase)
-            pose.body.y += breathe * 55f * sin(phase + 0.6f)
+            if (!calm) pose.body.y += breathe * 55f * sin(phase + 0.6f)
         }
 
         for (anim in emotion.anims) applyAnim(pose, anim, t.toFloat())
@@ -470,7 +476,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
         }
         openSpring.target = openKey ?: if (blinkQueue.isEmpty()) emotion.openness else openSpring.target
 
-        if (emotion.antics && now >= anticNext) {
+        if (!calm && emotion.antics && now >= anticNext) {
             val pick = random.nextFloat()
             if (pick < 0.8f) bounceAt = now else blinkNow(now)
             anticNext = now + rand(9000f, 18000f).toLong()
@@ -493,7 +499,9 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             ringDst
         }
 
-        if (bounceAt >= 0) {
+        if (calm) {
+            bounceAt = -1L
+        } else if (bounceAt >= 0) {
             val elapsed = (now - bounceAt) / 1000f
             if (elapsed >= BOUNCE_TOTAL) {
                 bounceAt = -1L
