@@ -359,6 +359,13 @@ fun Settings(
             backdrop = backdrop
         ) {
             SettingsActionRow(
+                title = "外观与主题",
+                modifier = Modifier
+                    .tourCenterIntoView("settings_appearance"),
+                leadingPainter = painterResource(R.drawable.ic_palette),
+                onClick = onOpenAppearance
+            )
+            SettingsActionRow(
                 title = "AI 与智能体验",
                 leadingPainter = painterResource(R.drawable.ic_assistant_sparkle),
                 onClick = onOpenAiSettings
@@ -369,24 +376,17 @@ fun Settings(
                 onClick = onOpenCampusCard
             )
             SettingsActionRow(
-                title = "插件装载",
-                leadingPainter = painterResource(R.drawable.ic_plugin),
-                onClick = onNavigateToPlugins
-            )
-            SettingsActionRow(
-                title = "外观与主题",
-                modifier = Modifier
-                    .tourCenterIntoView("settings_appearance"),
-                leadingPainter = painterResource(R.drawable.ic_palette),
-                onClick = onOpenAppearance
-            )
-            SettingsActionRow(
                 title = "通知提醒",
                 modifier = Modifier
                     .tourCenterIntoView("settings_notifications"),
                 leadingPainter = painterResource(R.drawable.ic_remind),
-                showDivider = false,
                 onClick = onOpenNotifications
+            )
+            SettingsActionRow(
+                title = "插件装载",
+                leadingPainter = painterResource(R.drawable.ic_plugin),
+                showDivider = false,
+                onClick = onNavigateToPlugins
             )
         }
 
