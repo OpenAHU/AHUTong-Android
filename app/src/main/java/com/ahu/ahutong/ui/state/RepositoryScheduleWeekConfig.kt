@@ -29,6 +29,9 @@ class RepositoryScheduleWeekConfig @Inject constructor() : ScheduleWeekConfig {
 
     override fun currentWeekDay(): Int = CurrentWeekResolver.getCurrentWeekDay()
 
+    override fun localSnapshot(): com.ahu.ahutong.data.model.ScheduleConfigBean? =
+        CurrentWeekResolver.resolveLocalConfig()?.config
+
     override fun buildSemesterKey(schoolYear: String, schoolTerm: String): String =
         CurrentWeekResolver.buildSemesterKey(schoolYear, schoolTerm)
 

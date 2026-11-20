@@ -113,7 +113,8 @@ class ScheduleViewModel @Inject constructor(
     val schoolTerm: String
         get() = weekConfig.cachedSemesterKey()?.schoolTerm ?: "1"
 
-    val scheduleConfig = MutableLiveData<ScheduleConfigBean?>()
+    // 用本地快照做首帧值：进课表页先显示缓存里的周次，而不是先画第 1 周再跳
+    val scheduleConfig = MutableLiveData<ScheduleConfigBean?>(weekConfig.localSnapshot())
     val scheduleFetchedAt = MutableLiveData<Long?>()
     val isScheduleRefreshing = MutableLiveData(false)
     /** 最近一次后台刷新失败的原因；界面只判断有没有失败（文案由界面自己写，见 ADR 0001 规则 3）。 */

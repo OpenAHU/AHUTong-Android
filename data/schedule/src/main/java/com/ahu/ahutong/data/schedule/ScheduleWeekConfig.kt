@@ -1,5 +1,7 @@
 package com.ahu.ahutong.data.schedule
 
+import com.ahu.ahutong.data.model.ScheduleConfigBean
+
 /**
  * 学期与周次配置：本地优先、必要时问远端，写入要落盘。
  *
@@ -23,6 +25,9 @@ interface ScheduleWeekConfig {
 
     /** 是否显示非本周课程——它参与配置，因此跟着一起给。 */
     fun isShowAllCourse(): Boolean
+
+    /** 同步快照：只用本机缓存算出的当前配置，供首帧直接显示，避免先画第 1 周再跳。 */
+    fun localSnapshot(): ScheduleConfigBean? = null
 
     /** 本地优先解析：本地可用且今天已确认过就直接用，否则问一次远端，再不行给默认值。 */
     suspend fun resolveLocalFirst(): ResolvedConfig
