@@ -633,6 +633,7 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             translate(15f * scale, 15f * scale)
             scale(scale, scale, Offset.Zero)
         }) {
+            drawGroundShadow()
             withTransform({
                 translate(HEAD_C + pose.body.x, HEAD_C + pose.body.y)
                 rotate(pose.body.rotate, Offset.Zero)
@@ -656,11 +657,31 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             colorStops = arrayOf(
                 0f to Color(shade(color, 0.22f)),
                 0.62f to Color(color),
-                1f to Color(shade(color, -0.12f)),
+                1f to Color(shade(color, -0.05f)),
             ),
             center = center,
             radius = radius,
         )
+    }
+
+    /** 球下的一小片落地阴影：椭圆径向渐变，随球弹起时留在原地。 */
+    private fun DrawScope.drawGroundShadow() {
+        val center = Offset(HEAD_C, 230f)
+        val radius = 76f
+        withTransform({ scale(1f, 0.11f, center) }) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Black.copy(alpha = 0.16f),
+                        1f to Color.Transparent,
+                    ),
+                    center = center,
+                    radius = radius,
+                ),
+                radius = radius,
+                center = center,
+            )
+        }
     }
 
     private fun DrawScope.drawEye(pose: EyePose, ring: FloatArray) {
