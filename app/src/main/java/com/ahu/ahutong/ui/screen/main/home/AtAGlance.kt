@@ -137,7 +137,8 @@ private fun RadiantAtAGlance(
             lineHeight = 34.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.headlineLarge
+            style = MaterialTheme.typography.headlineLarge,
+            fontFamily = if (birthdayCelebrating) BirthdayFontFamily else null
         )
         Text(
             text = subtitle,
@@ -145,7 +146,8 @@ private fun RadiantAtAGlance(
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            fontFamily = if (birthdayCelebrating) BirthdayFontFamily else null
         )
     }
 }

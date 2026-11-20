@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import com.ahu.ahutong.R
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
 import java.time.LocalDate
@@ -12,6 +15,9 @@ import java.time.LocalDate
  * 生日祝福态：只比较学籍档案里的公历月-日，判断和状态都留在本机。
  * 冷启动默认进入祝福态；用户主动退出后，本次进程内不再自动进入。
  */
+/** 生日文案专用字体（已按四句文案做字形裁剪）。 */
+internal val BirthdayFontFamily = FontFamily(Font(R.font.birthday_freedom))
+
 internal object BirthdayMode {
     private const val TAG = "BirthdayMode"
     private var initialized = false

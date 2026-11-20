@@ -42,7 +42,8 @@ fun HomeDateRow(
                 text = if (birthdayCelebrating) "退出祝福页" else "生日快乐！↗",
                 modifier = Modifier.clickable(onClick = onBirthdayClick),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
+                fontFamily = BirthdayFontFamily
             )
         } else {
             Text(
