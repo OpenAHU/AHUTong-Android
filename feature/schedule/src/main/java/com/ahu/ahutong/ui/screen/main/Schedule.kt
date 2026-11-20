@@ -275,6 +275,7 @@ fun Schedule(
     val previewedSemesterId by scheduleViewModel.previewedSemesterId.observeAsState()
     val isSemesterScheduleLoading by scheduleViewModel.isSemesterScheduleLoading.observeAsState(false)
     val scheduleFetchedAt by scheduleViewModel.scheduleFetchedAt.observeAsState()
+    val weekResolvedAt by scheduleViewModel.weekResolvedAt.observeAsState()
     val isScheduleRefreshing by scheduleViewModel.isScheduleRefreshing.observeAsState(false)
     val scheduleRefreshError by scheduleViewModel.scheduleRefreshError.observeAsState()
     val scheduleHolidays by scheduleViewModel.scheduleHolidays.observeAsState(emptyMap())
@@ -950,6 +951,18 @@ fun Schedule(
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center
         )
+        weekResolvedAt?.let { resolved ->
+            val resolvedText = remember(resolved) {
+                SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(resolved))
+            }
+            Text(
+                text = "周次获取于 $resolvedText",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                color = 50.n1 withNight 70.n1,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center
+            )
+        }
         if (showHolidayNotice) {
             Text(
                 text = "节假日及调休标注由系统依据国家放假安排自动生成，实际是否上课及补课安排请结合学校通知及教师安排自行确认。",

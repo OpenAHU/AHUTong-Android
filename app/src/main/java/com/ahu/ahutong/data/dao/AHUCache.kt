@@ -119,6 +119,12 @@ object AHUCache {
         SecureBoxStore.remove(key)
     }
 
+    fun saveWeekResolvedAt(millis: Long) {
+        userPutString("weekResolvedAt", millis.toString())
+    }
+
+    fun getWeekResolvedAt(): Long? = userGetString("weekResolvedAt")?.toLongOrNull()
+
     private fun userPutString(key: String, value: String) {
         SecureBoxStore.put(userBoxName(), key, value)
     }

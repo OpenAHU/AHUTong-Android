@@ -116,6 +116,9 @@ class ScheduleViewModel @Inject constructor(
     // 用本地快照做首帧值：进课表页先显示缓存里的周次，而不是先画第 1 周再跳
     val scheduleConfig = MutableLiveData<ScheduleConfigBean?>(weekConfig.localSnapshot())
     val scheduleFetchedAt = MutableLiveData<Long?>()
+
+    /** 最近一次从教务 / 团队周历取到周次的时间。 */
+    val weekResolvedAt = MutableLiveData<Long?>(weekConfig.resolvedAtMillis())
     val isScheduleRefreshing = MutableLiveData(false)
     /** 最近一次后台刷新失败的原因；界面只判断有没有失败（文案由界面自己写，见 ADR 0001 规则 3）。 */
     val scheduleRefreshError = MutableLiveData<AhuError?>(null)
@@ -389,6 +392,11 @@ class ScheduleViewModel @Inject constructor(
             scheduleConfigSource = initialConfig.source
             scheduleConfigSemester = weekConfig.cachedSemesterKey()?.raw
             scheduleConfig.value = initialConfig.config
+            if (initialConfig.source != ConfigSource.DEFAULT) {
+                val now = System.currentTimeMillis()
+                weekConfig.markResolved(now)
+                weekResolvedAt.value = now
+            }
             reminders.reschedule()
 
             if (!DebugClock.isMocked() && initialConfig.source != ConfigSource.REMOTE) {
@@ -398,6 +406,9 @@ class ScheduleViewModel @Inject constructor(
                     scheduleConfigSource = remoteConfig.source
                     scheduleConfigSemester = weekConfig.cachedSemesterKey()?.raw
                     scheduleConfig.value = it
+                    val now = System.currentTimeMillis()
+                    weekConfig.markResolved(now)
+                    weekResolvedAt.value = now
                     reminders.reschedule()
                 }
             }

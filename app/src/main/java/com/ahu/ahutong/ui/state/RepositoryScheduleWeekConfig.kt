@@ -32,6 +32,10 @@ class RepositoryScheduleWeekConfig @Inject constructor() : ScheduleWeekConfig {
     override fun localSnapshot(): com.ahu.ahutong.data.model.ScheduleConfigBean? =
         CurrentWeekResolver.resolveLocalConfig()?.config
 
+    override fun resolvedAtMillis(): Long? = AHUCache.getWeekResolvedAt()
+
+    override fun markResolved(atMillis: Long) = AHUCache.saveWeekResolvedAt(atMillis)
+
     override fun buildSemesterKey(schoolYear: String, schoolTerm: String): String =
         CurrentWeekResolver.buildSemesterKey(schoolYear, schoolTerm)
 

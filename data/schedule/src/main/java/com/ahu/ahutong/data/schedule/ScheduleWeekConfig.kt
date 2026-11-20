@@ -29,6 +29,12 @@ interface ScheduleWeekConfig {
     /** 同步快照：只用本机缓存算出的当前配置，供首帧直接显示，避免先画第 1 周再跳。 */
     fun localSnapshot(): ScheduleConfigBean? = null
 
+    /** 最近一次真正从外部（教务或团队周历）取到周次的时间；只读展示用。 */
+    fun resolvedAtMillis(): Long? = null
+
+    /** 记录一次成功的外部解析时间。 */
+    fun markResolved(atMillis: Long) {}
+
     /** 本地优先解析：本地可用且今天已确认过就直接用，否则问一次远端，再不行给默认值。 */
     suspend fun resolveLocalFirst(): ResolvedConfig
 
