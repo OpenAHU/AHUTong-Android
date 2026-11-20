@@ -113,10 +113,13 @@ internal fun EmotionBall(
     sessionKey: Any? = null,
     /** 落在标题栏里时保持安静：不弹跳、不做待机小动作。 */
     calm: Boolean = false,
+    /** 指定表情（任务状态映射）；为 null 时在空对话页随机巡演。 */
+    emotionId: String? = null,
 ) {
     val tour = remember(sessionKey) { EmotionBallData.emotions.shuffled() }
     val engine = remember(tour) { EmotionBallEngine(tour) }
     LaunchedEffect(engine, calm) { engine.calm = calm }
+    LaunchedEffect(engine, emotionId) { engine.setDirect(emotionId) }
     val frameTick = remember { mutableIntStateOf(0) }
     LaunchedEffect(engine) {
         while (true) {
@@ -308,6 +311,8 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
     private val tour = tourSource
     private var tourIndex = 0
     private var nextTourAt = 0L
+    private var tourEnabled = true
+    private var directId: String? = null
 
     private val random = Random(System.nanoTime())
     private var started = false
@@ -456,19 +461,41 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
             started = true
             startMs = nowMs
             lastMs = nowMs
-            setEmotion(tour.first(), nowMs, initial = true)
+            val direct = directId
+            tourEnabled = direct == null
+            setEmotion(direct?.let { defs[it] } ?: tour.first(), nowMs, initial = true)
             nextTourAt = nowMs + TOUR_INTERVAL_MS
         }
         dtSec = ((nowMs - lastMs) / 1000f).coerceIn(0.001f, 0.05f)
         lastMs = nowMs
         clockSec = (nowMs - startMs) / 1000f
-        if (tour.size > 1 && nowMs >= nextTourAt) {
+        if (tourEnabled && tour.size > 1 && nowMs >= nextTourAt) {
             tourIndex = (tourIndex + 1) % tour.size
             setEmotion(tour[tourIndex], nowMs, initial = false)
             nextTourAt = nowMs + TOUR_INTERVAL_MS
         }
         currentPose = compose(nowMs, 0)
         updateEffects(nowMs, currentPose.body.yaw)
+    }
+
+    /** 外部按任务状态指定表情；null 表示回到随机巡演。 */
+    fun setDirect(id: String?) {
+        if (id == directId) return
+        directId = id
+        if (!started) return
+        applyDirect(lastMs)
+    }
+
+    private fun applyDirect(now: Long) {
+        val id = directId
+        if (id == null) {
+            tourEnabled = true
+            nextTourAt = now + TOUR_INTERVAL_MS
+            return
+        }
+        tourEnabled = false
+        val emotion = defs[id] ?: return
+        if (def?.id != emotion.id) setEmotion(emotion, now, initial = false)
     }
 
     private fun setEmotion(emotion: BallEmotion, now: Long, initial: Boolean) {

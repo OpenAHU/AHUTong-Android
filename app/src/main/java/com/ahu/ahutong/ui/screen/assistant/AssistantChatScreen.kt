@@ -191,6 +191,43 @@ fun AssistantChatScreen(
     val displayItems = buildChatDisplay(items)
     val roundEnds = roundEndTurnKeys(displayItems)
     val roundNotices = buildRoundNotices(items)
+
+    // 小球表情映射：空对话页巡演，进行中显示对应任务状态，结束后短暂庆祝/报错。
+    val streamingNow = (items.lastOrNull() as? AssistantChatItem.Assistant)?.streaming == true
+    val pendingApproval = (items.lastOrNull { it is AssistantChatItem.Approval }
+        as? AssistantChatItem.Approval)?.decision == AssistantApprovalDecision.PENDING
+    var transientEmotion by remember { mutableStateOf<String?>(null) }
+    var wasRunning by remember { mutableStateOf(false) }
+    LaunchedEffect(running) {
+        if (running) {
+            transientEmotion = null
+        } else if (wasRunning) {
+            val failed = items.takeLast(3).any { it is AssistantChatItem.Error }
+            transientEmotion = when {
+                AssistantChatState.terminated -> null
+                failed -> "34"
+                else -> "33"
+            }
+            if (transientEmotion != null) {
+                delay(2600)
+                transientEmotion = null
+            }
+        }
+        wasRunning = running
+    }
+    val ballEmotion = when {
+        items.isEmpty() -> null
+        transientEmotion != null -> transientEmotion
+        AssistantChatState.terminated -> "41"
+        running -> when {
+            pendingApproval -> "35"
+            status?.contains("搜索") == true || status?.contains("检索") == true -> "40"
+            streamingNow -> "39"
+            status != null -> "32"
+            else -> "30"
+        }
+        else -> "35"
+    }
     // 用户刚发问、还没收到首词时，也要把上一轮的底栏保留下来。
     val activeUserId = displayItems.lastOrNull { it is ChatDisplay.User }?.key
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -590,6 +627,7 @@ fun AssistantChatScreen(
                                 .size(ballSize),
                             sessionKey = AssistantChatState.currentSessionId,
                             calm = chatStarted,
+                            emotionId = ballEmotion,
                         )
                     }
                 }
