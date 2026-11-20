@@ -715,49 +715,44 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 radius = radius * 0.9f,
                 center = highlightCenter,
             )
-            // 左上 / 右下的弧光，沿球面边缘淡淡地亮一段
-            val arcRadius = radius * 0.972f
-            val arcStroke = Stroke(width = 3f, cap = StrokeCap.Round)
-            drawArc(
-                brush = Brush.linearGradient(
-                    colorStops = arrayOf(
-                        0f to Color.Transparent,
-                        0.5f to Color.White.copy(alpha = 0.5f),
-                        1f to Color.Transparent,
-                    ),
-                    start = Offset(centerX - arcRadius, centerY + arcRadius * 0.2f),
-                    end = Offset(centerX - arcRadius * 0.2f, centerY - arcRadius),
-                ),
-                startAngle = 195f,
-                sweepAngle = 55f,
-                useCenter = false,
-                topLeft = Offset(centerX - arcRadius, centerY - arcRadius),
-                size = Size(arcRadius * 2f, arcRadius * 2f),
-                style = arcStroke,
-            )
-            drawArc(
-                brush = Brush.linearGradient(
-                    colorStops = arrayOf(
-                        0f to Color.Transparent,
-                        0.5f to Color.White.copy(alpha = 0.4f),
-                        1f to Color.Transparent,
-                    ),
-                    start = Offset(centerX + arcRadius * 0.2f, centerY + arcRadius),
-                    end = Offset(centerX + arcRadius, centerY - arcRadius * 0.2f),
-                ),
-                startAngle = 15f,
-                sweepAngle = 55f,
-                useCenter = false,
-                topLeft = Offset(centerX - arcRadius, centerY - arcRadius),
-                size = Size(arcRadius * 2f, arcRadius * 2f),
-                style = arcStroke,
-            )
         }
+        // 玻璃感边缘光：极细的一圈白，左上 / 右下各一段中间厚、两端收细的亮边
         drawPath(
             path = bodyPath,
-            color = Color.White.copy(alpha = 0.4f),
-            style = Stroke(width = 1.1f),
+            color = Color.White.copy(alpha = 0.18f),
+            style = Stroke(width = 0.8f),
         )
+        val edgeRadius = radius * 0.99f
+        val edgeCenter = Offset(centerX, centerY)
+        drawEdgeLight(edgeCenter, edgeRadius, startDeg = 196f, totalDeg = 58f, maxWidth = 2.2f, maxAlpha = 0.6f)
+        drawEdgeLight(edgeCenter, edgeRadius, startDeg = 16f, totalDeg = 50f, maxWidth = 1.8f, maxAlpha = 0.48f)
+    }
+
+    /** 沿圆弧铺一串宽度按正弦收放的短段，做出中间厚、两端薄的玻璃亮边。 */
+    private fun DrawScope.drawEdgeLight(
+        center: Offset,
+        radius: Float,
+        startDeg: Float,
+        totalDeg: Float,
+        maxWidth: Float,
+        maxAlpha: Float,
+    ) {
+        val segments = 26
+        val step = totalDeg / segments
+        val pi = Math.PI.toFloat()
+        for (i in 0 until segments) {
+            val u = (i + 0.5f) / segments
+            val bell = sin(pi * u)
+            drawArc(
+                color = Color.White.copy(alpha = maxAlpha * bell),
+                startAngle = startDeg + i * step - step * 0.1f,
+                sweepAngle = step * 1.2f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = Stroke(width = maxWidth * bell.coerceAtLeast(0.05f), cap = StrokeCap.Butt),
+            )
+        }
     }
 
     private fun DrawScope.drawSoftBlob(center: Offset, color: Color, radius: Float, alpha: Float) {
