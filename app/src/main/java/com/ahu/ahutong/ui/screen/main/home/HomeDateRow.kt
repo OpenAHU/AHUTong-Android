@@ -6,12 +6,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.ahu.ahutong.R
 import com.ahu.ahutong.data.debug.DebugClock
 import com.kyant.monet.n1
 import com.kyant.monet.withNight
@@ -38,13 +42,26 @@ fun HomeDateRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (birthdayAvailable) {
-            Text(
-                text = if (birthdayCelebrating) "退出祝福页" else "生日快乐！↗",
+            Row(
                 modifier = Modifier.clickable(onClick = onBirthdayClick),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontFamily = BirthdayFontFamily
-            )
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (birthdayCelebrating) "退出祝福页" else "生日快乐！",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontFamily = BirthdayFontFamily
+                )
+                if (!birthdayCelebrating) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_arrow_right_up),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
         } else {
             Text(
                 text = date,
