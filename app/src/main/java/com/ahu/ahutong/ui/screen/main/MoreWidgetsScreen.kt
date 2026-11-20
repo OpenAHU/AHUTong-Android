@@ -53,7 +53,7 @@ fun MoreWidgetsScreen(
     val pluginsState by PluginRegistry.plugins.collectAsState()
     val grouped = remember(pluginsState) {
         // 「全部小工具」= 展示全部组件（含已上主页的），不做减法；先既有过滤再按 category 分组
-        val all = HomeWidgetRegistry.availableWidgets(true)
+        val all = HomeWidgetRegistry.availableWidgets()
         WidgetCategory.entries.mapNotNull { category ->
             val itemsInCategory = all.filter { it.category == category }
             if (itemsInCategory.isEmpty()) null else category to itemsInCategory

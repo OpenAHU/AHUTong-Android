@@ -19,7 +19,7 @@ object HomeWidgetPlacement {
         } else {
             AHUCache.getHomeWidgetSlots(HomeWidgetLayoutFamily.CLASSIC)
         }
-        val known = HomeWidgetRegistry.availableWidgets(true).mapTo(mutableSetOf()) { it.id }
+        val known = HomeWidgetRegistry.availableWidgets().mapTo(mutableSetOf()) { it.id }
         val seen = mutableSetOf<String>()
         return List(HomeWidgetRegistry.slotCountRadiant) { index ->
             saved.getOrNull(index)?.takeIf { it in known && seen.add(it) }

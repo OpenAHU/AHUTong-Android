@@ -28,13 +28,11 @@ class AcademicFeatureAccessTest {
     }
 
     @Test fun allHomeThemesAndWidgetLibrariesExcludeUndergraduateShortcuts() {
-        for (radiant in listOf(false, true)) {
-            val graduate = HomeWidgetRegistry.availableWidgets(radiant, undergraduateEnabled = false)
-            assertTrue(graduate.none { it.route in AcademicFeatureAccess.postgraduateHiddenRoutes })
-            assertTrue(graduate.any { it.route == "bathroom_deposit" })
-            val undergraduate = HomeWidgetRegistry.availableWidgets(radiant, undergraduateEnabled = true)
-            assertTrue(undergraduate.any { it.route == "grade" })
-            assertTrue(undergraduate.any { it.route == "exam" })
-        }
+        val graduate = HomeWidgetRegistry.availableWidgets(undergraduateEnabled = false)
+        assertTrue(graduate.none { it.route in AcademicFeatureAccess.postgraduateHiddenRoutes })
+        assertTrue(graduate.any { it.route == "bathroom_deposit" })
+        val undergraduate = HomeWidgetRegistry.availableWidgets(undergraduateEnabled = true)
+        assertTrue(undergraduate.any { it.route == "grade" })
+        assertTrue(undergraduate.any { it.route == "exam" })
     }
 }

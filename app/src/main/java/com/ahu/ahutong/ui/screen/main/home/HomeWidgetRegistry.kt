@@ -12,7 +12,6 @@ enum class WidgetCategory(val title: String) {
     PAYMENT("缴费充值"),
     ACADEMIC("学业教务"),
     CAMPUS("校园生活"),
-    LEARNING("学习工具"),
     PLUGIN("插件")
 }
 
@@ -208,22 +207,13 @@ object HomeWidgetRegistry {
             tint = Color(0xFFFF0000), // 正红
             category = WidgetCategory.CAMPUS
         ),
-        // —— 学习工具 ——
         HomeWidgetSpec(
             id = "repository",
             title = "学习资料",
             route = "repository",
             iconId = R.drawable.ic_repository,
             tint = Color(0xFF8D6E63),
-            category = WidgetCategory.LEARNING
-        ),
-        HomeWidgetSpec(
-            id = "xuexiaotong",
-            title = "学习通日历",
-            route = "xuexiaotong",
-            iconId = R.drawable.ic_xuexiaotong,
-            tint = Color(0xFF7C4DFF),
-            category = WidgetCategory.LEARNING
+            category = WidgetCategory.ACADEMIC
         )
     )
 
@@ -240,15 +230,10 @@ object HomeWidgetRegistry {
             return widgetIndex
         }
 
-    /**
-     * 当前风格下可展示的小工具列表。
-     * 曜光版下「学习通日历」已提级为底部 tab，从小工具列表 / 主页插槽中隐藏。
-     */
+    /** 当前账号类型下可展示的小工具列表（学习通已是底部 tab，不再单独占一个工具）。 */
     fun availableWidgets(
-        radiant: Boolean,
         undergraduateEnabled: Boolean = AHUCache.canUseUndergraduateAcademics()
     ): List<HomeWidgetSpec> = widgets.filter {
-        (!radiant || it.id != "xuexiaotong") &&
-            (undergraduateEnabled || it.route !in AcademicFeatureAccess.postgraduateHiddenRoutes)
+        undergraduateEnabled || it.route !in AcademicFeatureAccess.postgraduateHiddenRoutes
     }
 }

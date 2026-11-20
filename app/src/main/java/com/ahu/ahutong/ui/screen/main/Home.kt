@@ -324,7 +324,7 @@ internal fun Home(
     val slotCount = HomeWidgetRegistry.slotCountRadiant
     val plugins by com.ahu.ahutong.ui.plugin.PluginRegistry.plugins.collectAsState()
     val homeWidgets = remember(plugins, undergraduateEnabled) {
-        HomeWidgetRegistry.availableWidgets(true, undergraduateEnabled)
+        HomeWidgetRegistry.availableWidgets(undergraduateEnabled)
     }
     val knownWidgetIds = remember(homeWidgets) {
         homeWidgets.mapTo(mutableSetOf()) { it.id }
