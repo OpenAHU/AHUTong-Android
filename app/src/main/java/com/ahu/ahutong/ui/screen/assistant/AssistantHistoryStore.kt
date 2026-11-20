@@ -55,7 +55,12 @@ internal class AssistantHistoryStore {
         read().sessions.orEmpty().summaries()
     }
 
-    fun save(id: String, items: List<AssistantChatItem>, terminated: Boolean = false) = synchronized(lock) {
+    fun save(
+        id: String,
+        items: List<AssistantChatItem>,
+        terminated: Boolean = false,
+        touch: Boolean = true,
+    ) = synchronized(lock) {
         if (id.isBlank()) return@synchronized
         val data = read()
         val existing = data.sessions.orEmpty().firstOrNull { it.id == id }
@@ -64,7 +69,7 @@ internal class AssistantHistoryStore {
         val session = AssistantHistorySession(
             id = id,
             title = titleOf(stored).ifBlank { existing?.title ?: DEFAULT_TITLE },
-            updatedAt = System.currentTimeMillis(),
+            updatedAt = if (touch) System.currentTimeMillis() else (existing?.updatedAt ?: System.currentTimeMillis()),
             items = stored,
             terminated = terminated.takeIf { it },
             pinned = existing?.pinned,

@@ -136,7 +136,7 @@ object AssistantChatState {
     fun startNewSession() {
         ensureHistoryLoaded()
         cancelRun()
-        if (_items.isNotEmpty()) persist()
+        if (_items.isNotEmpty()) persist(touch = false)
         beginNewSession()
         refreshSessions()
         historyVisible = false
@@ -150,7 +150,7 @@ object AssistantChatState {
             return
         }
         cancelRun()
-        persist()
+        persist(touch = false)
         val items = runCatching { historyStore.switchTo(sessionId) }.getOrNull() ?: return
         currentSessionId = sessionId
         _items.clear()
@@ -189,9 +189,9 @@ object AssistantChatState {
         refreshSessions()
     }
 
-    fun persist() {
+    fun persist(touch: Boolean = true) {
         val id = currentSessionId ?: return
-        runCatching { historyStore.save(id, _items.toList(), terminated) }
+        runCatching { historyStore.save(id, _items.toList(), terminated, touch) }
         refreshSessions()
     }
 
@@ -423,7 +423,7 @@ object AssistantChatState {
 
     fun close() {
         cancelRun()
-        persist()
+        persist(touch = false)
         visible = false
         historyVisible = false
         pendingQuestion = null
