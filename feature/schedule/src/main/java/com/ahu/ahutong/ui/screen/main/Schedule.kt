@@ -1,5 +1,7 @@
 package com.ahu.ahutong.ui.screen.main
 
+import android.os.Build
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.pager.HorizontalPager
@@ -100,6 +102,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.feature.schedule.R
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
+import com.ahu.ahutong.ui.screen.main.schedule.renderScheduleShareImage
+import com.ahu.ahutong.ui.screen.main.schedule.saveScheduleBitmap
 import com.ahu.ahutong.data.schedule.ScheduleSectionTimes
 import com.ahu.ahutong.data.schedule.ScheduleCalendarSync
 import com.ahu.ahutong.data.schedule.forDate
@@ -115,6 +121,7 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.AppToggle
+import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -974,6 +981,90 @@ fun Schedule(
         }
     }
 
+    val shareScheme = MaterialTheme.colorScheme
+    val shareBackground = if (shareScheme.surface.luminance() > 0.5f) {
+        0xFFF7F8FA.toInt()
+    } else {
+        0xFF15171C.toInt()
+    }
+    val shareTitleColor = shareScheme.onSurface.toArgb()
+    val shareSecondaryColor = shareScheme.onSurfaceVariant.toArgb()
+    val shareCourseColors = courseColors.mapValues { it.value.toArgb() }
+    var pendingShareBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    val storagePermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val bmp = pendingShareBitmap
+        pendingShareBitmap = null
+        if (!granted) {
+            Toast.makeText(context, "未授予存储权限，无法保存课表图片", Toast.LENGTH_SHORT).show()
+        } else if (bmp != null) {
+            scope.launch {
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    saveScheduleBitmap(context, bmp, currentWeek)
+                }
+                Toast.makeText(
+                    context,
+                    if (ok) "课表图片已保存到相册" else "保存失败",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    fun exportScheduleImage() {
+        val semesterYear = if (isGraduate) {
+            graduateState?.selectedTerm?.name.orEmpty()
+        } else {
+            scheduleViewModel.schoolYear
+        }
+        val subtitle = buildString {
+            if (semesterYear.isNotBlank()) append(semesterYear).append(' ')
+            append("第 ").append(currentWeek).append(" 周")
+        }
+        val logo = runCatching {
+            val res = context.resources.getIdentifier(
+                "ic_launcher_foreground", "mipmap", context.packageName
+            )
+            if (res != 0) android.graphics.BitmapFactory.decodeResource(context.resources, res) else null
+        }.getOrNull()
+        scope.launch {
+            val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                renderScheduleShareImage(
+                    context = context,
+                    weekLabel = "课表",
+                    subtitle = subtitle,
+                    visibleDays = visibleWeekdays.toList().sorted(),
+                    groups = weeklyCourseGroups(schedule, currentWeek, visibleWeekdays.toSet()),
+                    sectionCount = sectionCount,
+                    courseColors = shareCourseColors,
+                    background = shareBackground,
+                    titleColor = shareTitleColor,
+                    secondaryColor = shareSecondaryColor,
+                    logo = logo
+                )
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                android.content.pm.PackageManager.PERMISSION_GRANTED !=
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+            ) {
+                pendingShareBitmap = bitmap
+                storagePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            } else {
+                val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    saveScheduleBitmap(context, bitmap, currentWeek)
+                }
+                Toast.makeText(
+                    context,
+                    if (ok) "课表图片已保存到相册" else "保存失败",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     if (requiresGraduateWeek) {
         graduateState?.selectedTerm?.let { term ->
             PostgraduateWeekDialog(
@@ -1021,6 +1112,7 @@ fun Schedule(
                 )
             },
             showSemesterBrowser = !isGraduate,
+            onSaveScheduleImage = if (isSemesterPreview) null else ::exportScheduleImage,
             extraSettings = {
                 ScheduleSettingRow(
                     title = "同步到系统日历",
@@ -1441,6 +1533,7 @@ private fun ScheduleSettingsDialog(
         onSemesterChange: (String) -> Unit,
         onDismiss: () -> Unit,
         showSemesterBrowser: Boolean = true,
+        onSaveScheduleImage: (() -> Unit)? = null,
         extraSettings: @Composable () -> Unit = {}
     ) {
         val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.8f
@@ -1514,6 +1607,13 @@ private fun ScheduleSettingsDialog(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+                }
+                onSaveScheduleImage?.let { save ->
+                    SettingsActionRow(
+                        title = "保存课表图片",
+                        showChevron = false,
+                        onClick = save
+                    )
                 }
             }
         }

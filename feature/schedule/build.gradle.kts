@@ -60,6 +60,8 @@ dependencies {
     implementation(libs.androidx.foundation)
     implementation(libs.material3)
     implementation(libs.androidx.material.icons.extended)
+    // 课表分享图为固定链接生成二维码
+    implementation(libs.zxing.android.embedded)
 
     // 设计系统的组件把这几家的类型写在签名里，调用方必须看得见。
     implementation(libs.kyant0.backdrop)
