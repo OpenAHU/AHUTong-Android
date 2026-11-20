@@ -107,38 +107,29 @@ internal fun AssistantHistoryDrawer(
             shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
         ) {
             Column(Modifier.fillMaxSize().statusBarsPadding()) {
-                Text(
-                    text = "对话",
-                    modifier = Modifier.padding(start = 22.dp, top = 18.dp, bottom = 6.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 22.dp, end = 10.dp, top = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "对话",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    AssistantHeaderIconButton(
+                        icon = R.drawable.ic_assistant_add,
+                        description = "新对话",
+                        onClick = onNewChat,
+                    )
+                }
                 SearchField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .combinedClickable(onClick = onNewChat)
-                        .padding(horizontal = 22.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_assistant_add),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = "新对话",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp),

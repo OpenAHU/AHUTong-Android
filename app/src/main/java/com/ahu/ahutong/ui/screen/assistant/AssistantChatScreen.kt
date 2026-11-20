@@ -22,6 +22,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -115,6 +116,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -272,7 +274,26 @@ fun AssistantChatScreen(
         ) {
             val headerBg = MaterialTheme.colorScheme.background
             val headerBlurLayer = rememberLayerBackdrop()
-            Box(Modifier.fillMaxSize()) {
+            val drawerSwipeThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(AssistantChatState.historyVisible) {
+                        if (AssistantChatState.historyVisible) return@pointerInput
+                        var total = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { total = 0f },
+                            onHorizontalDrag = { _, dragAmount ->
+                                if (dragAmount > 0f) total += dragAmount
+                            },
+                            onDragEnd = {
+                                if (total > drawerSwipeThresholdPx) {
+                                    AssistantChatState.openHistory()
+                                }
+                            },
+                        )
+                    }
+            ) {
                 Box(
                     Modifier
                         .fillMaxSize()
@@ -381,28 +402,14 @@ fun AssistantChatScreen(
                             .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_assistant_sparkle_fill),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(14.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.weight(1f))
                         AssistantHeaderIconButton(
-                            icon = R.drawable.ic_assistant_history,
+                            icon = R.drawable.ic_hamburger_button,
                             description = "历史对话",
                             onClick = AssistantChatState::openHistory,
                         )
+                        Spacer(Modifier.width(8.dp))
+                        Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.weight(1f))
                         Spacer(Modifier.width(8.dp))
                         AssistantHeaderIconButton(
                             icon = R.drawable.ic_assistant_close,
