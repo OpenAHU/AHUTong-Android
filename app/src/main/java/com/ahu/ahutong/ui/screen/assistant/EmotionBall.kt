@@ -701,20 +701,31 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 radius = radius * 0.9f,
                 alpha = 0.22f,
             )
-            // 球内右下渐变阴影：靠近边缘悄悄压暗，托出球体体积
-            val innerCenter = Offset(centerX - radius * 0.22f, centerY - radius * 0.24f)
+            // 球内阴影：贴边整体收暗保证和轮廓贴合，右下方向再叠一层斜向渐变
             drawCircle(
                 brush = Brush.radialGradient(
                     colorStops = arrayOf(
-                        0f to Color.Transparent,
-                        0.55f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.16f),
+                        0.7f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.055f),
                     ),
-                    center = innerCenter,
-                    radius = radius * 1.28f,
+                    center = Offset(centerX, centerY),
+                    radius = radius * 1.02f,
                 ),
-                radius = radius * 1.28f,
-                center = innerCenter,
+                radius = radius * 1.02f,
+                center = Offset(centerX, centerY),
+            )
+            drawRect(
+                brush = Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.62f to Color.Transparent,
+                        1f to Color.Black.copy(alpha = 0.065f),
+                    ),
+                    start = Offset(centerX - radius * 0.85f, centerY - radius * 0.85f),
+                    end = Offset(centerX + radius, centerY + radius),
+                ),
+                topLeft = Offset(-15f, -15f),
+                size = Size(VIEW_BOX, VIEW_BOX),
             )
             // 左上一点点柔高光，保住球体的温润感
             val highlightCenter = Offset(centerX - radius * 0.34f, centerY - radius * 0.38f)
