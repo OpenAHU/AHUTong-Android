@@ -25,8 +25,9 @@ import java.util.Locale
 import kotlin.math.max
 
 private const val IMAGE_WIDTH = 1080
-private const val IMAGE_HEIGHT = 1440
+private const val IMAGE_HEIGHT = 1920
 private const val PADDING = 64f
+private const val SECTION_GUTTER = 56f
 private const val QR_URL = "https://openahu.org/projects/ahutong/"
 
 /** 渲染一张分享用课表图：标题、周次、当前周课程与品牌页脚。 */
@@ -59,30 +60,44 @@ internal fun renderScheduleShareImage(
     }
     canvas.drawText(subtitle, PADDING, 228f, subtitlePaint)
 
-    val gridLeft = PADDING
+    val gridLeft = PADDING + SECTION_GUTTER + 12f
     val gridRight = IMAGE_WIDTH - PADDING
-    val headerTop = 300f
-    val headerHeight = 52f
+    val headerTop = 320f
+    val headerHeight = 56f
     val gridTop = headerTop + headerHeight
-    val gridBottom = 1188f
+    val gridBottom = 1656f
     val columnWidth = (gridRight - gridLeft) / visibleDays.size.coerceAtLeast(1)
     val rowHeight = (gridBottom - gridTop) / sectionCount.coerceAtLeast(1)
 
     val weekdayPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = secondaryColor
-        textSize = 28f
+        textSize = 30f
         textAlign = Paint.Align.CENTER
     }
     visibleDays.forEachIndexed { index, day ->
         canvas.drawText(
             weekdayLabel(day),
             gridLeft + columnWidth * (index + 0.5f),
-            headerTop + 36f,
+            headerTop + 38f,
             weekdayPaint
         )
     }
 
-    val blockRadius = 18f
+    val sectionPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = secondaryColor
+        textSize = 24f
+        textAlign = Paint.Align.CENTER
+    }
+    for (section in 1..sectionCount) {
+        canvas.drawText(
+            section.toString(),
+            PADDING + SECTION_GUTTER / 2f,
+            gridTop + rowHeight * (section - 0.5f) + 9f,
+            sectionPaint
+        )
+    }
+
+    val blockRadius = 20f
     groups.forEach { group ->
         val first = group.firstOrNull() ?: return@forEach
         val dayIndex = visibleDays.indexOf(first.weekday)
@@ -103,18 +118,18 @@ internal fun renderScheduleShareImage(
         val textColor = if (darkText) 0xFF1F2430.toInt() else Color.WHITE
         val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = textColor
-            textSize = 26f
+            textSize = 30f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        val innerWidth = ((right - left) - 20f).toInt().coerceAtLeast(40)
+        val innerWidth = ((right - left) - 22f).toInt().coerceAtLeast(40)
         val names = group.map { it.name }.distinct().joinToString(" / ")
         val nameLayout = StaticLayout.Builder
             .obtain(names, 0, names.length, namePaint, innerWidth)
-            .setMaxLines(3)
+            .setMaxLines(4)
             .setEllipsize(android.text.TextUtils.TruncateAt.END)
             .build()
         canvas.save()
-        canvas.translate(left + 10f, top + 10f)
+        canvas.translate(left + 11f, top + 11f)
         nameLayout.draw(canvas)
         canvas.restore()
 
@@ -122,7 +137,7 @@ internal fun renderScheduleShareImage(
         if (place.isNotEmpty()) {
             val placePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 this.color = textColor
-                textSize = 20f
+                textSize = 22f
                 alpha = 200
             }
             val placeLayout = StaticLayout.Builder
@@ -130,10 +145,10 @@ internal fun renderScheduleShareImage(
                 .setMaxLines(2)
                 .setEllipsize(android.text.TextUtils.TruncateAt.END)
                 .build()
-            val placeY = top + 10f + nameLayout.height + 4f
+            val placeY = top + 11f + nameLayout.height + 4f
             if (placeY + placeLayout.height < bottom - 4f) {
                 canvas.save()
-                canvas.translate(left + 10f, placeY)
+                canvas.translate(left + 11f, placeY)
                 placeLayout.draw(canvas)
                 canvas.restore()
             }
@@ -145,42 +160,44 @@ internal fun renderScheduleShareImage(
         alpha = 48
         strokeWidth = 2f
     }
-    canvas.drawLine(PADDING, 1252f, IMAGE_WIDTH - PADDING, 1252f, dividerPaint)
+    canvas.drawLine(PADDING, 1712f, IMAGE_WIDTH - PADDING, 1712f, dividerPaint)
 
-    val logoSize = 88f
+    val logoSize = 112f
+    val footerTop = IMAGE_HEIGHT - PADDING - logoSize
     logo?.let {
         val scaled = Bitmap.createScaledBitmap(it, logoSize.toInt(), logoSize.toInt(), true)
-        canvas.drawBitmap(scaled, PADDING, 1292f, null)
+        canvas.drawBitmap(scaled, PADDING, footerTop, null)
         scaled.recycle()
     }
     val appNamePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = titleColor
-        textSize = 38f
+        textSize = 46f
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val brandX = if (logo != null) PADDING + logoSize + 20f else PADDING
-    canvas.drawText(appName(context), brandX, 1352f, appNamePaint)
-    val taglinePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = secondaryColor
-        textSize = 24f
-    }
-    canvas.drawText("openahu.org", brandX, 1388f, taglinePaint)
+    val brandX = if (logo != null) PADDING + logoSize + 24f else PADDING
+    canvas.drawText(
+        appName(context),
+        brandX,
+        footerTop + logoSize * 0.66f,
+        appNamePaint
+    )
 
-    drawQr(canvas, IMAGE_WIDTH - PADDING - 176f, 1272f, 176f)
+    drawQr(
+        canvas,
+        IMAGE_WIDTH - PADDING - logoSize,
+        footerTop,
+        logoSize,
+        if (luminance(background) > 0.5f) Color.BLACK else Color.WHITE
+    )
     return bitmap
 }
 
-private fun drawQr(canvas: Canvas, left: Float, top: Float, size: Float) {
+private fun drawQr(canvas: Canvas, left: Float, top: Float, size: Float, color: Int) {
     val matrix = runCatching {
         QRCodeWriter().encode(QR_URL, BarcodeFormat.QR_CODE, 512, 512)
     }.getOrNull() ?: return
-    val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-    canvas.drawRoundRect(
-        RectF(left - 14f, top - 14f, left + size + 14f, top + size + 14f),
-        24f, 24f, cardPaint
-    )
     val cell = size / matrix.width
-    val qrPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
+    val qrPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
     for (x in 0 until matrix.width) {
         for (y in 0 until matrix.height) {
             if (matrix.get(x, y)) {
