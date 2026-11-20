@@ -16,6 +16,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
@@ -435,6 +436,29 @@ fun AssistantChatScreen(
                     // 稳定 key 的尾部占位：键盘弹出时只改它的高度，列表容器不重排。
                     item(key = "bottom_spacer") {
                         Spacer(Modifier.height(bottomBarHeight + 32.dp))
+                    }
+                }
+                // 新对话空页：圆胖小球随机巡演四个表情
+                AnimatedVisibility(
+                    visible = displayItems.isEmpty() && status == null &&
+                        !AssistantChatState.terminated,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = statusBarTop + 68.dp, bottom = bottomBarHeight + 32.dp),
+                    enter = fadeIn(tween(320)) + scaleIn(
+                        animationSpec = tween(
+                            320,
+                            easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f),
+                        ),
+                        initialScale = 0.92f,
+                    ),
+                    exit = fadeOut(tween(180)),
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        EmotionBall(
+                            modifier = Modifier.size(188.dp),
+                            sessionKey = AssistantChatState.currentSessionId,
+                        )
                     }
                 }
                 }
