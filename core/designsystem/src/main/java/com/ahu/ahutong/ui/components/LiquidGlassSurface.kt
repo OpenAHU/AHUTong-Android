@@ -53,6 +53,12 @@ data class AppBackground(val image: ImageBitmap, val maskAlpha: Float)
 val LocalAppBackground = compositionLocalOf<AppBackground?> { null }
 
 /**
+ * 应用级背景插槽（如节日烟花）：非空时替换自定义背景与默认渐变，并参与 ambient 采样，
+ * 让玻璃元素仍然能模糊到这层背景。应由应用层在根节点提供。
+ */
+val LocalAmbientBackground = compositionLocalOf<(@Composable BoxScope.() -> Unit)?> { null }
+
+/**
  * 壁纸视差（归一化 -1..1 的两轴偏移），由宿主用设备姿态驱动。
  *
  * 用「lambda 而不是值」提供：读取发生在 draw 阶段，传感器每帧更新只会重绘这一层，
@@ -114,7 +120,9 @@ fun LiquidGlassAppHost(
     val contentLayer = rememberLayerBackdrop()
     val appTheme = LocalAppUiTheme.current
     val appBackground = LocalAppBackground.current
-    val capturesAmbientBackdrop = tokens.quality.supportsBackdrop || appBackground != null
+    val ambientBackground = LocalAmbientBackground.current
+    val capturesAmbientBackdrop = tokens.quality.supportsBackdrop ||
+        appBackground != null || ambientBackground != null
     val capturesContentBackdrop = tokens.quality.supportsBackdrop
     val ambientBackdrop: Backdrop = if (capturesAmbientBackdrop) ambientLayer else emptyBackdrop()
     val contentBackdrop: Backdrop = if (capturesContentBackdrop) contentLayer else emptyBackdrop()
@@ -125,7 +133,7 @@ fun LiquidGlassAppHost(
     }
 
     Box(modifier = modifier.background(background)) {
-        if (tokens.enabled || appBackground != null) {
+        if (tokens.enabled || appBackground != null || ambientBackground != null) {
             val primary = tokens.ambientPrimary.compositeOver(background)
             val secondary = tokens.ambientSecondary.compositeOver(background)
             Box(
@@ -135,14 +143,18 @@ fun LiquidGlassAppHost(
                         if (capturesAmbientBackdrop) Modifier.layerBackdrop(ambientLayer) else Modifier
                     )
                     .then(
-                        if (appBackground == null) Modifier.background(
+                        if (appBackground == null && ambientBackground == null) Modifier.background(
                             Brush.verticalGradient(
                                 listOf(background, primary, secondary, background)
                             )
                         ) else Modifier
                     )
             ) {
-                appBackground?.let { AppBackgroundLayer(it) }
+                if (ambientBackground != null) {
+                    ambientBackground()
+                } else {
+                    appBackground?.let { AppBackgroundLayer(it) }
+                }
             }
         }
 

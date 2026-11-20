@@ -1,5 +1,6 @@
 package com.ahu.ahutong.ui.screen.main.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -20,6 +21,9 @@ import java.util.Locale
 @Composable
 fun HomeDateRow(
     dateText: String? = null,
+    birthdayAvailable: Boolean = false,
+    birthdayCelebrating: Boolean = false,
+    onBirthdayClick: () -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     // dateText 由主页分钟级 ticker 驱动：常开跨过午夜也能刷新；
@@ -33,11 +37,20 @@ fun HomeDateRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = date,
-            style = MaterialTheme.typography.bodyMedium,
-            color = 45.n1 withNight 75.n1
-        )
+        if (birthdayAvailable) {
+            Text(
+                text = if (birthdayCelebrating) "退出祝福页" else "生日快乐！↗",
+                modifier = Modifier.clickable(onClick = onBirthdayClick),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Text(
+                text = date,
+                style = MaterialTheme.typography.bodyMedium,
+                color = 45.n1 withNight 75.n1
+            )
+        }
         trailingContent()
     }
 }

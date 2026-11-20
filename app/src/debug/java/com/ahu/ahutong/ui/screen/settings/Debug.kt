@@ -45,6 +45,7 @@ import com.ahu.ahutong.data.crawler.manager.CookieManager
 import com.ahu.ahutong.data.crawler.manager.TokenManager
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
+import com.ahu.ahutong.ui.screen.main.home.BirthdayMode
 import com.ahu.ahutong.data.gray.GrayFeatureState
 import com.ahu.ahutong.data.gray.GrayOverride
 import com.ahu.ahutong.data.gray.GrayReleaseManager
@@ -109,6 +110,7 @@ fun Debug(
     var endpointError by remember { mutableStateOf<String?>(null) }
     var overrideCount by remember { mutableStateOf(MockScenarioController.overriddenEndpointCount()) }
     var mockTimeEnabled by remember { mutableStateOf(DebugClock.isMocked()) }
+    var birthdayForced by remember { mutableStateOf(BirthdayMode.isDebugForced()) }
     var effectiveTimeText by remember { mutableStateOf(formatter.format(DebugClock.nowLocalDateTime())) }
     var graySectionUnlockTapCount by remember { mutableStateOf(0) }
     val graySectionVisible = graySectionUnlockTapCount >= 8
@@ -484,6 +486,23 @@ fun Debug(
                     }
                 }
             }
+        }
+
+        DebugSection(
+            title = "生日祝福",
+            subtitle = "忽略档案日期，强制验证祝福态与烟花背景",
+            cardColor = cardColor
+        ) {
+            DebugToggleRow(
+                title = "强制生日祝福",
+                subtitle = if (birthdayForced) "已强制开启，冷启动/退出后仍按强制状态" else "按学籍档案里的公历生日判断",
+                checked = birthdayForced,
+                backdrop = backdrop,
+                onCheckedChange = {
+                    birthdayForced = it
+                    BirthdayMode.setDebugForced(it)
+                }
+            )
         }
 
         DebugSection(

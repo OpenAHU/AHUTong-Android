@@ -11,6 +11,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
@@ -126,6 +127,11 @@ import com.ahu.ahutong.ui.screen.setup.LoginNavigationGate
 import com.ahu.ahutong.ui.components.LiquidGlassAppHost
 import com.ahu.ahutong.ui.components.AppBackground
 import com.ahu.ahutong.ui.components.LocalAppBackground
+import com.ahu.ahutong.ui.components.LocalAmbientBackground
+import com.ahu.ahutong.ui.screen.main.home.BirthdayFireworks
+import com.ahu.ahutong.ui.screen.main.home.BirthdayMode
+import com.ahu.ahutong.data.debug.DebugClock
+import kotlinx.coroutines.delay
 import com.ahu.ahutong.ui.components.LocalGlassEffectsReduced
 import com.ahu.ahutong.ui.components.LocalGlassReadabilityBoost
 import com.ahu.ahutong.ui.components.LocalAppUiTheme
@@ -162,6 +168,7 @@ import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.data.session.AhuSession
 import com.ahu.ahutong.data.session.AhuSessionState
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.core.storage.HomeBackgroundStore
 import com.ahu.ahutong.feedback.feedbackDestinations
 
@@ -389,29 +396,50 @@ fun Main(
     val appBackground = remember(backgroundBitmap, backgroundRevision) {
         backgroundBitmap?.let { AppBackground(it, HomeBackgroundStore.maskPercent / 100f) }
     }
+    // 生日祝福态：背景换成烟花，用户的壁纸暂时让位；退出后自动恢复。
+    remember { BirthdayMode.ensureInitialized() }
+    val birthdayCelebrating = BirthdayMode.celebrating
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            BirthdayMode.refresh(DebugClock.nowLocalDate())
+        }
+    }
+    // 首次启动没有学籍缓存时补一次拉取，让生日判断有数据可用；失败静默。
+    LaunchedEffect(Unit) {
+        if (AHUCache.getStudentInfo() == null) {
+            runCatching { AHURepository.getStudentInfo(force = false) }
+            BirthdayMode.reload()
+        }
+    }
+    val effectiveBackground = if (birthdayCelebrating) null else appBackground
     val reduceGlassEffects = HomeBackgroundStore.reduceGlassEffects
     // 视差只在有自定义背景且开关打开时采集；静止时保持居中。
     val parallaxEnabled = remember(backgroundRevision) { HomeBackgroundStore.parallaxEnabled }
     val backgroundTilt = com.ahu.ahutong.ui.screen.main.home.rememberBackgroundParallax(
-        enabled = appBackground != null && parallaxEnabled
+        enabled = effectiveBackground != null && parallaxEnabled
     )
     val backgroundTiltProvider = remember(backgroundTilt) {
         { backgroundTilt.value }
     }
-    LaunchedEffect(appUiTheme, currentRoute, appBackground != null, reduceGlassEffects) {
+    LaunchedEffect(appUiTheme, currentRoute, effectiveBackground != null, birthdayCelebrating, reduceGlassEffects) {
         // Native RenderThread failures otherwise identify only MainActivity. Use the route
         // template (no arguments) and appearance flags to distinguish rendering paths.
         io.sentry.Sentry.configureScope { sentryScope ->
             sentryScope.setTag("ui.theme", appUiTheme.name)
             sentryScope.setTag("ui.route", currentRoute?.substringBefore('?') ?: "unknown")
-            sentryScope.setTag("ui.wallpaper", (appBackground != null).toString())
+            sentryScope.setTag("ui.wallpaper", (effectiveBackground != null).toString())
+            sentryScope.setTag("ui.birthday", birthdayCelebrating.toString())
             sentryScope.setTag("ui.reduce_glass_effects", reduceGlassEffects.toString())
         }
     }
     CompositionLocalProvider(
-        LocalAppBackground provides appBackground,
+        LocalAppBackground provides effectiveBackground,
+        LocalAmbientBackground provides if (birthdayCelebrating) {
+            { BirthdayFireworks(Modifier.matchParentSize()) }
+        } else null,
         com.ahu.ahutong.ui.components.LocalAppBackgroundTilt provides backgroundTiltProvider,
-        LocalGlassReadabilityBoost provides (appBackground != null),
+        LocalGlassReadabilityBoost provides (effectiveBackground != null),
         // 低端机性能开关：revision 变化（含开关切换）时同步重组
         LocalGlassEffectsReduced provides reduceGlassEffects
     ) {
@@ -423,7 +451,7 @@ fun Main(
         // 自定义背景在 ambient 层、页面内容在 content 层（两层分离）——
         // 导航栏模糊源只给 content 层会漏掉背景图，胶囊在图上几乎透明（P2 回归）。
         // 有背景时给导航栏「ambient + content」组合采样层，恢复对背景的模糊。
-        val navBackdrop = if (appBackground != null) {
+        val navBackdrop = if (effectiveBackground != null || birthdayCelebrating) {
             rememberCombinedBackdrop(LocalLiquidGlassAmbientBackdrop.current, contentBackdrop)
         } else {
             contentBackdrop

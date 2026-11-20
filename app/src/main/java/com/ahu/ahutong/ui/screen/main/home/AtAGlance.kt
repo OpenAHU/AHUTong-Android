@@ -68,6 +68,7 @@ internal fun AtAGlance(
     assignments: List<HomeAssignment> = emptyList(),
     nowMillis: Long = 0L,
     priority: List<HomeHeroSlot> = HomeHeroSlot.DEFAULT_ORDER,
+    birthdayCelebrating: Boolean = false,
     trailingContent: @Composable RowScope.() -> Unit = {}
 ) {
     // 主页排版全主题统一为 Radiant 方案（currentDateText/trailingContent 由曜光头部承担）
@@ -81,7 +82,8 @@ internal fun AtAGlance(
         assignments = assignments,
         nowMillis = nowMillis,
         priority = priority,
-        enabled = enabled
+        enabled = enabled,
+        birthdayCelebrating = birthdayCelebrating
     )
 }
 
@@ -97,13 +99,14 @@ private fun RadiantAtAGlance(
     assignments: List<HomeAssignment>,
     nowMillis: Long,
     priority: List<HomeHeroSlot>,
-    enabled: Boolean
+    enabled: Boolean,
+    birthdayCelebrating: Boolean = false
 ) {
     val hero = resolveHomeHeroText(
         todayCourses, todayExams, currentMinutes, isInSemester, assignments, nowMillis, priority
     )
-    val headline = hero.headline
-    val subtitle = hero.subtitle
+    val headline = if (birthdayCelebrating) "🎂生日快乐！" else hero.headline
+    val subtitle = if (birthdayCelebrating) "今岁胜旧年，所得皆所愿" else hero.subtitle
 
     Column(
         modifier = Modifier

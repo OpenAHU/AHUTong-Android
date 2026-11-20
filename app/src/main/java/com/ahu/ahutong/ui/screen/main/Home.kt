@@ -99,6 +99,7 @@ import com.ahu.ahutong.ui.components.headerBackdropSource
 import com.ahu.ahutong.ui.components.LocalIsLiquidGlassEnabled
 import com.ahu.ahutong.ui.components.LocalLiquidGlassAmbientBackdrop
 import com.ahu.ahutong.ui.screen.main.home.AtAGlance
+import com.ahu.ahutong.ui.screen.main.home.BirthdayMode
 import com.ahu.ahutong.ui.screen.main.home.HomeExam
 import com.ahu.ahutong.ui.screen.main.home.HomeHeroViewModel
 import com.ahu.ahutong.ui.screen.main.home.HomeDateRow
@@ -184,6 +185,9 @@ internal fun Home(
     val currentDateText = remember(today) {
         SimpleDateFormat("MM-dd / EE", Locale.CHINA).format(Date.from(currentTime.toInstant()))
     }
+    LaunchedEffect(today) { BirthdayMode.refresh(today) }
+    val birthdayToday = BirthdayMode.isBirthday
+    val birthdayCelebrating = BirthdayMode.celebrating
     val todayExams = remember(exams, today) {
         exams.mapNotNull { exam ->
             val time = ExamTimeRange.parse(exam.time) ?: return@mapNotNull null
@@ -622,6 +626,7 @@ internal fun Home(
                     assignments = heroAssignments,
                     nowMillis = currentTime.toInstant().toEpochMilli(),
                     priority = heroPriority,
+                    birthdayCelebrating = birthdayCelebrating,
                     trailingContent = trailingContent
                 )
             }
@@ -711,7 +716,15 @@ internal fun Home(
                     Box(Modifier.onSizeChanged {
                         headerContentHeight = with(density) { it.height.toDp() } + 12.dp
                     }) {
-                        HomeDateRow(dateText = currentDateText, trailingContent = trailingContent)
+                        HomeDateRow(
+                            dateText = currentDateText,
+                            birthdayAvailable = birthdayToday,
+                            birthdayCelebrating = birthdayCelebrating,
+                            onBirthdayClick = {
+                                if (birthdayCelebrating) BirthdayMode.exit() else BirthdayMode.enter()
+                            },
+                            trailingContent = trailingContent
+                        )
                     }
                 }
             }
