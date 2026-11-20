@@ -8,7 +8,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
@@ -177,11 +176,11 @@ private class FireworksState {
         for (spark in sparks) {
             val alpha = spark.life.coerceIn(0f, 1f)
             val radius = spark.size * (0.4f + spark.life * 0.6f)
+            // 亮背景上加法混合会被冲淡，这里用普通透明度叠加保证火花可见。
             scope.drawCircle(
                 color = spark.color.copy(alpha = alpha),
                 radius = radius,
                 center = Offset(spark.x, spark.y),
-                blendMode = BlendMode.Plus,
             )
         }
     }
