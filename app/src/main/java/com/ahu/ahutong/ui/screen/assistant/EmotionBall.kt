@@ -7,10 +7,13 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.toArgb
@@ -712,7 +715,49 @@ private class EmotionBallEngine(tourSource: List<BallEmotion>) {
                 radius = radius * 0.9f,
                 center = highlightCenter,
             )
+            // 左上 / 右下的弧光，沿球面边缘淡淡地亮一段
+            val arcRadius = radius * 0.972f
+            val arcStroke = Stroke(width = 3f, cap = StrokeCap.Round)
+            drawArc(
+                brush = Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.5f to Color.White.copy(alpha = 0.5f),
+                        1f to Color.Transparent,
+                    ),
+                    start = Offset(centerX - arcRadius, centerY + arcRadius * 0.2f),
+                    end = Offset(centerX - arcRadius * 0.2f, centerY - arcRadius),
+                ),
+                startAngle = 195f,
+                sweepAngle = 55f,
+                useCenter = false,
+                topLeft = Offset(centerX - arcRadius, centerY - arcRadius),
+                size = Size(arcRadius * 2f, arcRadius * 2f),
+                style = arcStroke,
+            )
+            drawArc(
+                brush = Brush.linearGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Transparent,
+                        0.5f to Color.White.copy(alpha = 0.4f),
+                        1f to Color.Transparent,
+                    ),
+                    start = Offset(centerX + arcRadius * 0.2f, centerY + arcRadius),
+                    end = Offset(centerX + arcRadius, centerY - arcRadius * 0.2f),
+                ),
+                startAngle = 15f,
+                sweepAngle = 55f,
+                useCenter = false,
+                topLeft = Offset(centerX - arcRadius, centerY - arcRadius),
+                size = Size(arcRadius * 2f, arcRadius * 2f),
+                style = arcStroke,
+            )
         }
+        drawPath(
+            path = bodyPath,
+            color = Color.White.copy(alpha = 0.4f),
+            style = Stroke(width = 1.1f),
+        )
     }
 
     private fun DrawScope.drawSoftBlob(center: Offset, color: Color, radius: Float, alpha: Float) {

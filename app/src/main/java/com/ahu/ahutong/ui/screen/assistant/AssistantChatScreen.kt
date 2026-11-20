@@ -297,6 +297,16 @@ fun AssistantChatScreen(
             var drawerProgress by remember { mutableFloatStateOf(0f) }
             var drawerDragging by remember { mutableStateOf(false) }
             var headerBallCenter by remember { mutableStateOf<Offset?>(null) }
+            // 小球是否已落到标题栏；标题栏让位与小球飞行共用同一个进度。
+            val chatStarted = displayItems.isNotEmpty() || AssistantChatState.terminated
+            val ballProgress by animateFloatAsState(
+                targetValue = if (chatStarted) 1f else 0f,
+                animationSpec = tween(
+                    420,
+                    easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f),
+                ),
+                label = "assistant-ball-progress",
+            )
             LaunchedEffect(AssistantChatState.historyVisible, drawerDragging) {
                 if (!drawerDragging) {
                     val target = if (AssistantChatState.historyVisible) 1f else 0f
@@ -519,11 +529,11 @@ fun AssistantChatScreen(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // 标题栏左边留出小球的位置；小球由页面里的浮动层统一摆放，
-                            // 空对话页时它在页面中央，进入对话后缩小落到这里。
+                            // 标题栏左边留出小球的位置并随小球飞入一起让位；
+                            // 空对话页时占位为 0，标题保持真正居中。
                             Box(
                                 modifier = Modifier
-                                    .size(24.dp)
+                                    .size(24.dp * ballProgress)
                                     .onGloballyPositioned { coordinates ->
                                         headerBallCenter = coordinates.positionInRoot() + Offset(
                                             coordinates.size.width / 2f,
@@ -531,7 +541,7 @@ fun AssistantChatScreen(
                                         )
                                     },
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(8.dp * ballProgress))
                             Text(ASSISTANT_NAME, style = MaterialTheme.typography.titleSmall)
                         }
                         AssistantHeaderIconButton(
@@ -549,16 +559,7 @@ fun AssistantChatScreen(
                 // 小球浮动层：空对话页停在页面中上部，开始对话后缩到标题栏 logo 位。
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     headerBallCenter?.let { headerCenter ->
-                        val chatStarted = displayItems.isNotEmpty() ||
-                            AssistantChatState.terminated
-                        val progress by animateFloatAsState(
-                            targetValue = if (chatStarted) 1f else 0f,
-                            animationSpec = tween(
-                                420,
-                                easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f),
-                            ),
-                            label = "assistant-ball-move",
-                        )
+                        val progress = ballProgress
                         val contentTop = statusBarTop + 68.dp
                         val contentBottom = bottomBarHeight + 32.dp
                         val bigCenter = Offset(
