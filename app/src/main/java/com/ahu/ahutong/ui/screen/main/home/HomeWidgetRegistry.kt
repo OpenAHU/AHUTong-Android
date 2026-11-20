@@ -194,10 +194,18 @@ object HomeWidgetRegistry {
         ),
         HomeWidgetSpec(
             id = "identity_code",
-            title = "身份码",
+            title = "淘身份码",
             route = "identity_code",
             iconId = R.drawable.ic_identity_code,
             tint = Color(0xFFFF5000), // 淘宝橙
+            category = WidgetCategory.CAMPUS
+        ),
+        HomeWidgetSpec(
+            id = "pdd_identity_code",
+            title = "拼身份码",
+            route = "pdd_identity_code",
+            iconId = R.drawable.ic_identity_code,
+            tint = Color(0xFFFF0000), // 正红
             category = WidgetCategory.CAMPUS
         ),
         // —— 学习工具 ——

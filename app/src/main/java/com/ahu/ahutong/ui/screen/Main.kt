@@ -696,6 +696,31 @@ fun Main(
                     navController.popBackStack()
                 }
             }
+            animatedComposable("pdd_identity_code") {
+                // 拼多多取件码：pddopen 深链拉起 App 包裹页，失败只提示，无网页兜底
+                LaunchedEffect(Unit) {
+                    val h5 = "https://mdkd.pinduoduo.com/weixin/package"
+                    val deepLink = "pddopen://com.xunmeng.pinduoduo/?h5Url=" +
+                        android.net.Uri.encode(h5)
+                    val opened = runCatching {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(deepLink)
+                            )
+                        )
+                    }.isSuccess
+                    if (!opened) {
+                        Toast.makeText(
+                            context,
+                            "无法打开拼多多取件码，请确认已安装拼多多后重试",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    navController.popBackStack()
+                }
+            }
+
             // 插件路由（内置 + 运行期 .ahup）：泛型一扇门——路由图只建一次，
             // 后装的插件也直接可达（按 id 在组合时解析，不在建图时枚举）
             animatedComposable("plugin/{pluginId}") { backStackEntry ->
