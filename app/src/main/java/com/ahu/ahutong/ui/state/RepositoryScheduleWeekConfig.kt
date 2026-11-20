@@ -69,6 +69,7 @@ class RepositoryScheduleWeekConfig @Inject constructor() : ScheduleWeekConfig {
         source = when (source) {
             CurrentWeekResolver.Source.LOCAL -> ConfigSource.LOCAL
             CurrentWeekResolver.Source.REMOTE -> ConfigSource.REMOTE
+            CurrentWeekResolver.Source.SERVER -> ConfigSource.SERVER
             CurrentWeekResolver.Source.DEFAULT -> ConfigSource.DEFAULT
         }
     )

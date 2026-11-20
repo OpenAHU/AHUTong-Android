@@ -6,6 +6,7 @@ import com.ahu.ahutong.data.model.ScheduleConfigBean
 enum class ConfigSource {
     LOCAL,
     REMOTE,
+    SERVER,
     DEFAULT
 }
 
