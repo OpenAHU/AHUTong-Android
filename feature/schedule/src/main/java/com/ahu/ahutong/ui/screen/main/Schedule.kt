@@ -121,7 +121,6 @@ import com.ahu.ahutong.data.model.Course
 import com.ahu.ahutong.ui.components.appLiquidGlassSurface
 import com.ahu.ahutong.ui.components.tourTarget
 import com.ahu.ahutong.ui.components.AppToggle
-import com.ahu.ahutong.ui.components.SettingsActionRow
 import com.ahu.ahutong.ui.components.AppSelectField
 import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
@@ -1112,22 +1111,14 @@ fun Schedule(
                 )
             },
             showSemesterBrowser = !isGraduate,
-            onSaveScheduleImage = if (isSemesterPreview) null else ::exportScheduleImage,
             extraSettings = {
-                ScheduleSettingRow(
-                    title = "同步到系统日历",
-                    description = if (isGraduate) "同步本周及接下来两周的课程，提前 15 分钟提醒"
-                    else "同步本周及接下来两周的课程，提前 15 分钟提醒。未结束的考试提前 30 分钟提醒",
-                    selected = calendarSyncEnabled,
-                    onSelect = { enabled ->
-                        if (enabled && !ScheduleCalendarSync.hasPermissions(context)) {
-                            calendarPermissions.launch(ScheduleCalendarSync.permissions.toTypedArray())
-                        } else {
-                            ScheduleUiPrefs.setCalendarSyncEnabled(enabled)
-                            calendarSyncEnabled = enabled
-                        }
-                    }
-                )
+                if (!isSemesterPreview) {
+                    ScheduleSettingEntryRow(
+                        title = "保存课表图片",
+                        value = "保存",
+                        onClick = ::exportScheduleImage
+                    )
+                }
                 if (!isGraduate) {
                     if (isSemesterPreview) {
                         Text(
@@ -1146,6 +1137,20 @@ fun Schedule(
                         )
                     }
                 }
+                ScheduleSettingRow(
+                    title = "同步到系统日历",
+                    description = if (isGraduate) "同步本周及接下来两周的课程，提前 15 分钟提醒"
+                    else "同步本周及接下来两周的课程，提前 15 分钟提醒。未结束的考试提前 30 分钟提醒",
+                    selected = calendarSyncEnabled,
+                    onSelect = { enabled ->
+                        if (enabled && !ScheduleCalendarSync.hasPermissions(context)) {
+                            calendarPermissions.launch(ScheduleCalendarSync.permissions.toTypedArray())
+                        } else {
+                            ScheduleUiPrefs.setCalendarSyncEnabled(enabled)
+                            calendarSyncEnabled = enabled
+                        }
+                    }
+                )
                 if (isGraduate) {
                     val savedWeek = graduateConfig?.week
                     var weekInput by rememberSaveable(graduateState?.selectedTerm?.code, savedWeek) {
@@ -1533,7 +1538,6 @@ private fun ScheduleSettingsDialog(
         onSemesterChange: (String) -> Unit,
         onDismiss: () -> Unit,
         showSemesterBrowser: Boolean = true,
-        onSaveScheduleImage: (() -> Unit)? = null,
         extraSettings: @Composable () -> Unit = {}
     ) {
         val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.8f
@@ -1608,13 +1612,6 @@ private fun ScheduleSettingsDialog(
                         )
                     }
                 }
-                onSaveScheduleImage?.let { save ->
-                    SettingsActionRow(
-                        title = "保存课表图片",
-                        showChevron = false,
-                        onClick = save
-                    )
-                }
             }
         }
     }
@@ -1666,7 +1663,7 @@ private fun ScheduleSettingsDialog(
     @Composable
     private fun ScheduleSettingEntryRow(
         title: String,
-        description: String,
+        description: String? = null,
         value: String,
         onClick: () -> Unit
     ) {
@@ -1689,11 +1686,13 @@ private fun ScheduleSettingsDialog(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = description,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                description?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
             Text(
                 text = value,
