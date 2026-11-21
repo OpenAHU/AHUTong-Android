@@ -121,7 +121,8 @@ jobs:
         run: ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process testDebugUnitTest :app:compileDebugAndroidTestKotlin --stacktrace
 
       - name: Release lint after unit tests pass
-        run: ./gradlew --no-daemon --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process :app:lintRelease --stacktrace
+        # AGP 的 lint model 任务暂不支持配置缓存序列化，单独关掉避免构建在缓存阶段失败。
+        run: ./gradlew --no-daemon --no-configuration-cache --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process :app:lintRelease --stacktrace
 
       - name: Upload test and lint reports
         if: always()

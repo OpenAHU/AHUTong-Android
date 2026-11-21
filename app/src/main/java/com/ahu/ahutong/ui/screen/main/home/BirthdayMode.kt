@@ -30,14 +30,15 @@ internal object BirthdayMode {
     var celebrating by mutableStateOf(false)
         private set
 
-    fun ensureInitialized() {
-        if (initialized) return
+    fun ensureInitialized(): Boolean {
+        if (initialized) return isBirthday
         initialized = true
         val today = DebugClock.nowLocalDate()
         lastDay = today
         isBirthday = debugForced || matchesBirthday(today)
         celebrating = isBirthday
         if (isBirthday) Log.i(TAG, "birthday mode active today=$today")
+        return isBirthday
     }
 
     /** 跨天时重新判断；进入生日当天自动回到祝福态。 */
