@@ -525,7 +525,7 @@ fun Main(
                             scope.launch { selectPrimaryDestination("xuexiaotong") }
                         }
                     )
-                    // 必吃榜匿名上传同意（未表态时弹一次，之后不再打扰）
+                    // 必吃榜静默同步触发点（同意入口统一在引导与设置，不再弹窗）
                     com.ahu.ahutong.ui.screen.canteen.CanteenConsentGate()
                 }
             }

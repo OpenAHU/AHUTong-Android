@@ -351,16 +351,14 @@ fun Preferences(
                     ),
                     onSelected = viewModel::setBehaviorRetentionDays
                 )
-                canteenUploadConsent?.let { consent ->
-                    SettingsToggleRow(
-                        title = "参与必吃榜数据共建",
-                        subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
-                        selected = consent,
-                        onSelectedChange = viewModel::setCanteenUploadConsent,
-                        backdrop = backdrop,
-                        onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
-                    )
-                }
+                SettingsToggleRow(
+                    title = "参与必吃榜数据共建",
+                    subtitle = "上传去标识的食堂消费（POS 机号+时间+金额），不含任何个人信息",
+                    selected = canteenUploadConsent == true,
+                    onSelectedChange = viewModel::setCanteenUploadConsent,
+                    backdrop = backdrop,
+                    onHorizontalDragActiveChange = onToggleHorizontalDragActiveChange
+                )
                 SettingsToggleRow(
                     title = "贡献通用模型训练数据",
                     subtitle = if (bootstrapContributionStatus.enabled) {
