@@ -5,6 +5,7 @@ import com.ahu.ahutong.data.crawler.fetchCurrentSemester
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.debug.DebugClock
 import com.ahu.ahutong.data.model.ScheduleConfigBean
+import com.ahu.ahutong.data.network.AhuHttp
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Calendar
@@ -183,10 +184,7 @@ object CurrentWeekResolver {
     private const val SERVER_WEEK_URL = "https://inchangejiang.cn/open/ahu-week.json"
 
     private val serverClient by lazy {
-        okhttp3.OkHttpClient.Builder()
-            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-            .build()
+        AhuHttp.plain(connectTimeoutSeconds = 4, readTimeoutSeconds = 4).build()
     }
 
     private val serverJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }

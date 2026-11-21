@@ -62,8 +62,8 @@ import com.ahu.ahutong.ui.components.SettingsBackdropContainer
 import com.ahu.ahutong.ui.components.SettingsPageLayout
 import com.ahu.ahutong.ui.components.SettingsSection
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
-import com.ahu.ahutong.ui.state.ActiveAuthor
-import com.ahu.ahutong.ui.state.CommitRecord
+import com.ahu.ahutong.data.commits.ActiveAuthor
+import com.ahu.ahutong.data.commits.CommitRecord
 import com.ahu.ahutong.ui.state.DeveloperViewModel
 
 @Composable

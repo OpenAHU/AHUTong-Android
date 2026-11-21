@@ -1,5 +1,8 @@
 package com.ahu.ahutong.ui.state
 
+import com.ahu.ahutong.data.commits.ActiveAuthor
+import com.ahu.ahutong.data.commits.CommitStatsSource
+
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast

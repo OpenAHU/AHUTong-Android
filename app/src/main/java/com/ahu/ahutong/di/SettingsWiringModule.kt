@@ -5,7 +5,7 @@ import com.ahu.ahutong.core.storage.PaymentKeyboardSetting
 import com.ahu.ahutong.core.storage.CourseReminderSettings
 import com.ahu.ahutong.data.commits.AhuCommitStatsSource
 import com.ahu.ahutong.data.dao.PreferencesManager
-import com.ahu.ahutong.ui.state.CommitStatsSource
+import com.ahu.ahutong.data.commits.CommitStatsSource
 import com.ahu.ahutong.personalization.settings.BehaviorPredictionSettings
 import com.ahu.ahutong.personalization.settings.PersonalizationSettings
 import com.ahu.ahutong.ui.state.AndroidAppUpdateGateway

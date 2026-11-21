@@ -1,6 +1,6 @@
-package com.ahu.ahutong.ui.state
+package com.ahu.ahutong.data.commits
 
-/** 开源提交统计：接口在这里，HTTP 实现在 :app。 */
+/** 开源提交统计：接口与模型放在共享模型层，HTTP 实现留在 :app。 */
 interface CommitStatsSource {
     suspend fun load(): List<ActiveAuthor>
 }

@@ -167,9 +167,11 @@ class XuexiaotongViewModel @Inject constructor(
         }
     }
 
-    fun toggleShowDone() = setShowDone(!_showDone.value)
+    fun toggleShowDone() = afterRestore { applyShowDone(!_showDone.value) }
 
-    fun setShowDone(value: Boolean) = afterRestore {
+    fun setShowDone(value: Boolean) = afterRestore { applyShowDone(value) }
+
+    private fun applyShowDone(value: Boolean) {
         stateRevision++
         if (_showDone.value != value) {
             store.saveShowDone(value)
@@ -177,9 +179,11 @@ class XuexiaotongViewModel @Inject constructor(
         }
     }
 
-    fun toggleDoneGray() = setDoneGray(!_doneGray.value)
+    fun toggleDoneGray() = afterRestore { applyDoneGray(!_doneGray.value) }
 
-    fun setDoneGray(value: Boolean) = afterRestore {
+    fun setDoneGray(value: Boolean) = afterRestore { applyDoneGray(value) }
+
+    private fun applyDoneGray(value: Boolean) {
         stateRevision++
         if (_doneGray.value != value) {
             store.saveDoneGray(value)
@@ -187,9 +191,11 @@ class XuexiaotongViewModel @Inject constructor(
         }
     }
 
-    fun toggleShowEmptyCourses() = setShowEmptyCourses(!_showEmptyCourses.value)
+    fun toggleShowEmptyCourses() = afterRestore { applyShowEmptyCourses(!_showEmptyCourses.value) }
 
-    fun setShowEmptyCourses(value: Boolean) = afterRestore {
+    fun setShowEmptyCourses(value: Boolean) = afterRestore { applyShowEmptyCourses(value) }
+
+    private fun applyShowEmptyCourses(value: Boolean) {
         stateRevision++
         if (_showEmptyCourses.value != value) {
             store.saveShowEmptyCourses(value)

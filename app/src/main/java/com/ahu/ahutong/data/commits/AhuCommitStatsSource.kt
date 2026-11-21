@@ -1,9 +1,5 @@
 package com.ahu.ahutong.data.commits
 
-import com.ahu.ahutong.ui.state.ActiveAuthor
-import com.ahu.ahutong.ui.state.CommitRecord
-import com.ahu.ahutong.ui.state.CommitStatsSource
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +7,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
+import com.ahu.ahutong.data.network.AhuHttp
 import okhttp3.Request
 
 /**
@@ -21,10 +17,10 @@ import okhttp3.Request
 @Singleton
 class AhuCommitStatsSource @Inject constructor() : CommitStatsSource {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
+    private val client = AhuHttp.plain(
+        connectTimeoutSeconds = 10,
+        readTimeoutSeconds = 15
+    ).build()
 
     private val json = Json { ignoreUnknownKeys = true }
 
