@@ -8,6 +8,7 @@ import com.ahu.ahutong.core.common.onSuccess
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.crawler.model.jwxt.StudentInfo
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.model.DormitoryInfo
 import com.ahu.ahutong.data.model.GradeStudentProfile
 import com.ahu.ahutong.ext.launchSafe
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * 个人信息页：主数据来自教务「学籍信息」页，成绩档案只作为抓取失败时的培养信息兜底。
  *
  * 姓名、学号与账号类型仍在界面层直接读登录会话；这里只负责学籍页的缓存与刷新。
+ * 宿舍信息来自智慧安大 getQinshiInfo，仅在缓存为空或手动刷新时拉取，可手动修改。
  */
 @HiltViewModel
 class ProfileViewModel @Inject constructor() : ViewModel() {
@@ -30,6 +32,9 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
 
     private val _profiles = MutableStateFlow(AHUCache.getGradeStudentProfiles())
     val profiles: StateFlow<List<GradeStudentProfile>> = _profiles.asStateFlow()
+
+    private val _dormitoryInfo = MutableStateFlow(AHUCache.getDormitoryInfo())
+    val dormitoryInfo: StateFlow<DormitoryInfo?> = _dormitoryInfo.asStateFlow()
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
@@ -59,7 +64,24 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
             if (_studentInfo.value == null) {
                 _profiles.value = AHUCache.getGradeStudentProfiles()
             }
+            // 宿舍信息：缓存为空或手动刷新时才发起网络请求（策略在 Repository 内）
+            AHURepository.getDormitoryInfo(force)
+                .onSuccess { _dormitoryInfo.value = it }
             _refreshing.value = false
         }
+    }
+
+    /** 手动修改宿舍信息：直接写入全局缓存，不触发网络请求。 */
+    fun updateDormitory(building: String, room: String) {
+        val current = _dormitoryInfo.value
+        val updated = DormitoryInfo(
+            campus = current?.campus?.ifBlank { "磬苑校区" } ?: "磬苑校区",
+            building = building.trim(),
+            room = room.trim(),
+            resident = current?.resident ?: true,
+            cachedAt = System.currentTimeMillis()
+        )
+        AHUCache.setDormitoryInfo(updated)
+        _dormitoryInfo.value = updated
     }
 }

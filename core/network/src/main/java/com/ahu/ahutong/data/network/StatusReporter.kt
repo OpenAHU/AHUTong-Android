@@ -20,6 +20,7 @@ enum class StatusEndpoint(val slug: String) {
     AHU_ADWMH("ahu-adwmh"),
     AHU_JW("ahu-jw"),
     AHU_GMISJW("ahu-gmisjw"),
+    AHU_ONE("ahu-one"),
     AHU_YCARD("ahu-ycard")
 }
 

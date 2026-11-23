@@ -1,6 +1,7 @@
 package com.ahu.ahutong.ui.screen.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,12 +34,17 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.ahu.ahutong.core.designsystem.R as DesignSystemR
 import com.ahu.ahutong.data.crawler.model.jwxt.StudentInfo
 import com.ahu.ahutong.data.model.AcademicAccountType
+import com.ahu.ahutong.data.model.DormitoryInfo
 import com.ahu.ahutong.data.schedule.CurrentWeekResolver
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.ui.components.AppCircularProgressIndicator
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.AppSectionCard
 import com.ahu.ahutong.ui.components.AppTitleIconButton
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
+import com.ahu.ahutong.ui.components.AppDialogActionStyle
+import com.ahu.ahutong.ui.components.AppTextField
 import com.ahu.ahutong.ui.state.ScheduleViewModel
 
 @Composable
@@ -47,9 +55,12 @@ fun ProfileScreen(
 ) {
     val studentInfo by viewModel.studentInfo.collectAsState()
     val profiles by viewModel.profiles.collectAsState()
+    val dormitoryInfo by viewModel.dormitoryInfo.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
     val error by viewModel.error.collectAsState()
     val scheduleConfig by scheduleViewModel.scheduleConfig.observeAsState()
+
+    var showDormEditDialog by remember { mutableStateOf(false) }
 
     val user = SessionStore.currentUser()
     val sessionName = user?.name?.takeIf(String::isNotBlank) ?: "未登录"
@@ -163,6 +174,23 @@ fun ProfileScreen(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            DormitorySection(
+                info = dormitoryInfo,
+                refreshing = refreshing,
+                onEdit = { showDormEditDialog = true }
+            )
+
+            if (showDormEditDialog) {
+                DormitoryEditDialog(
+                    initial = dormitoryInfo,
+                    onDismiss = { showDormEditDialog = false },
+                    onConfirm = { building, room ->
+                        viewModel.updateDormitory(building, room)
+                        showDormEditDialog = false
+                    }
                 )
             }
 
@@ -297,6 +325,78 @@ private fun ProfileInfoRow(label: String, value: String) {
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+@Composable
+private fun DormitorySection(
+    info: DormitoryInfo?,
+    refreshing: Boolean,
+    onEdit: () -> Unit
+) {
+    AppSectionCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProfileSectionTitle("宿舍信息")
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "修改",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.clickable(onClick = onEdit)
+            )
+        }
+        if (info != null) {
+            ProfileInfoRow("楼栋", info.building.ifBlank { "未获取" })
+            if (info.room.isNotBlank()) ProfileInfoRow("房间号", info.room)
+            if (info.campus.isNotBlank()) ProfileInfoRow("校区", info.campus)
+        } else if (refreshing) {
+            LoadingRow("正在获取住宿信息…")
+        } else {
+            Text(
+                text = "暂未获取到住宿信息，点右上角刷新或手动填写。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun DormitoryEditDialog(
+    initial: DormitoryInfo?,
+    onDismiss: () -> Unit,
+    onConfirm: (building: String, room: String) -> Unit
+) {
+    var building by remember { mutableStateOf(initial?.building.orEmpty()) }
+    var room by remember { mutableStateOf(initial?.room.orEmpty()) }
+    AppDialog(
+        title = "修改宿舍信息",
+        subtitle = "手动填写的宿舍信息会用于电费缴纳与洗衣房的默认定位，不会上传到任何服务器。",
+        onDismiss = onDismiss,
+        actions = listOf(
+            AppDialogAction("取消", onClick = onDismiss),
+            AppDialogAction(
+                label = "保存",
+                style = AppDialogActionStyle.Primary,
+                enabled = building.isNotBlank(),
+                onClick = { onConfirm(building, room) }
+            )
+        )
+    ) {
+        AppTextField(
+            value = building,
+            onValueChange = { building = it },
+            label = "楼栋（如：榴园2号楼）"
+        )
+        AppTextField(
+            value = room,
+            onValueChange = { room = it },
+            label = "房间号（如：2439）"
         )
     }
 }

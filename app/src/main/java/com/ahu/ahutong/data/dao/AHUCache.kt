@@ -7,6 +7,7 @@ import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundItem
 import com.ahu.ahutong.data.crawler.model.adwnh.LostFoundTypeItem
 import com.ahu.ahutong.data.crawler.model.jwxt.StudentInfo
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.model.DormitoryInfo
 import com.ahu.ahutong.data.schedule.CustomCourse
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityController
@@ -742,6 +743,23 @@ object AHUCache {
         } ?: ""
         if (data.isBlank()) return null
         return data.fromJson(StudentInfo::class.java)
+    }
+
+    /** 智慧安大住宿信息：全局缓存，仅在为空或用户手动刷新时由 AHURepository 拉取。 */
+    fun setDormitoryInfo(info: DormitoryInfo) {
+        userPutString("dormitory_info", Gson().toJson(info))
+    }
+
+    fun getDormitoryInfo(): DormitoryInfo? {
+        val data = userGetStringOrMigrate("dormitory_info") {
+            kv.decodeString("dormitory_info")
+        } ?: ""
+        if (data.isBlank()) return null
+        return data.fromJson(DormitoryInfo::class.java)
+    }
+
+    fun clearDormitoryInfo() {
+        userRemove("dormitory_info")
     }
 
     fun savePerProfileGrades(map: Map<GradeStudentProfile, Grade?>) {

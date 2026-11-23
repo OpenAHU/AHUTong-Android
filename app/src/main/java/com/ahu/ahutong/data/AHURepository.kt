@@ -11,6 +11,7 @@ import com.ahu.ahutong.data.crawler.GradeMapper
 import com.ahu.ahutong.data.crawler.SdkDataSource
 import com.ahu.ahutong.data.crawler.api.adwmh.AdwmhApi
 import com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi
+import com.ahu.ahutong.data.crawler.api.one.QinshiInfoApi
 import com.ahu.ahutong.data.crawler.configs.Constants
 import com.ahu.ahutong.data.crawler.login.AhuTongCaptchaSolver
 import com.ahu.ahutong.data.crawler.login.WisdomLoginFlow
@@ -32,10 +33,11 @@ import com.ahu.ahutong.data.crawler.utils.StudentInfoHtmlParser
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.BathroomTelInfo
 import com.ahu.ahutong.data.model.Course
+import com.ahu.ahutong.data.model.DormitoryInfo
+import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.schedule.ScheduleRefreshResult
 import com.ahu.ahutong.data.schedule.ScheduleSemester
 import com.ahu.ahutong.data.schedule.ScheduleSnapshotComparator
-import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
@@ -401,6 +403,33 @@ object AHURepository {
             response.errorBody()?.close()
         }
     }
+
+    /**
+     * 住宿信息（智慧安大 getQinshiInfo）。
+     *
+     * 策略：缓存优先——仅在缓存为空或 [force]（用户手动刷新）时发起网络请求；
+     * 拉取失败时若存在旧缓存则继续使用旧缓存（宁可用旧的，不报错打断）。
+     * 登录态由全局 CookieManager 提供，与教务同 jar；研究生/未登录同样返回
+     * 缓存或 Unauthorized，不额外触发登录流程。
+     */
+    suspend fun getDormitoryInfo(force: Boolean = false): AhuResult<DormitoryInfo> =
+        withContext(Dispatchers.IO) {
+            val cached = AHUCache.getDormitoryInfo()
+            if (!force && cached != null) {
+                return@withContext AhuResult.Success(cached)
+            }
+            if (AHUCache.getMockData()) {
+                return@withContext if (cached != null) AhuResult.Success(cached)
+                else AhuResult.Failure(AhuError.Unknown("演示模式暂不支持住宿信息"))
+            }
+            trackedCampusCall(StatusEndpoint.AHU_ONE, "getDormitoryInfo") {
+                QinshiInfoApi.fetch()
+            }.also { result ->
+                (result as? AhuResult.Success)?.let {
+                    AHUCache.setDormitoryInfo(it.value)
+                }
+            }
+        }
 
     /**
      *  获取考试信息
