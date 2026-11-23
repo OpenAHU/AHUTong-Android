@@ -903,16 +903,12 @@ fun Main(
                     onDataCleared = {
                         navController.navigate("login") { popUpTo(0) }
                     },
-                    onReplayTour = if (BuildConfig.DEBUG) {
-                        {
-                            HomeTourState.requestReplay()
-                            navController.navigate("home") {
-                                popUpTo("home") { inclusive = false }
-                                launchSingleTop = true
-                            }
+                    onReplayTour = {
+                        HomeTourState.requestReplay()
+                        navController.navigate("home") {
+                            popUpTo("home") { inclusive = false }
+                            launchSingleTop = true
                         }
-                    } else {
-                        null
                     }
                 )
             }
