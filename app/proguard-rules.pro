@@ -426,3 +426,8 @@
 # JLaTeXMath：TeX 命令与字体映射由 XML 资源反射解析，混淆后会丢类/丢方法。
 -keep class org.scilab.forge.jlatexmath.** { *; }
 -keep class ru.noties.jlatexmath.** { *; }
+
+# Uptime Kuma status page DTOs and Retrofit interface read reflectively by Gson/Retrofit.
+-keep class com.ahu.ahutong.data.network.StatusPage* { *; }
+-keep class com.ahu.ahutong.data.network.StatusHeartbeat* { *; }
+-keep interface com.ahu.ahutong.data.network.StatusPageRetrofitApi { *; }

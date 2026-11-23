@@ -171,6 +171,7 @@ object AppActionCatalog {
         // 聚合相机：新路由名，旧 "scan" 保留兼容
         "camera" to AppActionId.OPEN_SCANNER,
         "settings__about" to AppActionId.OPEN_PREFERENCES,
+        "settings__service_status" to AppActionId.OPEN_PREFERENCES,
         "settings__plugins" to AppActionId.OPEN_PREFERENCES,
         "settings__privacy_general" to AppActionId.OPEN_PRIVACY_POLICY,
         "settings__ai_official_trial" to AppActionId.OPEN_AI_SETTINGS
@@ -258,7 +259,7 @@ object AppActionCatalog {
         "home", "setup", "login", "info", "profile", "schedule", "tools", "school_calendar", "grade",
         "phone_book", "exam", "evaluation", "free_classroom", "lost_found", "weather",
         "repository", "repository/{path}", "repository_downloads", "repository_settings", "settings",
-        "settings__license", "settings__contributors", "settings__about", "settings__plugins", "settings__electricity_alert", "preferences", "preferences/{section}", "electricity_pay",
+        "settings__license", "settings__contributors", "settings__about", "settings__service_status", "settings__plugins", "settings__electricity_alert", "preferences", "preferences/{section}", "electricity_pay",
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "onboarding", "campus_notices", "student_mail", "program_completion", "identity_code", "pdd_identity_code",

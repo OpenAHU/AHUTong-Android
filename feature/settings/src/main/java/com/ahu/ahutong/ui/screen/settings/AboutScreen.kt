@@ -52,6 +52,7 @@ fun AboutScreen(
     appName: String,
     appIcon: Painter,
     onBack: () -> Unit,
+    onOpenServiceStatus: () -> Unit,
     onOpenContributors: () -> Unit,
     onOpenLicense: () -> Unit,
     onOpenPrivacy: () -> Unit,
@@ -121,6 +122,11 @@ fun AboutScreen(
                     title = "更新说明",
                     leadingPainter = painterResource(R.drawable.ic_log),
                     onClick = { showUpdateLog = true }
+                )
+                SettingsActionRow(
+                    title = "服务状态",
+                    leadingPainter = painterResource(R.drawable.ic_info),
+                    onClick = onOpenServiceStatus
                 )
                 SettingsActionRow(
                     title = "官网",

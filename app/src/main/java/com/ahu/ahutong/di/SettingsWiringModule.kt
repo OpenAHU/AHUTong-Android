@@ -6,6 +6,9 @@ import com.ahu.ahutong.core.storage.CourseReminderSettings
 import com.ahu.ahutong.data.commits.AhuCommitStatsSource
 import com.ahu.ahutong.data.dao.PreferencesManager
 import com.ahu.ahutong.data.commits.CommitStatsSource
+import com.ahu.ahutong.data.network.StatusPageRemoteSource
+import com.ahu.ahutong.data.status.AppServiceStatusGateway
+import com.ahu.ahutong.data.status.ServiceStatusGateway
 import com.ahu.ahutong.personalization.settings.BehaviorPredictionSettings
 import com.ahu.ahutong.personalization.settings.PersonalizationSettings
 import com.ahu.ahutong.ui.state.AndroidAppUpdateGateway
@@ -16,6 +19,7 @@ import com.ahu.ahutong.ui.state.AppUpdateGateway
 import com.ahu.ahutong.ui.state.DeviceDataReset
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
@@ -78,4 +82,17 @@ abstract class SettingsWiringModule {
     abstract fun bindAppUpdateGateway(
         implementation: AndroidAppUpdateGateway
     ): AppUpdateGateway
+
+    /** 服务状态只读公开状态页。 */
+    @Binds
+    @Singleton
+    abstract fun bindServiceStatusGateway(
+        implementation: AppServiceStatusGateway
+    ): ServiceStatusGateway
+
+    companion object {
+        @Provides
+        @Singleton
+        fun provideStatusPageRemoteSource(): StatusPageRemoteSource = StatusPageRemoteSource()
+    }
 }

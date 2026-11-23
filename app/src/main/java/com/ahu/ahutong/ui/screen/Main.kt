@@ -112,6 +112,7 @@ import com.ahu.ahutong.R
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.ahu.ahutong.ui.screen.settings.AboutScreen
+import com.ahu.ahutong.ui.screen.settings.ServiceStatusScreen
 import com.ahu.ahutong.ui.screen.settings.AiSettings
 import com.ahu.ahutong.ui.screen.settings.PluginSettingsScreen
 import com.ahu.ahutong.ui.screen.settings.OfficialTrialScreen
@@ -895,6 +896,7 @@ fun Main(
                     appName = stringResource(R.string.app_name),
                     appIcon = painterResource(R.mipmap.ic_launcher_foreground),
                     onBack = { navController.popBackStack() },
+                    onOpenServiceStatus = { navController.navigate("settings__service_status") },
                     onOpenContributors = { navController.navigate("settings__contributors") },
                     onOpenLicense = { navController.navigate("settings__license") },
                     onOpenPrivacy = { navController.navigate("settings__privacy_policy") },
@@ -913,6 +915,9 @@ fun Main(
                         null
                     }
                 )
+            }
+            animatedComposable("settings__service_status") {
+                ServiceStatusScreen(onBack = { navController.popBackStack() })
             }
             animatedComposable("settings__early_access") {
                 EarlyAccessScreen(onBack = { navController.popBackStack() })
