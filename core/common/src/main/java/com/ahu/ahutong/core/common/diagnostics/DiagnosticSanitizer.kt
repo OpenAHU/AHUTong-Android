@@ -17,6 +17,8 @@ object DiagnosticSanitizer {
     )
     private val identityKeys = setOf(
         "authorization", "proxyauthorization", "cookie", "cookies", "setcookie", "synjonesauth",
+        // 乐摇摇洗衣接口用 Authorization_Bar（normalizeKey 会把下划线去掉）
+        "authorizationbar",
         "token", "accesstoken", "refreshtoken", "authtoken", "idtoken", "secret", "clientsecret",
         "sid", "session", "sessionid", "jsessionid", "ticket", "account", "username", "userid",
         "loginname", "xh", "studentid", "email", "phone", "mobile", "name", "lt", "execution",
@@ -31,7 +33,7 @@ object DiagnosticSanitizer {
     private val url = Regex("""(?i)\b(?:https?|wss?)://[^\s<>"']+""")
     private val urlPassword = Regex("""(?i)(https?://[^/\s:@]+:)[^@\s/]+@""")
     private val basicPassword = Regex("""(?i)\bBasic\s+[A-Za-z0-9+/=_-]+""")
-    private val privateHeader = Regex("""(?im)\b(authorization|proxy-authorization|synjones-auth|cookie|set-cookie)\s*[:=]\s*[^\r\n]*""")
+    private val privateHeader = Regex("""(?im)\b(authorization[_-]?bar|authorization|proxy-authorization|synjones-auth|cookie|set-cookie)\s*[:=]\s*[^\r\n]*""")
     private val privateArray = Regex("""(?i)(["']?(?:cookies?|set-cookie|authorization)["']?\s*[:=]\s*)\[[^\r\n]*?\]""")
     private val bearer = Regex("""(?i)\bBearer\s+[^\s,;"']+""")
     private val email = Regex("""[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}""")

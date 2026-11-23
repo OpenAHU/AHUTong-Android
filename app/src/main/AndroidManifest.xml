@@ -38,6 +38,8 @@
         <package android:name="com.eg.android.AlipayGphone" />
         <!-- 学习通：跳作业详情页的包可见性（Android 11+ 必需） -->
         <package android:name="com.chaoxing.mobile" />
+        <!-- 微信：洗衣房 token 接力（ACTION_SEND 分享设备链接）的包可见性 -->
+        <package android:name="com.tencent.mm" />
         <!-- 允许查询能打开文档的 App（Android 11+ 必需） -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

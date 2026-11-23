@@ -168,6 +168,14 @@ object HomeWidgetRegistry {
             category = WidgetCategory.CAMPUS
         ),
         HomeWidgetSpec(
+            id = "laundry",
+            title = "洗衣房",
+            route = "laundry",
+            iconId = R.drawable.ic_laundry,
+            tint = Color(0xFF3E8EDE),
+            category = WidgetCategory.CAMPUS
+        ),
+        HomeWidgetSpec(
             id = "student_mail",
             title = "学生邮箱",
             route = "student_mail",

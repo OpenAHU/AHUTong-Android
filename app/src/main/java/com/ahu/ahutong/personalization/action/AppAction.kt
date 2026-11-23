@@ -137,6 +137,7 @@ object AppActionCatalog {
         spec(AppActionId.ONBOARDING, ActionFamily.TECHNICAL, "onboarding", "首次引导", labelEligible = false, predictable = false, suggestible = false),
         // Complete route coverage without changing the learned output ABI or enabling new suggestions.
         spec(AppActionId.VIEW_CAMPUS_NOTICES, ActionFamily.CAMPUS_SERVICE, "campus_notices", "校园通知", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_LAUNDRY, ActionFamily.CAMPUS_SERVICE, "laundry", "洗衣房", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_CANTEEN_RANKING, ActionFamily.CAMPUS_SERVICE, "canteen_ranking", "安大必吃榜", sideEffect = SideEffect.READ_ONLY, suggestible = false),
         spec(AppActionId.VIEW_CANTEEN_FOOTPRINT, ActionFamily.CAMPUS_SERVICE, "canteen_footprint", "干饭足迹", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_ATTENDANCE, ActionFamily.CAMPUS_SERVICE, "attendance_records", "教务考勤", sideEffect = SideEffect.READ_ONLY, suggestible = false),
@@ -263,7 +264,7 @@ object AppActionCatalog {
         "card_balance_deposit", "bathroom_deposit", "cmb_card_recharge", "network_recharge",
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "onboarding", "campus_notices", "student_mail", "program_completion", "identity_code", "pdd_identity_code",
-        "canteen_ranking", "canteen_footprint", "attendance_records",
+        "canteen_ranking", "canteen_footprint", "attendance_records", "laundry",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__privacy_general", "settings__ai_privacy",
         "settings__theme_lab", "settings__theme_color", "settings__ai", "settings__ai_official_trial",
         "scan", "camera", "billing", "billing_stats"
