@@ -3,6 +3,9 @@ package com.ahu.ahutong.data.crawler.gmis
 import com.ahu.ahutong.data.schedule.gmis.*
 
 import com.ahu.ahutong.data.crawler.login.PortalPage
+import com.ahu.ahutong.data.network.AppStatusReporting
+import com.ahu.ahutong.data.network.StatusEndpoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.HttpUrl
@@ -17,12 +20,50 @@ internal class GmisScheduleClient(
     private var schedulePage: HttpUrl? = null
 
     suspend fun terms(): List<GmisTerm> = mutex.withLock {
-        GmisTimetableParser.terms(load("../default/bindterm", null))
+        val startedAt = System.currentTimeMillis()
+        try {
+            GmisTimetableParser.terms(load("../default/bindterm", null)).also {
+                AppStatusReporting.reportCampusSuccess(
+                    StatusEndpoint.AHU_GMISJW,
+                    "gmisTerms",
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            AppStatusReporting.reportCampusThrowable(
+                StatusEndpoint.AHU_GMISJW,
+                "gmisTerms",
+                t,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+            throw t
+        }
     }
 
     suspend fun timetable(term: GmisTerm): GmisTimetable = mutex.withLock {
         require(Regex("[A-Za-z0-9_-]{1,40}").matches(term.code))
-        GmisTimetableParser.timetable(load("py_kbcx_ew", mapOf("kblx" to "xs", "termcode" to term.code)))
+        val startedAt = System.currentTimeMillis()
+        try {
+            GmisTimetableParser.timetable(load("py_kbcx_ew", mapOf("kblx" to "xs", "termcode" to term.code))).also {
+                AppStatusReporting.reportCampusSuccess(
+                    StatusEndpoint.AHU_GMISJW,
+                    "gmisTimetable",
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            AppStatusReporting.reportCampusThrowable(
+                StatusEndpoint.AHU_GMISJW,
+                "gmisTimetable",
+                t,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+            throw t
+        }
     }
 
     private suspend fun load(relative: String, fields: Map<String, String>?): com.google.gson.JsonElement {

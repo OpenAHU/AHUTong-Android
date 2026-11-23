@@ -39,6 +39,8 @@ import com.ahu.ahutong.data.mock.MockDataSource
 import com.ahu.ahutong.data.model.GpaRankInfo
 import com.ahu.ahutong.data.model.Grade
 import com.ahu.ahutong.data.model.GradeStudentProfile
+import com.ahu.ahutong.data.network.AppStatusReporting
+import com.ahu.ahutong.data.network.StatusEndpoint
 import com.ahu.ahutong.data.server.AhuTong
 import com.ahu.ahutong.data.server.model.SchoolCalendarYearsResponse
 import com.ahu.ahutong.sdk.LocalServiceClient
@@ -121,7 +123,7 @@ object AHURepository {
         }
 
         try {
-            when (val result = dataSource.getSchedule()) {
+            when (val result = trackedCampusCall(StatusEndpoint.AHU_JW, "getSchedule") { dataSource.getSchedule() }) {
                 is AhuResult.Failure -> result
                 is AhuResult.Success -> {
                     AHUCache.getSchoolTerm()?.let { AHUCache.saveSchedule(it, result.value) }
@@ -130,7 +132,9 @@ object AHURepository {
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            AhuResult.Failure(e.toAhuError())
+            val error = e.toAhuError()
+            AppStatusReporting.reportCampusResult(StatusEndpoint.AHU_JW, "getSchedule", AhuResult.Failure(error))
+            AhuResult.Failure(error)
         }
     }
 
@@ -153,7 +157,11 @@ object AHURepository {
             }
             try {
                 val previousSemesterKey = AHUCache.getSchoolTerm()
-                val latest = when (val scheduleResult = dataSource.getSchedule()) {
+                val latest = when (
+                    val scheduleResult = trackedCampusCall(StatusEndpoint.AHU_JW, "refreshSchedule") {
+                        dataSource.getSchedule()
+                    }
+                ) {
                     is AhuResult.Failure -> return@withContext scheduleResult
                     is AhuResult.Success -> scheduleResult.value
                 }
@@ -186,7 +194,7 @@ object AHURepository {
         }
 
         try {
-            when (val result = dataSource.getNextSchedule()) {
+            when (val result = trackedCampusCall(StatusEndpoint.AHU_JW, "getNextSchedule") { dataSource.getNextSchedule() }) {
                 is AhuResult.Failure -> result
                 is AhuResult.Success -> {
                     AHUCache.saveNextSchedule(result.value)
@@ -195,7 +203,9 @@ object AHURepository {
             }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            AhuResult.Failure(e.toAhuError())
+            val error = e.toAhuError()
+            AppStatusReporting.reportCampusResult(StatusEndpoint.AHU_JW, "getNextSchedule", AhuResult.Failure(error))
+            AhuResult.Failure(error)
         }
     }
 
@@ -205,10 +215,14 @@ object AHURepository {
             return@withContext AhuResult.Failure(AhuError.Unknown("研究生账号不支持本科课表"))
         }
         try {
-            dataSource.getScheduleSemesters()
+            trackedCampusCall(StatusEndpoint.AHU_JW, "getScheduleSemesters") {
+                dataSource.getScheduleSemesters()
+            }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            AhuResult.Failure(e.toAhuError())
+            val error = e.toAhuError()
+            AppStatusReporting.reportCampusResult(StatusEndpoint.AHU_JW, "getScheduleSemesters", AhuResult.Failure(error))
+            AhuResult.Failure(error)
         }
     }
 
@@ -220,10 +234,14 @@ object AHURepository {
             return@withContext AhuResult.Failure(AhuError.ProtocolChanged("无效的学期 ID"))
         }
         try {
-            dataSource.getSemesterSchedule(semesterId)
+            trackedCampusCall(StatusEndpoint.AHU_JW, "getSemesterSchedule") {
+                dataSource.getSemesterSchedule(semesterId)
+            }
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            AhuResult.Failure(e.toAhuError())
+            val error = e.toAhuError()
+            AppStatusReporting.reportCampusResult(StatusEndpoint.AHU_JW, "getSemesterSchedule", AhuResult.Failure(error))
+            AhuResult.Failure(error)
         }
     }
 
@@ -249,12 +267,14 @@ object AHURepository {
         }
         try {
             if (!AHUCache.getMockData()) syncCookies()
-            dataSource.getGrade()
+            trackedCampusCall(StatusEndpoint.AHU_JW, "getGrade") { dataSource.getGrade() }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             e.printStackTrace()
-            AhuResult.Failure(e.toAhuError())
+            val error = e.toAhuError()
+            AppStatusReporting.reportCampusResult(StatusEndpoint.AHU_JW, "getGrade", AhuResult.Failure(error))
+            AhuResult.Failure(error)
         }
     }
 
@@ -325,6 +345,7 @@ object AHURepository {
             return@withContext AhuResult.Failure(AhuError.Unknown("演示模式暂不支持学籍信息"))
         }
 
+        val startedAt = System.currentTimeMillis()
         try {
             syncCookies()
             var info = fetchStudentInfoPage()
@@ -341,13 +362,25 @@ object AHURepository {
                     TAG,
                     "getStudentInfo resolved: sections=${listOfNotNull(info.department, info.major, info.adminClass).size}"
                 )
+                AppStatusReporting.reportCampusSuccess(
+                    StatusEndpoint.AHU_JW,
+                    "getStudentInfo",
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
                 AhuResult.Success(info)
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
             Log.w(TAG, "getStudentInfo failed", error)
-            AhuResult.Failure(error.toAhuError())
+            val mapped = error.toAhuError()
+            AppStatusReporting.reportCampusResult(
+                StatusEndpoint.AHU_JW,
+                "getStudentInfo",
+                AhuResult.Failure(mapped),
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+            AhuResult.Failure(mapped)
         }
     }
 
@@ -384,14 +417,22 @@ object AHURepository {
                 }
             }
             try {
-                when (val result = dataSource.getExamInfo(studentID, studentName)) {
+                when (
+                    val result = trackedCampusCall(StatusEndpoint.AHU_JW, "getExamInfo") {
+                        dataSource.getExamInfo(studentID, studentName)
+                    }
+                ) {
                     is AhuResult.Failure -> result
                     is AhuResult.Success -> {
                         AHUCache.saveExamInfo(result.value)
                         result
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                val error = e.toAhuError()
+                AppStatusReporting.reportCampusResult(StatusEndpoint.AHU_JW, "getExamInfo", AhuResult.Failure(error))
                 AhuResult.Failure(AhuError.Unknown("请求错误 $e"))
             }
         }
@@ -400,6 +441,7 @@ object AHURepository {
      *  获取余额
      */
     suspend fun getCardMoney(preferRealtime: Boolean = false) = withContext(Dispatchers.IO) {
+        val startedAt = System.currentTimeMillis()
         try {
             var result = dataSource.getCardMoney(preferRealtime)
             // Wallet auth expiry often arrives as HTTP 200 + business code, which the
@@ -417,9 +459,23 @@ object AHURepository {
                 } == true
                 if (refreshed) result = dataSource.getCardMoney(preferRealtime)
             }
-            result
+            AppStatusReporting.reportCampusResult(
+                StatusEndpoint.AHU_ADWMH,
+                "getCardMoney",
+                result,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            AhuResult.Failure(e.toAhuError())
+            val error = e.toAhuError()
+            AppStatusReporting.reportCampusResult(
+                StatusEndpoint.AHU_ADWMH,
+                "getCardMoney",
+                AhuResult.Failure(error),
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+            AhuResult.Failure(error)
         }
     }
 
@@ -744,7 +800,9 @@ object AHURepository {
             if (!ensureYcardCredential()) {
                 return@withContext ycardCredentialNotReadyResponse()
             }
-            dataSource.getBathroomTelInfo(bathroom = bathroom, tel = tel)
+            trackedCampusCall(StatusEndpoint.AHU_YCARD, "getBathroomInfo") {
+                dataSource.getBathroomTelInfo(bathroom = bathroom, tel = tel)
+            }
         }
 
 
@@ -759,7 +817,9 @@ object AHURepository {
             if (!ensureYcardCredential()) {
                 return@withContext ycardCredentialNotReadyResponse()
             }
-            dataSource.getBillPage(page, size, timeFrom, timeTo, type)
+            trackedCampusCall(StatusEndpoint.AHU_YCARD, "getBillPage") {
+                dataSource.getBillPage(page, size, timeFrom, timeTo, type)
+            }
         }
 
     suspend fun getBillSummary(timeFrom: String, timeTo: String): AhuResult<TurnoverCount> =
@@ -767,7 +827,9 @@ object AHURepository {
             if (!ensureYcardCredential()) {
                 return@withContext ycardCredentialNotReadyResponse()
             }
-            dataSource.getBillSummary(timeFrom, timeTo)
+            trackedCampusCall(StatusEndpoint.AHU_YCARD, "getBillSummary") {
+                dataSource.getBillSummary(timeFrom, timeTo)
+            }
         }
 
     suspend fun getCardInfo(): AhuResult<CardInfo> =
@@ -775,7 +837,9 @@ object AHURepository {
             if (!ensureYcardCredential()) {
                 return@withContext ycardCredentialNotReadyResponse()
             }
-            dataSource.getCardInfo()
+            trackedCampusCall(StatusEndpoint.AHU_YCARD, "getCardInfo") {
+                dataSource.getCardInfo()
+            }
         }
 
 
@@ -784,7 +848,9 @@ object AHURepository {
             if (!ensureYcardCredential()) {
                 return@withContext ycardCredentialNotReadyResponse()
             }
-            dataSource.getOrderThirdData(request)
+            trackedCampusCall(StatusEndpoint.AHU_YCARD, "getOrderThirdData") {
+                dataSource.getOrderThirdData(request)
+            }
         }
 
     suspend fun pay(request: RequestBody): AhuResult<Response<ResponseBody>> =
@@ -792,23 +858,31 @@ object AHURepository {
             if (!ensureYcardCredential()) {
                 return@withContext ycardCredentialNotReadyResponse()
             }
-            dataSource.pay(request)
+            trackedCampusCall(StatusEndpoint.AHU_YCARD, "pay") {
+                dataSource.pay(request)
+            }
         }
 
 
     suspend fun getSchoolCalendar(): AhuResult<Response<ResponseBody>> =
         withContext(Dispatchers.IO) {
-            dataSource.getSchoolCalendar()
+            trackedCommonCall("getSchoolCalendar") {
+                dataSource.getSchoolCalendar()
+            }
         }
 
     suspend fun getSchoolCalendarYears(): AhuResult<SchoolCalendarYearsResponse> =
         withContext(Dispatchers.IO) {
-            dataSource.getSchoolCalendarYears()
+            trackedCommonCall("getSchoolCalendarYears") {
+                dataSource.getSchoolCalendarYears()
+            }
         }
 
     suspend fun getSchoolCalendar(year: String): AhuResult<Response<ResponseBody>> =
         withContext(Dispatchers.IO) {
-            dataSource.getSchoolCalendar(year)
+            trackedCommonCall("getSchoolCalendarYear") {
+                dataSource.getSchoolCalendar(year)
+            }
         }
 
     suspend fun getGpaRankInfo(studentId: String): AhuResult<GpaRankInfo> =
@@ -818,7 +892,9 @@ object AHURepository {
             }
             Log.i(TAG, "getGpaRankInfo start studentId=${studentId.maskStudentId()}")
             syncCookies()
-            val result = dataSource.getGpaRankFromHtml(studentId)
+            val result = trackedCampusCall(StatusEndpoint.AHU_JW, "getGpaRankInfo") {
+                dataSource.getGpaRankFromHtml(studentId)
+            }
             Log.i(
                 TAG,
                 "getGpaRankInfo finish ok=${result.isSuccess} " +
@@ -829,12 +905,16 @@ object AHURepository {
 
     suspend fun getAllCampus(): AhuResult<AllCampus> =
         withContext(Dispatchers.IO) {
-            dataSource.getAllCampus()
+            trackedCampusCall(StatusEndpoint.AHU_ADWMH, "getAllCampus") {
+                dataSource.getAllCampus()
+            }
         }
 
     suspend fun getAllLostFoundType(): AhuResult<AllLostFoundType> =
         withContext(Dispatchers.IO) {
-            dataSource.getAllLostFoundType()
+            trackedCampusCall(StatusEndpoint.AHU_ADWMH, "getAllLostFoundType") {
+                dataSource.getAllLostFoundType()
+            }
         }
 
     suspend fun getLostFoundList(
@@ -843,32 +923,39 @@ object AHURepository {
         state: Int
     ): AhuResult<LostFoundResponse> =
         withContext(Dispatchers.IO) {
-
-            dataSource.getLostFoundList(
-                pageNo,
-                pageSize,
-                state
-            )
+            trackedCampusCall(StatusEndpoint.AHU_ADWMH, "getLostFoundList") {
+                dataSource.getLostFoundList(
+                    pageNo,
+                    pageSize,
+                    state
+                )
+            }
         }
 
     suspend fun publishLostFound(
         request: LostFoundPublishRequest
     ): AhuResult<Any> =
         withContext(Dispatchers.IO) {
-            dataSource.publishLostFound(request)
+            trackedCampusCall(StatusEndpoint.AHU_ADWMH, "publishLostFound") {
+                dataSource.publishLostFound(request)
+            }
         }
 
     suspend fun deleteLostFound(
         id: String
     ): AhuResult<Any> =
         withContext(Dispatchers.IO) {
-            dataSource.deleteLostFound(id)
+            trackedCampusCall(StatusEndpoint.AHU_ADWMH, "deleteLostFound") {
+                dataSource.deleteLostFound(id)
+            }
         }
 
     suspend fun getQrcode(): AhuResult<String> =
         withContext(Dispatchers.IO) {
             var wisdomRefreshAttempted = false
-            PaymentQrRequest(
+            var authRejected = false
+            val startedAt = System.currentTimeMillis()
+            val rawResult = PaymentQrRequest(
                 firstParty = {
                     var response = AdwmhApi.QR_API.getQrcode()
                     if (response.code == 401 && !wisdomRefreshAttempted && SessionStore.isLoggedIn()) {
@@ -880,8 +967,10 @@ object AHURepository {
                         }
                     }
                     if (response.code == 10000 && response.`object`.isNotBlank()) {
+                        authRejected = false
                         Result.success(response.`object`)
                     } else {
+                        authRejected = response.code == 401
                         Result.failure(IllegalStateException("payment QR request rejected"))
                     }
                 },
@@ -899,6 +988,17 @@ object AHURepository {
                     )
                 }
             ).execute().toAhuResult()
+            val result = if (rawResult.isFailure && authRejected) {
+                AhuResult.Failure(AhuError.Unauthorized("智慧安大登录态已失效"))
+            } else {
+                rawResult
+            }
+            AppStatusReporting.reportCampusResult(
+                StatusEndpoint.AHU_ADWMH,
+                "getQrcode",
+                result,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
         }
 
     private fun parseQrcodeResponse(json: String): AhuResult<String> {
@@ -916,6 +1016,34 @@ object AHURepository {
             if (e is CancellationException) throw e
             AhuResult.Failure(e.toAhuError())
         }
+    }
+
+    private inline fun <T> trackedCampusCall(
+        endpoint: StatusEndpoint,
+        action: String,
+        block: () -> AhuResult<T>
+    ): AhuResult<T> {
+        val startedAt = System.currentTimeMillis()
+        return AppStatusReporting.reportCampusResult(
+            endpoint = endpoint,
+            action = action,
+            result = block(),
+            latencyMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+        )
+    }
+
+    private inline fun <T> trackedCommonCall(
+        action: String,
+        block: () -> AhuResult<T>
+    ): AhuResult<T> {
+        val startedAt = System.currentTimeMillis()
+        val result = block()
+        val latency = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+        when (result) {
+            is AhuResult.Success -> AppStatusReporting.reportCommonSuccess(action, latency)
+            is AhuResult.Failure -> AppStatusReporting.reportCommonError(action, result.error, latency)
+        }
+        return result
     }
 
     private fun String.maskStudentId(): String {

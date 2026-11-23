@@ -25,6 +25,8 @@ import java.net.URLDecoder
 import com.ahu.ahutong.data.session.SessionStore
 import com.ahu.ahutong.data.session.DefaultAhuSession
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
+import com.ahu.ahutong.data.network.AppStatusReporting
+import com.ahu.ahutong.data.network.StatusEndpoint
 import kotlinx.coroutines.CancellationException
 
 object EvaluationRepository {
@@ -228,6 +230,9 @@ object EvaluationRepository {
             refreshJwxtSession(first.message)
             val second = requestEntryToken()
             second.token?.let { return it }
+            if (second.shouldRefreshJwxtSession) {
+                throw EvaluationAuthException(second.message)
+            }
             throw IllegalStateException(second.message)
         }
 
@@ -272,8 +277,8 @@ object EvaluationRepository {
         Log.i(TAG, "refresh jwxt session for evaluation: $reason")
         val observedGeneration = SessionRefreshCoordinator.currentGeneration()
         clearSessionState("before jwxt session refresh")
-        check(DefaultAhuSession.ensureFresh(observedGeneration)) {
-            "教务静默登录失败，请重新登录后再试"
+        if (!DefaultAhuSession.ensureFresh(observedGeneration)) {
+            throw EvaluationAuthException("教务静默登录失败，请重新登录后再试")
         }
         Log.i(TAG, "jwxt session refreshed for evaluation")
     }
@@ -315,12 +320,25 @@ object EvaluationRepository {
      *
      * 比 `runCatching` 多做一件事：取消原样抛出。否则界面已经关闭，请求仍会继续跑完并把错误提示写回去。
      */
-    private inline fun <T> evalResult(block: () -> T): AhuResult<T> = try {
-        AhuResult.Success(block())
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Throwable) {
-        AhuResult.Failure(e.toAhuError())
+    private inline fun <T> evalResult(block: () -> T): AhuResult<T> {
+        val startedAt = System.currentTimeMillis()
+        return try {
+            val result = AhuResult.Success(block())
+            AppStatusReporting.reportCampusResult(
+                StatusEndpoint.AHU_JW,
+                "evaluation",
+                result,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: EvaluationAuthException) {
+            AhuResult.Failure(com.ahu.ahutong.core.common.AhuError.Unauthorized(e.message.orEmpty()))
+        } catch (e: Throwable) {
+            val latency = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            AppStatusReporting.reportCampusThrowable(StatusEndpoint.AHU_JW, "evaluation", e, latency)
+            AhuResult.Failure(e.toAhuError())
+        }
     }
 
     private fun <T> EvalApiResponse<T>.requireData(): T {
@@ -348,6 +366,8 @@ object EvaluationRepository {
     } catch (e: HttpException) {
         throw IllegalStateException("$stage（HTTP ${e.code()}）", e)
     }
+
+    private class EvaluationAuthException(message: String) : IllegalStateException(message)
 
     private data class EntryTokenResult(
         val token: String?,

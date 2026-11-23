@@ -11,6 +11,7 @@ import android.provider.OpenableColumns
 import android.util.Base64
 import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.data.dao.PreferencesManager
+import com.ahu.ahutong.data.network.AppStatusReporting
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonParser
@@ -326,16 +327,33 @@ object RepositoryManager {
 
                 // 先问服务端索引时间戳：与本地记录一致说明索引没变，直接复用目录缓存，
                 // 不必整包重新拉取 /api/list。
-                val resolution = resolveStorageIndex(
-                    servers = storageServers,
-                    cachedServerId = cachedServerId,
-                    cachedTimestamp = { serverId ->
-                        kv.decodeLong("$CONTENT_INDEX_SERVER_TS_PREFIX$serverId", 0L)
-                    },
-                    hasRootContents = getCachedContents("") != null,
-                    fetchUpdatedAt = ::fetchStorageUpdatedAt,
-                    fetchIndex = { server -> fetchStorageIndex(server, onDownloadProgress) }
-                )
+                val startedAt = System.currentTimeMillis()
+                val resolution = try {
+                    resolveStorageIndex(
+                        servers = storageServers,
+                        cachedServerId = cachedServerId,
+                        cachedTimestamp = { serverId ->
+                            kv.decodeLong("$CONTENT_INDEX_SERVER_TS_PREFIX$serverId", 0L)
+                        },
+                        hasRootContents = getCachedContents("") != null,
+                        fetchUpdatedAt = ::fetchStorageUpdatedAt,
+                        fetchIndex = { server -> fetchStorageIndex(server, onDownloadProgress) }
+                    ).also {
+                        AppStatusReporting.reportCommonSuccess(
+                            "storageIndex",
+                            (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                        )
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (t: Throwable) {
+                    AppStatusReporting.reportCommonThrowable(
+                        "storageIndex",
+                        t,
+                        (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                    )
+                    throw t
+                }
                 if (resolution is StorageIndexResolution.Reused) {
                     kv.encode(CONTENT_TREE_CACHE_TIME_KEY, System.currentTimeMillis())
                     return@withLock resolution.updatedAt

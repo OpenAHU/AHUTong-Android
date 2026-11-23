@@ -5,6 +5,9 @@ import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.net.SessionRefreshCoordinator
 import com.ahu.ahutong.data.model.LoginOutcome
+import com.ahu.ahutong.data.network.AppStatusReporting
+import com.ahu.ahutong.data.network.StatusEndpoint
+import com.ahu.ahutong.data.network.StatusReportingPolicy
 import com.ahu.ahutong.data.security.SecureStorageUnavailableException
 import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import kotlinx.coroutines.delay
@@ -46,7 +49,9 @@ class RepositoryAhuSession(
         FeedbackDiagnostics.clear()
         com.ahu.ahutong.core.common.diagnostics.DiagnosticSanitizer.rememberPassword(password)
         FeedbackDiagnostics.recordRuntime("开始登录")
+        val startedAt = now()
         val result = login.signIn(username, password, preferNative = true)
+        AppStatusReporting.reportLoginResult("signIn", result, (now() - startedAt).coerceAtLeast(0L))
         FeedbackDiagnostics.recordRuntime("登录结果：${if (result.valueOrNull() is LoginOutcome.Success) "成功" else "未完成"}")
         if (result.valueOrNull() is LoginOutcome.Success) {
             // 先在协调器里推进代号，再发布已认证状态：并发中的旧续期不能覆盖这次新登录。
@@ -122,6 +127,8 @@ class RepositoryAhuSession(
 
     /** Runs inside the coordinator's service lock and its single 30-second budget. */
     private suspend fun refreshWithRetry(): SessionRefreshCoordinator.RefreshOutcome {
+        var lastReportableError: AhuError? = null
+        val refreshStartedAt = now()
         for (attempt in 0..RETRY_DELAYS_MS.size) {
             val loginResult = try {
                 val user = account.currentUser()
@@ -140,6 +147,11 @@ class RepositoryAhuSession(
 
             if (loginResult.valueOrNull() is LoginOutcome.Success) {
                 residue.clearDerivedToken()
+                AppStatusReporting.reportLoginResult(
+                    "sessionRefresh",
+                    loginResult,
+                    (now() - refreshStartedAt).coerceAtLeast(0L)
+                )
                 return SessionRefreshCoordinator.RefreshOutcome.SUCCESS
             }
             val error = loginResult.errorOrNull()
@@ -151,12 +163,29 @@ class RepositoryAhuSession(
                 FeedbackDiagnostics.recordRuntime("自动续期被校方拒绝：${error.message}")
                 return SessionRefreshCoordinator.RefreshOutcome.REJECTED
             }
+            if (error != null && StatusReportingPolicy.shouldReportLoginFailure(isMockMode = false, error = error)) {
+                lastReportableError = error
+            }
             // Human verification, WAF and protocol changes need user/server action.
             // Retrying those would only submit the same password unnecessarily.
             if (!error.isRetryableRefreshFailure()) {
+                lastReportableError?.let {
+                    AppStatusReporting.reportLoginResult(
+                        "sessionRefresh",
+                        AhuResult.Failure(it),
+                        (now() - refreshStartedAt).coerceAtLeast(0L)
+                    )
+                }
                 return SessionRefreshCoordinator.RefreshOutcome.TRANSIENT
             }
             if (attempt < RETRY_DELAYS_MS.size) delay(RETRY_DELAYS_MS[attempt])
+        }
+        lastReportableError?.let {
+            AppStatusReporting.reportLoginResult(
+                "sessionRefresh",
+                AhuResult.Failure(it),
+                (now() - refreshStartedAt).coerceAtLeast(0L)
+            )
         }
         // A final single rejection separated by transport failures remains unconfirmed.
         return SessionRefreshCoordinator.RefreshOutcome.TRANSIENT

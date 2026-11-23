@@ -1,11 +1,13 @@
 package com.ahu.ahutong.data.canteen
 
 import android.util.Log
+import com.ahu.ahutong.core.common.AhuError
 import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.CanteenWindowStore
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.crawler.model.ycard.TurnoverRecord
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.network.AppStatusReporting
 import com.ahu.ahutong.data.recharge.analytics.CanteenAsk
 import com.ahu.ahutong.data.recharge.analytics.CanteenAskKind
 import com.ahu.ahutong.data.recharge.analytics.CanteenLabelCandidate
@@ -60,9 +62,14 @@ object CanteenGateway {
     data class UploadOutcome(val ok: Boolean, val sent: Int, val total: Int)
 
     suspend fun syncWindowMap(): Boolean = withContext(Dispatchers.IO) {
+        val startedAt = System.currentTimeMillis()
         runCatching {
             val localVersion = AHUCache.getCanteenMapVersion()
             val resp = CanteenApi.API.windowMap(sinceVersion = localVersion)
+            AppStatusReporting.reportCommonSuccess(
+                "canteenWindowMap",
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
             if (resp.version == localVersion) return@runCatching false
             val map = resp.entries.orEmpty()
                 .mapNotNull { e -> e.name?.takeIf { it.isNotBlank() }?.let { e.terminal to it } }
@@ -71,8 +78,14 @@ object CanteenGateway {
             AHUCache.setCanteenMapVersion(resp.version)
             Log.i(TAG, "window map synced v$localVersion -> v${resp.version}, ${map.size} entries")
             true
-        }.onFailure { Log.w(TAG, "window map sync failed, keep local cache", it) }
-            .getOrDefault(false)
+        }.onFailure {
+            Log.w(TAG, "window map sync failed, keep local cache", it)
+            AppStatusReporting.reportCommonThrowable(
+                "canteenWindowMap",
+                it,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+        }.getOrDefault(false)
     }
 
     /**
@@ -263,6 +276,8 @@ object CanteenGateway {
             )
             var sent = 0
             var ok = true
+            var httpFailure: AhuError.Server? = null
+            val uploadStartedAt = System.currentTimeMillis()
             txns.map { TxnEntry(it.terminal, it.ts, it.amountCents, it.canteen, it.floor) }
                 .chunked(BATCH_SIZE)
                 .ifEmpty { listOf(emptyList()) }   // 空载心跳：监控可见
@@ -270,15 +285,26 @@ object CanteenGateway {
                     val resp = CanteenApi.API.uploadTxns(TxnsUpload(batch))
                     if (!resp.isSuccessful) {
                         Log.w(TAG, "txns upload http ${resp.code()}")
+                        httpFailure = AhuError.Server(resp.code(), "HTTP ${resp.code()}")
                         ok = false
                         return@forEach
                     }
                     sent += batch.size
                 }
+            val uploadLatency = (System.currentTimeMillis() - uploadStartedAt).coerceAtLeast(0L)
+            if (ok) {
+                AppStatusReporting.reportCommonSuccess("canteenUploadTxns", uploadLatency)
+            } else {
+                httpFailure?.let {
+                    AppStatusReporting.reportCommonError("canteenUploadTxns", it, uploadLatency)
+                }
+            }
             Log.i(TAG, "txns uploaded: $sent/${txns.size}")
             UploadOutcome(ok = ok, sent = sent, total = txns.size)
-        }.onFailure { Log.w(TAG, "txns upload failed", it) }
-            .getOrDefault(UploadOutcome(ok = false, sent = 0, total = 0))
+        }.onFailure {
+            Log.w(TAG, "txns upload failed", it)
+            AppStatusReporting.reportCommonThrowable("canteenUploadTxns", it)
+        }.getOrDefault(UploadOutcome(ok = false, sent = 0, total = 0))
     }
 
     @Volatile
@@ -299,10 +325,22 @@ object CanteenGateway {
                 }
             }
         }
+        val startedAt = System.currentTimeMillis()
         runCatching {
             CanteenApi.API.insights(period, limit, canteens, minTxns)
-        }.onSuccess { insightsCache = key to (System.currentTimeMillis() to it) }
-            .onFailure { Log.w(TAG, "insights failed", it) }
-            .getOrNull()
+        }.onSuccess {
+            insightsCache = key to (System.currentTimeMillis() to it)
+            AppStatusReporting.reportCommonSuccess(
+                "canteenInsights",
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+        }.onFailure {
+            Log.w(TAG, "insights failed", it)
+            AppStatusReporting.reportCommonThrowable(
+                "canteenInsights",
+                it,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+        }.getOrNull()
     }
 }

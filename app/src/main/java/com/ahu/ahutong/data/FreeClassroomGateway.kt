@@ -4,6 +4,9 @@ import com.ahu.ahutong.data.crawler.api.jwxt.JwxtApi
 import com.ahu.ahutong.data.crawler.model.jwxt.GetBuildingsResponse
 import com.ahu.ahutong.data.crawler.model.jwxt.GetFreeRoomsRequest
 import com.ahu.ahutong.data.crawler.model.jwxt.GetFreeRoomsResponse
+import com.ahu.ahutong.data.network.AppStatusReporting
+import com.ahu.ahutong.data.network.StatusEndpoint
+import kotlinx.coroutines.CancellationException
 
 /**
  * 空闲教室的取数网关。
@@ -15,11 +18,36 @@ import com.ahu.ahutong.data.crawler.model.jwxt.GetFreeRoomsResponse
 object FreeClassroomGateway {
 
     /** 某校区的教学楼列表。 */
-    suspend fun buildings(campusId: Int): GetBuildingsResponse =
+    suspend fun buildings(campusId: Int): GetBuildingsResponse = report("buildings") {
         JwxtApi.API.getBuildings(campusId = campusId)
+    }
 
     /** 按楼栋与时间段查空闲教室。 */
-    suspend fun freeRooms(request: GetFreeRoomsRequest): GetFreeRoomsResponse =
+    suspend fun freeRooms(request: GetFreeRoomsRequest): GetFreeRoomsResponse = report("freeRooms") {
         JwxtApi.API.getFreeRooms(request)
+    }
+
+    private suspend inline fun <T> report(action: String, block: () -> T): T {
+        val startedAt = System.currentTimeMillis()
+        return try {
+            block().also {
+                AppStatusReporting.reportCampusSuccess(
+                    StatusEndpoint.AHU_JW,
+                    action,
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            AppStatusReporting.reportCampusThrowable(
+                StatusEndpoint.AHU_JW,
+                action,
+                t,
+                (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+            )
+            throw t
+        }
+    }
 }
 

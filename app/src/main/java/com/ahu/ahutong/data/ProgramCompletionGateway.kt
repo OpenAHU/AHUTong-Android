@@ -9,6 +9,8 @@ import com.ahu.ahutong.data.crawler.model.jwxt.CompletionModule
 import com.ahu.ahutong.data.crawler.model.jwxt.ProgramCompletion
 import com.ahu.ahutong.data.crawler.utils.ProgramCompletionHtmlParser
 import com.ahu.ahutong.data.dao.AHUCache
+import com.ahu.ahutong.data.network.AppStatusReporting
+import com.ahu.ahutong.data.network.StatusEndpoint
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -50,19 +52,35 @@ object ProgramCompletionGateway {
             val sample = sampleCompletion()
             return@withContext AhuResult.Success(sample to System.currentTimeMillis())
         }
-        try {
+        val startedAt = System.currentTimeMillis()
+        val result: AhuResult<Pair<ProgramCompletion, Long>> = try {
             val stdId = resolveStudentId()
-                ?: return@withContext AhuResult.Failure(AhuError.ProtocolChanged("未能解析教务学生档案 id"))
+                ?: return@withContext AppStatusReporting.reportCampusResult(
+                    StatusEndpoint.AHU_JW,
+                    "programCompletion",
+                    AhuResult.Failure(AhuError.ProtocolChanged("未能解析教务学生档案 id")),
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
             val response = JwxtApi.API.getProgramCompletionInfo(stdId)
             val html = response.body()?.string()
-                ?: return@withContext AhuResult.Failure(AhuError.Server(response.code(), "教务返回空响应"))
+                ?: return@withContext AppStatusReporting.reportCampusResult(
+                    StatusEndpoint.AHU_JW,
+                    "programCompletion",
+                    AhuResult.Failure(AhuError.Server(response.code(), "教务返回空响应")),
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
             if (looksLikeLoginPage(html)) {
                 return@withContext AhuResult.Failure(AhuError.Unauthorized("教务会话已失效，请重新登录"))
             }
             val parsed = try {
                 ProgramCompletionHtmlParser.parse(html)
             } catch (e: ProgramCompletionHtmlParser.ParseException) {
-                return@withContext AhuResult.Failure(AhuError.ProtocolChanged(e.message ?: "解析失败"))
+                return@withContext AppStatusReporting.reportCampusResult(
+                    StatusEndpoint.AHU_JW,
+                    "programCompletion",
+                    AhuResult.Failure(AhuError.ProtocolChanged(e.message ?: "解析失败")),
+                    (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+                )
             }
             val fetchedAt = System.currentTimeMillis()
             AHUCache.saveProgramCompletionJson(stdId, gson.toJson(CacheEnvelope(fetchedAt, parsed)))
@@ -71,6 +89,12 @@ object ProgramCompletionGateway {
             Log.w(TAG, "refresh failed", e)
             AhuResult.Failure(e.toAhuError())
         }
+        AppStatusReporting.reportCampusResult(
+            StatusEndpoint.AHU_JW,
+            "programCompletion",
+            result,
+            (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+        )
     }
 
     /**
