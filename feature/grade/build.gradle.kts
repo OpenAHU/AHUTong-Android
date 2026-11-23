@@ -56,7 +56,7 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
     // 成绩与考试页把 ViewModel 的 LiveData 读成 Compose 状态。
     implementation(libs.androidx.runtime.livedata)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
 
     // 预设载荷是 JSON。
     implementation(libs.gson)
@@ -80,5 +80,5 @@ dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.kotlinx.coroutines.test)
     // ExamViewModel 暴露 LiveData，测试里需要它在 JVM 上算作主线程。
-    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation(libs.androidx.arch.core.testing)
 }

@@ -51,8 +51,6 @@ dependencies {
     implementation(libs.monet)
     implementation(libs.kyant0.backdrop)
     implementation(libs.kyant0.capsule)
-}
 
-dependencies {
     testImplementation(kotlin("test"))
 }

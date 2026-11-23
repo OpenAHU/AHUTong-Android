@@ -12,7 +12,7 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 /**
- * 必吃榜服务器接口（契约文档：docs/canteen-server-api.md，2026-10-06 记录级模型版）。
+ * 必吃榜服务器接口（记录级模型版）。
  *
  * 隐私红线：上传的去标识交易为 {terminal, ts, amountCents, canteen}——
  * 不含任何用户/设备标识（连哈希都没有）；去重靠服务端 (POS, 秒, 金额) 唯一约束。

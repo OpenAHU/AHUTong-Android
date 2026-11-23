@@ -13,9 +13,6 @@
      java.lang.Object writeReplace();
      java.lang.Object readResolve();
  }
- -keepclasseswithmembernames class * {
-      native <methods>;
-  }
 # Bugly
 -dontwarn com.tencent.bugly.**
 -keep public class com.tencent.bugly.**{*;}
@@ -326,13 +323,6 @@
 -keep class com.ahu.ahutong.ui.screen.main.CmbRechargeBridgePaymentMethod { *; }
 -keep class com.ahu.ahutong.ui.screen.main.CmbPaymentUiPayload { *; }
 
-# Gson records for encrypted, per-account GMIS timetable and term caches.
--keep class com.ahu.ahutong.data.schedule.gmis.GmisTerm { *; }
--keep class com.ahu.ahutong.data.schedule.gmis.GmisCourse { *; }
--keep class com.ahu.ahutong.data.schedule.gmis.GmisSection { *; }
--keep class com.ahu.ahutong.data.schedule.gmis.GmisTimetable { *; }
--keep class com.ahu.ahutong.data.crawler.gmis.GmisCacheCodec$* { *; }
-
 -renamesourcefileattribute AHUTong
 #开启深度重载
 # -overloadaggressively
@@ -350,15 +340,6 @@
       public *** println(...);
       public *** print(...);
   }
-
-#-assumenosideeffects class android.util.Log {
-#    public static int v(...);
-#    public static int i(...);
-#    public static int d(...);
-#    public static int w(...);
-#    public static int e(...);
-#    public static int wtf(...);
-#}
 
 -keep class com.ahu.ahutong.sdk.RustSDK { *; }
 -keep class com.ahu.ahutong.sdk.UpdateConfig { *; }
@@ -439,8 +420,7 @@
 # Evaluation
 -keep interface com.ahu.ahutong.data.crawler.api.jwxt.EvaluationApi { *; }
 
-# 插件 ServiceLoader 发现：保留实现类的无参构造与服务索引
--keep class * implements com.ahu.ahutong.core.plugin.AhuPlugin { public <init>(); }
+# 插件 ServiceLoader 发现：保留实现类的无参构造与服务索引（实现类保留规则见上方插件契约区）
 -keepclassmembers class * implements com.ahu.ahutong.core.plugin.AhuPlugin { public <init>(); }
 
 # JLaTeXMath：TeX 命令与字体映射由 XML 资源反射解析，混淆后会丢类/丢方法。

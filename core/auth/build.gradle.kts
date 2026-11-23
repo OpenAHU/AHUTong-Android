@@ -35,5 +35,5 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
     // 接口里有 StateFlow；这是 API 面上的类型，不能只做实现依赖。
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    api(libs.kotlinx.coroutines.core)
 }

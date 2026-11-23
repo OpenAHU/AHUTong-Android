@@ -55,7 +55,7 @@ dependencies {
     implementation(libs.androidx.foundation)
     // 小组件用 Monet 调色板取色（与 :app 里的用法一致）。
     implementation(libs.monet)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)

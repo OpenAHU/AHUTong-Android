@@ -167,7 +167,8 @@ class ArtifactTest(unittest.TestCase):
                 self.assertEqual(UUID, manifest["uuid"])
                 self.assertEqual(hashlib.sha256(b"mock executable").hexdigest(), manifest["cli_sha256"])
                 self.assertEqual(fixture.mapping.read_bytes(), (fixture.bundle / "mapping.txt").read_bytes())
-                self.assertEqual(0o700, (fixture.bundle / "sentry-cli").stat().st_mode & 0o777)
+                if os.name != "nt":
+                    self.assertEqual(0o700, (fixture.bundle / "sentry-cli").stat().st_mode & 0o777)
                 self.assertNotIn("not-to-be-logged", (fixture.bundle / "sentry.json").read_text())
                 self.assertEqual({"mapping.txt", "uuid.properties", "sentry-cli", "sentry.json"},
                                  {p.name for p in fixture.bundle.iterdir()})
@@ -287,7 +288,8 @@ class RecordingTest(unittest.TestCase):
                     with patch.object(ci_sentry, "get_json", return_value=deployments), patch.object(ci_sentry, "run") as command:
                         ci_sentry.record(fixture.record_args())
                     self.assertEqual(1 if exists else 2, command.call_count)
-                    self.assertEqual(0o700, (fixture.bundle / "sentry-cli").stat().st_mode & 0o777)
+                    if os.name != "nt":
+                        self.assertEqual(0o700, (fixture.bundle / "sentry-cli").stat().st_mode & 0o777)
                     self.assertEqual(["releases", "finalize", manifest["release"]], command.call_args_list[0].args[0][1:])
                     if not exists:
                         args = command.call_args_list[1].args[0]

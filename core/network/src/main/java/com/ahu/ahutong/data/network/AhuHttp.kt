@@ -6,7 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * 非第一方客户端的唯一构造入口（约束见 docs/architecture/CONTEXT.md R8）。
+ * 非第一方客户端的唯一构造入口（约束见 AGENTS.md §2 R8）。
  *
  * 为什么需要它：超时/重试/重定向策略原先在 9 个客户端里各写一遍，新增客户端时既容易漏配，
  * 也无法一眼看出某条链路的时间预期（探测 5 秒、下载 15 分钟）。
@@ -40,7 +40,7 @@ object AhuHttp {
         .apply { callTimeoutSeconds?.let { callTimeout(it, TimeUnit.SECONDS) } }
 
     /**
-     * Retrofit 的唯一构造入口（约束见 docs/architecture/CONTEXT.md R9）。
+     * Retrofit 的唯一构造入口（约束见 AGENTS.md §2 R9）。
      *
      * 业务方只声明「baseUrl + 客户端定制」（如加拦截器），装配细节收口在这里：
      *

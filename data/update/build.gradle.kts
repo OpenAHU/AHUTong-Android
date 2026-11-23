@@ -47,11 +47,11 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     // 下载器自己带作用域与事件流。
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
     // 下载器是"实现也在模块里"的那种端口：组合根靠 @Inject 构造它。
-    implementation("javax.inject:javax.inject:1")
+    implementation(libs.javax.inject)
     // 元数据模型与策略不依赖 Android 之外的任何东西。
-    implementation("androidx.annotation:annotation:1.9.1")
+    implementation(libs.androidx.annotation)
 
     testImplementation(kotlin("test-junit"))
 }

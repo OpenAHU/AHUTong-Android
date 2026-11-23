@@ -1,10 +1,10 @@
 import java.util.Properties
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("io.sentry.android.gradle")
@@ -123,7 +123,6 @@ android {
                 "proguard-rules.pro"
             )
         }
-//            signingConfig = signingConfigs.getByName("my_custom_debug_sign")
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
@@ -133,14 +132,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-//            signingConfig = signingConfigs.getByName("my_custom_debug_sign")
         }
     }
-//    packagingOptions {
-//        resources {
-//            excludes += ['META-INF/ASL2.0', 'META-INF/LICENSE', 'META-INF/NOTICE', 'META-INF/MANIFEST.MF']
-//        }
-//    }
     // 插件 ServiceLoader 索引：多插件各带一份 META-INF/services，内容合并而非冲突报错
     packaging {
         resources.merges += "META-INF/services/**"
@@ -279,7 +272,7 @@ dependencies {
     testImplementation(libs.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
     // LiveData 的 setValue 要求"主线程"；InstantTaskExecutorRule 让它在 JVM 单测里成立。
-    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation(libs.androidx.arch.core.testing)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)

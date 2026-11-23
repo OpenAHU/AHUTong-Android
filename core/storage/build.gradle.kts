@@ -31,7 +31,7 @@ android {
 
 dependencies {
     // 接口里出现 Flow，因此协程是 API 依赖，而不是实现细节。
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    api(libs.kotlinx.coroutines.core)
     api(project(":core:common"))
     // AppUiTheme / AppThemeMode 是设置的值类型。
     api(project(":core:model"))

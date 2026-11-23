@@ -10,7 +10,10 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import hashlib
 import json
 import os
@@ -69,6 +72,8 @@ def _regular(path: Path) -> bool:
 
 @contextlib.contextmanager
 def _locked(root: Path):
+    if fcntl is None:
+        raise ReleaseError("POSIX fcntl file locking is required for remote release operations")
     descriptor = os.open(
         root / ".ci-release.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600
     )

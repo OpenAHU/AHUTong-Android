@@ -17,6 +17,7 @@ import zipfile
 import ci_remote_release as release
 
 
+@unittest.skipIf(os.name == "nt", "Server deployment uses POSIX fcntl locks and file modes")
 class RemoteReleaseTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

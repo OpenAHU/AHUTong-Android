@@ -1,0 +1,6 @@
+interface:
+  display_name: "AHUTong Architecture Guard"
+  short_description: "强制执行多模块边界、ADR契约、网络单点构造与R8规则"
+  default_prompt: "Use $ahutong-architecture-guard to verify module boundaries, contracts, and R8 rules."
+policy:
+  allow_implicit_invocation: true

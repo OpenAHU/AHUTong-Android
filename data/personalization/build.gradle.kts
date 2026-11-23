@@ -30,6 +30,6 @@ android {
 
 dependencies {
     // 接口暴露 StateFlow，语义词汇里的 SemanticEventRecorder 带 @Inject：两者都在 API 面上。
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    api("javax.inject:javax.inject:1")
+    api(libs.kotlinx.coroutines.core)
+    api(libs.javax.inject)
 }

@@ -1,0 +1,6 @@
+interface:
+  display_name: "AHUTong UI Design"
+  short_description: "规范设计系统组件复用、主题槽位、液态玻璃、触感与简洁文案"
+  default_prompt: "Use $ahutong-ui-design when building or refactoring AHUTong Compose UI."
+policy:
+  allow_implicit_invocation: true

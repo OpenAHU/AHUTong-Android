@@ -31,7 +31,7 @@ dependencies {
     // ext/ 与 DebugClock 从 :app 搬来之后引入的三项依赖：
     // JSON 扩展用 Gson、launchSafe 用协程、UserExt 的扩展接收者是 :core:model 的领域模型。
     implementation(libs.gson)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
     api(project(":core:model"))
     testImplementation(kotlin("test-junit"))
 }

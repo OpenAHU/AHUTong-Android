@@ -1,0 +1,6 @@
+interface:
+  display_name: "AHUTong Plugin Dev"
+  short_description: "规范v3插件契约、类加载隔离、能力门控、R8 ABI与打包流程"
+  default_prompt: "Use $ahutong-plugin-dev when editing plugin-api, host loader, or plugin modules."
+policy:
+  allow_implicit_invocation: true

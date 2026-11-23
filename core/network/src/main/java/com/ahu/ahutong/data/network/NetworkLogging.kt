@@ -5,7 +5,7 @@ import okhttp3.Interceptor
 import okhttp3.logging.HttpLoggingInterceptor
 
 /**
- * HTTP 日志拦截器的唯一构造点（约束见 docs/architecture/CONTEXT.md R6）。
+ * HTTP 日志拦截器的唯一构造点（约束见 AGENTS.md §2 R6）。
  *
  * 设计要点：
  * - release 构建返回 null —— 日志代码路径根本不存在，而不是依赖每个调用点"记得写 if (BuildConfig.DEBUG)"；

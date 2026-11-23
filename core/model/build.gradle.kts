@@ -6,7 +6,7 @@ plugins {
 
 /**
  * 领域模型模块：只放"全局共享的数据结构"，不依赖 Android 框架能力，也不依赖任何业务模块。
- * 依赖方向见 docs/architecture/CONTEXT.md 第 2 节（core 不得依赖 feature/data/ui）。
+ * 依赖方向见 AGENTS.md §2（由门禁 R31 看守，core 不得依赖 feature/data/ui）。
  */
 android {
     namespace = "com.ahu.ahutong.core.model"
@@ -28,7 +28,7 @@ android {
 
 dependencies {
     // data/model 中 3 个 Java 文件使用了 @NonNull，仅此一项 Android 依赖。
-    implementation("androidx.annotation:annotation:1.9.1")
+    implementation(libs.androidx.annotation)
     // 模型用 @SerializedName 描述线上字段名（Gson 反射使用，属于模型契约的一部分）。
     implementation(libs.gson)
 

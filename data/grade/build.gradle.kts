@@ -35,5 +35,5 @@ dependencies {
     api(project(":core:common"))
     api(project(":core:model"))
     // 端口里有 Flow（mock 刷新计数）。
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    api(libs.kotlinx.coroutines.core)
 }

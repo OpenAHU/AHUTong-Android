@@ -5,44 +5,64 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * 模块边界的自动门禁，对应 docs/architecture/CONTEXT.md 第 2 节的硬约束。
+ * 模块边界的自动门禁（零豁免），对应 AGENTS.md §2 的硬约束。
  *
- * 规则定义在 [RULES]；存量违规登记在 docs/architecture/boundary-allowlist.txt，且只减不增：
- * - 出现清单之外的新违规 -> 测试失败；
- * - 清单里的条目已不再违规（清单腐烂）-> 测试失败。
- *
- * 修正方式永远是改依赖方向，而不是往 baseline 清单里加一行。
+ * 规则定义在 [RULES]，严禁通过豁免清单或放宽 exceptPrefixes 绕过。
  */
 class ModuleBoundaryTest {
 
     @Test
-    fun `no boundary violation outside the baseline allowlist`() {
-        val allowlist = allowlistEntries()
+    fun `no boundary violation across all governed modules`() {
         val offenders = RULES.flatMap { rule ->
-            violations(rule)
-                .filterNot { file -> (rule.id + " " + file) in allowlist }
-                .map { file -> rule.id + "  " + file }
+            violations(rule).map { file -> rule.id + "  " + file }
         }
 
         assertTrue(
             offenders.isEmpty(),
-            "检测到未登记的模块边界违规，请修正依赖方向（不要往 baseline 加条目）：\n" +
+            "检测到模块边界违规，请修正依赖方向：\n" +
                 offenders.joinToString("\n") +
-                "\n规则说明见 docs/architecture/CONTEXT.md 第 2 节。"
+                "\n规则说明见 AGENTS.md §2。"
         )
     }
 
     @Test
-    fun `baseline allowlist has no stale entries`() {
-        val stale = allowlistEntries().filterNot { entry ->
-            val rule = RULES.firstOrNull { entry.startsWith(it.id + " ") } ?: return@filterNot false
-            entry.removePrefix(rule.id + " ").trim() in violations(rule)
-        }
+    fun `all settings modules are governed and features never depend on sibling features`() {
+        val root = repositoryRoot()
+        val settingsModules = Regex("""include\s*\(([^)]+)\)""")
+            .findAll(File(root, "settings.gradle.kts").readText())
+            .flatMap { call ->
+                Regex(""""(:[^"]+)"""").findAll(call.groupValues[1]).map { it.groupValues[1] }
+            }
+            .map { it.removePrefix(":").replace(':', '/') }
+            .filterNot { it == "core/plugin-platform" }
+            .toSet()
+
+        val uncovered = (settingsModules - SOURCE_MODULES.toSet()).sorted()
+        assertTrue(
+            uncovered.isEmpty(),
+            "以下 settings.gradle.kts 模块未纳入 ModuleBoundaryTest.SOURCE_MODULES：\n" +
+                uncovered.joinToString("\n")
+        )
+
+        val crossFeatureDeps = settingsModules
+            .filter { it.startsWith("feature/") }
+            .flatMap { module ->
+                val buildFile = File(root, "$module/build.gradle.kts")
+                if (!buildFile.isFile) emptyList()
+                else {
+                    val text = buildFile.readText()
+                    Regex("""project\(":feature:([A-Za-z0-9_.-]+)"\)""")
+                        .findAll(text)
+                        .map { "$module -> :feature:${it.groupValues[1]}" }
+                        .toList()
+                }
+            }
+            .sorted()
 
         assertTrue(
-            stale.isEmpty(),
-            "以下 baseline 条目已不再违规，请从 docs/architecture/boundary-allowlist.txt 删除：\n" +
-                stale.joinToString("\n")
+            crossFeatureDeps.isEmpty(),
+            "检测到 feature 模块间横向依赖（AGENTS.md §2 禁止）：\n" +
+                crossFeatureDeps.joinToString("\n")
         )
     }
 
@@ -89,39 +109,34 @@ class ModuleBoundaryTest {
     private fun sourceFiles(): List<SourceFile> {
         val repositoryRoot = repositoryRoot()
         return SOURCE_MODULES.flatMap { module ->
-            val moduleSourceRoot = File(repositoryRoot, module + "/" + SOURCE_SUBPATH)
-            moduleSourceRoot.walkTopDown()
-                .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
-                .map { file ->
-                    val packagePath = file.relativeTo(moduleSourceRoot).invariantSeparatorsPath
-                    SourceFile(
-                        relativePath = module + "/" + SOURCE_SUBPATH + "/" + packagePath,
-                        packagePath = packagePath,
-                        file = file
-                    )
+            SOURCE_SUBPATHS.flatMap { subpath ->
+                val moduleSourceRoot = File(repositoryRoot, "$module/$subpath")
+                if (!moduleSourceRoot.isDirectory) emptyList()
+                else {
+                    moduleSourceRoot.walkTopDown()
+                        .filter { it.isFile && it.extension in SOURCE_EXTENSIONS }
+                        .map { file ->
+                            val packagePath = file.relativeTo(moduleSourceRoot).invariantSeparatorsPath
+                            SourceFile(
+                                relativePath = "$module/$subpath/$packagePath",
+                                packagePath = packagePath,
+                                file = file
+                            )
+                        }
+                        .toList()
                 }
-                .toList()
+            }
         }
-    }
-
-    private fun allowlistEntries(): Set<String> {
-        val file = File(repositoryRoot(), ALLOWLIST_PATH)
-        assertTrue(file.isFile, "缺少模块边界 baseline 清单：" + ALLOWLIST_PATH)
-        return file.readLines()
-            .map { it.substringBefore('#').trim() }
-            .filter { it.isNotEmpty() }
-            .toSet()
     }
 
     private fun repositoryRoot(): File {
         val userDirectory = requireNotNull(System.getProperty("user.dir"))
         return generateSequence(File(userDirectory)) { it.parentFile }
-            .first { File(it, "app/" + SOURCE_SUBPATH).isDirectory }
+            .first { File(it, "app/src/main/java").isDirectory }
     }
 
     private companion object {
-        const val SOURCE_SUBPATH = "src/main/java"
-        const val ALLOWLIST_PATH = "docs/architecture/boundary-allowlist.txt"
+        val SOURCE_SUBPATHS = listOf("src/main/java", "src/main/kotlin")
         val SOURCE_EXTENSIONS = setOf("kt", "java")
         val SOURCE_MODULES = listOf(
             "app",
@@ -773,6 +788,32 @@ class ModuleBoundaryTest {
                     "import com.ahu.ahutong.notification.",
                     "import com.ahu.ahutong.reminder.",
                     "import com.ahu.ahutong.sdk.",
+                    "import com.ahu.ahutong.AHUApplication"
+                )
+            ),
+            BoundaryRule(
+                id = "R31-model-leaf",
+                packagePrefix = "com/ahu/ahutong/",
+                modules = listOf("core/model"),
+                forbiddenImportPrefixes = listOf(
+                    "import android.",
+                    "import androidx.compose.",
+                    "import androidx.lifecycle.",
+                    "import androidx.work.",
+                    "import androidx.room.",
+                    "import okhttp3.",
+                    "import retrofit2.",
+                    "import com.ahu.ahutong.ui.",
+                    "import com.ahu.ahutong.personalization.",
+                    "import com.ahu.ahutong.sdk.",
+                    "import com.ahu.ahutong.data.dao.",
+                    "import com.ahu.ahutong.data.repository.",
+                    "import com.ahu.ahutong.data.crawler.",
+                    "import com.ahu.ahutong.data.session.",
+                    "import com.ahu.ahutong.data.security.",
+                    "import com.ahu.ahutong.appwidget.",
+                    "import com.ahu.ahutong.notification.",
+                    "import com.ahu.ahutong.reminder.",
                     "import com.ahu.ahutong.AHUApplication"
                 )
             )

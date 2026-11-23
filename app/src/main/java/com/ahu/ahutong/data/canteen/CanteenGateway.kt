@@ -20,7 +20,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 必吃榜服务器网关（契约：docs/canteen-server-api.md 记录级模型版）。
+ * 必吃榜服务器网关（记录级模型版）。
  *
  * - 上传闸门在调用侧（ViewModel 读 SettingsStore.canteenUploadConsent，未同意不调用本方法）。
  * - 上传内容：去标识逐笔交易（无用户/设备标识），分批 400 笔；服务端 (POS,秒,金额) 幂等，可放心重传。

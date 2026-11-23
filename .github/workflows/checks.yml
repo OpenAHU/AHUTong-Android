@@ -62,7 +62,7 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Check changed whitespace and tracked credentials
+      - name: Check changed whitespace and repository hygiene
         env:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
@@ -76,33 +76,14 @@ jobs:
           else
             git -c core.whitespace=cr-at-eol show --format= --check HEAD
           fi
-          python3 - <<'PY'
-          import pathlib, re, subprocess
-          paths = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
-          credentials = re.compile(r'(?:sntry[su]_[A-Za-z0-9]{40,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)')
-          failed = False
-          for name in filter(None, paths):
-              path = pathlib.Path(name)
-              if path.name in {'keystore.properties', 'local.properties'} or path.suffix in {'.jks', '.keystore'}:
-                  print(f'::error file={name}::Local credentials must not be tracked')
-                  failed = True
-              if not path.is_file():
-                  continue
-              try:
-                  content = path.read_text(encoding='utf-8')
-              except (UnicodeDecodeError, OSError):
-                  continue
-              if credentials.search(content):
-                  print(f'::error file={name}::Possible committed credential; remove and rotate it')
-                  failed = True
-              if path.suffix in {'.kt', '.java'} and '2c2ccadcad' in content:
-                  print(f'::error file={name}::Use BuildConfig.BUGLY_APP_ID instead of a source literal')
-                  failed = True
-          raise SystemExit(1 if failed else 0)
-          PY
+          python3 scripts/check_repo_hygiene.py
 
       - name: Test release planning and deployment helpers
-        run: python3 -B -m unittest discover -s scripts -p 'test_ci_*.py' -v
+        run: |
+          python3 -B -m unittest discover -s scripts -p 'test_ci_*.py' -v
+          if python3 -c "import cryptography" 2>/dev/null; then
+            python3 -B -m unittest discover -s scripts -p 'test_decrypt_*.py' -v
+          fi
 
       - name: Set up project toolchain
         uses: ./.github/actions/setup-android
@@ -122,7 +103,7 @@ jobs:
 
       - name: Release lint after unit tests pass
         # AGP 的 lint model 任务暂不支持配置缓存序列化，单独关掉避免构建在缓存阶段失败。
-        run: ./gradlew --no-daemon --no-configuration-cache --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process :app:lintRelease --stacktrace
+        run: ./gradlew --no-daemon --no-configuration-cache --build-cache -Dorg.gradle.jvmargs="-Xmx4096m -Dfile.encoding=UTF-8" -Pkotlin.compiler.execution.strategy=in-process :app:lintRelease :feature:circle:lintRelease --stacktrace
 
       - name: Upload test and lint reports
         if: always()
@@ -133,5 +114,6 @@ jobs:
             **/build/reports/tests/
             **/build/test-results/
             app/build/reports/lint-results-release.*
+            feature/circle/build/reports/lint-results-release.*
           if-no-files-found: ignore
           retention-days: 14

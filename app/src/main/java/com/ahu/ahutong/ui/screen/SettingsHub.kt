@@ -12,7 +12,6 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.ahu.ahutong.MainActivity
 import com.ahu.ahutong.feedback.FEEDBACK_ROUTE
-import com.ahu.ahutong.feedback.FEEDBACK_ROUTE
 import com.ahu.ahutong.data.session.SavedAccounts
 import com.ahu.ahutong.ui.screen.setup.SavedAccountsDialog
 import androidx.compose.ui.res.painterResource

@@ -48,49 +48,10 @@ dependencies {
     implementation(libs.androidx.foundation)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.coil.compose)
-    implementation("androidx.compose.material3:material3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.material3)
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(kotlin("test-junit"))
     // Android's org.json classes are stubs in local JVM tests.
-    testImplementation("org.json:json:20240303")
-}
-
-
-/*
- * .ahup 打包：assembleRelease → AAR classes.jar → D8 → 签名 → zip。
- * 运行：gradlew :feature:circle:packageAhup
- * 配置 AHUP_KEYSTORE 时要求完整签名环境；未配置时产未签名包。
- */
-tasks.register("packageAhup", Exec::class) {
-    group = "ahup"
-    description = "打包运行期插件（.ahup）"
-    dependsOn("assembleRelease")
-    val keystore = providers.environmentVariable("AHUP_KEYSTORE").orNull?.let(::File)
-    val signing = if (keystore == null) emptyList() else {
-        require(keystore.isFile) { "AHUP_KEYSTORE must point to a signing file" }
-        fun credential(name: String) = providers.environmentVariable(name).orNull
-            ?.takeIf { it.isNotEmpty() } ?: error("Missing signing environment: $name")
-        listOf(
-            "--keystore", keystore.absolutePath,
-            "--storepass", credential("AHUP_STORE_PASSWORD"),
-            "--alias", credential("AHUP_KEY_ALIAS"),
-            "--keypass", credential("AHUP_KEY_PASSWORD")
-        )
-    }
-    commandLine(listOf(
-        providers.environmentVariable("AHUP_PYTHON").getOrElse("python3"),
-        rootProject.file("scripts/package_ahup.py").absolutePath,
-        projectDir.absolutePath,
-        layout.buildDirectory.file("outputs/aar/circle-release.aar").get().asFile.absolutePath,
-        rootProject.file("dist/ahup/campus_circle.ahup").absolutePath,
-        "--id", "campus_circle",
-        "--title", "校园圈子",
-        "--summary", "安大 BBS 只读浏览",
-        "--tint", "0xFF5C6BC0",
-        "--version", "0.1.0",
-        "--author", "AHUTong",
-        "--entry", "com.ahu.ahutong.feature.circle.CirclePlugin",
-        "--capabilities", "NETWORK,PLUGIN_STORAGE"
-    ) + signing)
+    testImplementation(libs.org.json)
 }

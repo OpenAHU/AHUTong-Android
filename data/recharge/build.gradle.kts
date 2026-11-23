@@ -43,7 +43,7 @@ dependencies {
     api(libs.okhttp)
     // 协议 DTO 用 @SerializedName 描述线上字段名（Gson 反射使用，属于契约的一部分）。
     implementation(libs.gson)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
 
     // 协议 DTO 的签名契约测试与 DTO 同模块：字段名与拼串顺序都是协议的一部分。
     testImplementation(kotlin("test-junit"))

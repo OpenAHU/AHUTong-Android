@@ -57,12 +57,12 @@ dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.kotlinx.coroutines.test)
     // CardBalanceDepositViewModel 暴露 LiveData，测试里需要它在 JVM 上算作主线程。
-    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation(libs.androidx.arch.core.testing)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.hilt.navigation.compose)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
     // 浴室与电费的 ViewModel 仍自己解析协议响应（按协议顺序推进四步流程）。
     // 解析搬进 :data:recharge 的适配器是后续的一刀，届时这个依赖可以去掉。
     implementation(libs.gson)

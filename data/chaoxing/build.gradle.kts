@@ -36,7 +36,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(kotlin("test-junit"))
 }

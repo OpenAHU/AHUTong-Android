@@ -22,11 +22,8 @@ app/map.txt
 .gradle_user_home/
 .trae/
 *.txt
-!docs/architecture/boundary-allowlist.txt
 .vscode/settings.json
 star.md
-.agents/skills/yukon-auto-update-release/config.local.json
-.agents/skills/yukon-auto-update-release/.work/
 .hermes/
 .work/
 .gradle-home/

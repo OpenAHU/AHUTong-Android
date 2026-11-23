@@ -5,7 +5,7 @@ package com.ahu.ahutong.data.crawler.net
  *
  * 有了它，data/crawler/net 不再 import 任何业务类型（AHURepository / AHUCache / AhuSessionState）；
  * 业务实现见 data/session/RepositorySessionExpiryHook，由 API 客户端构造时注入。
- * 约束见 docs/architecture/CONTEXT.md 第 2 节 R4。
+ * 约束见 AGENTS.md §2 R4。
  */
 interface SessionExpiryHook {
 

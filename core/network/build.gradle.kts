@@ -43,7 +43,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.logging.interceptor)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.kotlinx.coroutines.android)
 
     // SessionRefreshPolicy 是模块内部的策略，测试跟着策略走（:app 看不到 internal）。
     testImplementation(kotlin("test-junit"))

@@ -1,7 +1,7 @@
 package com.ahu.ahutong.core.common
 
 /**
- * 统一错误模型（见 docs/architecture/adr/0001-error-model.md）。
+ * 统一错误模型（见 AGENTS.md §2 错误边界）。
  *
  * 取代三套并存的表达方式：`AHUResponse.msg` 字符串、Kotlin `Result`、以及各适配器自行约定的失败语义。
  * 调用方可以穷举分支，而不再依赖字符串判断。

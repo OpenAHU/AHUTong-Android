@@ -51,8 +51,8 @@ dependencies {
     implementation(libs.androidx.runtime.livedata)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.activity.compose)
-    implementation("androidx.lifecycle:lifecycle-livedata-core:2.9.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation(libs.androidx.lifecycle.livedata.core)
+    implementation(libs.kotlinx.coroutines.android)
 
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
@@ -75,5 +75,5 @@ dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.kotlinx.coroutines.test)
     // ScheduleViewModel 暴露 LiveData，测试里需要它在 JVM 上算作主线程。
-    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation(libs.androidx.arch.core.testing)
 }
