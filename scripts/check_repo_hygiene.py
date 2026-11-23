@@ -17,11 +17,15 @@ CREDENTIALS_RE = re.compile(
     r"|github_pat_[A-Za-z0-9_]{40,}"
     r"|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)"
 )
+_PERSONAL_PATH_PREFIXES = (
+    r"[A-Za-z]:\\{1,2}" + "Us" + "ers" + r"\\{1,2}",
+    "/" + "Us" + "ers/",
+    "/" + "ho" + "me/",
+)
 PERSONAL_PATH_RE = re.compile(
-    r"(?:[A-Za-z]:\\\\?Users\\\\?[^\\/\s\"']+|/Users/[^/\s\"']+|/home/[^/\s\"']+)"
+    "(?:" + "|".join(_PERSONAL_PATH_PREFIXES) + r")[^\\/\s\"']+"
 )
 PERSONAL_PATH_EXTENSIONS = {".py", ".kts", ".yml", ".yaml", ".sh", ".ps1", ".bat"}
-PERSONAL_PATH_ALLOWLIST: set[str] = set()
 
 
 def tracked_files(root: pathlib.Path) -> list[str]:
@@ -65,11 +69,7 @@ def check_repo(root: pathlib.Path, paths: list[str] | None = None) -> list[str]:
             errors.append(f"{rel}: possible committed credential; remove and rotate it")
         if path.suffix in {".kt", ".java"} and "2c2ccadcad" in content:
             errors.append(f"{rel}: use BuildConfig.BUGLY_APP_ID instead of a source literal")
-        if (
-            path.suffix in PERSONAL_PATH_EXTENSIONS
-            and rel not in PERSONAL_PATH_ALLOWLIST
-            and PERSONAL_PATH_RE.search(content)
-        ):
+        if path.suffix in PERSONAL_PATH_EXTENSIONS and PERSONAL_PATH_RE.search(content):
             errors.append(f"{rel}: hardcoded personal machine path is forbidden")
 
     agents_md = root / "AGENTS.md"

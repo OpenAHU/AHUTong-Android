@@ -47,13 +47,40 @@ class RepoHygieneTest(unittest.TestCase):
             paths = self.make_minimal_repo(root)
             (root / "scripts").mkdir()
             bad_py = root / "scripts" / "bad.py"
-            bad_py.write_text('SDK = r"C:\\Users\\Alice\\Sdk"\n', encoding="utf-8")
+            bad_py.write_text(
+                'SDK = r"' + "\\".join(["C:", "Us" + "ers", "Alice", "Sdk"]) + '"\n',
+                encoding="utf-8",
+            )
+            bad_sh = root / "scripts" / "bad.sh"
+            bad_sh.write_text(
+                'SDK="' + "/".join(["", "ho" + "me", "alice", "sdk"]) + '"\n',
+                encoding="utf-8",
+            )
+            bad_kts = root / "scripts" / "bad.kts"
+            bad_kts.write_text(
+                'val sdk = "' + "/".join(["", "Us" + "ers", "alice", "sdk"]) + '"\n',
+                encoding="utf-8",
+            )
             (root / "app" / "Bad.kt").write_text('const val ID = "2c2ccadcad"\n', encoding="utf-8")
             (root / "app" / "proguard-rules.pro").write_text(
                 "-keep class A { *; }\n-keep class A { *; }\n", encoding="utf-8"
             )
-            errors = hygiene.check_repo(root, paths + ["scripts/bad.py", "app/Bad.kt"])
-            self.assertEqual(3, len(errors))
+            errors = hygiene.check_repo(
+                root,
+                paths + ["scripts/bad.py", "scripts/bad.sh", "scripts/bad.kts", "app/Bad.kt"],
+            )
+            self.assertEqual(5, len(errors))
+
+    def test_current_repo_passes_hygiene(self):
+        repo_root = pathlib.Path(__file__).resolve().parent.parent
+        self.assertEqual([], hygiene.check_repo(repo_root))
+        self.assertEqual(
+            [],
+            hygiene.check_repo(
+                repo_root,
+                ["scripts/check_repo_hygiene.py", "scripts/test_ci_repo_hygiene.py"],
+            ),
+        )
 
     def test_rejects_missing_skill_md_and_bom_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
