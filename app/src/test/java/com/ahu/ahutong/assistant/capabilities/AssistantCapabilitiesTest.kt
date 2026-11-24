@@ -31,6 +31,8 @@ class AssistantCapabilitiesTest {
         "get_course_tasks",
         "get_weather",
         "web_search",
+        "search_campus_wall",
+        "read_campus_topic",
     )
 
     private val expectedActionIds = setOf("add_calendar_event")

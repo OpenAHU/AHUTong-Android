@@ -30,6 +30,8 @@ object AssistantCapabilities {
         GetCanteenRankingCapability(),
         GetLostFoundCapability(),
         GetNoticesCapability(),
+        SearchCampusWallCapability(),
+        ReadCampusTopicCapability(),
         GetMailCapability(),
         GetPhoneBookCapability(),
         GetAssignmentsCapability(),
