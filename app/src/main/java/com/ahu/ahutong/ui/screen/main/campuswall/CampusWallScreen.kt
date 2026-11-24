@@ -120,6 +120,7 @@ fun CampusWallScreen(
                             post = post,
                             onClick = { onOpenTopic(post.id) },
                             onOpenImage = openImage,
+                            previewComments = ui.postComments[post.id].orEmpty(),
                         )
                     }
                     item(key = "footer") {
