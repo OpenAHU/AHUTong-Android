@@ -2,11 +2,15 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.laundry.LaundryAuthException
 import com.ahu.ahutong.data.laundry.LaundryDevice
 import com.ahu.ahutong.data.laundry.LaundryDeviceTable
 import com.ahu.ahutong.data.laundry.LaundryKind
 import com.ahu.ahutong.data.laundry.LaundryOccupancy
+import com.ahu.ahutong.data.laundry.LaundryParkMatch
+import com.ahu.ahutong.data.laundry.LaundryParkMatcher
+import com.ahu.ahutong.data.laundry.LaundryParkStore
 import com.ahu.ahutong.data.laundry.LaundryRepository
 import com.ahu.ahutong.data.laundry.LaundryTable
 import com.ahu.ahutong.data.laundry.LaundryToken
@@ -31,7 +35,8 @@ import kotlinx.coroutines.launch
 class LaundryViewModel @Inject constructor(
     private val table: LaundryDeviceTable,
     private val repository: LaundryRepository,
-    private val tokenStore: LaundryTokenStore
+    private val tokenStore: LaundryTokenStore,
+    private val parkStore: LaundryParkStore
 ) : ViewModel() {
 
     data class DeviceRow(val device: LaundryDevice, val occupancy: LaundryOccupancy?)
@@ -43,6 +48,10 @@ class LaundryViewModel @Inject constructor(
         val loaded: Boolean = false,
         val parks: List<String> = emptyList(),
         val parkIndex: Int = 0,
+        /** 非空表示宿舍楼栋对应多个洗衣房，UI 让用户选一次。 */
+        val parkPrompt: List<Int> = emptyList(),
+        /** 定位说明（如「已按宿舍 榴园2号楼 定位」），只用于展示。 */
+        val matchNote: String? = null,
         val kind: LaundryKind = LaundryKind.WASHER,
         val rows: List<DeviceRow> = emptyList(),
         /** 按楼层分组；空表示当前视图没有楼层信息，走平铺三列。 */
@@ -74,26 +83,49 @@ class LaundryViewModel @Inject constructor(
             val loaded = table.load()
             devices = loaded.devices
             val token = tokenStore.token()
+            val parked = resolvePark(loaded.parks)
             _state.value = _state.value.copy(
                 loaded = true,
                 parks = loaded.parks,
-                parkIndex = defaultPark(loaded.parks),
+                parkIndex = parked.index,
+                parkPrompt = parked.prompt,
+                matchNote = parked.note,
                 tableUpdatedAt = loaded.updatedAt.takeIf { it.isNotBlank() },
                 token = token,
                 tokenExpiresAt = token?.let(LaundryToken::expiresAtMillis)
             )
             rebuild()
             // 线上台账增量升级：304/失败都静默，基线已兜底；成功后重建列表
-            upgradeTable()
+            // 进页面必须有一次占用查询：升级成功时 upgradeTable 内部已发起，否则这里补一次
+            val upgraded = upgradeTable()
+            if (!upgraded) refresh()
         }
     }
 
     fun selectPark(index: Int) {
-        if (index == _state.value.parkIndex) return
+        val current = _state.value
+        val parkName = current.parks.getOrNull(index) ?: return
+        // 手选一次就记住：下次进来（含多栋楼候选）直接落这里，不被自动匹配覆盖
+        parkStore.save(parkName)
+        if (index == current.parkIndex) {
+            _state.value = current.copy(parkPrompt = emptyList())
+            return
+        }
         occupancies = emptyMap() // 换园区重新查，别拿旧状态糊弄
-        _state.value = _state.value.copy(parkIndex = index, updatedAt = null)
+        _state.value = current.copy(
+            parkIndex = index,
+            parkPrompt = emptyList(),
+            matchNote = null,
+            updatedAt = null
+        )
         rebuild()
         refresh()
+    }
+
+    /** 关掉「这栋楼有多个洗衣房」弹窗，保留当前临时园区。 */
+    fun dismissParkPrompt() {
+        if (_state.value.parkPrompt.isEmpty()) return
+        _state.value = _state.value.copy(parkPrompt = emptyList())
     }
 
     fun selectKind(kind: LaundryKind) {
@@ -214,24 +246,32 @@ class LaundryViewModel @Inject constructor(
         }
     }
 
-    private suspend fun upgradeTable() {
+    /** @return true 表示台账已升级，且占用查询已由本方法拉起。 */
+    private suspend fun upgradeTable(): Boolean {
         val upgraded = runCatching { table.refreshFromNetwork() }.getOrDefault(false)
-        if (!upgraded) return
+        if (!upgraded) return false
         val fresh: LaundryTable = table.load()
         devices = fresh.devices
         val current = _state.value
-        // 园区列表可能变化：同名园区保留下标，否则回落默认园区
+        // 园区列表可能变化：同名园区保留下标（手选结果不被自动匹配覆盖），否则重新定位
         val samePark = fresh.parks.indexOfFirst { it == current.parks.getOrNull(current.parkIndex) }
-        val parkIndex = if (samePark >= 0) samePark else defaultPark(fresh.parks)
+        val parked = if (samePark >= 0) {
+            ParkResolution(samePark, emptyList(), current.matchNote)
+        } else {
+            resolvePark(fresh.parks)
+        }
         occupancies = emptyMap()
         _state.value = current.copy(
             parks = fresh.parks,
-            parkIndex = parkIndex,
+            parkIndex = parked.index,
+            parkPrompt = parked.prompt,
+            matchNote = parked.note,
             tableUpdatedAt = fresh.updatedAt.takeIf { it.isNotBlank() },
             updatedAt = null
         )
         rebuild()
         refresh()
+        return true
     }
 
     private fun visibleDevices(state: UiState): List<LaundryDevice> =
@@ -271,10 +311,47 @@ class LaundryViewModel @Inject constructor(
             .map { (floor, indices) -> FloorRow(floor, indices.map { rows[it] }) }
     }
 
-    private fun defaultPark(parks: List<String>): Int {
-        // 打开就落在榴园（磬苑中心区，设备最全的样板园区），没有再退回第一个
-        val preferred = parks.indexOfFirst { it == "榴园" }
-        return if (preferred >= 0) preferred else 0
+    /** 园区定位结果：[prompt] 非空表示要让用户在候选里选一次。 */
+    private data class ParkResolution(val index: Int, val prompt: List<Int>, val note: String?)
+
+    /**
+     * 打开时的园区：宿舍楼栋匹配 → 上次手选 → 榴园兜底。
+     *
+     * 兰园在台账里拆成 A/B/C/D 栋，「兰园2号楼」只能给出多个候选，所以首次进页面
+     * 弹一次选择；选过一次就记进 [LaundryParkStore]，以后直接落，不再弹。
+     */
+    private fun resolvePark(parks: List<String>): ParkResolution {
+        if (parks.isEmpty()) return ParkResolution(0, emptyList(), null)
+        fun remembered(): Int? = parkStore.last()
+            ?.let { name -> parks.indexOfFirst { it == name } }
+            ?.takeIf { it >= 0 }
+
+        val building = runCatching { AHUCache.getDormitoryInfo()?.building }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+        return when (val matched = LaundryParkMatcher.match(building, parks)) {
+            is LaundryParkMatch.Hit -> ParkResolution(
+                index = matched.index,
+                prompt = emptyList(),
+                note = building?.let { "已按宿舍 $it 定位" }
+            )
+            is LaundryParkMatch.Multiple -> {
+                val last = remembered()
+                val keepLast = last != null && last in matched.indices
+                val index = if (keepLast) last!! else matched.indices.first()
+                ParkResolution(
+                    index = index,
+                    prompt = if (keepLast) emptyList() else matched.indices,
+                    note = building?.let {
+                        "宿舍 $it 对应 ${matched.indices.size} 个洗衣房，已显示 ${parks[index]}"
+                    }
+                )
+            }
+            LaundryParkMatch.None -> ParkResolution(
+                index = remembered() ?: parks.indexOfFirst { it == "榴园" }.takeIf { it >= 0 } ?: 0,
+                prompt = emptyList(),
+                note = null
+            )
+        }
     }
 
     /**

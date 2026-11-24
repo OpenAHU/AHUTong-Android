@@ -130,12 +130,13 @@ fun LaundryScreen(
     LaunchedEffect(state.parkIndex, state.kind) {
         listState.scrollToItem(0)
     }
-    // 页面停留期间每 45 秒自动刷一次（按当前可见窗口），用户不操作也能看到状态变化
-    LaunchedEffect(state.parkIndex, state.kind, state.hasToken) {
+    // 进入页面先查一次占用（从其他页面返回同样重跑），之后每 45 秒自动刷一次，
+    // 用户不操作也能看到状态变化；切园区/机型由 selectPark/selectKind 自行刷新，故不作 key
+    LaunchedEffect(state.hasToken) {
         if (!state.hasToken) return@LaunchedEffect
         while (true) {
-            delay(45_000)
             viewModel.refresh()
+            delay(45_000)
         }
     }
 
@@ -167,6 +168,17 @@ fun LaundryScreen(
                             label = { Text(kind.label, fontSize = 13.sp) }
                         )
                     }
+                }
+            }
+            // 园区是怎么定下来的：宿舍匹配成功或被候选卡住时都说明一句
+            state.matchNote?.let { note ->
+                item {
+                    Text(
+                        text = note,
+                        fontSize = 12.sp,
+                        color = subtitleColor(),
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    )
                 }
             }
             if (state.hasToken) {
@@ -362,6 +374,43 @@ fun LaundryScreen(
                                 fontWeight = FontWeight.Medium
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // 宿舍楼栋对应多个洗衣房（兰园 A/B/C/D 栋）：选一次就记住，之后直接落那次的选择
+    if (state.parkPrompt.isNotEmpty()) {
+        AppDialog(
+            title = "这栋楼有多个洗衣房",
+            onDismiss = { viewModel.dismissParkPrompt() },
+            subtitle = state.matchNote,
+            actions = listOf(
+                AppDialogAction(label = "稍后", onClick = { viewModel.dismissParkPrompt() })
+            )
+        ) {
+            state.parkPrompt.forEach { index ->
+                val park = state.parks.getOrNull(index) ?: return@forEach
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            viewModel.selectPark(index)
+                        }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Text(park, fontSize = 15.sp)
+                    if (index == state.parkIndex) {
+                        Text(
+                            "当前",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }
