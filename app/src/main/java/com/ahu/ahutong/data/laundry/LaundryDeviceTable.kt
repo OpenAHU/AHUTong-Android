@@ -2,6 +2,7 @@ package com.ahu.ahutong.data.laundry
 
 import android.content.Context
 import android.util.Log
+import com.ahu.ahutong.BuildConfig
 import com.google.gson.JsonParser
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -48,11 +49,34 @@ class LaundryDeviceTable @Inject constructor(@ApplicationContext private val con
      */
     suspend fun refreshFromNetwork(): Boolean {
         val etag = readStoredEtag()
-        val result = runCatching { LaundryApi.Companion.TABLE.request(etag) }.getOrElse { return false }
-        if (result == null) return false // 304 或没带 ETag 的 200（视为坏响应）
-        val fresh = LaundryTableParser.parseOrNull(result.text) ?: return false
-        if (fresh.isEmpty) return false
-        if (cached != null && fresh.version <= cached!!.version) return false
+        val result = try {
+            LaundryApi.Companion.TABLE.request(etag)
+        } catch (error: Exception) {
+            record("拉取失败 etag=$etag ${error.javaClass.simpleName}: ${error.message}")
+            Log.w(TAG, "台账拉取失败 etag=$etag", error)
+            return false
+        }
+        if (result == null) {
+            record("304/坏响应，保留本地")
+            return false
+        }
+        val fresh = LaundryTableParser.parseOrNull(result.text)
+        if (fresh == null) {
+            record("解析失败 len=${result.text.length}")
+            return false
+        }
+        if (fresh.isEmpty) {
+            record("空表 version=${fresh.version}")
+            return false
+        }
+        val local = cached
+        if (local != null && fresh.version <= local.version) {
+            // 版本没升也落 ETag：下次带条件请求走 304，避免每轮全量重下
+            persist(result.text, result.etag)
+            record("版本未升 fresh=${fresh.version} local=${local.version}")
+            return false
+        }
+        record("升级成功 version=${fresh.version} devices=${fresh.devices.size} parks=${fresh.parks.size}")
         persist(result.text, result.etag)
         cached = fresh
         return true
@@ -83,7 +107,20 @@ class LaundryDeviceTable @Inject constructor(@ApplicationContext private val con
 
     private fun cacheFile(): File = File(context.filesDir, "laundry/table.json")
 
+    /** vivo 等机型压制 logcat，debug 构建把台账刷新结果落文件方便真机排查。 */
+    private fun record(message: String) {
+        if (!BuildConfig.DEBUG) return
+        runCatching {
+            val file = File(context.filesDir, "laundry/refresh.log")
+            file.parentFile?.mkdirs()
+            val time = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
+                .format(java.util.Date())
+            file.appendText("$time $message\n")
+        }
+    }
+
     private companion object {
+        const val TAG = "LaundryTable"
         const val ASSET_PATH = "laundry/table.json"
         const val PREFS = "laundry_table"
         const val ETAG_KEY = "etag"

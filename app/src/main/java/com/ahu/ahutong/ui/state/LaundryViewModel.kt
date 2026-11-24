@@ -60,6 +60,8 @@ class LaundryViewModel @Inject constructor(
     private var devices: List<LaundryDevice> = emptyList()
     private var occupancies: Map<String, LaundryOccupancy> = emptyMap()
     private var refreshJob: Job? = null
+    /** 台账线上检查节流时间戳（毫秒）。 */
+    private var lastTableCheck = System.currentTimeMillis()
     /** 可见窗口（rows 下标区间），null = 未上报（首次进入按整表查）。 */
     private var lastRange: IntRange? = null
 
@@ -175,6 +177,7 @@ class LaundryViewModel @Inject constructor(
     fun refresh() {
         val current = _state.value
         if (!current.loaded) return
+        maybeUpgradeTable()
         val all = visibleDevices(current)
         if (all.isEmpty()) return
         val token = current.token
@@ -220,6 +223,8 @@ class LaundryViewModel @Inject constructor(
         val samePark = fresh.parks.indexOfFirst { it == current.parks.getOrNull(current.parkIndex) }
         val parkIndex = if (samePark >= 0) samePark else defaultPark(fresh.parks)
         occupancies = emptyMap()
+        // 园区设备数可能变，可见窗口下标失效，等屏幕重新上报
+        lastRange = null
         _state.value = current.copy(
             parks = fresh.parks,
             parkIndex = parkIndex,
@@ -254,5 +259,20 @@ class LaundryViewModel @Inject constructor(
         // 打开就落在榴园（磬苑中心区，设备最全的样板园区），没有再退回第一个
         val preferred = parks.indexOfFirst { it == "榴园" }
         return if (preferred >= 0) preferred else 0
+    }
+
+    /**
+     * 台账检查节流：手动刷新/下拉刷新顺带看一眼线上有没有新版本。
+     * 之前只在 ViewModel 创建时检查一次，页面常驻就永远拉不到新表。
+     */
+    private fun maybeUpgradeTable() {
+        val now = System.currentTimeMillis()
+        if (now - lastTableCheck < TABLE_CHECK_INTERVAL_MS) return
+        lastTableCheck = now
+        viewModelScope.launch { upgradeTable() }
+    }
+
+    private companion object {
+        const val TABLE_CHECK_INTERVAL_MS = 60_000L
     }
 }
