@@ -139,6 +139,9 @@ object AppActionCatalog {
         spec(AppActionId.VIEW_CAMPUS_NOTICES, ActionFamily.CAMPUS_SERVICE, "campus_notices", "校园通知", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_LAUNDRY, ActionFamily.CAMPUS_SERVICE, "laundry", "洗衣房", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_CANTEEN_RANKING, ActionFamily.CAMPUS_SERVICE, "canteen_ranking", "安大必吃榜", sideEffect = SideEffect.READ_ONLY, suggestible = false),
+        spec(AppActionId.VIEW_CAMPUS_WALL, ActionFamily.CAMPUS_SERVICE, "campus_circle", "校园圈", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_CAMPUS_WALL_TOPIC, ActionFamily.CAMPUS_SERVICE, "campus_circle/{id}", "校园圈帖子", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
+        spec(AppActionId.VIEW_CAMPUS_WALL_HOT, ActionFamily.CAMPUS_SERVICE, "campus_circle/hot", "校园圈热榜", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_CANTEEN_FOOTPRINT, ActionFamily.CAMPUS_SERVICE, "canteen_footprint", "干饭足迹", sideEffect = SideEffect.READ_ONLY, labelEligible = false, predictable = false, suggestible = false),
         spec(AppActionId.VIEW_ATTENDANCE, ActionFamily.CAMPUS_SERVICE, "attendance_records", "教务考勤", sideEffect = SideEffect.READ_ONLY, suggestible = false),
         spec(AppActionId.OPEN_STUDENT_MAIL, ActionFamily.CAMPUS_SERVICE, "student_mail", "学生邮箱", sideEffect = SideEffect.SENSITIVE_READ, sensitivity = Sensitivity.AUTHENTICATION, labelEligible = false, predictable = false, suggestible = false),
@@ -265,6 +268,7 @@ object AppActionCatalog {
         "electricity_recent_rooms", "electricity_alert_settings", "xuexiaotong", "widgets",
         "splash", "onboarding", "campus_notices", "student_mail", "program_completion", "identity_code", "pdd_identity_code",
         "canteen_ranking", "canteen_footprint", "attendance_records", "laundry",
+        "campus_circle", "campus_circle/{id}", "campus_circle/hot",
         "plugin/{pluginId}", "settings__early_access", "settings__privacy_policy", "settings__privacy_general", "settings__ai_privacy",
         "settings__theme_lab", "settings__theme_color", "settings__ai", "settings__ai_official_trial",
         "scan", "camera", "billing", "billing_stats"
@@ -289,6 +293,7 @@ object AppActionCatalog {
         if (route == null) return null
         specByRoute[route]?.let { return it.id }
         routeAliases[route]?.let { return it }
+        if (route.startsWith("campus_circle/")) return AppActionId.VIEW_CAMPUS_WALL_TOPIC
         if (route.startsWith("repository/")) return AppActionId.OPEN_REPOSITORY_DIRECTORY
         if (route.startsWith("preferences/")) return AppActionId.OPEN_PREFERENCES_SECTION
         if (route.startsWith("plugin/") && route.removePrefix("plugin/").matches(Regex("[a-z0-9_]+"))) {

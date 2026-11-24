@@ -5,5 +5,6 @@
     <files-path name="repo_files" path="repository/" />
     <files-path name="update_files" path="updates/" />
     <cache-path name="feedback_exports" path="feedback-exports/" />
+    <cache-path name="wall_images" path="wall-images/" />
     <external-path name="public_repository" path="Download/ahutong/" />
 </paths>

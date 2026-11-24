@@ -90,6 +90,9 @@ class AppActionCatalogTest {
     fun remainingMappedRoutesKeepTheirPreviousNonLearningBehavior() {
         val actions = mapOf(
             "campus_notices" to AppActionId.VIEW_CAMPUS_NOTICES,
+            "campus_circle" to AppActionId.VIEW_CAMPUS_WALL,
+            "campus_circle/{id}" to AppActionId.VIEW_CAMPUS_WALL_TOPIC,
+            "campus_circle/hot" to AppActionId.VIEW_CAMPUS_WALL_HOT,
             "student_mail" to AppActionId.OPEN_STUDENT_MAIL,
             "program_completion" to AppActionId.VIEW_PROGRAM_COMPLETION,
             "plugin/{pluginId}" to AppActionId.OPEN_PLUGIN,

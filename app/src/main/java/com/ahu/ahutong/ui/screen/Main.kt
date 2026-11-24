@@ -662,6 +662,24 @@ fun Main(
             animatedComposable("campus_notices") {
                 CampusNoticeScreen(onBack = { navController.popBackStack() })
             }
+            animatedComposable("campus_circle") {
+                com.ahu.ahutong.ui.screen.main.campuswall.CampusWallScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTopic = { id -> navController.navigate("campus_circle/$id") },
+                    onOpenHot = { navController.navigate("campus_circle/hot") }
+                )
+            }
+            animatedComposable("campus_circle/hot") {
+                com.ahu.ahutong.ui.screen.main.campuswall.CampusHotScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenTopic = { id -> navController.navigate("campus_circle/$id") }
+                )
+            }
+            animatedComposable("campus_circle/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                com.ahu.ahutong.ui.screen.main.campuswall.CampusWallTopicScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
             animatedComposable("school_calendar") {
                 SchoolCalendar(navController = navController)
             }

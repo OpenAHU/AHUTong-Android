@@ -160,6 +160,14 @@ object HomeWidgetRegistry {
             category = WidgetCategory.CAMPUS
         ),
         HomeWidgetSpec(
+            id = "campus_circle",
+            title = "逛逛校园圈",
+            route = "campus_circle",
+            iconId = R.drawable.ic_campus_wall,
+            tint = Color.Unspecified,
+            category = WidgetCategory.CAMPUS
+        ),
+        HomeWidgetSpec(
             id = "canteen_ranking",
             title = "必吃榜",
             route = "canteen_ranking",
