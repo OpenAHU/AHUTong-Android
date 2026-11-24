@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -33,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -77,7 +77,7 @@ import java.util.Locale
  *
  * 台账 assets 基线 + 线上增量（ETag/304）；实时占用要 token（微信静默授权产物，2 小时过期）。
  * 无感接力：页面复制分享链接 → 微信打开授权 → 切回 App 自动读剪贴板接上；
- * 也可打开弹层手动粘贴。占用查询只打可见窗口（±1 屏），滚出即取消。
+ * 也可打开弹层手动粘贴。占用查询按园区整查、分批回填，先到先显示。
  */
 @Composable
 fun LaundryScreen(
@@ -119,28 +119,17 @@ fun LaundryScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 可见窗口上报：只把屏幕内的机器发给占用查询（离视口即取消）。
-    // 列表结构 = 头部条目（banner/机型条，有 token 加统计行）+ 每行 3 台的块 + 尾注，
-    // visibleItemsInfo 给的是**条目**下标，而 VM 要的是**设备**下标——必须先换算，
-    // 否则只有前一两屏的设备被查询、其余永远灰显（曾因此「每个园只有 13 台有状态」）。
-    val listState = rememberLazyListState()
-    LaunchedEffect(listState, state.parkIndex, state.kind) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val first = info.visibleItemsInfo.firstOrNull()?.index ?: return@snapshotFlow null
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@snapshotFlow null
-            // 读取 hasToken 让 snapshotFlow 在 token 变化时重算头部条目数
-            val header = 2 + if (state.hasToken) 1 else 0
-            // ±1 屏冗余（按条目数扩），滚动中提前查询
-            val span = info.visibleItemsInfo.size.coerceAtLeast(1)
-            val firstDevice = ((first - span) - header) * 3
-            val lastDevice = ((last + span) - header) * 3 + 2
-            firstDevice.coerceAtLeast(0)..lastDevice.coerceAtLeast(0)
-        }.collect { range ->
-            viewModel.onVisibleRangeChanged(range)
-        }
+    // 列表条目：有楼层信息的园区按楼层分组（每层一行，行内横向可滑），
+    // 无楼层的园区仍是每行 3 台的平铺块。
+    val blocks = remember(state.rows, state.floors) {
+        buildBlockList(state.rows, state.floors)
     }
 
+    val listState = rememberLazyListState()
+    // 换园区/机型后条目数完全不同，留在原下标会落到无关段落，直接回顶
+    LaunchedEffect(state.parkIndex, state.kind) {
+        listState.scrollToItem(0)
+    }
     // 页面停留期间每 45 秒自动刷一次（按当前可见窗口），用户不操作也能看到状态变化
     LaunchedEffect(state.parkIndex, state.kind, state.hasToken) {
         if (!state.hasToken) return@LaunchedEffect
@@ -155,6 +144,8 @@ fun LaundryScreen(
         subtitle = state.parks.getOrNull(state.parkIndex)?.let { "$it · ${state.rows.size} 台" },
         onBack = onBack,
         listState = listState,
+        // 楼层分组时条目密集（兰园 80+ 行），行间距收紧；平铺沿用默认留白
+        verticalArrangement = Arrangement.spacedBy(if (state.floors.isEmpty()) 24.dp else 12.dp),
         lazyContent = {
             item {
                 TokenBanner(
@@ -194,23 +185,22 @@ fun LaundryScreen(
                     )
                 }
             }
-            state.rows.chunked(3).forEach { chunk ->
-                item {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        chunk.forEach { row ->
-                            Box(modifier = Modifier.weight(1f)) {
-                                DeviceCell(
-                                    device = row.device,
-                                    occupancy = row.occupancy,
-                                    nowMillis = nowMillis,
-                                    onClick = { detailDevice = row.device }
-                                )
-                            }
-                        }
-                        repeat(3 - chunk.size) { Spacer(modifier = Modifier.weight(1f)) }
+            blocks.forEachIndexed { index, block ->
+                when (block) {
+                    is LaundryBlock.Floor -> item(key = "floor-$index") {
+                        FloorStrip(
+                            floor = block.floor,
+                            rows = block.rows,
+                            nowMillis = nowMillis,
+                            onDeviceClick = { detailDevice = it }
+                        )
+                    }
+                    is LaundryBlock.Grid -> item(key = "grid-$index") {
+                        GridRow(
+                            rows = block.rows,
+                            nowMillis = nowMillis,
+                            onDeviceClick = { detailDevice = it }
+                        )
                     }
                 }
             }
@@ -469,11 +459,104 @@ private fun TokenBanner(
     }
 }
 
+/** 平铺块：没有楼层信息的园区，每行 3 台。 */
+@Composable
+private fun GridRow(
+    rows: List<LaundryViewModel.DeviceRow>,
+    nowMillis: Long,
+    onDeviceClick: (com.ahu.ahutong.data.laundry.LaundryDevice) -> Unit
+) {
+    Row(
+        modifier = Modifier.padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        rows.forEach { row ->
+            Box(modifier = Modifier.weight(1f)) {
+                DeviceCell(
+                    device = row.device,
+                    occupancy = row.occupancy,
+                    nowMillis = nowMillis,
+                    onClick = { onDeviceClick(row.device) }
+                )
+            }
+        }
+        repeat(3 - rows.size) { Spacer(modifier = Modifier.weight(1f)) }
+    }
+}
+
+/** 一层楼：左侧楼层号，右侧横向可滑的机器列表（三台以内正好铺满一行）。 */
+@Composable
+private fun FloorStrip(
+    floor: Int,
+    rows: List<LaundryViewModel.DeviceRow>,
+    nowMillis: Long,
+    onDeviceClick: (com.ahu.ahutong.data.laundry.LaundryDevice) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "${floor}F",
+            modifier = Modifier.width(30.dp),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = subtitleColor()
+        )
+        BoxWithConstraints(modifier = Modifier.weight(1f)) {
+            // 单元格按三列取整，超过三台的楼层横向滑动查看
+            val cellWidth = ((maxWidth - 20.dp) / 3).coerceAtLeast(92.dp)
+            // 按楼层记状态：LazyColumn 复用条目槽位，不按楼层区分会继承上一层的横向偏移
+            val rowState = remember(floor) { LazyListState() }
+            LazyRow(state = rowState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(rows.size) { index ->
+                    val row = rows[index]
+                    Box(modifier = Modifier.width(cellWidth)) {
+                        DeviceCell(
+                            device = row.device,
+                            occupancy = row.occupancy,
+                            nowMillis = nowMillis,
+                            // 楼层已由行首标题给出：有方位就标方位（东/中/西），否则不占位
+                            placeOverride = row.device.location?.takeIf { it.isNotBlank() } ?: "",
+                            onClick = { onDeviceClick(row.device) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 列表条目：一层楼（横向可滑）/ 平铺三台。 */
+private sealed interface LaundryBlock {
+    val size: Int
+
+    data class Floor(val floor: Int, val rows: List<LaundryViewModel.DeviceRow>) : LaundryBlock {
+        override val size: Int get() = rows.size
+    }
+
+    data class Grid(val rows: List<LaundryViewModel.DeviceRow>) : LaundryBlock {
+        override val size: Int get() = rows.size
+    }
+}
+
+/** 有楼层信息就每层一行，否则退回每行三台。 */
+private fun buildBlockList(
+    rows: List<LaundryViewModel.DeviceRow>,
+    floors: List<LaundryViewModel.FloorRow>
+): List<LaundryBlock> {
+    if (floors.isEmpty()) return rows.chunked(3).map { LaundryBlock.Grid(it) }
+    return floors.map { LaundryBlock.Floor(it.floor, it.rows) }
+}
+
 @Composable
 private fun DeviceCell(
     device: com.ahu.ahutong.data.laundry.LaundryDevice,
     occupancy: com.ahu.ahutong.data.laundry.LaundryOccupancy?,
     nowMillis: Long,
+    placeOverride: String? = null,
     onClick: () -> Unit
 ) {
     val status = when (occupancy) {
@@ -508,15 +591,16 @@ private fun DeviceCell(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        // 位置/楼层行：11号楼的 A1/B8西、南7号楼的楼层；没有就不占行
-        val place = buildString {
+        // 位置行：平铺时给出方位+楼层（11号楼的 A1、南7号楼的 3F），楼层分组时楼层由行标题承担
+        val place = placeOverride ?: buildString {
             device.location?.let { append(it) }
             device.floor?.let { append(it).append("F") }
             device.remark?.let { if (isNotEmpty()) append(" · "); append(it) }
         }
         if (place.isNotEmpty()) {
             Text(place, fontSize = 10.sp, color = fg.copy(alpha = 0.75f), maxLines = 1)
-        } else {
+        } else if (placeOverride == null) {
+            // 平铺模式没有位置信息时用类型名占位；分组模式位置由行标题给出，不再重复
             Text(device.kind.label, fontSize = 10.sp, color = fg.copy(alpha = 0.75f), maxLines = 1)
         }
         Spacer(modifier = Modifier.height(4.dp))

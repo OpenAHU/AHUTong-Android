@@ -13,6 +13,7 @@ import com.ahu.ahutong.data.laundry.LaundryToken
 import com.ahu.ahutong.data.laundry.LaundryTokenStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,8 +24,8 @@ import kotlinx.coroutines.launch
  * 洗衣房页状态源。
  *
  * 数据三层：assets 基线（离线兜底）→ 本地缓存 → 线上台账（ETag/304，后台增量）。
- * 占用状态按**可见窗口**查询：屏幕内的机器才发请求，滚出即取消，
- * 所以蕙园 121 台也不怕——翻到哪查到哪。
+ * 占用状态按**当前园区整查**：平台没有批量接口，就分批（[LaundryViewModel.BATCH_SIZE]）回填，
+ * 边查边显示；不再按可见窗口裁剪，避免切换时取消请求把设备永久留在「—」。
  */
 @HiltViewModel
 class LaundryViewModel @Inject constructor(
@@ -35,12 +36,17 @@ class LaundryViewModel @Inject constructor(
 
     data class DeviceRow(val device: LaundryDevice, val occupancy: LaundryOccupancy?)
 
+    /** 一层楼：楼层内横向滑动的机器（方位只作为单机标签，不再分组）。 */
+    data class FloorRow(val floor: Int, val rows: List<DeviceRow>)
+
     data class UiState(
         val loaded: Boolean = false,
         val parks: List<String> = emptyList(),
         val parkIndex: Int = 0,
         val kind: LaundryKind = LaundryKind.WASHER,
         val rows: List<DeviceRow> = emptyList(),
+        /** 按楼层分组；空表示当前视图没有楼层信息，走平铺三列。 */
+        val floors: List<FloorRow> = emptyList(),
         val tableUpdatedAt: String? = null,
         val token: String? = null,
         val tokenExpiresAt: Long? = null,
@@ -62,8 +68,6 @@ class LaundryViewModel @Inject constructor(
     private var refreshJob: Job? = null
     /** 台账线上检查节流时间戳（毫秒）。 */
     private var lastTableCheck = System.currentTimeMillis()
-    /** 可见窗口（rows 下标区间），null = 未上报（首次进入按整表查）。 */
-    private var lastRange: IntRange? = null
 
     init {
         viewModelScope.launch {
@@ -82,13 +86,6 @@ class LaundryViewModel @Inject constructor(
             // 线上台账增量升级：304/失败都静默，基线已兜底；成功后重建列表
             upgradeTable()
         }
-    }
-
-    /** 上报当前可见窗口（rows 下标区间，含 ±1 屏冗余）；变化即触发窗口查询。 */
-    fun onVisibleRangeChanged(range: IntRange?) {
-        if (range == lastRange) return
-        lastRange = range
-        refresh()
     }
 
     fun selectPark(index: Int) {
@@ -170,9 +167,9 @@ class LaundryViewModel @Inject constructor(
     }
 
     /**
-     * 占用查询：只查 [lastRange] 窗口内的机器（null = 整表，仅首帧兜底）。
-     * 没有 token 时清空状态直接标灰；token 过期提示续期；网络失败窗口内标未知。
-     * 窗口外保留上一轮结果（滚回去先见旧值再自动翻新）。
+     * 占用查询：整个园区当前机型一次查完，再按 [BATCH_SIZE] 分批回填。
+     * 平台没有批量接口只能逐台打，分批是为了 100+ 台的园区边查边出、不用等整轮结束。
+     * （曾经的可见窗口查询会在切换时取消上一轮，被取消那批设备永远查不到、一直显示「—」。）
      */
     fun refresh() {
         val current = _state.value
@@ -187,15 +184,19 @@ class LaundryViewModel @Inject constructor(
             rebuild()
             return
         }
-        val targets = window(all)
-        if (targets.isEmpty()) return
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             _state.value = _state.value.copy(refreshing = true)
             try {
-                val fresh = repository.occupancy(token, targets)
-                occupancies = occupancies.filterKeys { id -> all.any { it.id == id } } + fresh
+                for (batch in all.chunked(BATCH_SIZE)) {
+                    val fresh = repository.occupancy(token, batch)
+                    // 换园区/机型后旧结果不能混进来
+                    occupancies = occupancies.filterKeys { id -> all.any { it.id == id } } + fresh
+                    rebuild()
+                }
                 _state.value = _state.value.copy(refreshing = false, updatedAt = System.currentTimeMillis())
+            } catch (cancel: CancellationException) {
+                throw cancel
             } catch (auth: LaundryAuthException) {
                 occupancies = emptyMap()
                 _state.value = _state.value.copy(
@@ -223,8 +224,6 @@ class LaundryViewModel @Inject constructor(
         val samePark = fresh.parks.indexOfFirst { it == current.parks.getOrNull(current.parkIndex) }
         val parkIndex = if (samePark >= 0) samePark else defaultPark(fresh.parks)
         occupancies = emptyMap()
-        // 园区设备数可能变，可见窗口下标失效，等屏幕重新上报
-        lastRange = null
         _state.value = current.copy(
             parks = fresh.parks,
             parkIndex = parkIndex,
@@ -235,13 +234,6 @@ class LaundryViewModel @Inject constructor(
         refresh()
     }
 
-    private fun window(all: List<LaundryDevice>): List<LaundryDevice> {
-        val range = lastRange ?: return all
-        val from = range.first.coerceAtLeast(0)
-        val to = range.last.coerceAtMost(all.lastIndex)
-        return if (from > to) emptyList() else all.subList(from, to + 1)
-    }
-
     private fun visibleDevices(state: UiState): List<LaundryDevice> =
         devices.filter {
             it.parkIndex == state.parkIndex && it.kind == state.kind
@@ -249,10 +241,34 @@ class LaundryViewModel @Inject constructor(
 
     private fun rebuild() {
         val current = _state.value
-        val rows = visibleDevices(current).map { device ->
-            DeviceRow(device, occupancies[device.id])
-        }
-        _state.value = current.copy(rows = rows)
+        val ordered = orderedDevices(visibleDevices(current))
+        val rows = ordered.map { device -> DeviceRow(device, occupancies[device.id]) }
+        _state.value = current.copy(rows = rows, floors = floorsOf(ordered, rows))
+    }
+
+    /**
+     * 显示顺序：楼层信息齐全的视图按「楼层 → 方位 → 机位」重排，
+     * 没有楼层的园区保持台账原顺序。
+     */
+    private fun orderedDevices(devices: List<LaundryDevice>): List<LaundryDevice> {
+        if (devices.isEmpty() || devices.any { it.floor == null }) return devices
+        return devices.sortedWith(
+            compareBy(
+                { it.floor },
+                { it.location.orEmpty() },
+                { it.slot?.toIntOrNull() ?: Int.MAX_VALUE },
+                { it.id }
+            )
+        )
+    }
+
+    /** 按楼层分组；视图里只要有一台没有楼层就返回空（避免半分组半平铺）。 */
+    private fun floorsOf(devices: List<LaundryDevice>, rows: List<DeviceRow>): List<FloorRow> {
+        if (devices.isEmpty() || devices.any { it.floor == null }) return emptyList()
+        return devices.indices
+            .groupBy { devices[it].floor ?: 0 }
+            .toSortedMap()
+            .map { (floor, indices) -> FloorRow(floor, indices.map { rows[it] }) }
     }
 
     private fun defaultPark(parks: List<String>): Int {
@@ -274,5 +290,8 @@ class LaundryViewModel @Inject constructor(
 
     private companion object {
         const val TABLE_CHECK_INTERVAL_MS = 60_000L
+
+        /** 单批回填台数：一批约 1 秒，园区再大也能边查边出。 */
+        const val BATCH_SIZE = 16
     }
 }
