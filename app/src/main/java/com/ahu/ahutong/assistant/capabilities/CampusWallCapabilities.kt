@@ -118,13 +118,21 @@ class ReadCampusTopicCapability(
                                     .filter { it.parentCommentId != 0L }
                                     .groupBy { it.parentCommentId }
                                 topLevel.take(15).forEach { comment ->
-                                    add("${comment.user?.name.orEmpty().ifBlank { "未知" }}：${comment.content.orEmpty()}")
+                                    val topImages = comment.images?.takeIf { it.isNotEmpty() }
+                                    add(
+                                        "${comment.user?.name.orEmpty().ifBlank { "未知" }}：${comment.content.orEmpty()}" +
+                                            if (topImages != null) "（图 ${topImages.size} 张）" else ""
+                                    )
                                     replies[comment.id].orEmpty().take(5).forEach { reply ->
                                         val target = reply.replyToCommentId
                                             .takeIf { it != 0L }
                                             ?.let { byId[it]?.user?.name?.takeIf(String::isNotBlank) }
                                         val prefix = if (target != null) "回复 $target：" else ""
-                                        add("  └ ${reply.user?.name.orEmpty().ifBlank { "未知" }}：$prefix${reply.content.orEmpty()}")
+                                        val replyImages = reply.images?.takeIf { it.isNotEmpty() }
+                                        add(
+                                            "  └ ${reply.user?.name.orEmpty().ifBlank { "未知" }}：$prefix${reply.content.orEmpty()}" +
+                                                if (replyImages != null) "（图 ${replyImages.size} 张）" else ""
+                                        )
                                     }
                                 }
                             } else {

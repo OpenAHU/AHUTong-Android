@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.wall.CampusWallRepository
+import com.ahu.ahutong.data.wall.WallComment
 import com.ahu.ahutong.data.wall.WallPost
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.AppStateCard
@@ -34,6 +35,7 @@ internal object CampusWallHotCache {
 data class CampusHotUiState(
     val loading: Boolean = true,
     val posts: List<WallPost> = emptyList(),
+    val postComments: Map<Long, List<WallComment>> = emptyMap(),
     val failed: Boolean = false,
     val stale: Boolean = false,
 )
@@ -46,6 +48,8 @@ class CampusHotViewModel @Inject constructor(
     private val _ui = MutableStateFlow(CampusHotUiState())
     val ui: StateFlow<CampusHotUiState> = _ui.asStateFlow()
 
+    private val commentsLoaded = mutableSetOf<Long>()
+
     init {
         load()
     }
@@ -57,13 +61,33 @@ class CampusHotViewModel @Inject constructor(
                 is AhuResult.Success -> {
                     val posts = result.value.items.orEmpty()
                     posts.forEach { CampusWallHotCache.posts[it.id] = it }
+                    commentsLoaded.clear()
+                    loadCommentPreviews(posts)
                     _ui.value = CampusHotUiState(
                         loading = false,
                         posts = posts,
+                        postComments = emptyMap(),
                         stale = result.value.stale,
                     )
                 }
                 is AhuResult.Failure -> _ui.value = _ui.value.copy(loading = false, failed = true)
+            }
+        }
+    }
+
+    private fun loadCommentPreviews(posts: List<WallPost>) {
+        val pending = posts.filter { it.comments > 0 && it.id !in commentsLoaded }
+        if (pending.isEmpty()) return
+        pending.forEach { commentsLoaded.add(it.id) }
+        viewModelScope.launch {
+            for (post in pending) {
+                when (val result = repository.topic(post.id)) {
+                    is AhuResult.Success -> _ui.value = _ui.value.copy(
+                        postComments = _ui.value.postComments +
+                            (post.id to result.value.commentList.orEmpty())
+                    )
+                    is AhuResult.Failure -> commentsLoaded.remove(post.id)
+                }
             }
         }
     }
@@ -106,6 +130,7 @@ fun CampusHotScreen(
                         post = post,
                         onClick = { onOpenTopic(post.id) },
                         onOpenImage = openImage,
+                        previewComments = ui.postComments[post.id].orEmpty(),
                     )
                 }
             }

@@ -32,6 +32,7 @@ data class WallComment(
     @SerializedName("id") val id: Long = 0,
     @SerializedName("user") val user: WallAuthor? = null,
     @SerializedName("content") val content: String? = null,
+    @SerializedName("images") val images: List<String>? = null,
     @SerializedName("parent_comment_id") val parentCommentId: Long = 0,
     @SerializedName("reply_to_comment_id") val replyToCommentId: Long = 0,
     @SerializedName("create_time") val createTime: String? = null,

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.wall.CampusWallRepository
+import com.ahu.ahutong.data.wall.WallComment
 import com.ahu.ahutong.data.wall.WallPost
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 
 data class CampusWallUiState(
     val posts: List<WallPost> = emptyList(),
+    val postComments: Map<Long, List<WallComment>> = emptyMap(),
     val initialLoading: Boolean = true,
     val refreshing: Boolean = false,
     val loadingMore: Boolean = false,
@@ -32,6 +34,8 @@ class CampusWallViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(CampusWallUiState())
     val ui: StateFlow<CampusWallUiState> = _ui.asStateFlow()
+
+    private val commentsLoaded = mutableSetOf<Long>()
 
     init {
         refresh()
@@ -61,9 +65,12 @@ class CampusWallViewModel @Inject constructor(
             when (feed) {
                 is AhuResult.Success -> {
                     val posts = feed.value.items.orEmpty()
+                    commentsLoaded.clear()
+                    loadCommentPreviews(posts)
                     _ui.update {
                         it.copy(
                             posts = posts,
+                            postComments = emptyMap(),
                             initialLoading = false,
                             refreshing = false,
                             loadingMore = false,
@@ -98,6 +105,7 @@ class CampusWallViewModel @Inject constructor(
             when (val result = repository.feed(limit = PAGE_SIZE, beforeTs = last.createdAtTs, beforeId = last.id)) {
                 is AhuResult.Success -> {
                     val more = result.value.items.orEmpty()
+                    loadCommentPreviews(more)
                     _ui.update {
                         it.copy(
                             posts = it.posts + more,
@@ -107,6 +115,25 @@ class CampusWallViewModel @Inject constructor(
                     }
                 }
                 is AhuResult.Failure -> _ui.update { it.copy(loadingMore = false, loadMoreFailed = true) }
+            }
+        }
+    }
+
+    private fun loadCommentPreviews(posts: List<WallPost>) {
+        val pending = posts.filter { it.comments > 0 && it.id !in commentsLoaded }
+        if (pending.isEmpty()) return
+        pending.forEach { commentsLoaded.add(it.id) }
+        viewModelScope.launch {
+            for (post in pending) {
+                when (val result = repository.topic(post.id)) {
+                    is AhuResult.Success -> _ui.update { state ->
+                        state.copy(
+                            postComments = state.postComments +
+                                (post.id to result.value.commentList.orEmpty())
+                        )
+                    }
+                    is AhuResult.Failure -> commentsLoaded.remove(post.id)
+                }
             }
         }
     }

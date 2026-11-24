@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Refresh
@@ -50,7 +49,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -69,6 +71,8 @@ import java.io.File
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
+private const val PREVIEW_COMMENT_LIMIT = 3
+
 /** 校园圈：只读时间线，排版参照朋友圈（头像 + 昵称 + 正文 + 九宫格 + 赞/评论）。 */
 @Composable
 fun CampusWallScreen(
@@ -181,9 +185,20 @@ private fun WallHotEntry(onClick: () -> Unit) {
 }
 
 @Composable
-internal fun WallPostRow(post: WallPost, onClick: () -> Unit, onOpenImage: (String) -> Unit) {
+internal fun WallPostRow(
+    post: WallPost,
+    onClick: () -> Unit,
+    onOpenImage: (String) -> Unit,
+    previewComments: List<WallComment> = emptyList(),
+) {
     Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        WallPostBody(post = post, onClick = onClick, onOpenImage = onOpenImage)
+        WallPostBody(
+            post = post,
+            onClick = onClick,
+            onOpenImage = onOpenImage,
+            previewComments = previewComments,
+            commentTotal = post.comments,
+        )
         HorizontalDivider(
             modifier = Modifier.padding(start = 68.dp),
             thickness = 0.5.dp,
@@ -198,6 +213,8 @@ internal fun WallPostBody(
     onClick: (() -> Unit)? = null,
     onOpenImage: ((String) -> Unit)? = null,
     maxLines: Int = 6,
+    previewComments: List<WallComment> = emptyList(),
+    commentTotal: Int = 0,
 ) {
     Row(
         modifier = Modifier
@@ -219,6 +236,19 @@ internal fun WallPostBody(
                 )
                 Text(
                     text = formatWallTime(post.createTime),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.size(8.dp))
+                Icon(
+                    imageVector = Icons.Outlined.FavoriteBorder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.size(3.dp))
+                Text(
+                    text = post.likes.toString(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -253,10 +283,49 @@ internal fun WallPostBody(
                 WallImageGrid(images = images, onOpenImage = onOpenImage)
             }
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                WallStat(icon = Icons.Outlined.FavoriteBorder, count = post.likes)
-                WallStat(icon = Icons.Outlined.ChatBubbleOutline, count = post.comments)
+            if (previewComments.isNotEmpty() && commentTotal > 0) {
+                WallCommentPreviewBlock(
+                    comments = previewComments,
+                    total = commentTotal,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun WallCommentPreviewBlock(comments: List<WallComment>, total: Int) {
+    val shown = comments.take(PREVIEW_COMMENT_LIMIT)
+    if (shown.isEmpty()) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        val byId = comments.associateBy { it.id }
+        shown.forEach { comment ->
+            val reply = comment.replyToCommentId
+                .takeIf { it != 0L }
+                ?.let { byId[it]?.user?.name?.takeIf(String::isNotBlank) }
+            val prefix = if (reply != null) "回复 $reply：" else ""
+            val name = comment.user?.name?.takeIf { it.isNotBlank() } ?: "未知"
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) { append(name) }
+                    append("：$prefix${comment.content.orEmpty()}")
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (total > PREVIEW_COMMENT_LIMIT) {
+            Text(
+                text = "剩余 ${total - PREVIEW_COMMENT_LIMIT} 条评论",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -276,9 +345,36 @@ internal fun WallAvatar(url: String?, size: androidx.compose.ui.unit.Dp) {
     )
 }
 
+internal fun isRejectedWallImage(url: String): Boolean =
+    url.startsWith("https://img.zxs-bbs.cn/common/") || url.startsWith("http://img.zxs-bbs.cn/common/")
+
+@Composable
+private fun WallImagePlaceholder(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "图片不可见",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 @Composable
 internal fun WallImageGrid(images: List<String>, onOpenImage: ((String) -> Unit)? = null) {
     if (images.size == 1) {
+        if (isRejectedWallImage(images.first())) {
+            WallImagePlaceholder(
+                Modifier
+                    .fillMaxWidth(0.62f)
+                    .aspectRatio(1f)
+            )
+            return
+        }
         AsyncImage(
             model = images.first(),
             contentDescription = null,
@@ -298,6 +394,14 @@ internal fun WallImageGrid(images: List<String>, onOpenImage: ((String) -> Unit)
         images.chunked(columns).forEach { rowImages ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 rowImages.forEach { url ->
+                    if (isRejectedWallImage(url)) {
+                        WallImagePlaceholder(
+                            Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                        )
+                        return@forEach
+                    }
                     AsyncImage(
                         model = url,
                         contentDescription = null,
@@ -456,6 +560,7 @@ fun CampusWallTopicScreen(
                                 comment = comment,
                                 replies = replies[comment.id].orEmpty(),
                                 byId = byId,
+                                onOpenImage = openImage,
                             )
                         }
                     }
@@ -470,15 +575,17 @@ private fun WallCommentThread(
     comment: WallComment,
     replies: List<WallComment>,
     byId: Map<Long, WallComment>,
+    onOpenImage: ((String) -> Unit)? = null,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        WallCommentRow(comment = comment, byId = byId)
+        WallCommentRow(comment = comment, byId = byId, onOpenImage = onOpenImage)
         replies.forEach { reply ->
             WallCommentRow(
                 comment = reply,
                 byId = byId,
                 nested = true,
                 modifier = Modifier.padding(start = 44.dp),
+                onOpenImage = onOpenImage,
             )
         }
     }
@@ -490,6 +597,7 @@ private fun WallCommentRow(
     byId: Map<Long, WallComment>,
     nested: Boolean = false,
     modifier: Modifier = Modifier,
+    onOpenImage: ((String) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -518,6 +626,10 @@ private fun WallCommentRow(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 2.dp)
             )
+            comment.images?.takeIf { it.isNotEmpty() }?.let { images ->
+                Spacer(Modifier.height(6.dp))
+                WallImageGrid(images = images, onOpenImage = onOpenImage)
+            }
             Text(
                 text = formatWallTime(comment.createTime),
                 style = MaterialTheme.typography.labelSmall,
