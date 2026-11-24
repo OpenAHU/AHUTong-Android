@@ -18,6 +18,23 @@ enum class LaundryKind(val wire: String, val label: String) {
 }
 
 /**
+ * 洗衣房所属校区。
+ *
+ * 磬苑走乐摇摇（离线台账 + token 逐台查）；龙河走趣智校园（实时接口按机房整批下发），
+ * 两套链路互不相干，只共用页面。
+ */
+enum class LaundryCampus(val label: String) {
+    QINGYUAN("磬苑校区"),
+    LONGHE("龙河校区");
+
+    companion object {
+        /** 宿舍信息里的校区名 → 校区；认不出按磬苑处理。 */
+        fun of(campusName: String?): LaundryCampus =
+            if (campusName?.contains("龙河") == true) LONGHE else QINGYUAN
+    }
+}
+
+/**
  * 一台机器。
  * - [slot] 机位号；洗鞋机没有 → null，标题直接显示类型名
  * - [location] 大洗衣房里的分区（11号楼 的 A1 / B8西 等；小园区为 null）

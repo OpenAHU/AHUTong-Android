@@ -49,6 +49,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ahu.ahutong.data.laundry.LaundryCampus
 import com.ahu.ahutong.data.laundry.LaundryKind
 import com.ahu.ahutong.data.laundry.LaundryOccupancy
 import com.ahu.ahutong.ui.components.AppButton
@@ -105,9 +106,12 @@ fun LaundryScreen(
 
     // ON_RESUME 剪贴板接力：从微信回来时自动读。只认「看着像 token 的文本」，
     // 且同一文本只消费一次，避免反复触发网络校验。
-    DisposableEffect(lifecycleOwner, state.hasToken) {
+    DisposableEffect(lifecycleOwner, state.hasToken, state.campus) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && !state.hasToken) {
+            // 龙河走趣智校园匿名接口，不需要也不该拿乐摇摇 token
+            if (event == Lifecycle.Event.ON_RESUME && !state.hasToken &&
+                state.campus == LaundryCampus.QINGYUAN
+            ) {
                 val text = clipboard.getText()?.text
                 if (!text.isNullOrBlank() && text != lastClipboardText) {
                     lastClipboardText = text
@@ -132,8 +136,8 @@ fun LaundryScreen(
     }
     // 进入页面先查一次占用（从其他页面返回同样重跑），之后每 45 秒自动刷一次，
     // 用户不操作也能看到状态变化；切园区/机型由 selectPark/selectKind 自行刷新，故不作 key
-    LaunchedEffect(state.hasToken) {
-        if (!state.hasToken) return@LaunchedEffect
+    LaunchedEffect(state.hasToken, state.campus) {
+        if (!state.hasToken && state.campus != LaundryCampus.LONGHE) return@LaunchedEffect
         while (true) {
             viewModel.refresh()
             delay(45_000)
@@ -148,12 +152,14 @@ fun LaundryScreen(
         // 楼层分组时条目密集（兰园 80+ 行），行间距收紧；平铺沿用默认留白
         verticalArrangement = Arrangement.spacedBy(if (state.floors.isEmpty()) 24.dp else 12.dp),
         lazyContent = {
-            item {
-                TokenBanner(
-                    state = state,
-                    nowMillis = nowMillis,
-                    onClick = { showTokenSheet = true }
-                )
+            if (state.campus == LaundryCampus.QINGYUAN) {
+                item {
+                    TokenBanner(
+                        state = state,
+                        nowMillis = nowMillis,
+                        onClick = { showTokenSheet = true }
+                    )
+                }
             }
             item {
                 val kinds = com.ahu.ahutong.data.laundry.LaundryKind.entries
@@ -181,7 +187,7 @@ fun LaundryScreen(
                     )
                 }
             }
-            if (state.hasToken) {
+            if (state.hasToken || state.campus == LaundryCampus.LONGHE) {
                 item {
                     Text(
                         text = buildString {
@@ -218,10 +224,14 @@ fun LaundryScreen(
             }
             item {
                 Text(
-                    text = buildString {
-                        append("台账 ${state.rows.size} 台 · ")
-                        state.tableUpdatedAt?.let { append(it).append(" 更新 · ") }
-                        append("状态来自乐摇摇平台")
+                    text = if (state.campus == LaundryCampus.LONGHE) {
+                        "机房 ${state.rows.size} 台 · 状态来自趣智校园平台"
+                    } else {
+                        buildString {
+                            append("台账 ${state.rows.size} 台 · ")
+                            state.tableUpdatedAt?.let { append(it).append(" 更新 · ") }
+                            append("状态来自乐摇摇平台")
+                        }
                     },
                     fontSize = 11.sp,
                     color = subtitleColor(),
@@ -232,7 +242,7 @@ fun LaundryScreen(
             }
         },
         actions = listOf(
-            TrailingAction(Icons.Outlined.Settings, "选择园区") { showParkSheet = true }
+            TrailingAction(Icons.Outlined.Settings, "洗衣房设置") { showParkSheet = true }
         ),
         trailingContent = {
             AppRefreshButton(
@@ -342,7 +352,7 @@ fun LaundryScreen(
     // 列表滚动 + 点选即关；副标题实时反映当前园区。
     if (showParkSheet) {
         AppModalBottomSheet(
-            title = "选择园区",
+            title = "洗衣房设置",
             onDismissRequest = { showParkSheet = false }
         ) {
             Column(
@@ -352,6 +362,27 @@ fun LaundryScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                // 校区放在园区上面：切校区会整份换掉下面的机房列表
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LaundryCampus.entries.forEach { campus ->
+                        AppFilterChip(
+                            selected = state.campus == campus,
+                            onClick = { viewModel.selectCampus(campus) },
+                            label = { Text(campus.label, fontSize = 13.sp) }
+                        )
+                    }
+                }
+                if (state.parks.isEmpty()) {
+                    Text(
+                        text = if (state.refreshing) "正在获取机房…" else "暂无可用机房",
+                        fontSize = 13.sp,
+                        color = subtitleColor(),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
                 state.parks.forEachIndexed { index, park ->
                     Row(
                         modifier = Modifier
@@ -424,7 +455,11 @@ fun LaundryScreen(
         AppDialog(
             title = device.slot?.takeIf { it.isNotBlank() } ?: device.kind.label,
             onDismiss = { detailDevice = null },
-            subtitle = "$parkName · 台账字段一览",
+            subtitle = if (state.campus == LaundryCampus.LONGHE) {
+                "$parkName · 机房设备"
+            } else {
+                "$parkName · 台账字段一览"
+            },
             contentScrollable = true,
             actions = listOf(AppDialogAction(label = "知道了", onClick = { detailDevice = null }))
         ) {
@@ -435,7 +470,11 @@ fun LaundryScreen(
                 "位置" to (device.location ?: "—"),
                 "楼层" to (device.floor?.let { "${it}F" } ?: "—"),
                 "备注" to (device.remark ?: "—"),
-                "台账在线" to if (device.online) "是（扫描时在线）" else "否（扫描时离线）"
+                if (state.campus == LaundryCampus.QINGYUAN) {
+                    "台账在线" to if (device.online) "是（扫描时在线）" else "否（扫描时离线）"
+                } else {
+                    null
+                }
             )
             rows.forEach { (label, value) ->
                 Row(
@@ -648,9 +687,6 @@ private fun DeviceCell(
         }
         if (place.isNotEmpty()) {
             Text(place, fontSize = 10.sp, color = fg.copy(alpha = 0.75f), maxLines = 1)
-        } else if (placeOverride == null) {
-            // 平铺模式没有位置信息时用类型名占位；分组模式位置由行标题给出，不再重复
-            Text(device.kind.label, fontSize = 10.sp, color = fg.copy(alpha = 0.75f), maxLines = 1)
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(status, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = fg, maxLines = 1)

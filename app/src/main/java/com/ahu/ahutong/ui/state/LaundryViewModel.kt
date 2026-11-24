@@ -2,8 +2,11 @@ package com.ahu.ahutong.ui.state
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ahu.ahutong.core.common.AhuResult
+import com.ahu.ahutong.data.AHURepository
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.laundry.LaundryAuthException
+import com.ahu.ahutong.data.laundry.LaundryCampus
 import com.ahu.ahutong.data.laundry.LaundryDevice
 import com.ahu.ahutong.data.laundry.LaundryDeviceTable
 import com.ahu.ahutong.data.laundry.LaundryKind
@@ -15,6 +18,8 @@ import com.ahu.ahutong.data.laundry.LaundryRepository
 import com.ahu.ahutong.data.laundry.LaundryTable
 import com.ahu.ahutong.data.laundry.LaundryToken
 import com.ahu.ahutong.data.laundry.LaundryTokenStore
+import com.ahu.ahutong.data.laundry.QiekjLaundryMatcher
+import com.ahu.ahutong.data.laundry.QiekjLaundrySource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -36,7 +41,8 @@ class LaundryViewModel @Inject constructor(
     private val table: LaundryDeviceTable,
     private val repository: LaundryRepository,
     private val tokenStore: LaundryTokenStore,
-    private val parkStore: LaundryParkStore
+    private val parkStore: LaundryParkStore,
+    private val qiekj: QiekjLaundrySource
 ) : ViewModel() {
 
     data class DeviceRow(val device: LaundryDevice, val occupancy: LaundryOccupancy?)
@@ -46,6 +52,8 @@ class LaundryViewModel @Inject constructor(
 
     data class UiState(
         val loaded: Boolean = false,
+        /** 校区：磬苑（乐摇摇台账）或龙河（趣智校园实时）。 */
+        val campus: LaundryCampus = LaundryCampus.QINGYUAN,
         val parks: List<String> = emptyList(),
         val parkIndex: Int = 0,
         /** 非空表示宿舍楼栋对应多个洗衣房，UI 让用户选一次。 */
@@ -77,36 +85,56 @@ class LaundryViewModel @Inject constructor(
     private var refreshJob: Job? = null
     /** 台账线上检查节流时间戳（毫秒）。 */
     private var lastTableCheck = System.currentTimeMillis()
+    /** 龙河的机房列表（门店 → 机型 → 机房），换校区/机型才重取。 */
+    private var longhePoints: List<QiekjLaundrySource.Point> = emptyList()
+    /** 整店下发机型（洗鞋机）的楼栋分组，与 [longhePoints] 下标一一对应。 */
+    private var shoeGroups: List<QiekjLaundryMatcher.BuildingGroup> = emptyList()
+    /** 洗鞋机整店快照：换楼栋只按楼栋本地筛，不再打接口。 */
+    private var shoeStore: QiekjLaundrySource.Snapshot? = null
+    private var lastLongheAt = 0L
 
     init {
         viewModelScope.launch {
-            val loaded = table.load()
-            devices = loaded.devices
             val token = tokenStore.token()
-            val parked = resolvePark(loaded.parks)
+            val campus = parkStore.campus() ?: LaundryCampus.of(dormCampus())
             _state.value = _state.value.copy(
-                loaded = true,
-                parks = loaded.parks,
-                parkIndex = parked.index,
-                parkPrompt = parked.prompt,
-                matchNote = parked.note,
-                tableUpdatedAt = loaded.updatedAt.takeIf { it.isNotBlank() },
+                campus = campus,
                 token = token,
                 tokenExpiresAt = token?.let(LaundryToken::expiresAtMillis)
             )
-            rebuild()
-            // 线上台账增量升级：304/失败都静默，基线已兜底；成功后重建列表
-            // 进页面必须有一次占用查询：升级成功时 upgradeTable 内部已发起，否则这里补一次
-            val upgraded = upgradeTable()
-            if (!upgraded) refresh()
+            if (campus == LaundryCampus.LONGHE) {
+                _state.value = _state.value.copy(loaded = true)
+                loadLonghe()
+            } else {
+                loadQingyuan()
+            }
         }
+    }
+
+    private suspend fun loadQingyuan() {
+        val loaded = table.load()
+        devices = loaded.devices
+        val parked = resolvePark(loaded.parks)
+        _state.value = _state.value.copy(
+            loaded = true,
+            parks = loaded.parks,
+            parkIndex = parked.index,
+            parkPrompt = parked.prompt,
+            matchNote = parked.note,
+            tableUpdatedAt = loaded.updatedAt.takeIf { it.isNotBlank() }
+        )
+        rebuild()
+        // 线上台账增量升级：304/失败都静默，基线已兜底；成功后重建列表
+        // 进页面必须有一次占用查询：升级成功时 upgradeTable 内部已发起，否则这里补一次
+        val upgraded = upgradeTable()
+        if (!upgraded) refresh()
     }
 
     fun selectPark(index: Int) {
         val current = _state.value
         val parkName = current.parks.getOrNull(index) ?: return
         // 手选一次就记住：下次进来（含多栋楼候选）直接落这里，不被自动匹配覆盖
-        parkStore.save(parkName)
+        parkStore.save(current.campus, current.kind, parkName)
         if (index == current.parkIndex) {
             _state.value = current.copy(parkPrompt = emptyList())
             return
@@ -119,7 +147,48 @@ class LaundryViewModel @Inject constructor(
             updatedAt = null
         )
         rebuild()
-        refresh()
+        if (current.campus == LaundryCampus.LONGHE) {
+            // 洗鞋机整店快照在手：换楼栋只在本地筛，不再多打接口
+            val store = shoeStore
+            if (store != null && shoeGroups.isNotEmpty()) {
+                applyLonghe(store, index, current.kind, shoeGroups.getOrNull(index)?.key)
+                _state.value = _state.value.copy(updatedAt = lastLongheAt)
+                rebuild()
+            } else {
+                fetchLonghe(force = true)
+            }
+        } else refresh()
+    }
+
+    /** 手动切校区：持久化后压过宿舍信息，直到用户再切回来。 */
+    fun selectCampus(campus: LaundryCampus) {
+        val current = _state.value
+        if (campus == current.campus) return
+        parkStore.saveCampus(campus)
+        refreshJob?.cancel()
+        devices = emptyList()
+        longhePoints = emptyList()
+        shoeGroups = emptyList()
+        shoeStore = null
+        occupancies = emptyMap()
+        lastLongheAt = 0L
+        _state.value = current.copy(
+            campus = campus,
+            parks = emptyList(),
+            parkIndex = 0,
+            parkPrompt = emptyList(),
+            rows = emptyList(),
+            floors = emptyList(),
+            matchNote = null,
+            tableUpdatedAt = null,
+            updatedAt = null,
+            hint = null,
+            tokenError = null,
+            refreshing = false
+        )
+        viewModelScope.launch {
+            if (campus == LaundryCampus.LONGHE) loadLonghe() else loadQingyuan()
+        }
     }
 
     /** 关掉「这栋楼有多个洗衣房」弹窗，保留当前临时园区。 */
@@ -129,10 +198,27 @@ class LaundryViewModel @Inject constructor(
     }
 
     fun selectKind(kind: LaundryKind) {
-        if (kind == _state.value.kind) return
-        _state.value = _state.value.copy(kind = kind)
-        rebuild()
-        refresh()
+        val current = _state.value
+        if (kind == current.kind) return
+        refreshJob?.cancel()
+        occupancies = emptyMap()
+        _state.value = current.copy(kind = kind, updatedAt = null, matchNote = null)
+        if (current.campus == LaundryCampus.LONGHE) {
+            // 龙河三种机型是三个门店，机房列表要跟着换
+            longhePoints = emptyList()
+            shoeGroups = emptyList()
+            shoeStore = null
+            _state.value = _state.value.copy(
+                parks = emptyList(),
+                parkIndex = 0,
+                rows = emptyList(),
+                floors = emptyList()
+            )
+            viewModelScope.launch { loadLonghe() }
+        } else {
+            rebuild()
+            refresh()
+        }
     }
 
     /**
@@ -206,6 +292,10 @@ class LaundryViewModel @Inject constructor(
     fun refresh() {
         val current = _state.value
         if (!current.loaded) return
+        if (current.campus == LaundryCampus.LONGHE) {
+            if (longhePoints.isEmpty()) viewModelScope.launch { loadLonghe() } else fetchLonghe()
+            return
+        }
         maybeUpgradeTable()
         val all = visibleDevices(current)
         if (all.isEmpty()) return
@@ -274,6 +364,228 @@ class LaundryViewModel @Inject constructor(
         return true
     }
 
+    /** 校区：缓存读不到时同 [dormBuilding] 一样补查一次，避免冷启动把龙河学生落到磬苑。 */
+    private suspend fun dormCampus(): String? {
+        AHUCache.getDormitoryInfo()?.campus?.takeIf { it.isNotBlank() }?.let { return it }
+        val fetched = runCatching { AHURepository.getDormitoryInfo() }.getOrNull()
+        return (fetched as? AhuResult.Success)?.value?.campus?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 龙河进页面/换机型：门店 → 机型 → 机房列表（缓存 5 分钟）→ 按楼栋落机房 → 查一次状态。
+     * 首次最多 4 个请求（相邻至少隔 1.2 秒），之后每次刷新只打 1 个。
+     */
+    private suspend fun loadLonghe() {
+        val current = _state.value
+        _state.value = current.copy(refreshing = true, hint = null)
+        val points = try {
+            qiekj.points(current.kind)
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (error: Exception) {
+            failLonghe(error)
+            return
+        }
+        if (points.isEmpty()) {
+            // 洗鞋机没有机房分组：整店拉一次，用机器名里的楼栋拆成可选机房
+            val store = try {
+                qiekj.machines(current.kind, null)
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                failLonghe(error)
+                return
+            }
+            shoeGroups = QiekjLaundryMatcher.buildingGroupsOf(store.items.map { it.goodsName })
+            shoeStore = store
+            longhePoints = shoeGroups.map {
+                QiekjLaundrySource.Point(QiekjLaundrySource.ALL_POINTS, it.label)
+            }
+            val parks = longhePoints.map { it.name }
+            if (parks.isEmpty()) {
+                _state.value = _state.value.copy(
+                    refreshing = false,
+                    parks = emptyList(),
+                    rows = emptyList(),
+                    floors = emptyList(),
+                    hint = "没有查到可用楼栋"
+                )
+                return
+            }
+            val parked = resolveLonghePark(parks)
+            _state.value = _state.value.copy(
+                parks = parks,
+                parkIndex = parked.index,
+                parkPrompt = parked.prompt,
+                matchNote = parked.note,
+                tableUpdatedAt = null
+            )
+            fetchLonghe(force = true, preloaded = store)
+            return
+        }
+        shoeGroups = emptyList()
+        shoeStore = null
+        longhePoints = points
+        val parks = longhePoints.map { it.name }
+        val parked = resolveLonghePark(parks)
+        _state.value = _state.value.copy(
+            parks = parks,
+            parkIndex = parked.index,
+            parkPrompt = parked.prompt,
+            matchNote = parked.note,
+            tableUpdatedAt = null
+        )
+        fetchLonghe(force = true)
+    }
+
+    private fun failLonghe(error: Exception) {
+        // 机房列表也一起清掉，下次刷新才会重走"取机房 → 查机器"，而不是拿旧点位硬查
+        longhePoints = emptyList()
+        shoeGroups = emptyList()
+        shoeStore = null
+        _state.value = _state.value.copy(
+            refreshing = false,
+            parks = emptyList(),
+            rows = emptyList(),
+            floors = emptyList(),
+            hint = "龙河洗衣房数据获取失败：${error.javaClass.simpleName}"
+        )
+    }
+
+    private fun fetchLonghe(force: Boolean = false, preloaded: QiekjLaundrySource.Snapshot? = null) {
+        val current = _state.value
+        if (longhePoints.getOrNull(current.parkIndex) == null) {
+            // 没有可查机房时也要收掉刷新态，否则页面一直转圈
+            _state.value = current.copy(refreshing = false)
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (!force && current.updatedAt != null && now - lastLongheAt < LONGHE_MIN_INTERVAL_MS) return
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
+            val state = _state.value
+            val point = longhePoints.getOrNull(state.parkIndex) ?: return@launch
+            _state.value = state.copy(refreshing = true)
+            try {
+                // 整店下发机型刚拉过全店，直接复用，不再多打一次
+                val snapshot = preloaded ?: qiekj.machines(state.kind, point)
+                lastLongheAt = System.currentTimeMillis()
+                applyLonghe(
+                    snapshot = snapshot,
+                    parkIndex = state.parkIndex,
+                    kind = state.kind,
+                    groupKey = shoeGroups.getOrNull(state.parkIndex)?.key
+                )
+                _state.value = _state.value.copy(
+                    refreshing = false,
+                    updatedAt = lastLongheAt,
+                    hint = null
+                )
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                // 限速冷却、网络错都走这里：保留上一次读数，只提示这次没刷上
+                _state.value = _state.value.copy(
+                    refreshing = false,
+                    hint = "刷新失败：${error.javaClass.simpleName}"
+                )
+            }
+            rebuild()
+        }
+    }
+
+    private fun applyLonghe(
+        snapshot: QiekjLaundrySource.Snapshot,
+        parkIndex: Int,
+        kind: LaundryKind,
+        groupKey: String? = null
+    ) {
+        // 整店下发机型（洗鞋机）按所选楼栋收窄；楼栋选完仍查不到就退回整店，不留空白
+        val grouped = groupKey != null &&
+            snapshot.items.any { QiekjLaundryMatcher.buildingGroupOf(it.goodsName)?.key == groupKey }
+        val scoped = if (grouped) {
+            snapshot.items.filter { QiekjLaundryMatcher.buildingGroupOf(it.goodsName)?.key == groupKey }
+        } else {
+            snapshot.items
+        }
+        // 跨楼同机位号会重名，按楼栋/楼层/机位排序，同楼机器才挨在一起
+        val ordered = scoped.sortedWith(
+            compareBy<com.ahu.ahutong.data.laundry.QiekjMachine>(
+                { QiekjLaundryMatcher.buildingGroupOf(it.goodsName)?.key ?: "\uFFFF" },
+                { QiekjLaundryMatcher.floorOf(it.goodsName) ?: Int.MAX_VALUE },
+                { QiekjLaundryMatcher.slotOf(it.goodsName)?.toIntOrNull() ?: Int.MAX_VALUE }
+            )
+        )
+        val list = ArrayList<LaundryDevice>(scoped.size)
+        val fresh = HashMap<String, LaundryOccupancy>(scoped.size)
+        // 整店展示时机位号跨楼重名，才需要用楼栋兜底做位置标签；同楼（含单机房）不重复写楼栋
+        val showBuilding = !grouped &&
+            scoped.mapNotNull { QiekjLaundryMatcher.buildingLabel(it.goodsName) }.distinct().size > 1
+        ordered.forEach { machine ->
+            val id = machine.goodsId?.toString() ?: return@forEach
+            val floor = QiekjLaundryMatcher.floorOf(machine.goodsName)
+            val slot = QiekjLaundryMatcher.slotOf(machine.goodsName)
+            list += LaundryDevice(
+                id = id,
+                parkIndex = parkIndex,
+                kind = kind,
+                location = if (showBuilding) QiekjLaundryMatcher.buildingLabel(machine.goodsName) else null,
+                floor = floor,
+                slot = slot,
+                remark = machine.goodsName?.takeIf { slot == null && !grouped },
+                online = true
+            )
+            fresh[id] = QiekjLaundryMatcher.occupancyOf(
+                status = machine.deviceWorkStatus,
+                endUseTimeValue = machine.endUseTimeValue,
+                clockOffsetMillis = snapshot.clockOffsetMillis
+            )
+        }
+        devices = list
+        occupancies = fresh
+    }
+
+    /**
+     * 宿舍楼栋号：缓存读不到时主动查一次。
+     *
+     * 冷启动直接进洗衣房时住宿信息往往还没落缓存，只读缓存会匹配不到任何园区，
+     * 于是退到列表第一个（龙河是 301幢洗衣房），和宿舍对不上。
+     */
+    private suspend fun dormBuilding(): String? {
+        AHUCache.getDormitoryInfo()?.building?.takeIf { it.isNotBlank() }?.let { return it }
+        val fetched = runCatching { AHURepository.getDormitoryInfo() }.getOrNull()
+        return (fetched as? AhuResult.Success)?.value?.building?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 龙河打开时的机房：宿舍楼栋号匹配 → 上次手选 → 第一个机房。
+     * 同一楼栋有多个机房（205栋 / 205幢）时只给候选，不替用户猜。
+     */
+    private suspend fun resolveLonghePark(parks: List<String>): ParkResolution {
+        if (parks.isEmpty()) return ParkResolution(0, emptyList(), null)
+        fun remembered(): Int? = parkStore.last(LaundryCampus.LONGHE, _state.value.kind)
+            ?.let { name -> parks.indexOfFirst { it == name } }
+            ?.takeIf { it >= 0 }
+
+        // 手选优先：切过机房就一直落那个，不被宿舍楼栋掰回去
+        remembered()?.let { return ParkResolution(it, emptyList(), null) }
+
+        val building = dormBuilding()
+        return when (val matched = QiekjLaundryMatcher.match(building, parks)) {
+            is LaundryParkMatch.Hit -> ParkResolution(
+                index = matched.index,
+                prompt = emptyList(),
+                note = "已按宿舍 $building 定位机房"
+            )
+            is LaundryParkMatch.Multiple -> ParkResolution(
+                index = matched.indices.first(),
+                prompt = matched.indices,
+                note = "宿舍 $building 对应 ${matched.indices.size} 个机房"
+            )
+            LaundryParkMatch.None -> ParkResolution(remembered() ?: 0, emptyList(), null)
+        }
+    }
+
     private fun visibleDevices(state: UiState): List<LaundryDevice> =
         devices.filter {
             it.parkIndex == state.parkIndex && it.kind == state.kind
@@ -320,14 +632,13 @@ class LaundryViewModel @Inject constructor(
      * 兰园在台账里拆成 A/B/C/D 栋，「兰园2号楼」只能给出多个候选，所以首次进页面
      * 弹一次选择；选过一次就记进 [LaundryParkStore]，以后直接落，不再弹。
      */
-    private fun resolvePark(parks: List<String>): ParkResolution {
+    private suspend fun resolvePark(parks: List<String>): ParkResolution {
         if (parks.isEmpty()) return ParkResolution(0, emptyList(), null)
-        fun remembered(): Int? = parkStore.last()
+        fun remembered(): Int? = parkStore.last(LaundryCampus.QINGYUAN)
             ?.let { name -> parks.indexOfFirst { it == name } }
             ?.takeIf { it >= 0 }
 
-        val building = runCatching { AHUCache.getDormitoryInfo()?.building }.getOrNull()
-            ?.takeIf { it.isNotBlank() }
+        val building = dormBuilding()
         return when (val matched = LaundryParkMatcher.match(building, parks)) {
             is LaundryParkMatch.Hit -> ParkResolution(
                 index = matched.index,
@@ -370,5 +681,8 @@ class LaundryViewModel @Inject constructor(
 
         /** 单批回填台数：一批约 1 秒，园区再大也能边查边出。 */
         const val BATCH_SIZE = 16
+
+        /** 龙河相邻两次查询的最小间隔：一次刷新只打 1 个请求，别让手快连点把平台打急。 */
+        const val LONGHE_MIN_INTERVAL_MS = 15_000L
     }
 }
