@@ -1,8 +1,10 @@
 package com.ahu.ahutong.ui.screen.laundry
 
-import androidx.compose.foundation.layout.Arrangement
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -14,15 +16,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -31,54 +31,57 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ahu.ahutong.core.designsystem.RefreshState
 import com.ahu.ahutong.data.laundry.LaundryCampus
+import com.ahu.ahutong.data.laundry.LaundryDevice
 import com.ahu.ahutong.data.laundry.LaundryKind
 import com.ahu.ahutong.data.laundry.LaundryOccupancy
 import com.ahu.ahutong.ui.components.AppButton
 import com.ahu.ahutong.ui.components.AppButtonVariant
 import com.ahu.ahutong.ui.components.AppCard
+import com.ahu.ahutong.ui.components.AppDialog
+import com.ahu.ahutong.ui.components.AppDialogAction
 import com.ahu.ahutong.ui.components.AppFilterChip
 import com.ahu.ahutong.ui.components.AppModalBottomSheet
 import com.ahu.ahutong.ui.components.AppPageScaffold
 import com.ahu.ahutong.ui.components.AppRefreshButton
+import com.ahu.ahutong.ui.components.AppSelectField
+import com.ahu.ahutong.ui.components.AppSelectOption
 import com.ahu.ahutong.ui.components.AppTextField
-import com.ahu.ahutong.ui.components.TrailingAction
-import com.ahu.ahutong.ui.components.AppDialog
-import com.ahu.ahutong.ui.components.AppDialogAction
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Settings
-import com.ahu.ahutong.core.designsystem.RefreshState
+import com.ahu.ahutong.ui.haptics.HapticTextButton
+import com.ahu.ahutong.ui.haptics.hapticClickable
 import com.ahu.ahutong.ui.state.LaundryViewModel
 import com.kyant.monet.withNight
-import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 /**
  * 洗衣房空闲/占用总览。
  *
- * 台账 assets 基线 + 线上增量（ETag/304）；实时占用要 token（微信静默授权产物，2 小时过期）。
- * 无感接力：页面复制分享链接 → 微信打开授权 → 切回 App 自动读剪贴板接上；
- * 也可打开弹层手动粘贴。占用查询按园区整查、分批回填，先到先显示。
+ * 磬苑走乐摇摇（离线台账 + 实时凭据），龙河走趣智校园匿名接口。
  */
 @Composable
 fun LaundryScreen(
@@ -87,16 +90,15 @@ fun LaundryScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var showTokenSheet by remember { mutableStateOf(false) }
-    var showParkSheet by remember { mutableStateOf(false) }
-    var detailDevice by remember { mutableStateOf<com.ahu.ahutong.data.laundry.LaundryDevice?>(null) }
+    var detailDevice by remember { mutableStateOf<LaundryDevice?>(null) }
     var pasted by remember { mutableStateOf("") }
-    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var lastClipboardText by remember { mutableStateOf("") }
+    var previousToken by remember { mutableStateOf(state.token) }
 
-    // 倒计时与「剩余几点几分」都靠这个心跳推进，不需要每秒请求
     LaunchedEffect(Unit) {
         while (true) {
             nowMillis = System.currentTimeMillis()
@@ -104,11 +106,23 @@ fun LaundryScreen(
         }
     }
 
-    // ON_RESUME 剪贴板接力：从微信回来时自动读。只认「看着像 token 的文本」，
-    // 且同一文本只消费一次，避免反复触发网络校验。
+    LaunchedEffect(state.hint) {
+        val hint = state.hint ?: return@LaunchedEffect
+        Toast.makeText(context, hint, Toast.LENGTH_SHORT).show()
+        viewModel.consumeHint()
+    }
+
+    LaunchedEffect(state.token) {
+        if (state.token != null && state.token != previousToken) {
+            showTokenSheet = false
+            pasted = ""
+        }
+        previousToken = state.token
+    }
+
+    // ON_RESUME 剪贴板接力：仅在磬苑且未持有效凭据时尝试一次，避免重复校验。
     DisposableEffect(lifecycleOwner, state.hasToken, state.campus) {
         val observer = LifecycleEventObserver { _, event ->
-            // 龙河走趣智校园匿名接口，不需要也不该拿乐摇摇 token
             if (event == Lifecycle.Event.ON_RESUME && !state.hasToken &&
                 state.campus == LaundryCampus.QINGYUAN
             ) {
@@ -123,19 +137,17 @@ fun LaundryScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 列表条目：有楼层信息的园区按楼层分组（每层一行，行内横向可滑），
-    // 无楼层的园区仍是每行 3 台的平铺块。
     val blocks = remember(state.rows, state.floors) {
         buildBlockList(state.rows, state.floors)
     }
+    val parkOptions = remember(state.parks) {
+        state.parks.mapIndexed { index, name -> AppSelectOption(index, name) }
+    }
 
     val listState = rememberLazyListState()
-    // 换园区/机型后条目数完全不同，留在原下标会落到无关段落，直接回顶
     LaunchedEffect(state.parkIndex, state.kind) {
         listState.scrollToItem(0)
     }
-    // 进入页面先查一次占用（从其他页面返回同样重跑），之后每 45 秒自动刷一次，
-    // 用户不操作也能看到状态变化；切园区/机型由 selectPark/selectKind 自行刷新，故不作 key
     LaunchedEffect(state.hasToken, state.campus) {
         if (!state.hasToken && state.campus != LaundryCampus.LONGHE) return@LaunchedEffect
         while (true) {
@@ -149,11 +161,39 @@ fun LaundryScreen(
         subtitle = state.parks.getOrNull(state.parkIndex)?.let { "$it · ${state.rows.size} 台" },
         onBack = onBack,
         listState = listState,
-        // 楼层分组时条目密集（兰园 80+ 行），行间距收紧；平铺沿用默认留白
-        verticalArrangement = Arrangement.spacedBy(if (state.floors.isEmpty()) 24.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (state.floors.isEmpty()) 16.dp else 12.dp),
         lazyContent = {
+            item(key = "campus-and-park") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LaundryCampus.entries.forEach { campus ->
+                            AppFilterChip(
+                                selected = state.campus == campus,
+                                onClick = { viewModel.selectCampus(campus) },
+                                label = { Text(campus.label, fontSize = 13.sp) }
+                            )
+                        }
+                    }
+                    AppSelectField(
+                        label = "楼栋",
+                        selected = state.parkIndex.takeIf { it in state.parks.indices },
+                        options = parkOptions,
+                        onSelected = viewModel::selectPark,
+                        placeholder = if (state.refreshing) "加载中" else "暂无可用",
+                        enabled = state.parks.isNotEmpty(),
+                        valueTextAlign = TextAlign.End,
+                        miuixStandalone = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
             if (state.campus == LaundryCampus.QINGYUAN) {
-                item {
+                item(key = "token-banner") {
                     TokenBanner(
                         state = state,
                         nowMillis = nowMillis,
@@ -161,13 +201,12 @@ fun LaundryScreen(
                     )
                 }
             }
-            item {
-                val kinds = com.ahu.ahutong.data.laundry.LaundryKind.entries
+            item(key = "kind-chips") {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 20.dp)
                 ) {
-                    itemsIndexed(kinds) { _, kind ->
+                    items(LaundryKind.entries) { kind ->
                         AppFilterChip(
                             selected = state.kind == kind,
                             onClick = { viewModel.selectKind(kind) },
@@ -176,29 +215,13 @@ fun LaundryScreen(
                     }
                 }
             }
-            // 园区是怎么定下来的：宿舍匹配成功或被候选卡住时都说明一句
-            state.matchNote?.let { note ->
-                item {
+            val summaryText = buildStatusSummary(state)
+            if (summaryText != null) {
+                item(key = "status-summary") {
                     Text(
-                        text = note,
-                        fontSize = 12.sp,
-                        color = subtitleColor(),
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
-                }
-            }
-            if (state.hasToken || state.campus == LaundryCampus.LONGHE) {
-                item {
-                    Text(
-                        text = buildString {
-                            append("空闲 ${state.freeCount} · 使用中 ${state.busyCount}")
-                            state.updatedAt?.let {
-                                append(" · 更新于 ")
-                                append(SimpleDateFormat("HH:mm:ss", Locale.CHINA).format(Date(it)))
-                            }
-                        },
-                        fontSize = 12.sp,
-                        color = subtitleColor(),
+                        text = summaryText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp)
                     )
                 }
@@ -222,28 +245,21 @@ fun LaundryScreen(
                     }
                 }
             }
-            item {
+            item(key = "footer") {
                 Text(
                     text = if (state.campus == LaundryCampus.LONGHE) {
-                        "机房 ${state.rows.size} 台 · 状态来自趣智校园平台"
+                        "共 ${state.rows.size} 台 · 数据源：趣智校园"
                     } else {
-                        buildString {
-                            append("台账 ${state.rows.size} 台 · ")
-                            state.tableUpdatedAt?.let { append(it).append(" 更新 · ") }
-                            append("状态来自乐摇摇平台")
-                        }
+                        "共 ${state.rows.size} 台 · 数据源：乐摇摇"
                     },
-                    fontSize = 11.sp,
-                    color = subtitleColor(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 12.dp)
                 )
             }
         },
-        actions = listOf(
-            TrailingAction(Icons.Outlined.Settings, "洗衣房设置") { showParkSheet = true }
-        ),
         trailingContent = {
             AppRefreshButton(
                 state = if (state.refreshing) RefreshState.LOADING else RefreshState.IDLE,
@@ -254,17 +270,13 @@ fun LaundryScreen(
 
     if (showTokenSheet) {
         AppModalBottomSheet(
-            title = "连接乐摇摇账号",
-            // enableEdgeToEdge 下 adjustResize 不会缩小窗口，必须自己吃 IME inset，
-            // 否则键盘一弹出就把输入框和「保存并刷新」全盖住（这就是点不到确认的原因）。
+            title = "导入凭据",
             modifier = Modifier.imePadding(),
             onDismissRequest = {
                 showTokenSheet = false
                 viewModel.clearTokenError()
             }
         ) {
-            // heightIn + verticalScroll：小屏幕/键盘弹出时内容再长也能滑到底部按下按钮
-            // （仓库里 StudentMailScreen 同样是这个写法）。
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -273,15 +285,23 @@ fun LaundryScreen(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    "占用状态只有乐摇摇平台的微信登录态能查（有效期 2 小时）。三步接上：" +
-                        "① 点下方「分享链接到微信」，在微信里打开并等页面加载出来；" +
-                        "② 点微信右上角「···」→「复制链接」——token 就在这条链接里；" +
-                        "③ 切回安大通，token 自动接上，不用手动粘贴。",
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    color = subtitleColor()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "1. 分享链接到微信并打开",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "2. 点击右上角「···」复制链接",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "3. 返回安大通自动导入，或在下方粘贴",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 val firstDeviceId = state.rows.firstOrNull()?.device?.id
                 AppButton(
                     onClick = {
@@ -294,23 +314,15 @@ fun LaundryScreen(
                     variant = AppButtonVariant.Primary,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("分享链接到微信（推荐）")
+                    Text("分享链接到微信")
                 }
-                Text(
-                    "或手动：在微信里打开任一洗衣机页面 → 右上角「···」→「复制链接」→ 回来粘贴。",
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    color = subtitleColor()
-                )
-                // token 链接动辄 600+ 字符，多行不设上限会把内容顶出屏幕、按钮滚不到。
-                // 固定最多 3 行，超出的部分由输入框内部滚动，保证「保存并刷新」始终可点。
                 AppTextField(
                     value = pasted,
                     onValueChange = {
                         pasted = it
                         viewModel.clearTokenError()
                     },
-                    label = "粘贴微信复制来的链接",
+                    label = "链接或凭据",
                     minLines = 2,
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth(),
@@ -325,100 +337,51 @@ fun LaundryScreen(
                         variant = AppButtonVariant.Secondary,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("从剪贴板粘贴")
+                        Text("粘贴")
                     }
                     AppButton(
                         onClick = { viewModel.applyToken(pasted) },
                         enabled = pasted.isNotBlank() && !state.refreshing,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(if (state.refreshing) "校验中…" else "保存并刷新")
+                        Text(if (state.refreshing) "校验中" else "导入")
                     }
                 }
                 state.tokenError?.let {
-                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                if (state.hasToken) {
+                    HapticTextButton(
+                        onClick = {
+                            viewModel.clearToken()
+                            showTokenSheet = false
+                        },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("清除当前凭据", color = MaterialTheme.colorScheme.error)
+                    }
                 }
                 Text(
-                    "token 仅加密保存在本机，不上传服务器，也不会出现在反馈日志里。",
-                    fontSize = 11.sp,
-                    color = subtitleColor()
+                    text = "凭据仅存于本机，有效期 2 小时。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
 
-    // 园区选择：不常调的东西收进二级菜单（右上角设置图标）。
-    // 列表滚动 + 点选即关；副标题实时反映当前园区。
-    if (showParkSheet) {
-        AppModalBottomSheet(
-            title = "洗衣房设置",
-            onDismissRequest = { showParkSheet = false }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // 校区放在园区上面：切校区会整份换掉下面的机房列表
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LaundryCampus.entries.forEach { campus ->
-                        AppFilterChip(
-                            selected = state.campus == campus,
-                            onClick = { viewModel.selectCampus(campus) },
-                            label = { Text(campus.label, fontSize = 13.sp) }
-                        )
-                    }
-                }
-                if (state.parks.isEmpty()) {
-                    Text(
-                        text = if (state.refreshing) "正在获取机房…" else "暂无可用机房",
-                        fontSize = 13.sp,
-                        color = subtitleColor(),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                    )
-                }
-                state.parks.forEachIndexed { index, park ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                viewModel.selectPark(index)
-                                showParkSheet = false
-                            }
-                            .padding(horizontal = 16.dp, vertical = 13.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                    ) {
-                        Text(park, fontSize = 15.sp)
-                        if (index == state.parkIndex) {
-                            Text(
-                                "当前",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 宿舍楼栋对应多个洗衣房（兰园 A/B/C/D 栋）：选一次就记住，之后直接落那次的选择
     if (state.parkPrompt.isNotEmpty()) {
         AppDialog(
-            title = "这栋楼有多个洗衣房",
+            title = "选择洗衣房",
             onDismiss = { viewModel.dismissParkPrompt() },
             subtitle = state.matchNote,
             actions = listOf(
-                AppDialogAction(label = "稍后", onClick = { viewModel.dismissParkPrompt() })
+                AppDialogAction(label = "取消", onClick = { viewModel.dismissParkPrompt() })
             )
         ) {
             state.parkPrompt.forEach { index ->
@@ -427,18 +390,16 @@ fun LaundryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable {
-                            viewModel.selectPark(index)
-                        }
+                        .hapticClickable { viewModel.selectPark(index) }
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(park, fontSize = 15.sp)
+                    Text(park, style = MaterialTheme.typography.bodyLarge)
                     if (index == state.parkIndex) {
                         Text(
-                            "当前",
-                            fontSize = 12.sp,
+                            text = "当前",
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
                         )
@@ -448,20 +409,15 @@ fun LaundryScreen(
         }
     }
 
-    // 设备详情：核对现实机器编号（机身上贴的号）与台账字段是否一致。
     if (detailDevice != null) {
         val device = detailDevice!!
-        val parkName = state.parks.getOrNull(device.parkIndex) ?: ""
+        val parkName = state.parks.getOrNull(device.parkIndex).orEmpty()
         AppDialog(
             title = device.slot?.takeIf { it.isNotBlank() } ?: device.kind.label,
             onDismiss = { detailDevice = null },
-            subtitle = if (state.campus == LaundryCampus.LONGHE) {
-                "$parkName · 机房设备"
-            } else {
-                "$parkName · 台账字段一览"
-            },
+            subtitle = parkName.takeIf { it.isNotBlank() },
             contentScrollable = true,
-            actions = listOf(AppDialogAction(label = "知道了", onClick = { detailDevice = null }))
+            actions = listOf(AppDialogAction(label = "关闭", onClick = { detailDevice = null }))
         ) {
             val rows = listOfNotNull(
                 "设备编号" to device.id,
@@ -471,7 +427,7 @@ fun LaundryScreen(
                 "楼层" to (device.floor?.let { "${it}F" } ?: "—"),
                 "备注" to (device.remark ?: "—"),
                 if (state.campus == LaundryCampus.QINGYUAN) {
-                    "台账在线" to if (device.online) "是（扫描时在线）" else "否（扫描时离线）"
+                    "在线状态" to if (device.online) "在线" else "离线"
                 } else {
                     null
                 }
@@ -481,38 +437,57 @@ fun LaundryScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(label, fontSize = 13.sp, color = subtitleColor())
                     Text(
-                        value,
-                        fontSize = 13.sp,
+                        text = label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-            // 占用状态实时值也带上，方便对照
             state.rows.firstOrNull { it.device.id == device.id }?.occupancy?.let { occupancy ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("当前状态", fontSize = 13.sp, color = subtitleColor())
                     Text(
-                        when (occupancy) {
-                            is com.ahu.ahutong.data.laundry.LaundryOccupancy.Idle -> "空闲"
-                            is com.ahu.ahutong.data.laundry.LaundryOccupancy.InUse ->
+                        text = "当前状态",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = when (occupancy) {
+                            is LaundryOccupancy.Idle -> "空闲"
+                            is LaundryOccupancy.InUse ->
                                 remainingMinutes(occupancy.endAtMillis, occupancy.clockOffsetMillis, nowMillis)
-                            is com.ahu.ahutong.data.laundry.LaundryOccupancy.Unknown ->
-                                occupancy.reason ?: "未知"
+                            is LaundryOccupancy.Unknown -> occupancy.reason.ifBlank { "未知" }
                         },
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
         }
     }
+}
+
+private fun buildStatusSummary(state: LaundryViewModel.UiState): String? {
+    val parts = buildList {
+        state.matchNote?.takeIf { it.isNotBlank() }?.let(::add)
+        if (state.hasToken || state.campus == LaundryCampus.LONGHE) {
+            add("空闲 ${state.freeCount} · 使用中 ${state.busyCount}")
+            state.updatedAt?.let {
+                add(SimpleDateFormat("HH:mm", Locale.CHINA).format(Date(it)) + " 更新")
+            }
+        }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 
 @Composable
@@ -523,9 +498,9 @@ private fun TokenBanner(
 ) {
     val expired = state.tokenExpiresAt?.let { it <= nowMillis } ?: false
     val (title, detail) = when {
-        !state.hasToken -> "未连接 · 点此开通实时空闲查看" to "机器位置不需要连接；每台在用/空闲要按弹层步骤连上微信才有"
-        expired -> "token 已过期 · 点此续一次" to "去微信重新打开设备页 ··· 复制一次链接，切回自动续上"
-        else -> "已连接" to (remainingText(state.tokenExpiresAt, nowMillis) + " · 下拉或切园区自动刷新")
+        !state.hasToken -> "导入乐摇摇凭据" to "未导入，无法查看实时状态"
+        expired -> "凭据已过期" to "点击重新导入"
+        else -> "凭据有效" to remainingText(state.tokenExpiresAt, nowMillis)
     }
     AppCard(
         onClick = onClick,
@@ -536,23 +511,32 @@ private fun TokenBanner(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(detail, fontSize = 12.sp, color = subtitleColor())
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            if (!state.hasToken || expired) {
-                Text("›", fontSize = 20.sp, color = subtitleColor())
-            }
+            Text(
+                text = "›",
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
-/** 平铺块：没有楼层信息的园区，每行 3 台。 */
 @Composable
 private fun GridRow(
     rows: List<LaundryViewModel.DeviceRow>,
     nowMillis: Long,
-    onDeviceClick: (com.ahu.ahutong.data.laundry.LaundryDevice) -> Unit
+    onDeviceClick: (LaundryDevice) -> Unit
 ) {
     Row(
         modifier = Modifier.padding(horizontal = 20.dp),
@@ -572,31 +556,28 @@ private fun GridRow(
     }
 }
 
-/** 一层楼：左侧楼层号，右侧横向可滑的机器列表（三台以内正好铺满一行）。 */
 @Composable
 private fun FloorStrip(
     floor: Int,
     rows: List<LaundryViewModel.DeviceRow>,
     nowMillis: Long,
-    onDeviceClick: (com.ahu.ahutong.data.laundry.LaundryDevice) -> Unit
+    onDeviceClick: (LaundryDevice) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp),
+            .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "${floor}F",
             modifier = Modifier.width(30.dp),
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
-            color = subtitleColor()
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         BoxWithConstraints(modifier = Modifier.weight(1f)) {
-            // 单元格按三列取整，超过三台的楼层横向滑动查看
             val cellWidth = ((maxWidth - 20.dp) / 3).coerceAtLeast(92.dp)
-            // 按楼层记状态：LazyColumn 复用条目槽位，不按楼层区分会继承上一层的横向偏移
             val rowState = remember(floor) { LazyListState() }
             LazyRow(state = rowState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(rows.size) { index ->
@@ -606,7 +587,6 @@ private fun FloorStrip(
                             device = row.device,
                             occupancy = row.occupancy,
                             nowMillis = nowMillis,
-                            // 楼层已由行首标题给出：有方位就标方位（东/中/西），否则不占位
                             placeOverride = row.device.location?.takeIf { it.isNotBlank() } ?: "",
                             onClick = { onDeviceClick(row.device) }
                         )
@@ -617,7 +597,6 @@ private fun FloorStrip(
     }
 }
 
-/** 列表条目：一层楼（横向可滑）/ 平铺三台。 */
 private sealed interface LaundryBlock {
     val size: Int
 
@@ -630,7 +609,6 @@ private sealed interface LaundryBlock {
     }
 }
 
-/** 有楼层信息就每层一行，否则退回每行三台。 */
 private fun buildBlockList(
     rows: List<LaundryViewModel.DeviceRow>,
     floors: List<LaundryViewModel.FloorRow>
@@ -641,35 +619,33 @@ private fun buildBlockList(
 
 @Composable
 private fun DeviceCell(
-    device: com.ahu.ahutong.data.laundry.LaundryDevice,
-    occupancy: com.ahu.ahutong.data.laundry.LaundryOccupancy?,
+    device: LaundryDevice,
+    occupancy: LaundryOccupancy?,
     nowMillis: Long,
     placeOverride: String? = null,
     onClick: () -> Unit
 ) {
     val status = when (occupancy) {
-        is com.ahu.ahutong.data.laundry.LaundryOccupancy.Idle -> "空闲"
-        is com.ahu.ahutong.data.laundry.LaundryOccupancy.InUse ->
+        is LaundryOccupancy.Idle -> "空闲"
+        is LaundryOccupancy.InUse ->
             remainingMinutes(occupancy.endAtMillis, occupancy.clockOffsetMillis, nowMillis)
-        is com.ahu.ahutong.data.laundry.LaundryOccupancy.Unknown ->
-            occupancy.reason ?: "未知"
+        is LaundryOccupancy.Unknown -> occupancy.reason.ifBlank { "未知" }
         null -> "—"
     }
     val (fg, bg) = when (occupancy) {
-        is com.ahu.ahutong.data.laundry.LaundryOccupancy.Idle -> idleFg() to idleBg()
-        is com.ahu.ahutong.data.laundry.LaundryOccupancy.InUse -> busyFg() to busyBg()
+        is LaundryOccupancy.Idle -> idleFg() to idleBg()
+        is LaundryOccupancy.InUse -> busyFg() to busyBg()
         else -> mutedFg() to mutedBg()
     }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .background(bg, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .background(bg)
+            .hapticClickable(onClick = onClick)
             .padding(vertical = 10.dp, horizontal = 10.dp)
     ) {
-        // 洗鞋机 slot=null：标题只写类型名，不显示 null
         val title = device.slot?.takeIf { it.isNotBlank() } ?: device.kind.label
         Text(
             text = title,
@@ -679,7 +655,6 @@ private fun DeviceCell(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        // 位置行：平铺时给出方位+楼层（11号楼的 A1、南7号楼的 3F），楼层分组时楼层由行标题承担
         val place = placeOverride ?: buildString {
             device.location?.let { append(it) }
             device.floor?.let { append(it).append("F") }
@@ -693,18 +668,19 @@ private fun DeviceCell(
     }
 }
 
-/** 分享设备链接到微信：ACTION_SEND + 指定包名直接进微信聊天选择页。 */
-private fun shareToWeChat(context: android.content.Context, deviceId: String) {
-    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+private fun shareToWeChat(context: Context, deviceId: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(
-            android.content.Intent.EXTRA_TEXT,
+            Intent.EXTRA_TEXT,
             "https://m.leyaoyao.com/customer/message/t/$deviceId"
         )
         setPackage("com.tencent.mm")
     }
     runCatching { context.startActivity(intent) }
-        .onFailure { it.printStackTrace() } // 没装微信 / 被禁 → 用户走手动粘贴路径
+        .onFailure {
+            Toast.makeText(context, "未检测到微信，请手动粘贴链接", Toast.LENGTH_SHORT).show()
+        }
 }
 
 private fun remainingMinutes(endAtMillis: Long, offset: Long, nowMillis: Long): String {
@@ -720,11 +696,8 @@ private fun remainingText(expiresAtMillis: Long?, nowMillis: Long): String {
     val seconds = expiresAtMillis?.let { (it - nowMillis) / 1000 } ?: 0
     if (seconds <= 0) return "已过期"
     val minutes = seconds / 60
-    return if (minutes >= 60) "剩 ${minutes / 60} 小时 ${minutes % 60} 分" else "剩 $minutes 分"
+    return if (minutes >= 60) "剩余 ${minutes / 60} 小时 ${minutes % 60} 分" else "剩余 $minutes 分"
 }
-
-@Composable
-private fun subtitleColor(): Color = Color(0xFF8A8A8E) withNight Color(0xFF8E8E93)
 
 @Composable
 private fun idleFg(): Color = Color(0xFF1B7A3D) withNight Color(0xFF6FD48A)

@@ -50,6 +50,7 @@ data class FeedbackUiState(
         DiagnosticCategory.RUNTIME, DiagnosticCategory.ERROR
     ),
     val preview: String? = null,
+    val previewLoading: Boolean = false,
     val submitting: Boolean = false,
     val status: String? = null,
     val feedbackId: String? = null,
@@ -96,7 +97,7 @@ fun FeedbackScreen(
             modifier = Modifier.fillMaxWidth()
                 .testTag("feedback_description")
                 .semantics { contentDescription = "问题描述" },
-            enabled = !state.submitting,
+            enabled = !state.submitting && !state.previewLoading,
             singleLine = false
         )
         if (state.description.length >= 3800) {
@@ -113,8 +114,8 @@ fun FeedbackScreen(
         )
         AppButton(onClick = onPreview,
             modifier = Modifier.fillMaxWidth().testTag("feedback_preview"),
-            enabled = !state.submitting && state.description.isNotBlank()) {
-            Text("预览反馈")
+            enabled = !state.submitting && !state.previewLoading && state.description.isNotBlank()) {
+            Text(if (state.previewLoading) "加载中…" else "预览反馈")
         }
     }
     state.preview?.let { preview ->
@@ -159,7 +160,7 @@ fun FeedbackExportScreen(
         TextButton(onClick = onShare,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("feedback_share"),
             enabled = !state.submitting) {
-            Text("分享日志")
+            Text(if (state.submitting) "处理中" else "分享日志")
         }
         state.exportStatus?.takeIf { it.isNotBlank() }?.let {
             Text(it, modifier = Modifier.testTag("feedback_export_status"),
@@ -180,15 +181,16 @@ private fun FeedbackPage(title: String, onBack: () -> Unit, content: @Composable
 
 @Composable
 private fun FeedbackLogChoices(state: FeedbackUiState, onCategoryChange: (DiagnosticCategory, Boolean) -> Unit) {
+    val editable = !state.submitting && !state.previewLoading
     AppSectionCard(contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)) {
         FeedbackLogChoice(title = "运行记录", selected = DiagnosticCategory.RUNTIME in state.selectedCategories,
-            enabled = !state.submitting, onSelectedChange = { onCategoryChange(DiagnosticCategory.RUNTIME, it) })
+            enabled = editable, onSelectedChange = { onCategoryChange(DiagnosticCategory.RUNTIME, it) })
         FeedbackLogChoice(title = "错误信息", selected = DiagnosticCategory.ERROR in state.selectedCategories,
-            enabled = !state.submitting, onSelectedChange = { onCategoryChange(DiagnosticCategory.ERROR, it) })
+            enabled = editable, onSelectedChange = { onCategoryChange(DiagnosticCategory.ERROR, it) })
         FeedbackLogChoice(title = "网络详情", description = "包含敏感信息",
             selected = DiagnosticCategory.NETWORK in state.selectedCategories,
-            enabled = !state.submitting, onSelectedChange = { onCategoryChange(DiagnosticCategory.NETWORK, it) })
+            enabled = editable, onSelectedChange = { onCategoryChange(DiagnosticCategory.NETWORK, it) })
     }
 }
 

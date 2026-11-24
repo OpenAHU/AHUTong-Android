@@ -107,27 +107,31 @@ internal class DiagnosticBuffer(
         }
     }
 
-    @Synchronized fun snapshot(category: DiagnosticCategory, maxChars: Int = maxBytes): String {
+    fun snapshot(category: DiagnosticCategory, maxChars: Int = maxBytes): String {
         require(maxChars >= 0)
-        prune(elapsedMillis())
-        // Select recent records before joining: a crash must not allocate another full 5 MiB ring.
-        val recent = ArrayDeque<String>()
-        var remaining = maxChars
-        val iterator = entries.descendingIterator()
-        while (iterator.hasNext() && remaining > 0) {
-            val entry = iterator.next()
-            if (entry.category != category) continue
-            val text = entry.text
-            if (text.length > remaining) {
-                recent.addFirst(text.take(remaining))
-                break
+        // 仅在锁内复制条目引用，拼接与二次密码脱敏全部移出锁外，避免日志导出/上传阻塞主线程写入。
+        val recent = synchronized(this) {
+            prune(elapsedMillis())
+            val selected = ArrayDeque<String>()
+            var remaining = maxChars
+            val iterator = entries.descendingIterator()
+            while (iterator.hasNext() && remaining > 0) {
+                val entry = iterator.next()
+                if (entry.category != category) continue
+                val text = entry.text
+                if (text.length > remaining) {
+                    selected.addFirst(text.take(remaining))
+                    break
+                }
+                selected.addFirst(text)
+                remaining -= text.length + 2
             }
-            recent.addFirst(text)
-            remaining -= text.length + 2
+            selected
         }
+        if (recent.isEmpty()) return ""
         val text = recent.joinToString("\n\n")
-        return if (category == DiagnosticCategory.NETWORK) DiagnosticSanitizer.passwords(text)
-            else DiagnosticSanitizer.safe(text)
+        // 条目在 append 时已按类别做过全量脱敏，此处仅需补扫后续记忆的明文密码。
+        return DiagnosticSanitizer.redactKnownPasswords(text)
     }
 
     @Synchronized fun clear() {

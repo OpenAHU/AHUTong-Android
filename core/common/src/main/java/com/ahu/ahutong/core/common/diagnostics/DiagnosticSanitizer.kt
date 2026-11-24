@@ -30,6 +30,7 @@ object DiagnosticSanitizer {
     )
     private val formAssignment = Regex("""(^|[?#&;\s])([^=&#;?\s"'{}:/]+)=("(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^&#;\s]*)""")
     private val unicodeEscape = Regex("""\\u([0-9a-fA-F]{4})""")
+    private val keySeparator = Regex("""[\s_.-]""")
     private val url = Regex("""(?i)\b(?:https?|wss?)://[^\s<>"']+""")
     private val urlPassword = Regex("""(?i)(https?://[^/\s:@]+:)[^@\s/]+@""")
     private val basicPassword = Regex("""(?i)\bBasic\s+[A-Za-z0-9+/=_-]+""")
@@ -56,6 +57,18 @@ object DiagnosticSanitizer {
     @Synchronized internal fun clearKnownPasswords() = knownPasswords.clear()
 
     fun passwords(text: String): String = sanitize(text, includeIdentity = false)
+
+    /** 仅脱敏运行期记忆的明文密码变体，供已脱敏的日志快照快速复用，避免对数 MB 文本重复跑全量正则。 */
+    fun redactKnownPasswords(text: String): String {
+        if (text.isEmpty()) return text
+        val variants = passwordVariants()
+        if (variants.isEmpty()) return text
+        var result = text
+        variants.sortedByDescending { it.length }.forEach { value ->
+            result = result.replace(value, HIDDEN)
+        }
+        return result
+    }
 
     fun safe(text: String): String {
         var result = sanitize(text, includeIdentity = true)
@@ -187,8 +200,14 @@ object DiagnosticSanitizer {
     }
 
     private fun normalizeKey(key: String): String {
-        var decoded = unicodeEscape.replace(key) { it.groupValues[1].toInt(16).toChar().toString() }
-        repeat(2) { decoded = runCatching { URLDecoder.decode(decoded, "UTF-8") }.getOrDefault(decoded) }
-        return decoded.lowercase().replace(Regex("[\\s_.-]"), "")
+        var decoded = if (key.contains("\\u")) {
+            unicodeEscape.replace(key) { it.groupValues[1].toInt(16).toChar().toString() }
+        } else {
+            key
+        }
+        if (decoded.contains('%') || decoded.contains('+')) {
+            repeat(2) { decoded = runCatching { URLDecoder.decode(decoded, "UTF-8") }.getOrDefault(decoded) }
+        }
+        return keySeparator.replace(decoded.lowercase(), "")
     }
 }

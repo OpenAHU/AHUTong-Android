@@ -671,6 +671,7 @@ internal fun Home(
                 isEditing = isEditingHome,
                 highlightedSlot = highlightedSlot,
                 draggingWidgetId = activeDrag?.widgetId,
+                onEnterEdit = ::enterHomeEditMode,
                 onRemoveHomeWidget = ::removeHomeWidget,
                 onAddHomeWidget = { slotIndex ->
                     if (isEditingHome && activeDrag == null &&

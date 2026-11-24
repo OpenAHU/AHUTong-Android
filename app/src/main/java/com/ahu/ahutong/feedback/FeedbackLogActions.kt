@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,24 +48,34 @@ internal class FeedbackLogActions(
     fun onDocumentResult(uri: Uri?) {
         val export = feedbackViewModel.pendingExport
         feedbackViewModel.pendingExport = null
-        if (uri != null) {
-            if (export == null || !feedbackViewModel.isExportCurrent(export)) {
-                discardExpiredDocument(uri)
-            } else saveExport(uri, export)
+        if (uri == null) {
+            feedbackViewModel.finishExportAction(
+                export?.generation ?: FeedbackDiagnostics.currentGeneration(),
+                ""
+            )
+            return
+        }
+        if (export == null || !feedbackViewModel.isExportCurrent(export)) {
+            feedbackViewModel.finishExportAction(FeedbackDiagnostics.currentGeneration(), EXPIRED_EXPORT)
+            discardExpiredDocument(uri)
+        } else {
+            saveExport(uri, export)
         }
     }
 
     fun exportLogs(launchDocument: (String) -> Unit) {
+        val request = feedbackViewModel.beginExport() ?: return
         scope.launch {
-            val export = feedbackViewModel.createEncryptedExport() ?: return@launch
+            val export = feedbackViewModel.createEncryptedExport(request, keepSubmittingOnSuccess = true)
+                ?: return@launch
             if (!feedbackViewModel.isExportCurrent(export)) {
-                notice(EXPIRED_EXPORT)
+                finishNotice(export.generation, EXPIRED_EXPORT)
                 return@launch
             }
             feedbackViewModel.pendingExport = export
             runCatching { launchDocument(export.filename) }.onFailure {
                 feedbackViewModel.pendingExport = null
-                notice("无法打开文件保存位置，请重试")
+                finishNotice(export.generation, "无法打开文件保存位置，请重试")
             }
         }
     }
@@ -89,16 +100,19 @@ internal class FeedbackLogActions(
                     ExportSaveResult.Expired
                 } else if (saved) ExportSaveResult.Saved else ExportSaveResult.Failed
             }
-            notice(when (result) {
-                ExportSaveResult.Saved -> "加密日志已保存"
-                ExportSaveResult.Expired -> EXPIRED_EXPORT
-                ExportSaveResult.Failed -> "保存失败，请重新选择保存位置"
-            })
+            finishNotice(
+                export.generation,
+                when (result) {
+                    ExportSaveResult.Saved -> "加密日志已保存"
+                    ExportSaveResult.Expired -> EXPIRED_EXPORT
+                    ExportSaveResult.Failed -> "保存失败，请重新选择保存位置"
+                }
+            )
         }
     }
 
     private fun discardExpiredDocument(uri: Uri) {
-        notice(EXPIRED_EXPORT)
+        Toast.makeText(context, EXPIRED_EXPORT, Toast.LENGTH_LONG).show()
         scope.launch(Dispatchers.IO) { deleteDocument(uri) }
     }
 
@@ -107,10 +121,12 @@ internal class FeedbackLogActions(
     }
 
     fun shareLogs() {
+        val request = feedbackViewModel.beginExport() ?: return
         scope.launch {
-            val export = feedbackViewModel.createEncryptedExport() ?: return@launch
+            val export = feedbackViewModel.createEncryptedExport(request, keepSubmittingOnSuccess = true)
+                ?: return@launch
             if (!feedbackViewModel.isExportCurrent(export)) {
-                notice(EXPIRED_EXPORT)
+                finishNotice(export.generation, EXPIRED_EXPORT)
                 return@launch
             }
             val staged = withContext(Dispatchers.IO) {
@@ -139,12 +155,15 @@ internal class FeedbackLogActions(
                 }.onFailure { destination?.delete() }.getOrNull()
             }
             if (staged == null) {
-                notice(if (feedbackViewModel.isExportCurrent(export)) "无法准备加密日志，请重试" else EXPIRED_EXPORT)
+                finishNotice(
+                    export.generation,
+                    if (feedbackViewModel.isExportCurrent(export)) "无法准备加密日志，请重试" else EXPIRED_EXPORT
+                )
                 return@launch
             }
             if (!feedbackViewModel.isExportCurrent(export)) {
                 withContext(Dispatchers.IO) { staged.file.delete() }
-                notice(EXPIRED_EXPORT)
+                finishNotice(export.generation, EXPIRED_EXPORT)
                 return@launch
             }
             val share = Intent(Intent.ACTION_SEND).apply {
@@ -156,9 +175,14 @@ internal class FeedbackLogActions(
             runCatching {
                 check(feedbackViewModel.isExportCurrent(export))
                 context.startActivity(Intent.createChooser(share, "分享加密日志"))
+            }.onSuccess {
+                feedbackViewModel.finishExportAction(export.generation)
             }.onFailure {
-                notice(if (feedbackViewModel.isExportCurrent(export))
-                    "没有可用的分享应用，请使用导出日志" else EXPIRED_EXPORT)
+                finishNotice(
+                    export.generation,
+                    if (feedbackViewModel.isExportCurrent(export))
+                        "没有可用的分享应用，请使用导出日志" else EXPIRED_EXPORT
+                )
             }
         }
     }
@@ -166,8 +190,8 @@ internal class FeedbackLogActions(
     private enum class ExportSaveResult { Saved, Expired, Failed }
     private data class PreparedShare(val file: File, val uri: Uri)
 
-    private fun notice(message: String) {
-        feedbackViewModel.reportExportStatus(message)
+    private fun finishNotice(generation: Long, message: String) {
+        feedbackViewModel.finishExportAction(generation, message)
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 

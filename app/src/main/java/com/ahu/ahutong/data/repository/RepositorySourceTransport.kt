@@ -206,6 +206,15 @@ internal class RepositorySourceHealthMonitor(
     }
 }
 
+internal enum class RepositoryFallbackMode {
+    /** 兼容既有自动回退（Markdown 预览等）：常规源全部不可用时自动走备用源 force。 */
+    AUTO,
+    /** 仅使用标准下载通道（不静默走备用源 force），交由上层显式重试。 */
+    STANDARD_ONLY,
+    /** 直接使用备用源 force=1 通道下载。 */
+    FORCE_ONLY
+}
+
 /** 下载和 Markdown 共用回退顺序，避免某条路径遗忘自动备用源。 */
 internal class RepositoryDownloadTransport(
     private val client: OkHttpClient,
@@ -219,6 +228,7 @@ internal class RepositoryDownloadTransport(
         rawUrl: String,
         cdnUrl: String,
         preferredSourceId: String,
+        fallbackMode: RepositoryFallbackMode = RepositoryFallbackMode.AUTO,
         diagnostics: RepositoryDownloadDiagnostics? = null,
         read: (Response, Long) -> T?
     ): T {
@@ -226,10 +236,15 @@ internal class RepositoryDownloadTransport(
         try {
             val errors = mutableListOf<Exception>()
             var allDownloadSourcesFailed = false
-            trace.event("health", "preferred=$preferredSourceId state=${monitor.health.value}")
-            // 全挂时复用本进程结果；恢复常规源由用户手动重测确认。
-            if (areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) monitor.test()
-            if (!areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
+            trace.event("health", "preferred=$preferredSourceId mode=$fallbackMode state=${monitor.health.value}")
+            val runStandard = fallbackMode == RepositoryFallbackMode.STANDARD_ONLY || (
+                fallbackMode == RepositoryFallbackMode.AUTO && run {
+                    // 全挂时复用本进程结果；恢复常规源由用户手动重测确认。
+                    if (areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) monitor.test()
+                    !areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)
+                }
+            )
+            if (runStandard) {
                 var link: StorageLinkResponse? = null
                 for (server in servers) {
                     val sourceId = "storage:${server.id}"
@@ -270,7 +285,9 @@ internal class RepositoryDownloadTransport(
                     // 初次下载也检测：打开文件不依赖用户先访问设置页。
                     monitor.test()
                     trace.event("health", "state=${monitor.health.value}")
-                    if (!areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
+                    val tryPrimary = fallbackMode == RepositoryFallbackMode.STANDARD_ONLY ||
+                        !areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)
+                    if (tryPrimary) {
                         val primary = sources.filterNot { it.isFallback }
                             .sortedBy { if (it.id == preferredSourceId) 0 else 1 }
                         for (source in primary) {
@@ -303,13 +320,17 @@ internal class RepositoryDownloadTransport(
                         }
                         allDownloadSourcesFailed = primary.isNotEmpty()
                     }
-                } else {
+                } else if (fallbackMode == RepositoryFallbackMode.AUTO) {
                     // 元数据接口失败时，只有确认四个常规源全挂后才可请求强制接口。
                     monitor.test()
                     trace.event("health", "state=${monitor.health.value}")
                 }
             }
-            if (allDownloadSourcesFailed || areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value)) {
+            val runFallback = fallbackMode == RepositoryFallbackMode.FORCE_ONLY || (
+                fallbackMode == RepositoryFallbackMode.AUTO &&
+                    (allDownloadSourcesFailed || areRepositoryPrimarySourcesUnavailable(sources, monitor.health.value))
+            )
+            if (runFallback) {
                 for (server in servers) {
                     val sourceId = "fallback:${server.id}"
                     try {

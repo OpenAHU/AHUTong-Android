@@ -231,11 +231,11 @@ class LaundryViewModel @Inject constructor(
     fun applyToken(raw: String) {
         val token = LaundryToken.extract(raw)
         if (token == null) {
-            _state.value = _state.value.copy(tokenError = "没认出 token，请确认复制的是洗衣机页面的整条链接")
+            _state.value = _state.value.copy(tokenError = "未识别到有效凭据")
             return
         }
         if (LaundryToken.isExpired(token)) {
-            _state.value = _state.value.copy(tokenError = "这个 token 已经过期了（有效期 2 小时），请重新复制一条")
+            _state.value = _state.value.copy(tokenError = "凭据已过期，请重新获取")
             return
         }
         val probeDevice = devices.firstOrNull() ?: return
@@ -249,18 +249,18 @@ class LaundryViewModel @Inject constructor(
                     token = token,
                     tokenExpiresAt = LaundryToken.expiresAtMillis(token),
                     refreshing = false,
-                    hint = "已连上，正在刷新状态"
+                    hint = "凭据已导入"
                 )
                 refresh()
             } catch (auth: LaundryAuthException) {
                 _state.value = _state.value.copy(
                     refreshing = false,
-                    tokenError = "平台不认这个 token（可能刚过期），回到微信重新复制一次"
+                    tokenError = "凭据已失效，请重新获取"
                 )
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 _state.value = _state.value.copy(
                     refreshing = false,
-                    tokenError = "校验失败：${error.javaClass.simpleName}，请检查网络后重试"
+                    tokenError = "校验失败，请检查网络"
                 )
             }
         }
@@ -274,7 +274,7 @@ class LaundryViewModel @Inject constructor(
             tokenExpiresAt = null,
             updatedAt = null,
             tokenError = null,
-            hint = "已断开连接"
+            hint = "凭据已清除"
         )
         rebuild()
     }
@@ -327,12 +327,12 @@ class LaundryViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     refreshing = false,
                     token = null,
-                    hint = "token 已过期，去微信重新复制一条链接"
+                    hint = "凭据已过期，请重新导入"
                 )
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 _state.value = _state.value.copy(
                     refreshing = false,
-                    hint = "刷新失败：${error.javaClass.simpleName}"
+                    hint = "刷新失败，请稍后重试"
                 )
             }
             rebuild()
@@ -411,7 +411,7 @@ class LaundryViewModel @Inject constructor(
                     parks = emptyList(),
                     rows = emptyList(),
                     floors = emptyList(),
-                    hint = "没有查到可用楼栋"
+                    hint = "暂无可用楼栋"
                 )
                 return
             }
@@ -451,7 +451,7 @@ class LaundryViewModel @Inject constructor(
             parks = emptyList(),
             rows = emptyList(),
             floors = emptyList(),
-            hint = "龙河洗衣房数据获取失败：${error.javaClass.simpleName}"
+            hint = "加载失败，请稍后重试"
         )
     }
 
@@ -486,11 +486,11 @@ class LaundryViewModel @Inject constructor(
                 )
             } catch (cancel: CancellationException) {
                 throw cancel
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 // 限速冷却、网络错都走这里：保留上一次读数，只提示这次没刷上
                 _state.value = _state.value.copy(
                     refreshing = false,
-                    hint = "刷新失败：${error.javaClass.simpleName}"
+                    hint = "刷新失败，请稍后重试"
                 )
             }
             rebuild()
@@ -578,12 +578,12 @@ class LaundryViewModel @Inject constructor(
             is LaundryParkMatch.Hit -> ParkResolution(
                 index = matched.index,
                 prompt = emptyList(),
-                note = "已按宿舍 $building 定位机房"
+                note = building?.let { "已定位：$it" }
             )
             is LaundryParkMatch.Multiple -> ParkResolution(
                 index = matched.indices.first(),
                 prompt = matched.indices,
-                note = "宿舍 $building 对应 ${matched.indices.size} 个机房"
+                note = building?.let { "$it 有多个洗衣房" }
             )
             LaundryParkMatch.None -> ParkResolution(remembered() ?: 0, emptyList(), null)
         }
@@ -596,9 +596,34 @@ class LaundryViewModel @Inject constructor(
 
     private fun rebuild() {
         val current = _state.value
-        val ordered = orderedDevices(visibleDevices(current))
+        val normalized = normalizeMissingFloorSlots(visibleDevices(current))
+        val ordered = orderedDevices(normalized)
         val rows = ordered.map { device -> DeviceRow(device, occupancies[device.id]) }
         _state.value = current.copy(rows = rows, floors = floorsOf(ordered, rows))
+    }
+
+    /**
+     * 台账偶发单台机器缺失机位号（如兰园A栋 7F 仅有 2 号机和空机位洗衣机）：
+     * 若同楼层同方位已有数字机位号，则按 1..N 补齐缺失的最小序号，避免线上台账覆盖后退回显示「洗衣机」。
+     */
+    private fun normalizeMissingFloorSlots(devices: List<LaundryDevice>): List<LaundryDevice> {
+        if (devices.none { it.slot.isNullOrBlank() && it.floor != null }) return devices
+        val usedByGroup = mutableMapOf<Pair<Int, String?>, MutableSet<Int>>()
+        devices.forEach { d ->
+            val floor = d.floor ?: return@forEach
+            val num = d.slot?.toIntOrNull() ?: return@forEach
+            usedByGroup.getOrPut(floor to d.location) { mutableSetOf() }.add(num)
+        }
+        return devices.map { d ->
+            val floor = d.floor
+            if (!d.slot.isNullOrBlank() || floor == null) return@map d
+            val used = usedByGroup[floor to d.location]
+            if (used.isNullOrEmpty()) return@map d
+            var candidate = 1
+            while (candidate in used) candidate++
+            used.add(candidate)
+            d.copy(slot = candidate.toString())
+        }
     }
 
     /**
@@ -646,7 +671,7 @@ class LaundryViewModel @Inject constructor(
             is LaundryParkMatch.Hit -> ParkResolution(
                 index = matched.index,
                 prompt = emptyList(),
-                note = building?.let { "已按宿舍 $it 定位" }
+                note = building?.let { "已定位：$it" }
             )
             is LaundryParkMatch.Multiple -> {
                 val last = remembered()
@@ -655,9 +680,7 @@ class LaundryViewModel @Inject constructor(
                 ParkResolution(
                     index = index,
                     prompt = if (keepLast) emptyList() else matched.indices,
-                    note = building?.let {
-                        "宿舍 $it 对应 ${matched.indices.size} 个洗衣房，已显示 ${parks[index]}"
-                    }
+                    note = building?.let { "$it 有多个洗衣房" }
                 )
             }
             LaundryParkMatch.None -> ParkResolution(

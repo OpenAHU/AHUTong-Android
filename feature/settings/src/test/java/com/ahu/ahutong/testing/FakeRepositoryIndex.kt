@@ -74,8 +74,11 @@ class FakeRepositoryIndex(
 
     override fun formatDisplayPath(path: String): String = path
 
-    override suspend fun downloadFile(path: String, onProgress: (Float) -> Unit): DownloadedFile? =
-        null
+    override suspend fun downloadFile(
+        path: String,
+        forceFallback: Boolean,
+        onProgress: (Float) -> Unit
+    ): DownloadedFile? = null
 
     override fun getDownloadedFiles(): List<DownloadedFile> = emptyList()
 

@@ -64,9 +64,10 @@ class ManagerRepositoryIndex @Inject constructor() : RepositoryIndex {
 
     override suspend fun downloadFile(
         path: String,
+        forceFallback: Boolean,
         onProgress: (Float) -> Unit
     ): DownloadedFile? =
-        RepositoryManager.downloadFile(path, AppEnvironmentHolder.context(), onProgress)
+        RepositoryManager.downloadFile(path, AppEnvironmentHolder.context(), forceFallback, onProgress)
 
     override fun getDownloadedFiles(): List<DownloadedFile> =
         RepositoryManager.getDownloadedFiles(AppEnvironmentHolder.context())

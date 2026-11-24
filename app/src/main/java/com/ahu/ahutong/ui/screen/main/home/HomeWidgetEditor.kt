@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import com.ahu.ahutong.ui.haptics.hapticClickable as clickable
+import com.ahu.ahutong.ui.haptics.hapticCombinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
@@ -91,7 +92,6 @@ internal fun Modifier.homeWidgetEditGesture(enabled: Boolean, onEnterEdit: () ->
         if (!enabled) return@pointerInput
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
-            if (down.position.y < size.height / 2f) return@awaitEachGesture
             val longPress = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
             longPress.consume()
             enterEdit()
@@ -111,6 +111,7 @@ fun HomeWidgetSlotLayout(
     isEditing: Boolean,
     highlightedSlot: Int?,
     draggingWidgetId: String?,
+    onEnterEdit: () -> Unit,
     onRemoveHomeWidget: (slotIndex: Int) -> Unit,
     onAddHomeWidget: (slotIndex: Int) -> Unit,
     onExitEdit: () -> Unit,
@@ -132,6 +133,7 @@ fun HomeWidgetSlotLayout(
             isEditing = isEditing,
             highlightedSlot = highlightedSlot,
             draggingWidgetId = draggingWidgetId,
+            onEnterEdit = onEnterEdit,
             onRemoveHomeWidget = onRemoveHomeWidget,
             onAddHomeWidget = onAddHomeWidget,
             onExitEdit = onExitEdit,
@@ -153,6 +155,7 @@ private fun HomeWidgetSlot(
     isDragging: Boolean,
     modifier: Modifier,
     onNavigate: (route: String) -> Unit,
+    onEnterEdit: () -> Unit,
     onRemove: (slotIndex: Int) -> Unit,
     onAdd: (slotIndex: Int) -> Unit,
     onSlotPositioned: (slotIndex: Int, bounds: Rect) -> Unit,
@@ -218,7 +221,11 @@ private fun HomeWidgetSlot(
                 )
             }
     } else {
-        Modifier.clickable(onClick = { onNavigate(spec.route) })
+        Modifier.hapticCombinedClickable(
+            onClick = { onNavigate(spec.route) },
+            onLongClickLabel = "编辑快捷入口",
+            onLongClick = onEnterEdit
+        )
     }
 
     TextHomeWidgetCard(
@@ -346,11 +353,21 @@ private const val MORE_CELL = 0
 private fun HomeWidgetMoreItem(
     isEditing: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val clickModifier = if (isEditing) {
+        Modifier.clickable(onClick = onClick)
+    } else {
+        Modifier.hapticCombinedClickable(
+            onClick = onClick,
+            onLongClickLabel = "编辑快捷入口",
+            onLongClick = onLongClick
+        )
+    }
     Box(
         modifier = modifier
-            .clickable(onClick = onClick)
+            .then(clickModifier)
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -394,6 +411,7 @@ private fun RadiantHomeWidgetSlotLayout(
     isEditing: Boolean,
     highlightedSlot: Int?,
     draggingWidgetId: String?,
+    onEnterEdit: () -> Unit,
     onRemoveHomeWidget: (slotIndex: Int) -> Unit,
     onAddHomeWidget: (slotIndex: Int) -> Unit,
     onExitEdit: () -> Unit,
@@ -446,6 +464,7 @@ private fun RadiantHomeWidgetSlotLayout(
                             HomeWidgetMoreItem(
                                 isEditing = isEditing,
                                 onClick = { if (isEditing) onExitEdit() else navController.navigate("widgets") },
+                                onLongClick = onEnterEdit,
                                 modifier = Modifier.weight(1f).height(64.dp)
                             )
                         } else {
@@ -461,6 +480,7 @@ private fun RadiantHomeWidgetSlotLayout(
                                     .weight(1f)
                                     .height(64.dp),
                                 onNavigate = { navController.navigate(it) },
+                                onEnterEdit = onEnterEdit,
                                 onRemove = onRemoveHomeWidget,
                                 onAdd = onAddHomeWidget,
                                 onSlotPositioned = onSlotPositioned,

@@ -51,6 +51,7 @@ interface RepositoryIndex {
 
     suspend fun downloadFile(
         path: String,
+        forceFallback: Boolean = false,
         onProgress: (Float) -> Unit = {}
     ): DownloadedFile?
 

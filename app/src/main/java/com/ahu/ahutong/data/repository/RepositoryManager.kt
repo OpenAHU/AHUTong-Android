@@ -531,6 +531,7 @@ object RepositoryManager {
     suspend fun downloadFile(
         path: String,
         context: Context,
+        forceFallback: Boolean = false,
         onProgress: (Float) -> Unit = {}
     ): DownloadedFile? = withContext(Dispatchers.IO) {
         val diagnostics = RepositoryDownloadDiagnostics("file", path)
@@ -564,11 +565,17 @@ object RepositoryManager {
             }
             diagnostics.event(stage, "destination=$targetKind")
             stage = "transfer"
+            val fallbackMode = if (forceFallback) {
+                RepositoryFallbackMode.FORCE_ONLY
+            } else {
+                RepositoryFallbackMode.STANDARD_ONLY
+            }
             val downloaded = downloadTransport.read(
                 fileId = fileId,
                 rawUrl = resolved.source.rawUrl(resolved.repositoryPath),
                 cdnUrl = resolved.source.cdnUrl(resolved.repositoryPath),
                 preferredSourceId = selectedAccelerationSource.id,
+                fallbackMode = fallbackMode,
                 diagnostics = diagnostics
             ) { response, expectedBytes ->
                 streamResponseToTarget(response, target, expectedBytes, onProgress, diagnostics)

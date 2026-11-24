@@ -358,6 +358,55 @@ class RepositoryViewModelTest {
         assertNull(vm.storagePermissionRequest.value)
     }
 
+    @Test
+    fun `standard download retries once with toast and switches to force fallback after two standard failures`() = runTest(dispatcher) {
+        val downloaded = DownloadedFile(name = "notes.pdf", path = "repo/notes.pdf", localPath = "/tmp/notes.pdf")
+        val seenMessages = mutableListOf<String>()
+        val vm = viewModel()
+        repository.onDownload = { _, forceFallback ->
+            vm.message.value?.let { seenMessages += it }
+            if (forceFallback) {
+                repository.downloaded += downloaded
+                downloaded
+            } else {
+                throw java.io.IOException("standard failed")
+            }
+        }
+
+        vm.downloadFile(file("notes.pdf", path = "repo/notes.pdf"))
+        advanceUntilIdle()
+
+        assertEquals(listOf(false, false, true), repository.downloadForceFlags)
+        assertEquals(
+            listOf("下载失败，正在自动重试 (1/1)", "重试失败，正在切换备用源强制下载"),
+            seenMessages
+        )
+        assertEquals("下载完成: notes.pdf", vm.message.value)
+        assertEquals(setOf("repo/notes.pdf"), vm.sharedState.value.downloadedPaths)
+    }
+
+    @Test
+    fun `standard download succeeds on second attempt without triggering force fallback`() = runTest(dispatcher) {
+        val downloaded = DownloadedFile(name = "lab.pdf", path = "repo/lab.pdf", localPath = "/tmp/lab.pdf")
+        val seenMessages = mutableListOf<String>()
+        val vm = viewModel()
+        var attempts = 0
+        repository.onDownload = { _, _ ->
+            vm.message.value?.let { seenMessages += it }
+            attempts++
+            if (attempts == 1) throw java.io.IOException("transient error")
+            repository.downloaded += downloaded
+            downloaded
+        }
+
+        vm.downloadFile(file("lab.pdf", path = "repo/lab.pdf"))
+        advanceUntilIdle()
+
+        assertEquals(listOf(false, false), repository.downloadForceFlags)
+        assertEquals(listOf("下载失败，正在自动重试 (1/1)"), seenMessages)
+        assertEquals("下载完成: lab.pdf", vm.message.value)
+    }
+
     private fun file(name: String, path: String = name) =
         GitHubContentItem(name = name, path = path, type = "file")
 
@@ -372,7 +421,9 @@ class RepositoryViewModelTest {
         var failNextWarmUp = false
         var downloadResult: DownloadedFile? = null
         var downloadFailure: Throwable? = null
+        var onDownload: (suspend (String, Boolean) -> DownloadedFile?)? = null
         val downloadRequests = mutableListOf<String>()
+        val downloadForceFlags = mutableListOf<Boolean>()
         val downloadCalls: Int get() = downloadRequests.size
         var sourceProbeGate: CompletableDeferred<Unit>? = null
         var sourceProbeCalls = 0
@@ -435,9 +486,12 @@ class RepositoryViewModelTest {
 
         override suspend fun downloadFile(
             path: String,
+            forceFallback: Boolean,
             onProgress: (Float) -> Unit
         ): DownloadedFile? {
             downloadRequests += path
+            downloadForceFlags += forceFallback
+            onDownload?.let { return it(path, forceFallback) }
             downloadFailure?.let { throw it }
             return downloadResult
         }

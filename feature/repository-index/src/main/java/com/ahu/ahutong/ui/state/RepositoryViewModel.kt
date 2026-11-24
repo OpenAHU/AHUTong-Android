@@ -364,7 +364,7 @@ class RepositoryViewModel @Inject constructor(
         _sharedState.update { it.copy(downloadProgress = it.downloadProgress + (path to 0f)) }
         viewModelScope.launch {
             try {
-                val file = repository.downloadFile(path) { progress ->
+                val file = downloadWithExplicitRetry(item) { progress ->
                     _sharedState.update { it.copy(downloadProgress = it.downloadProgress + (path to progress)) }
                 }
                 if (file != null) {
@@ -384,6 +384,56 @@ class RepositoryViewModel @Inject constructor(
             } finally {
                 _sharedState.update { it.copy(downloadProgress = it.downloadProgress - path) }
             }
+        }
+    }
+
+    /**
+     * 显式自动重试：标准下载最多尝试 2 次（用户触发 1 次 + 自动重试 1 次），
+     * 均失败则直接切换备用源强制下载，并通过 Toast（[_message]）通知用户。
+     */
+    private suspend fun downloadWithExplicitRetry(
+        item: GitHubContentItem,
+        onProgress: (Float) -> Unit
+    ): DownloadedFile? {
+        var lastError: Exception? = null
+        for (attempt in 1..STANDARD_DOWNLOAD_MAX_ATTEMPTS) {
+            if (attempt > 1) {
+                onProgress(0f)
+                _message.value = "下载失败，正在自动重试 (${attempt - 1}/${STANDARD_DOWNLOAD_MAX_ATTEMPTS - 1})"
+            }
+            try {
+                val file = repository.downloadFile(
+                    path = item.path,
+                    forceFallback = false,
+                    onProgress = onProgress
+                )
+                if (file != null) return file
+                lastError = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (security: SecurityException) {
+                throw security
+            } catch (error: Exception) {
+                lastError = error
+            }
+        }
+        onProgress(0f)
+        _message.value = "重试失败，正在切换备用源强制下载"
+        return try {
+            repository.downloadFile(
+                path = item.path,
+                forceFallback = true,
+                onProgress = onProgress
+            ) ?: lastError?.let { throw it }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (security: SecurityException) {
+            throw security
+        } catch (fallbackError: Exception) {
+            if (lastError != null && lastError !== fallbackError) {
+                fallbackError.addSuppressed(lastError)
+            }
+            throw fallbackError
         }
     }
 
@@ -592,6 +642,8 @@ class RepositoryViewModel @Inject constructor(
     }
 
     companion object {
+        private const val STANDARD_DOWNLOAD_MAX_ATTEMPTS = 2
+
         fun isMarkdownFile(name: String): Boolean {
             return name.lowercase().endsWith(".md")
         }

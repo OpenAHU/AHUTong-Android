@@ -161,4 +161,31 @@ class FeedbackCoordinatorTest {
         assertEquals(feedbackStatus, coordinator.state.value.status)
         assertNotNull(coordinator.state.value.exportStatus)
     }
+
+    @Test fun concurrentPreviewExportAndSubmitClicksAreGuardedUntilFinished() {
+        val coordinator = coordinator()
+        coordinator.setDescription("卡顿测试")
+
+        val previewReq = coordinator.beginPreview()
+        assertNotNull(previewReq)
+        assertTrue(coordinator.state.value.previewLoading)
+        assertNull(coordinator.beginPreview())
+        assertNull(coordinator.beginSubmit())
+        assertNull(coordinator.beginExport())
+        coordinator.completePreview(previewReq!!)
+        assertFalse(coordinator.state.value.previewLoading)
+        assertNotNull(coordinator.state.value.preview)
+
+        val exportReq = coordinator.beginExport()
+        assertNotNull(exportReq)
+        assertTrue(coordinator.state.value.submitting)
+        assertNull(coordinator.beginExport())
+        assertNull(coordinator.beginPreview())
+        coordinator.finishExport(success = true, expectedGeneration = generation, keepSubmitting = true)
+        assertTrue(coordinator.state.value.submitting)
+        assertNull(coordinator.beginExport())
+        coordinator.finishExportAction(generation, "加密日志已保存")
+        assertFalse(coordinator.state.value.submitting)
+        assertEquals("加密日志已保存", coordinator.state.value.exportStatus)
+    }
 }

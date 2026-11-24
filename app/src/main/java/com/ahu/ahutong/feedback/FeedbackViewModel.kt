@@ -9,6 +9,7 @@ import com.ahu.ahutong.core.common.AppEnvironmentHolder
 import com.ahu.ahutong.core.common.diagnostics.DiagnosticCategory
 import com.ahu.ahutong.core.common.diagnostics.FeedbackDiagnostics
 import com.ahu.ahutong.sdk.RustSDK
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,13 +22,19 @@ internal object AppFeedbackDraft {
     val coordinator: FeedbackCoordinator
         @Synchronized get() = existing ?: create().also { existing = it }
     @Synchronized fun clearIfCreated() { existing?.clear() }
-    private fun create() = FeedbackCoordinator(SentryFeedbackTransport(), FeedbackDiagnostics::snapshot, {
-        "AHUTong ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
-            "Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}\n" +
-            "设备 ${Build.MANUFACTURER} ${Build.MODEL}\n构建 ${BuildConfig.BUILD_TYPE}\n" +
-            if (RustSDK.isNativeLogBridgeActive()) "Rust 日志：已连接"
-            else "Rust 日志：尚未采集（原生库未支持或尚未初始化）"
-    }, FeedbackDiagnostics::currentGeneration)
+    private fun create() = FeedbackCoordinator(
+        transport = SentryFeedbackTransport(),
+        snapshot = FeedbackDiagnostics::snapshot,
+        environment = {
+            "AHUTong ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+                "Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}\n" +
+                "设备 ${Build.MANUFACTURER} ${Build.MODEL}\n构建 ${BuildConfig.BUILD_TYPE}\n" +
+                if (RustSDK.isNativeLogBridgeActive()) "Rust 日志：已连接"
+                else "Rust 日志：尚未采集（原生库未支持或尚未初始化）"
+        },
+        generation = FeedbackDiagnostics::currentGeneration,
+        snapshotPreSanitized = true
+    )
 }
 
 class FeedbackViewModel : ViewModel() {
@@ -50,24 +57,41 @@ class FeedbackViewModel : ViewModel() {
         }
     }
     fun isExportCurrent(export: EncryptedFeedbackExport): Boolean = export.generation == FeedbackDiagnostics.currentGeneration()
-    fun showPreview() { viewModelScope.launch(Dispatchers.Default) { coordinator.showPreview() } }
+    fun showPreview() {
+        val request = coordinator.beginPreview() ?: return
+        viewModelScope.launch(Dispatchers.Default) { coordinator.completePreview(request) }
+    }
     fun dismissPreview() = coordinator.dismissPreview()
     fun reportExportStatus(message: String) = coordinator.reportExportStatus(message)
-    fun submit() { viewModelScope.launch(Dispatchers.IO) { coordinator.submit() } }
+    fun submit() {
+        val request = coordinator.beginSubmit() ?: return
+        viewModelScope.launch(Dispatchers.IO) { coordinator.completeSubmit(request) }
+    }
 
-    suspend fun createEncryptedExport(): EncryptedFeedbackExport? = withContext(Dispatchers.IO) {
-        val generation = FeedbackDiagnostics.currentGeneration()
-        val text = coordinator.exportText() ?: return@withContext null
+    internal fun beginExport(): FeedbackCoordinator.ExportRequest? = coordinator.beginExport()
+
+    internal fun finishExportAction(generation: Long, message: String? = null) =
+        coordinator.finishExportAction(generation, message)
+
+    internal suspend fun createEncryptedExport(
+        request: FeedbackCoordinator.ExportRequest,
+        keepSubmittingOnSuccess: Boolean = false
+    ): EncryptedFeedbackExport? = withContext(Dispatchers.IO) {
+        val generation = request.generation
         try {
+            val text = coordinator.buildExportText(request)
             val pem = AppEnvironmentHolder.context().resources.openRawResource(R.raw.feedback_export_public_key)
                 .bufferedReader().use { it.readText() }
             val encrypted = FeedbackLogEncryption.encrypt(text, pem)
             val stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC).format(Instant.now())
-            if (coordinator.finishExport(true, generation)) EncryptedFeedbackExport("AHUTong-logs-$stamp.ahulog", encrypted, generation)
-            else null
+            if (coordinator.finishExport(true, generation, keepSubmitting = keepSubmittingOnSuccess)) {
+                EncryptedFeedbackExport("AHUTong-logs-$stamp.ahulog", encrypted, generation)
+            } else {
+                null
+            }
         } catch (error: Exception) {
             coordinator.finishExport(false, generation)
-            if (error is kotlinx.coroutines.CancellationException) throw error
+            if (error is CancellationException) throw error
             null
         }
     }

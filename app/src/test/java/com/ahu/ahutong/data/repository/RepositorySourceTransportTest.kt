@@ -427,6 +427,43 @@ class RepositorySourceTransportTest {
         assertTrue(monitor.health.value.values.all { it == RepositorySourceHealth.UNTESTED })
     }
 
+    @Test
+    fun `standard only mode never invokes force and force only mode jumps straight to backup`() = runBlocking {
+        val standardVisited = Collections.synchronizedList(mutableListOf<String>())
+        val monitor = RepositorySourceHealthMonitor(sources, probe = { true })
+        val failingClient = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            standardVisited += request.url.toString()
+            if (request.url.host.endsWith("muxyang.com")) linkResponse(request)
+            else response(request, "unavailable".toResponseBody(), 503)
+        }.build()
+
+        assertFailsWith<IOException> {
+            RepositoryDownloadTransport(failingClient, servers, sources, monitor).read<String>(
+                "a", "https://raw.githubusercontent.com/example/repo/main/a.pdf",
+                "https://cdn.jsdelivr.net/gh/example/repo@main/a.pdf", "jsdelivr",
+                fallbackMode = RepositoryFallbackMode.STANDARD_ONLY
+            ) { response, _ -> response.body!!.string() }
+        }
+        assertTrue(standardVisited.none { it.contains("f=1") })
+
+        val forceVisited = Collections.synchronizedList(mutableListOf<String>())
+        val forceClient = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            forceVisited += request.url.toString()
+            response(request, "forced-body".toResponseBody())
+                .newBuilder().header("X-Download-Type", "file").build()
+        }.build()
+        val result = RepositoryDownloadTransport(forceClient, servers, sources, monitor).read(
+            "a", "https://raw.githubusercontent.com/example/repo/main/a.pdf",
+            "https://cdn.jsdelivr.net/gh/example/repo@main/a.pdf", "jsdelivr",
+            fallbackMode = RepositoryFallbackMode.FORCE_ONLY
+        ) { response, _ -> response.body!!.string() }
+        assertEquals("forced-body", result)
+        assertEquals(1, forceVisited.size)
+        assertTrue(forceVisited.single().endsWith("/api/download?id=a&f=1"))
+    }
+
     private fun response(request: okhttp3.Request, body: okhttp3.ResponseBody, code: Int = 200): Response =
         Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
             .code(code).message("test").body(body).build()
