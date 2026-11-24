@@ -83,6 +83,8 @@ class LaundryViewModel @Inject constructor(
     private var devices: List<LaundryDevice> = emptyList()
     private var occupancies: Map<String, LaundryOccupancy> = emptyMap()
     private var refreshJob: Job? = null
+    /** 台账升级任务：同时只跑一个，避免重复下载。 */
+    private var tableJob: Job? = null
     /** 台账线上检查节流时间戳（毫秒）。 */
     private var lastTableCheck = System.currentTimeMillis()
     /** 龙河的机房列表（门店 → 机型 → 机房），换校区/机型才重取。 */
@@ -124,10 +126,11 @@ class LaundryViewModel @Inject constructor(
             tableUpdatedAt = loaded.updatedAt.takeIf { it.isNotBlank() }
         )
         rebuild()
-        // 线上台账增量升级：304/失败都静默，基线已兜底；成功后重建列表
-        // 进页面必须有一次占用查询：升级成功时 upgradeTable 内部已发起，否则这里补一次
-        val upgraded = upgradeTable()
-        if (!upgraded) refresh()
+        // 占用查询必须立刻发起：台账域名在境外，慢的时候能卡几十秒，
+        // 排在下载后面会让首屏长时间全是「—」，用户只能手动再刷一次。
+        refresh()
+        // 台账增量升级并行跑；升级成功时 upgradeTable 内部会再查一次占用。
+        startTableUpgrade()
     }
 
     fun selectPark(index: Int) {
@@ -665,6 +668,13 @@ class LaundryViewModel @Inject constructor(
         }
     }
 
+    /** 台账升级同一时刻只允许一次下载（20s 超时 + 重试，重复发起没意义还会拖慢首屏）。 */
+    private fun startTableUpgrade() {
+        if (tableJob?.isActive == true) return
+        lastTableCheck = System.currentTimeMillis()
+        tableJob = viewModelScope.launch { upgradeTable() }
+    }
+
     /**
      * 台账检查节流：手动刷新/下拉刷新顺带看一眼线上有没有新版本。
      * 之前只在 ViewModel 创建时检查一次，页面常驻就永远拉不到新表。
@@ -672,8 +682,7 @@ class LaundryViewModel @Inject constructor(
     private fun maybeUpgradeTable() {
         val now = System.currentTimeMillis()
         if (now - lastTableCheck < TABLE_CHECK_INTERVAL_MS) return
-        lastTableCheck = now
-        viewModelScope.launch { upgradeTable() }
+        startTableUpgrade()
     }
 
     private companion object {

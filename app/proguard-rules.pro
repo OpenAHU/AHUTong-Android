@@ -110,6 +110,11 @@
 # 422。整包保留，以后新增模型不必再逐条补规则。
 -keep class com.ahu.ahutong.data.canteen.** { *; }
 -keep class com.ahu.ahutong.data.wall.** { *; }
+
+# 洗衣房（乐摇摇 + 趣智校园）DTO 是 Retrofit/Gson 线上契约，字段名即 JSON 键名。缺规则时
+# -repackageclasses + R8 full mode 会把 code/items/orgName 改名，release 包解析结果全为 null：
+# 趣智校园机型返回 0 台、乐摇摇占用一律取不到（debug 正常，只在正式包复现）。
+-keep class com.ahu.ahutong.data.laundry.** { *; }
 # 插件契约：插件按全限定名引用这些类型，宿主 R8 不得改名/裁剪。
 # 只保留成员不够——类名被改成 qb:/xz6: 后，插件在 release 下会直接找不到 AhuPlugin。
 -keep class com.ahu.ahutong.core.plugin.** { *; }

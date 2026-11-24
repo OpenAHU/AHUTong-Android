@@ -53,18 +53,31 @@ interface LaundryApi {
          */
         object TABLE {
             private val client = AhuHttp.plain()
-                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                // 服务器在境外，校内网首包/TLS 握手常常 10s 以上，超时过短会一直拉不到台账
+                .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
             suspend fun request(etag: String?): TableDownload? = kotlinx.coroutines.withContext(
                 kotlinx.coroutines.Dispatchers.IO
             ) {
+                var last: java.io.IOException? = null
+                repeat(2) {
+                    try {
+                        return@withContext downloadOnce(etag)
+                    } catch (error: java.io.IOException) {
+                        last = error
+                    }
+                }
+                throw last ?: java.io.IOException("table download failed")
+            }
+
+            private fun downloadOnce(etag: String?): TableDownload? {
                 val builder = okhttp3.Request.Builder()
                     .url(URL)
                     .header("User-Agent", USER_AGENT)
                 if (!etag.isNullOrBlank()) builder.header("If-None-Match", etag)
-                client.newCall(builder.build()).execute().use { response ->
+                return client.newCall(builder.build()).execute().use { response ->
                     when {
                         response.code == 304 -> null
                         response.isSuccessful -> {
