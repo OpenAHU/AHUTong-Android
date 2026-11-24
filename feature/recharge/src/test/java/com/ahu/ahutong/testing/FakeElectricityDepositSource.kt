@@ -2,6 +2,7 @@ package com.ahu.ahutong.testing
 
 import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.model.CampusDataItem
+import com.ahu.ahutong.data.model.DormitoryInfo
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityController
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
@@ -17,16 +18,19 @@ class FakeElectricityDepositSource(
     private var selection: RoomSelectionInfo?,
     var optionsResult: AhuResult<List<CampusDataItem>>,
     var roomResult: AhuResult<ElectricityRoom>,
-    var payResult: AhuResult<RechargeReceipt>
+    var payResult: AhuResult<RechargeReceipt>,
+    var dormitory: DormitoryInfo? = null
 ) : ElectricityDepositSource {
 
     val payments = mutableListOf<ElectricityPayment>()
     val roomQueries = mutableListOf<Pair<ElectricityController, RoomSelectionInfo>>()
     var roomHandler: (suspend (RoomSelectionInfo) -> AhuResult<ElectricityRoom>)? = null
+    var optionsHandler: (suspend (ElectricityOptionQuery) -> AhuResult<List<CampusDataItem>>)? = null
     private var history = emptyList<ElectricityDepositHistoryItem>()
     private var chargeInfo: ElectricityChargeInfo? = null
 
-    override suspend fun options(query: ElectricityOptionQuery): AhuResult<List<CampusDataItem>> = optionsResult
+    override suspend fun options(query: ElectricityOptionQuery): AhuResult<List<CampusDataItem>> =
+        optionsHandler?.invoke(query) ?: optionsResult
 
     override suspend fun room(
         controller: ElectricityController,
@@ -60,4 +64,6 @@ class FakeElectricityDepositSource(
     override fun saveChargeInfo(info: ElectricityChargeInfo) {
         chargeInfo = info
     }
+
+    override fun dormitoryInfo(): DormitoryInfo? = dormitory
 }

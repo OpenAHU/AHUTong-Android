@@ -28,6 +28,7 @@ import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
 import com.ahu.ahutong.data.model.ElectricityAlertConfiguration
 import com.ahu.ahutong.data.model.ElectricityAlertRoom
 import com.ahu.ahutong.data.model.RoomSelectionInfo
+import com.ahu.ahutong.data.recharge.ElectricityBuildingMatch
 import com.ahu.ahutong.data.recharge.ElectricityDepositSource
 import com.ahu.ahutong.data.recharge.ElectricityOptionLevel
 import com.ahu.ahutong.data.recharge.ElectricityOptionQuery
@@ -350,6 +351,7 @@ class ElectricityDepositViewModel @Inject constructor(
         selectionLoadJob = viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            var chained = false
             try {
                 val response = getInitialOptions()
                 val items = response.valueOrNull()
@@ -357,13 +359,15 @@ class ElectricityDepositViewModel @Inject constructor(
                     if (_selectedController.value.requiresCampus) {
                         _campusList.value = items
                         if (_selectedCampus.value == null) {
-                            items.firstOrNull()?.let { first ->
-                                _selectedCampus.value = first
+                            preferredCampus(items)?.let { campus ->
+                                _selectedCampus.value = campus
                                 fetchBuildings()
+                                chained = true
                             }
                         }
                     } else {
                         _buildingsList.value = items
+                        chained = autoSelectBuilding(items)
                     }
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载电控选项失败"
@@ -373,7 +377,7 @@ class ElectricityDepositViewModel @Inject constructor(
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (isActive && (_errorMessage.value != null || _selectedCampus.value == null)) {
+                if (isActive && !chained && (_errorMessage.value != null || _selectedCampus.value == null)) {
                     _isLoading.value = false
                 }
             }
@@ -393,11 +397,13 @@ class ElectricityDepositViewModel @Inject constructor(
         selectionLoadJob = viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            var chained = false
             try {
                 val response = getBuildings()
                 val items = response.valueOrNull()
                 if (items != null) {
                     _buildingsList.value = items
+                    chained = autoSelectBuilding(items)
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载楼栋失败"
                 }
@@ -406,7 +412,7 @@ class ElectricityDepositViewModel @Inject constructor(
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (isActive && (_errorMessage.value != null || _selectedBuilding.value == null)) {
+                if (isActive && !chained && (_errorMessage.value != null || _selectedBuilding.value == null)) {
                     _isLoading.value = false
                 }
             }
@@ -415,6 +421,34 @@ class ElectricityDepositViewModel @Inject constructor(
 
     private suspend fun getBuildings(): AhuResult<List<CampusDataItem>> {
         return source.options(optionQuery(ElectricityOptionLevel.Buildings))
+    }
+
+    /** 电控 C 先选校区：优先落宿舍所在校区，匹配不到才用列表首项。 */
+    private fun preferredCampus(items: List<CampusDataItem>): CampusDataItem? {
+        val key = source.dormitoryInfo()?.campus?.replace("校区", "")?.trim().orEmpty()
+        if (key.isNotEmpty()) {
+            items.firstOrNull { it.name.replace(" ", "").contains(key) }?.let { return it }
+        }
+        return items.firstOrNull()
+    }
+
+    /** 按宿舍楼栋预选楼栋：唯一命中才选中并继续拉楼层，多候选或无匹配都留给用户自己选。 */
+    private fun autoSelectBuilding(items: List<CampusDataItem>): Boolean {
+        if (_selectedBuilding.value != null) return false
+        val buildingName = source.dormitoryInfo()?.building
+        if (buildingName.isNullOrBlank()) return false
+        val hits = ElectricityBuildingMatch.candidates(buildingName, items.map { it.name })
+        val building = hits.singleOrNull()?.let { name -> items.firstOrNull { it.name == name } }
+        if (building == null) return false
+        _selectedBuilding.value = building
+        _floorsList.value = emptyList()
+        _selectedFloor.value = null
+        _roomsList.value = emptyList()
+        _selectedRoom.value = null
+        _fullRoomDetails.value = null
+        _roomInfo.value = null
+        fetchFloor()
+        return true
     }
 
     private fun fetchFloor() {
@@ -426,11 +460,13 @@ class ElectricityDepositViewModel @Inject constructor(
         selectionLoadJob = viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            var chained = false
             try {
                 val response = getFloor()
                 val items = response.valueOrNull()
                 if (items != null) {
                     _floorsList.value = items
+                    chained = autoSelectRoom(items)
                 } else {
                     _errorMessage.value = response.errorOrNull()?.toUserMessage()?.takeIf { it.isNotBlank() } ?: "加载楼层失败"
                 }
@@ -439,11 +475,41 @@ class ElectricityDepositViewModel @Inject constructor(
             } catch (e: Exception) {
                 _errorMessage.value = "网络错误: ${e.message}"
             } finally {
-                if (isActive && (_errorMessage.value != null || _selectedFloor.value == null)) {
+                if (isActive && !chained && (_errorMessage.value != null || _selectedFloor.value == null)) {
                     _isLoading.value = false
                 }
             }
         }
+    }
+
+    /**
+     * 按宿舍号定位楼层与房间：逐层拉房间选项，找到与本机宿舍号完全相同的房间即选中。
+     * 楼层最多 6 层，命中即停；找不到或用户已手动选择时不动选择。
+     */
+    private suspend fun autoSelectRoom(floors: List<CampusDataItem>): Boolean {
+        if (_selectedFloor.value != null || _selectedRoom.value != null) return false
+        val dorm = source.dormitoryInfo() ?: return false
+        val roomNumber = dorm.room.trim()
+        if (roomNumber.isEmpty()) return false
+
+        for (floor in floors) {
+            if (_selectedFloor.value != null || _selectedRoom.value != null) return false
+            val rooms = source.options(
+                ElectricityOptionQuery(
+                    controller = _selectedController.value,
+                    selection = currentSelection().copy(floor = floor, room = null),
+                    level = ElectricityOptionLevel.Rooms
+                )
+            ).valueOrNull().orEmpty()
+            val room = rooms.firstOrNull { it.name.trim() == roomNumber } ?: continue
+
+            _selectedFloor.value = floor
+            _roomsList.value = rooms
+            _selectedRoom.value = room
+            fetchRoomInfo()
+            return true
+        }
+        return false
     }
 
     private suspend fun getFloor(): AhuResult<List<CampusDataItem>> {

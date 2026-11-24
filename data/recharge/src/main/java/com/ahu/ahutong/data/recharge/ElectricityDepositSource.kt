@@ -4,6 +4,7 @@ import com.ahu.ahutong.core.common.AhuResult
 import com.ahu.ahutong.data.model.CampusDataItem
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityController
+import com.ahu.ahutong.data.model.DormitoryInfo
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
 import com.ahu.ahutong.data.model.RoomSelectionInfo
 
@@ -42,4 +43,10 @@ interface ElectricityDepositSource {
     fun chargeInfo(): ElectricityChargeInfo?
 
     fun saveChargeInfo(info: ElectricityChargeInfo)
+
+    /**
+     * 本机保存的宿舍信息，用于进页面时预选楼栋。
+     * 只用于选择，不参与计费；没有住宿信息时返回 null。
+     */
+    fun dormitoryInfo(): DormitoryInfo?
 }

@@ -14,6 +14,7 @@ import com.ahu.ahutong.data.crawler.model.ycard.ElectricityRoomInfoApiResponse
 import com.ahu.ahutong.data.crawler.model.ycard.buildSignedPaymentFormBody
 import com.ahu.ahutong.data.dao.AHUCache
 import com.ahu.ahutong.data.model.CampusDataItem
+import com.ahu.ahutong.data.model.DormitoryInfo
 import com.ahu.ahutong.data.model.ElectricityChargeInfo
 import com.ahu.ahutong.data.model.ElectricityController
 import com.ahu.ahutong.data.model.ElectricityDepositHistoryItem
@@ -165,6 +166,9 @@ class RepositoryElectricityDepositSource @Inject constructor() : ElectricityDepo
 
     override fun saveChargeInfo(info: ElectricityChargeInfo) =
         AHUCache.saveElectricityChargeInfo(info)
+
+    override fun dormitoryInfo(): DormitoryInfo? = AHUCache.getDormitoryInfo()
+        ?.takeIf { it.building.isNotBlank() }
 
     private fun optionForm(query: ElectricityOptionQuery): AhuResult<FormBody> {
         val selection = query.selection
