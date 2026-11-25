@@ -605,9 +605,13 @@ class LaundryViewModel @Inject constructor(
     /**
      * 台账偶发单台机器缺失机位号（如兰园A栋 7F 仅有 2 号机和空机位洗衣机）：
      * 若同楼层同方位已有数字机位号，则按 1..N 补齐缺失的最小序号，避免线上台账覆盖后退回显示「洗衣机」。
+     *
+     * 只对带方位的台账生效：龙河的机位号来自平台机器名，缺号说明名字里本来就没有号，
+     * 补一个序号会指向不存在的机位。
      */
     private fun normalizeMissingFloorSlots(devices: List<LaundryDevice>): List<LaundryDevice> {
-        if (devices.none { it.slot.isNullOrBlank() && it.floor != null }) return devices
+        val missing = { d: LaundryDevice -> d.slot.isNullOrBlank() && d.floor != null && d.location != null }
+        if (devices.none(missing)) return devices
         val usedByGroup = mutableMapOf<Pair<Int, String?>, MutableSet<Int>>()
         devices.forEach { d ->
             val floor = d.floor ?: return@forEach

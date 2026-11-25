@@ -52,6 +52,25 @@ class QiekjLaundryMatcherTest {
     }
 
     @Test
+    fun `机位号兼容号前空格与无号写法`() {
+        // 300幢 3 楼这台平台写成「787 号3楼」，号前带空格；以前解析失败后被补成「1」
+        assertEquals("787", QiekjLaundryMatcher.slotOf("787 号3楼"))
+        assertEquals(3, QiekjLaundryMatcher.floorOf("787 号3楼"))
+        assertEquals("787", QiekjLaundryMatcher.slotOf("787\u3000号3楼"))
+        // 博士楼 / 306 洗衣房不写「号」，机位号直接跟在楼层后
+        assertEquals("659", QiekjLaundryMatcher.slotOf("博士楼-1楼659"))
+        assertEquals(1, QiekjLaundryMatcher.floorOf("博士楼-1楼659"))
+        assertEquals("206", QiekjLaundryMatcher.slotOf("306幢 206"))
+        assertEquals("754", QiekjLaundryMatcher.slotOf("博士楼-5楼754"))
+        // 只有楼层、本来没有机位号的不许编造
+        assertNull(QiekjLaundryMatcher.slotOf("300幢4楼"))
+        assertNull(QiekjLaundryMatcher.slotOf("209栋2楼洗鞋机"))
+        // 带「号」的仍取机位号，不取楼栋号
+        assertEquals("756", QiekjLaundryMatcher.slotOf("756号4楼300幢"))
+        assertEquals("762", QiekjLaundryMatcher.slotOf("762号300幢2楼"))
+    }
+
+    @Test
     fun `剩余时间文案换算成毫秒`() {
         assertEquals(1_200_000L, QiekjLaundryMatcher.remainingMillis("20分钟"))
         assertEquals(49_000L, QiekjLaundryMatcher.remainingMillis("49秒"))

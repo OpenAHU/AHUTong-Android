@@ -21,8 +21,11 @@ object QiekjLaundryMatcher {
     /** 机器名里的楼栋原文（「205幢084号」→ 205幢）。 */
     private val BUILDING_LABEL = Regex("\\d{3}\\s*[幢栋]")
 
-    /** 机位号：紧跟在「号」前的数字（「602号1楼203栋」→ 602，「402幢1楼155号」→ 155）。 */
-    private val SLOT = Regex("(\\d+)号")
+    /** 机位号：紧跟在「号」前的数字（「602号1楼203栋」→ 602，「402幢1楼155号」→ 155）；平台偶发把号写成「787 号3楼」。 */
+    private val SLOT = Regex("(\\d+)[\\s\\u3000]*号")
+
+    /** 部分机房不写「号」，机位号直接跟在楼层后面（「博士楼-1楼659」「306幢 206」）。 */
+    private val TRAILING_SLOT = Regex("(\\d+)(?![\\s\\u3000]*[楼层幢栋Ff号\\d])")
 
     /** 楼层：`xx楼`/`xx层`/`xxF`，楼号有中文写法（「300幢二楼536号」→ 2）。 */
     private val FLOOR = Regex("([0-9一二三四五六七八九十]{1,3})\\s*[楼层Ff]")
@@ -75,7 +78,11 @@ object QiekjLaundryMatcher {
             .distinctBy { it.key }
             .sortedBy { if (it.key.all { ch -> ch.isDigit() }) "0${it.key}" else "1${it.label}" }
 
-    fun slotOf(goodsName: String?): String? = goodsName?.let { SLOT.find(it)?.groupValues?.get(1) }
+    /** 机位号：「xx号」优先，没有「号」的机房退回末尾的裸机位号；只有楼层没有机位号时返回 null。 */
+    fun slotOf(goodsName: String?): String? = goodsName?.let { name ->
+        SLOT.find(name)?.groupValues?.get(1)
+            ?: TRAILING_SLOT.findAll(name).lastOrNull()?.groupValues?.get(1)
+    }
 
     fun floorOf(goodsName: String?): Int? = goodsName
         ?.let { FLOOR.find(it)?.groupValues?.get(1) }
