@@ -77,8 +77,10 @@ class LaundryDeviceTable @Inject constructor(@ApplicationContext private val con
             return false
         }
         record("升级成功 version=${fresh.version} devices=${fresh.devices.size} parks=${fresh.parks.size}")
-        persist(result.text, result.etag)
+        // 先让本次会话生效再落盘：磁盘异常不该把已经下到手的表一起废掉
         cached = fresh
+        runCatching { persist(result.text, result.etag) }
+            .onFailure { Log.w(TAG, "台账落盘失败", it) }
         return true
     }
 
@@ -99,7 +101,11 @@ class LaundryDeviceTable @Inject constructor(@ApplicationContext private val con
 
     private suspend fun persist(text: String, etag: String?) {
         withContext(Dispatchers.IO) {
-            cacheFile().writeText(text)
+            val file = cacheFile()
+            // 正式包 record() 被 BuildConfig.DEBUG 关掉，不会顺带建目录；
+            // 这里必须自己 mkdirs，否则 writeText 抛 ENOENT，整个升级被 runCatching 静默吞掉。
+            file.parentFile?.mkdirs()
+            file.writeText(text)
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString(ETAG_KEY, etag).apply()
         }
