@@ -20,6 +20,12 @@ object ShortcutRoutes {
         if (route in allowed) _pending.value = route
     }
 
+    /** Only the debug shell bridge may publish routes outside launcher shortcuts. */
+    internal fun publishFromCli(route: String) {
+        check(BuildConfig.DEBUG)
+        _pending.value = route
+    }
+
     fun consume(route: String) {
         if (_pending.value == route) _pending.value = null
     }

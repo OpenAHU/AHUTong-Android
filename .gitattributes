@@ -1,0 +1,2 @@
+cli/ahu text eol=lf
+cli/ahu.cmd text eol=crlf

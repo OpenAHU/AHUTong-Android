@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ahutong-cli"
+version = "0.1.0"
+description = "AHUTong command line client with an Android business companion"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.scripts]
+ahu = "ahutong_cli:main"
+AHUTongCLI = "ahutong_cli:main"
+
+[tool.setuptools]
+py-modules = ["ahutong_cli"]
